@@ -1,0 +1,23 @@
+import { Badge } from "@/components/ui/layout";
+import type { Announcement } from "@/lib/types";
+
+export type AnnouncementState = "inactive" | "scheduled" | "live" | "ended";
+
+export function announcementState(a: Announcement, now = new Date().toISOString()): AnnouncementState {
+  if (!a.is_active) return "inactive";
+  if (now < a.starts_at) return "scheduled";
+  if (a.ends_at && now > a.ends_at) return "ended";
+  return "live";
+}
+
+const LABEL: Record<AnnouncementState, [string, "green" | "blue" | "gray" | "amber"]> = {
+  live: ["Tayang", "green"],
+  scheduled: ["Terjadwal", "blue"],
+  ended: ["Berakhir", "gray"],
+  inactive: ["Nonaktif", "amber"],
+};
+
+export function AnnouncementStatusBadge({ a }: { a: Announcement }) {
+  const [label, tone] = LABEL[announcementState(a)];
+  return <Badge tone={tone}>{label}</Badge>;
+}

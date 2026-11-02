@@ -1365,14 +1365,14 @@ Estimasi untuk tim kecil; sesuaikan setelah kapasitas tim jelas.
 ### 13.3 Checklist Ringkas per Fase
 **Fase 1: Fondasi**
 - [x] Refresh token rotasi + deteksi reuse (tes integrasi)
-- [x] MFA TOTP untuk `sdm` (tes integrasi; belum dicoba di server)
-- [x] Aktivasi lewat undangan sekali pakai (tes integrasi; belum dicoba di server)
+- [x] MFA TOTP untuk `sdm` (tes integrasi; dikonfirmasi berjalan di server)
+- [x] Aktivasi lewat undangan sekali pakai (tes integrasi; dikonfirmasi berjalan di server)
 - [x] Rate limit + lockout (tes integrasi; memori, Redis menyusul)
 - [x] `audit_logs` append-only (`REVOKE`) (tes integrasi sebagai `hris_app`)
 - [x] Tes integrasi dengan PostgreSQL asli, dijalankan di CI (`backend/internal/integration`)
 - [ ] OpenAPI + generate klien TS/Kotlin (TS selesai, Kotlin menyusul di Fase 3)
 - [x] CI (lint, tes, gitleaks, govulncheck, trivy) (`.github/workflows/ci.yml`)
-- [ ] Staging HTTPS + backup + uji restore (terblokir: menunggu keputusan hosting §14.2 no. 11)
+- [ ] Ditangguhkan (D21): staging HTTPS + backup + uji restore, dikerjakan menjelang Fase 6
 - [x] Tiga user DB (`hris_app`, `hris_migrate`, `hris_ro`)
 
 **Fase 2: Presensi**
@@ -1406,6 +1406,9 @@ Estimasi untuk tim kecil; sesuaikan setelah kapasitas tim jelas.
 - [ ] SP + acknowledge
 
 **Fase 6: Rilis**
+- [ ] Staging HTTPS dengan `APP_ENV=production` dan MFA aktif (ditangguhkan dari Fase 1, D21)
+- [ ] Backup terenkripsi di lokasi terpisah + uji restore (ditangguhkan dari Fase 1, D21)
+- [ ] Cara membuat akun SDM pertama di produksi (seed ditolak di luar development)
 - [ ] Uji beban jam masuk
 - [ ] Audit keamanan + uji penetrasi ringan
 - [ ] Kebijakan privasi + consent biometrik
@@ -1439,6 +1442,7 @@ Estimasi untuk tim kecil; sesuaikan setelah kapasitas tim jelas.
 | D18 | Email wajib saat membuat Pejuang | Email menjadi identitas login akun (F3) |
 | D19 | Server development memakai aaPanel: Nginx + SSL dari panel, API sebagai layanan systemd, tanpa Docker. Deploy dari branch `develop` lewat `git pull` manual (`backend/deploy/deploy.sh`) | Panel sudah terpasang. Konsekuensi: server perlu Go dan Node, deploy tidak otomatis, dan langkah build/scan image di F22 ditunda sampai produksi. §4 tetap berlaku untuk zona jaringan |
 | D20 | Migrasi tidak memakai `pgcrypto` | PostgreSQL bawaan aaPanel tidak menyertakan ekstensi contrib. Migrasi 000001 diedit sekali ini karena belum pernah berhasil diterapkan di server mana pun. Konsekuensi: PostGIS di Fase 2 harus dipasang terpisah atau memakai PostgreSQL lain |
+| D21 | Fase 1 dianggap selesai; staging HTTPS, backup, dan uji restore ditangguhkan sampai sistem siap | Keputusan pemilik proyek. Syarat selesai Fase 1 di roadmap belum terpenuhi. **Wajib selesai sebelum pilot atau data asli masuk.** Risiko: mode produksi (cookie `Secure`, HSTS, MFA wajib, kunci manual) belum pernah dijalankan di server, dan data development tidak punya backup |
 | D15 | `/v1/admin/reports/payroll-preview` mewajibkan `attendance:report` dan `payroll:manage` | Respons memuat gaji, sedangkan §7.6 membatasi `base_salary` untuk `sdm` dan pemilik data |
 
 ### 14.2 Pertanyaan yang Harus Dijawab (blokir pekerjaan terkait)

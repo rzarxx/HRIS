@@ -62,8 +62,11 @@ dan memasang layanan `hris-api`. Bila repo dijadikan private, pakai deploy key b
 
 ### 4. Nginx
 Buat kedua situs sebagai PHP Project dengan PHP **Pure static**, tanpa database dan FTP. API dijalankan systemd, jadi jangan memakai Go Project.
-Di **Config** tiap situs aaPanel, tempel `backend/deploy/nginx-web.conf` dan `nginx-api.conf` ke dalam blok `server { }`.
-Hapus blok `location` bawaan yang bentrok.
+Setelah kedua situs dibuat, pasang konfigurasinya. Cadangan otomatis dibuat dan dikembalikan bila `nginx -t` gagal.
+
+```bash
+API_SITE=api.domain.id WEB_SITE=admin.domain.id bash /opt/hris/src/backend/deploy/setup-nginx.sh
+```
 
 ### 5. Deploy pertama dan data dummy
 

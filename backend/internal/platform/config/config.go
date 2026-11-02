@@ -24,6 +24,10 @@ type Config struct {
 	DevSimulateAttendance  bool
 	FieldEncryptionKeyPath string
 	MFARequired            bool
+	// CookieSecure menandai cookie hanya untuk HTTPS. Bawaan: aktif di luar development.
+	CookieSecure bool
+	// TrustProxy memercayai X-Real-IP dari reverse proxy di mesin yang sama.
+	TrustProxy bool
 }
 
 func (c Config) IsDevelopment() bool { return c.AppEnv == "development" }
@@ -91,6 +95,24 @@ func Load() (Config, error) {
 			return cfg, fmt.Errorf("MFA_REQUIRED: %w", err)
 		}
 		cfg.MFARequired = v
+	}
+	cfg.CookieSecure = !cfg.IsDevelopment()
+	if raw := os.Getenv("COOKIE_SECURE"); raw != "" {
+		v, err := strconv.ParseBool(raw)
+		if err != nil {
+			return cfg, fmt.Errorf("COOKIE_SECURE: %w", err)
+		}
+		cfg.CookieSecure = v
+	}
+	if !cfg.CookieSecure && !cfg.IsDevelopment() {
+		return cfg, errors.New("COOKIE_SECURE=false hanya boleh di APP_ENV=development")
+	}
+	if raw := os.Getenv("TRUST_PROXY"); raw != "" {
+		v, err := strconv.ParseBool(raw)
+		if err != nil {
+			return cfg, fmt.Errorf("TRUST_PROXY: %w", err)
+		}
+		cfg.TrustProxy = v
 	}
 	if !cfg.MFARequired && !cfg.IsDevelopment() {
 		return cfg, errors.New("MFA_REQUIRED=false hanya boleh di APP_ENV=development")

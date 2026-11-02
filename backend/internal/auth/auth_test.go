@@ -203,6 +203,32 @@ func TestValidatePassword(t *testing.T) {
 	}
 }
 
+// hris_csrf harus terbaca web di subdomain lain, sedangkan token tetap host-only dan HttpOnly.
+func TestCookieAttributes(t *testing.T) {
+	h := &Handler{secure: true, cookieDomain: "domain.id"}
+	rec := httptest.NewRecorder()
+	h.setCookies(rec, Tokens{Access: "a", Refresh: "r", CSRF: "c"})
+	got := map[string]*http.Cookie{}
+	for _, c := range rec.Result().Cookies() {
+		got[c.Name] = c
+	}
+	for _, name := range []string{CookieAccess, CookieRefresh} {
+		c := got[name]
+		if c == nil || !c.HttpOnly || c.Domain != "" {
+			t.Errorf("%s: %+v", name, c)
+		}
+	}
+	csrf := got[CookieCSRF]
+	if csrf == nil || csrf.HttpOnly || csrf.Domain != "domain.id" {
+		t.Errorf("%s: %+v", CookieCSRF, csrf)
+	}
+	for name, c := range got {
+		if !c.Secure || c.SameSite != http.SameSiteStrictMode {
+			t.Errorf("%s harus Secure dan SameSite=Strict: %+v", name, c)
+		}
+	}
+}
+
 func TestHashTokenIsNotPlain(t *testing.T) {
 	token, err := NewOpaqueToken()
 	if err != nil {

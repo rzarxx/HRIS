@@ -66,7 +66,7 @@ func run() error {
 		return err
 	}
 	q := store.New(pool)
-	secure := !cfg.IsDevelopment()
+	secure := cfg.CookieSecure
 	limiter := auth.NewMemoryLimiter()
 
 	handler := server.New(server.Deps{
@@ -80,7 +80,7 @@ func run() error {
 		SessionCheck: authSvc.SessionState,
 		Limiter:      limiter,
 		Ready:        pool.Ping,
-		Options:      server.Options{AllowedOrigins: cfg.CORSAllowedOrigins, Secure: secure},
+		Options:      server.Options{AllowedOrigins: cfg.CORSAllowedOrigins, Secure: secure, TrustProxy: cfg.TrustProxy},
 	})
 
 	if cfg.DevSimulateAttendance {

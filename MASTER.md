@@ -1434,6 +1434,7 @@ Estimasi untuk tim kecil; sesuaikan setelah kapasitas tim jelas.
 | D16 | Rate limit fase awal memakai penyimpanan memori lewat antarmuka `Limiter` | Cukup untuk satu instance API; implementasi Redis menggantikannya saat lebih dari satu instance. Batas per IP dibuat longgar karena satu kantor bisa berbagi IP publik; batas ketat ada per akun |
 | D17 | Tautan aktivasi ditampilkan ke SDM untuk diteruskan manual | Layanan email/WhatsApp belum diputuskan (§14.2 no. 14). Konsekuensi: SDM sempat memegang token aktivasi |
 | D18 | Email wajib saat membuat Pejuang | Email menjadi identitas login akun (F3) |
+| D19 | Server development memakai aaPanel: Nginx + SSL dari panel, API sebagai layanan systemd, tanpa Docker. Deploy dari branch `develop` lewat `git pull` manual (`backend/deploy/deploy.sh`) | Panel sudah terpasang. Konsekuensi: server perlu Go dan Node, deploy tidak otomatis, dan langkah build/scan image di F22 ditunda sampai produksi. §4 tetap berlaku untuk zona jaringan |
 | D15 | `/v1/admin/reports/payroll-preview` mewajibkan `attendance:report` dan `payroll:manage` | Respons memuat gaji, sedangkan §7.6 membatasi `base_salary` untuk `sdm` dan pemilik data |
 
 ### 14.2 Pertanyaan yang Harus Dijawab (blokir pekerjaan terkait)
@@ -1656,6 +1657,8 @@ Query geofence, rekap, dan dashboard di `QUERY.sql` tetap berlaku, dengan dua pe
 | `REDIS_URL` | |
 | `JWT_SIGNING_KEY_PATH`, `JWT_KEY_ID` | Kunci Ed25519 dan `kid` |
 | `COOKIE_DOMAIN`, `CORS_ALLOWED_ORIGINS` | Domain web admin |
+| `COOKIE_SECURE` | Bawaan `true` di luar development. `false` ditolak di luar `APP_ENV=development` |
+| `TRUST_PROXY` | `true` = percayai `X-Real-IP`, hanya dari koneksi loopback |
 | `FIELD_ENCRYPTION_KEY_PATH`, `FIELD_ENCRYPTION_KEY_ID` | Kunci AES untuk template wajah dan secret MFA |
 | `PLAY_INTEGRITY_PACKAGE_NAME`, `PLAY_INTEGRITY_CREDENTIALS_PATH` | |
 | `FCM_CREDENTIALS_PATH` | |

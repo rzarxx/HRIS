@@ -37,8 +37,8 @@ Server butuh `git`, `rsync`, Go 1.27, dan Node.js 22. Cek dengan:
 git --version; rsync --version | head -1; go version; node --version
 ```
 
-Go dipasang dari [go.dev/dl](https://go.dev/dl/) ke `/usr/local/go`. Node.js bisa dipasang lewat Node manager di aaPanel,
-biasanya di `/www/server/nodejs/<versi>/bin`.
+Paket `apt` terlalu lama. Pasang Go dari [go.dev/dl](https://go.dev/dl/) ke `/usr/local/go` dan Node.js dari
+[nodejs.org](https://nodejs.org/dist/) ke `/usr/local/node`, lalu cocokkan checksum-nya.
 
 Build Next.js butuh memori sekitar 1,5 GB. Bila RAM server di bawah 3 GB, tambahkan swap dulu.
 
@@ -50,7 +50,7 @@ git clone --branch develop https://github.com/rzarxx/HRIS.git /tmp/hris-setup
 ```
 
 ```bash
-PSQL=/www/server/pgsql/bin/psql WEB_ORIGIN=https://admin.domain.id COOKIE_DOMAIN=domain.id NEXT_PUBLIC_API_URL=https://api.domain.id NODE_BIN_DIR=/www/server/nodejs/v22.0.0/bin bash /tmp/hris-setup/backend/deploy/setup-server.sh
+PSQL=/www/server/pgsql/bin/psql WEB_ORIGIN=https://admin.domain.id COOKIE_DOMAIN=domain.id NEXT_PUBLIC_API_URL=https://api.domain.id NODE_BIN_DIR=/usr/local/node/bin bash /tmp/hris-setup/backend/deploy/setup-server.sh
 ```
 
 ```bash
@@ -61,6 +61,7 @@ Skrip membuat user `hris` dan `hris-build`, database `hris_dev`, kode di `/opt/h
 dan memasang layanan `hris-api`. Bila repo dijadikan private, pakai deploy key baca-saja milik `hris-build`.
 
 ### 4. Nginx
+Buat kedua situs sebagai PHP Project dengan PHP **Pure static**, tanpa database dan FTP. API dijalankan systemd, jadi jangan memakai Go Project.
 Di **Config** tiap situs aaPanel, tempel `backend/deploy/nginx-web.conf` dan `nginx-api.conf` ke dalam blok `server { }`.
 Hapus blok `location` bawaan yang bentrok.
 
@@ -111,6 +112,13 @@ Mengembalikan data dummy ke kondisi awal:
 ```bash
 cd /opt/hris && runuser -u hris -- ./hris-seed --reset
 ```
+
+## PostgreSQL aaPanel
+Build PostgreSQL dari aaPanel tidak menyertakan ekstensi contrib seperti `pgcrypto`, dan PostGIS belum tentu tersedia.
+PostGIS dibutuhkan mulai Fase 2, jadi cek dulu sebelum fase itu dimulai.
+
+Bila migrasi gagal, database ditandai `dirty`. Setelah penyebabnya diperbaiki, hapus penandanya hanya bila tabel aplikasi belum
+terbentuk, lalu deploy ulang.
 
 ## Tanpa domain
 Bisa memakai `http://IP:PORT` untuk tiap situs, dengan `WEB_ORIGIN` dan `NEXT_PUBLIC_API_URL` berisi alamat itu dan `COOKIE_DOMAIN`

@@ -1435,6 +1435,7 @@ Estimasi untuk tim kecil; sesuaikan setelah kapasitas tim jelas.
 | D17 | Tautan aktivasi ditampilkan ke SDM untuk diteruskan manual | Layanan email/WhatsApp belum diputuskan (§14.2 no. 14). Konsekuensi: SDM sempat memegang token aktivasi |
 | D18 | Email wajib saat membuat Pejuang | Email menjadi identitas login akun (F3) |
 | D19 | Server development memakai aaPanel: Nginx + SSL dari panel, API sebagai layanan systemd, tanpa Docker. Deploy dari branch `develop` lewat `git pull` manual (`backend/deploy/deploy.sh`) | Panel sudah terpasang. Konsekuensi: server perlu Go dan Node, deploy tidak otomatis, dan langkah build/scan image di F22 ditunda sampai produksi. §4 tetap berlaku untuk zona jaringan |
+| D20 | Migrasi tidak memakai `pgcrypto` | PostgreSQL bawaan aaPanel tidak menyertakan ekstensi contrib. Migrasi 000001 diedit sekali ini karena belum pernah berhasil diterapkan di server mana pun. Konsekuensi: PostGIS di Fase 2 harus dipasang terpisah atau memakai PostgreSQL lain |
 | D15 | `/v1/admin/reports/payroll-preview` mewajibkan `attendance:report` dan `payroll:manage` | Respons memuat gaji, sedangkan §7.6 membatasi `base_salary` untuk `sdm` dan pemilik data |
 
 ### 14.2 Pertanyaan yang Harus Dijawab (blokir pekerjaan terkait)
@@ -1458,7 +1459,7 @@ Estimasi untuk tim kecil; sesuaikan setelah kapasitas tim jelas.
 
 ## Lampiran A. Delta SQL terhadap `QUERY.sql`
 
-Jika database belum dibuat, gabungkan ke migrasi awal. Pgvector tidak lagi dibutuhkan; ekstensi yang dipakai: `postgis`, `pgcrypto`.
+Jika database belum dibuat, gabungkan ke migrasi awal. Pgvector dan `pgcrypto` tidak dibutuhkan (`gen_random_uuid()` bawaan PostgreSQL 13+, enkripsi dilakukan di Go). Ekstensi yang dipakai: `postgis`, mulai Fase 2.
 
 ```sql
 -- A1. Penyesuaian enum & kolom lama

@@ -185,6 +185,24 @@ func TestPermissionsMatchOpenAPI(t *testing.T) {
 	}
 }
 
+// PostgreSQL aaPanel tidak menyertakan ekstensi contrib (D20). PostGIS di Fase 2 harus
+// lebih dulu dipastikan tersedia di server, lalu ditambahkan ke daftar ini.
+func TestMigrationsNeedNoExtensions(t *testing.T) {
+	files, err := filepath.Glob("../../migrations/*.up.sql")
+	if err != nil || len(files) == 0 {
+		t.Fatalf("migrasi tidak ditemukan: %v", err)
+	}
+	for _, f := range files {
+		raw, err := os.ReadFile(f)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if strings.Contains(strings.ToUpper(string(raw)), "CREATE EXTENSION") {
+			t.Errorf("%s memakai CREATE EXTENSION", f)
+		}
+	}
+}
+
 // Setiap permission yang dipakai route harus tercantum di matriks MASTER.md §3.2.
 func TestRoutePermissionsAreInMaster(t *testing.T) {
 	matrix := section(t, loadMaster(t), "### 3.2 Matriks Permission")

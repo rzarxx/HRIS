@@ -65,9 +65,17 @@ Lapisan: handler (HTTP, decode) → service (aturan, scope, transaksi) → store
 
 | Perintah | Fungsi |
 |---|---|
-| `go test ./...` | Tes unit dan matriks permission |
+| `go test ./...` | Tes unit, matriks permission, dan kontrak |
+| `HRIS_TEST_DATABASE_URL=... go test ./internal/integration` | Tes integrasi dengan PostgreSQL asli |
 | `go vet ./...` | Pemeriksaan statis |
 | `sqlc generate` | Generate ulang `internal/store` setelah mengubah query atau migrasi |
+
+## Tes integrasi
+
+`internal/integration` menguji API lengkap sebagai role `hris_app`: login, lockout, rotasi token, MFA, aktivasi, scope 404,
+audit append-only, master data, dan laporan upah. Tes dilewati bila `HRIS_TEST_DATABASE_URL` kosong, dan selalu dijalankan di CI.
+
+**Tes mengosongkan database yang dituju.** Karena itu nama databasenya wajib mengandung kata `test`, dan role superuser diperlukan.
 
 ## MFA saat pengembangan
 
@@ -75,5 +83,4 @@ Lapisan: handler (HTTP, decode) → service (aturan, scope, transaksi) → store
 dan API menolak start bila `false` di luar `APP_ENV=development`.
 
 ## Yang belum ada
-Staging HTTPS dan backup (menunggu keputusan hosting), rate limit berbasis Redis, audit log lengkap,
-serta tes integrasi dengan database asli (scope 404, lockout, rotasi token, aktivasi).
+Staging HTTPS dan backup (menunggu keputusan hosting), rate limit berbasis Redis, dan audit log lengkap.

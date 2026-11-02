@@ -1,0 +1,3 @@
+# Temuan yang sudah ditinjau. Satu baris = satu temuan pada satu commit.
+# Kata sandi rekaan untuk tes integrasi, bukan rahasia sungguhan.
+39ce743d9f8d6dadf306bcd9e1672814b84f19c2:backend/internal/integration/auth_test.go:generic-api-key:21

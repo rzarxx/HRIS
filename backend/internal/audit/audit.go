@@ -74,8 +74,8 @@ func Write(ctx context.Context, q *store.Queries, e Entry) error {
 	})
 }
 
-// ClientIP mengambil IP klien dari koneksi. Nginx di depan API akan mengisi RemoteAddr
-// melalui konfigurasi real_ip; header dari klien tidak dipercaya.
+// ClientIP mengambil IP klien dari RemoteAddr. Di balik reverse proxy, nilainya sudah
+// diganti middleware realIP di internal/server.
 func ClientIP(r *http.Request) *netip.Addr {
 	host, _, err := net.SplitHostPort(r.RemoteAddr)
 	if err != nil {

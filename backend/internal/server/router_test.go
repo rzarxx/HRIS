@@ -13,6 +13,7 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/rzarxx/HRIS/backend/internal/audit"
 	"github.com/rzarxx/HRIS/backend/internal/auth"
 	"github.com/rzarxx/HRIS/backend/internal/permission"
 )
@@ -241,6 +242,38 @@ func TestCSRFRequiredOnWrites(t *testing.T) {
 	}
 	if rec := call(h, http.MethodGet, "/v1/me", token, ""); rec.Code != http.StatusTeapot {
 		t.Errorf("GET tidak perlu CSRF: dapat %d", rec.Code)
+	}
+}
+
+func TestRealIP(t *testing.T) {
+	cases := []struct {
+		name, remote, header string
+		trust                bool
+		want                 string
+	}{
+		{"proxy lokal dipercaya", "127.0.0.1:5000", "203.0.113.9", true, "203.0.113.9"},
+		{"proxy lokal IPv6", "[::1]:5000", "2001:db8::1", true, "2001:db8::1"},
+		{"klien luar tidak bisa memalsukan", "198.51.100.7:5000", "203.0.113.9", true, "198.51.100.7"},
+		{"TRUST_PROXY mati", "127.0.0.1:5000", "203.0.113.9", false, "127.0.0.1"},
+		{"header bukan IP", "127.0.0.1:5000", "bukan-ip", true, "127.0.0.1"},
+		{"header kosong", "127.0.0.1:5000", "", true, "127.0.0.1"},
+	}
+	for _, c := range cases {
+		var got string
+		h := realIP(c.trust)(http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
+			if addr := audit.ClientIP(r); addr != nil {
+				got = addr.String()
+			}
+		}))
+		req := httptest.NewRequest(http.MethodGet, "/", nil)
+		req.RemoteAddr = c.remote
+		if c.header != "" {
+			req.Header.Set("X-Real-IP", c.header)
+		}
+		h.ServeHTTP(httptest.NewRecorder(), req)
+		if got != c.want {
+			t.Errorf("%s: dapat %q, ingin %q", c.name, got, c.want)
+		}
 	}
 }
 

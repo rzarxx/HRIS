@@ -4,3 +4,5 @@
 # hasil build
 /bin/
 *.exe
+
+/dist/

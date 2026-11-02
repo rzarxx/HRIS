@@ -101,10 +101,12 @@ export interface paths {
             };
             requestBody: {
                 content: {
-                    /** @example {
+                    /**
+                     * @example {
                      *       "email": "sdm@pejuang.id",
                      *       "password": "<kata sandi>"
-                     *     } */
+                     *     }
+                     */
                     "application/json": components["schemas"]["LoginRequest"];
                 };
             };
@@ -585,11 +587,13 @@ export interface paths {
             };
             requestBody: {
                 content: {
-                    /** @example {
+                    /**
+                     * @example {
                      *       "code": "OPS",
                      *       "name": "Operasional",
                      *       "head_employee_id": null
-                     *     } */
+                     *     }
+                     */
                     "application/json": components["schemas"]["DivisionInput"];
                 };
             };
@@ -887,7 +891,8 @@ export interface paths {
             };
             requestBody: {
                 content: {
-                    /** @example {
+                    /**
+                     * @example {
                      *       "full_name": "Rudi Hartono",
                      *       "nip": null,
                      *       "email": "rudi.hartono@pejuang.id",
@@ -897,7 +902,8 @@ export interface paths {
                      *       "join_date": "2026-11-02",
                      *       "base_salary": "4250000.00",
                      *       "status": "active"
-                     *     } */
+                     *     }
+                     */
                     "application/json": components["schemas"]["EmployeeInput"];
                 };
             };
@@ -1267,7 +1273,8 @@ export interface paths {
             };
             requestBody: {
                 content: {
-                    /** @example {
+                    /**
+                     * @example {
                      *       "title": "Briefing keselamatan kerja",
                      *       "body": "Seluruh Pejuang wajib hadir Senin pukul 07.45 WIB.",
                      *       "type": "banner",
@@ -1275,7 +1282,8 @@ export interface paths {
                      *       "starts_at": "2026-11-02T00:00:00Z",
                      *       "ends_at": null,
                      *       "is_active": true
-                     *     } */
+                     *     }
+                     */
                     "application/json": components["schemas"]["AnnouncementInput"];
                 };
             };
@@ -1887,6 +1895,20 @@ export interface components {
                 [name: string]: unknown;
             };
             content: {
+                /**
+                 * @example {
+                 *       "error": {
+                 *         "code": "VALIDATION_FAILED",
+                 *         "message": "Periksa kembali isian form.",
+                 *         "details": {
+                 *           "fields": {
+                 *             "full_name": "Nama lengkap wajib diisi."
+                 *           }
+                 *         },
+                 *         "request_id": "01J0000000000000000000000"
+                 *       }
+                 *     }
+                 */
                 "application/json": components["schemas"]["ErrorResponse"];
             };
         };

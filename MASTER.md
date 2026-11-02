@@ -1364,15 +1364,16 @@ Estimasi untuk tim kecil; sesuaikan setelah kapasitas tim jelas.
 
 ### 13.3 Checklist Ringkas per Fase
 **Fase 1: Fondasi**
-- [x] Refresh token rotasi + deteksi reuse (kode + tes unit; belum diuji dengan database)
-- [x] MFA TOTP untuk `sdm` (kode + tes unit; belum diuji dengan database)
-- [x] Aktivasi lewat undangan sekali pakai (kode; belum diuji dengan database)
-- [x] Rate limit + lockout (memori, Redis menyusul; lockout belum diuji dengan database)
-- [x] `audit_logs` append-only (`REVOKE`) (migrasi; belum dijalankan)
+- [x] Refresh token rotasi + deteksi reuse (tes integrasi)
+- [x] MFA TOTP untuk `sdm` (tes integrasi; belum dicoba di server)
+- [x] Aktivasi lewat undangan sekali pakai (tes integrasi; belum dicoba di server)
+- [x] Rate limit + lockout (tes integrasi; memori, Redis menyusul)
+- [x] `audit_logs` append-only (`REVOKE`) (tes integrasi sebagai `hris_app`)
+- [x] Tes integrasi dengan PostgreSQL asli, dijalankan di CI (`backend/internal/integration`)
 - [ ] OpenAPI + generate klien TS/Kotlin (TS selesai, Kotlin menyusul di Fase 3)
-- [x] CI (lint, tes, gitleaks, govulncheck, trivy) (`.github/workflows/ci.yml`; belum pernah dijalankan)
+- [x] CI (lint, tes, gitleaks, govulncheck, trivy) (`.github/workflows/ci.yml`)
 - [ ] Staging HTTPS + backup + uji restore (terblokir: menunggu keputusan hosting §14.2 no. 11)
-- [x] Tiga user DB (`hris_app`, `hris_migrate`, `hris_ro`) (skrip; belum dijalankan)
+- [x] Tiga user DB (`hris_app`, `hris_migrate`, `hris_ro`)
 
 **Fase 2: Presensi**
 - [ ] Lokasi kantor + shift + hari libur

@@ -18,7 +18,7 @@ import (
 
 const (
 	wrongPassword = "bukan-kata-sandi-ini"
-	newPassword   = "kuda-terbang-biru-7"
+	newPassword   = "kuda-terbang-biru-7" // gitleaks:allow, nilai rekaan khusus tes
 )
 
 func TestLoginLogout(t *testing.T) {

@@ -1,0 +1,6 @@
+# rahasia lokal
+.env
+.secrets/
+# hasil build
+/bin/
+*.exe

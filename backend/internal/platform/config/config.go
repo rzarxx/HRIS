@@ -1,0 +1,118 @@
+// Package config membaca konfigurasi dari environment (MASTER.md Lampiran B).
+package config
+
+import (
+	"bufio"
+	"errors"
+	"fmt"
+	"os"
+	"strconv"
+	"strings"
+)
+
+type Config struct {
+	AppEnv                 string
+	HTTPAddr               string
+	DatabaseURL            string
+	MigrateDatabaseURL     string
+	JWTSigningKeyPath      string
+	JWTKeyID               string
+	CookieDomain           string
+	CORSAllowedOrigins     []string
+	LogLevel               string
+	SeedSDMPassword        string
+	DevSimulateAttendance  bool
+	FieldEncryptionKeyPath string
+	MFARequired            bool
+}
+
+func (c Config) IsDevelopment() bool { return c.AppEnv == "development" }
+
+// LoadDotEnv memuat file .env bila ada; hanya untuk pengembangan lokal.
+// Variabel yang sudah ada di environment tidak ditimpa.
+func LoadDotEnv(path string) error {
+	f, err := os.Open(path)
+	if errors.Is(err, os.ErrNotExist) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+	s := bufio.NewScanner(f)
+	for s.Scan() {
+		line := strings.TrimSpace(s.Text())
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+		key, value, ok := strings.Cut(line, "=")
+		if !ok {
+			continue
+		}
+		if _, exists := os.LookupEnv(key); !exists {
+			if err := os.Setenv(key, value); err != nil {
+				return err
+			}
+		}
+	}
+	return s.Err()
+}
+
+// Load gagal bila secret wajib kosong (MASTER.md §11.4).
+func Load() (Config, error) {
+	cfg := Config{
+		AppEnv:                 env("APP_ENV", "production"),
+		HTTPAddr:               env("HTTP_ADDR", "127.0.0.1:8080"),
+		DatabaseURL:            os.Getenv("DATABASE_URL"),
+		MigrateDatabaseURL:     os.Getenv("MIGRATE_DATABASE_URL"),
+		JWTSigningKeyPath:      os.Getenv("JWT_SIGNING_KEY_PATH"),
+		JWTKeyID:               env("JWT_KEY_ID", "dev-1"),
+		CookieDomain:           os.Getenv("COOKIE_DOMAIN"),
+		LogLevel:               env("LOG_LEVEL", "info"),
+		SeedSDMPassword:        os.Getenv("SEED_SDM_PASSWORD"),
+		FieldEncryptionKeyPath: os.Getenv("FIELD_ENCRYPTION_KEY_PATH"),
+		MFARequired:            true,
+	}
+	for _, origin := range strings.Split(os.Getenv("CORS_ALLOWED_ORIGINS"), ",") {
+		if origin = strings.TrimSpace(origin); origin != "" {
+			cfg.CORSAllowedOrigins = append(cfg.CORSAllowedOrigins, origin)
+		}
+	}
+	if raw := os.Getenv("DEV_SIMULATE_ATTENDANCE"); raw != "" {
+		v, err := strconv.ParseBool(raw)
+		if err != nil {
+			return cfg, fmt.Errorf("DEV_SIMULATE_ATTENDANCE: %w", err)
+		}
+		cfg.DevSimulateAttendance = v
+	}
+	if raw := os.Getenv("MFA_REQUIRED"); raw != "" {
+		v, err := strconv.ParseBool(raw)
+		if err != nil {
+			return cfg, fmt.Errorf("MFA_REQUIRED: %w", err)
+		}
+		cfg.MFARequired = v
+	}
+	if !cfg.MFARequired && !cfg.IsDevelopment() {
+		return cfg, errors.New("MFA_REQUIRED=false hanya boleh di APP_ENV=development")
+	}
+	if cfg.FieldEncryptionKeyPath == "" {
+		return cfg, errors.New("FIELD_ENCRYPTION_KEY_PATH wajib diisi")
+	}
+	if cfg.DatabaseURL == "" {
+		return cfg, errors.New("DATABASE_URL wajib diisi")
+	}
+	if cfg.JWTSigningKeyPath == "" {
+		return cfg, errors.New("JWT_SIGNING_KEY_PATH wajib diisi")
+	}
+	if cfg.DevSimulateAttendance && !cfg.IsDevelopment() {
+		return cfg, errors.New("DEV_SIMULATE_ATTENDANCE hanya boleh di APP_ENV=development")
+	}
+	return cfg, nil
+}
+
+func env(key, fallback string) string {
+	if v := os.Getenv(key); v != "" {
+		return v
+	}
+	return fallback
+}

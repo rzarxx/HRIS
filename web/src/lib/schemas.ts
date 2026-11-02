@@ -1,7 +1,7 @@
 // Validasi form di sisi klien untuk pengalaman pengguna. Penegakan tetap di API Go.
 import { z } from "zod";
 
-const required = (label: string) => z.string({ required_error: `${label} wajib diisi.` }).trim().min(1, `${label} wajib diisi.`);
+const required = (label: string) => z.string({ error: `${label} wajib diisi.` }).trim().min(1, `${label} wajib diisi.`);
 const optionalText = z.string().trim().nullable().optional();
 const code = (max: number) =>
   required("Kode")
@@ -44,10 +44,10 @@ export const announcementSchema = z
   .object({
     title: required("Judul").max(120, "Judul maksimal 120 karakter."),
     body: required("Isi").max(2000, "Isi maksimal 2000 karakter."),
-    type: z.enum(["popup", "banner"], { required_error: "Pilih tipe." }),
+    type: z.enum(["popup", "banner"], { error: "Pilih tipe." }),
     division_id: z.string().uuid().nullable().optional(),
-    starts_at: required("Mulai tayang").datetime({ message: "Tanggal mulai tidak valid." }),
-    ends_at: z.string().datetime({ message: "Tanggal berakhir tidak valid." }).nullable().optional(),
+    starts_at: required("Mulai tayang").datetime({ error: "Tanggal mulai tidak valid." }),
+    ends_at: z.string().datetime({ error: "Tanggal berakhir tidak valid." }).nullable().optional(),
     is_active: z.boolean(),
   })
   .refine((v) => !v.ends_at || v.ends_at > v.starts_at, { path: ["ends_at"], message: "Berakhir harus setelah mulai tayang." });
@@ -58,7 +58,7 @@ export type EmployeeInput = z.input<typeof employeeSchema>;
 export type AnnouncementInput = z.input<typeof announcementSchema>;
 
 /** Mengembalikan pesan error per field atau null bila valid. */
-export function validate<T>(schema: z.ZodType<T, z.ZodTypeDef, unknown>, values: unknown): Record<string, string> | null {
+export function validate(schema: z.ZodType, values: unknown): Record<string, string> | null {
   const r = schema.safeParse(values);
   if (r.success) return null;
   const fields: Record<string, string> = {};

@@ -16,8 +16,8 @@ jobs:
         working-directory: backend
     services:
       postgres:
-        # Versi disamakan dengan server produksi saat hosting diputuskan (MASTER.md §14.2 no. 11).
-        image: postgres:16
+        # Sama dengan server development; disesuaikan bila hosting produksi berbeda.
+        image: postgres:18
         env:
           POSTGRES_PASSWORD: postgres
         ports: ["5432:5432"]
@@ -40,8 +40,17 @@ jobs:
         run: test -z "$(gofmt -l .)"
       - name: Vet
         run: go vet ./...
-      - name: Tes unit dan kontrak
-        run: go test ./...
+      - name: Buat database tes
+        run: PGPASSWORD=postgres psql -h localhost -U postgres -c "CREATE DATABASE hris_test"
+      - name: Tes unit, kontrak, dan integrasi
+        run: go test ./... -timeout 15m
+        env:
+          HRIS_TEST_DATABASE_URL: postgres://postgres:postgres@localhost:5432/hris_test?sslmode=disable
+      - name: Tes integrasi tidak boleh terlewati
+        run: |
+          go test ./internal/integration -count=1 -v -run TestReadiness | tee /dev/stderr | grep -q -- "--- PASS: TestReadiness"
+        env:
+          HRIS_TEST_DATABASE_URL: postgres://postgres:postgres@localhost:5432/hris_test?sslmode=disable
       - name: Hasil generate sqlc harus mutakhir
         run: |
           go run github.com/sqlc-dev/sqlc/cmd/sqlc@v1.31.1 diff

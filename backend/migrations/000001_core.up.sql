@@ -2,7 +2,7 @@
 -- Lokasi kantor dan kolom koordinat (PostGIS) menyusul di migrasi Fase 2.
 -- Tabel modul lain (perangkat, wajah, pengajuan, payroll, SP) menyusul di fasenya masing-masing.
 
-CREATE EXTENSION IF NOT EXISTS pgcrypto;
+-- gen_random_uuid() bawaan PostgreSQL 13+, jadi tidak butuh ekstensi pgcrypto.
 
 CREATE TYPE user_role AS ENUM ('pejuang','subdiv','kadiv','sdm');
 CREATE TYPE att_status AS ENUM ('present','late','absent','leave','review');

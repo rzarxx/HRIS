@@ -58,6 +58,57 @@ export type EmployeeInput = z.input<typeof employeeSchema>;
 export type AnnouncementInput = z.input<typeof announcementSchema>;
 
 /** Mengembalikan pesan error per field atau null bila valid. */
+// Koma desimal diterima karena lazim di Indonesia.
+export const parseCoordinate = (v: string) => Number(v.trim().replace(",", "."));
+
+const coordinate = (label: string, max: number) =>
+  required(label).refine((v) => Math.abs(parseCoordinate(v)) <= max, `${label} harus antara -${max} dan ${max}.`);
+
+// Satu titik per baris: "lintang, bujur". Mengembalikan null bila kosong atau formatnya salah.
+export function parsePolygon(text: string) {
+  const lines = text.split("\n").map((l) => l.trim()).filter(Boolean);
+  if (lines.length === 0) return null;
+  const points = lines.map((line) => {
+    const [latitude, longitude, extra] = line.split(/[,\s]+/).map(Number);
+    return { latitude, longitude, valid: extra === undefined && Math.abs(latitude) <= 90 && Math.abs(longitude) <= 180 };
+  });
+  if (points.some((p) => !p.valid)) return null;
+  return points.map(({ latitude, longitude }) => ({ latitude, longitude }));
+}
+
+export const locationSchema = z.object({
+  name: required("Nama lokasi").max(120, "Nama maksimal 120 karakter."),
+  latitude: coordinate("Lintang", 90),
+  longitude: coordinate("Bujur", 180),
+  radius_m: required("Radius").refine((v) => Number.isInteger(Number(v)) && Number(v) >= 10 && Number(v) <= 5000, "Radius harus antara 10 dan 5000 meter."),
+  polygon: z.string().refine((v) => {
+    if (!v.trim()) return true;
+    const points = parsePolygon(v);
+    return points !== null && points.length >= 3 && points.length <= 100;
+  }, "Isi 3 sampai 100 titik, satu per baris: lintang, bujur."),
+  is_active: z.boolean(),
+});
+export type LocationForm = z.infer<typeof locationSchema>;
+
+const clock = /^([01]\d|2[0-3]):[0-5]\d$/;
+
+export const shiftSchema = z
+  .object({
+    name: required("Nama shift").max(80, "Nama maksimal 80 karakter."),
+    start_time: z.string().regex(clock, "Isi jam masuk."),
+    end_time: z.string().regex(clock, "Isi jam pulang."),
+    late_tolerance_minutes: required("Toleransi").refine((v) => Number.isInteger(Number(v)) && Number(v) >= 0 && Number(v) <= 240, "Toleransi harus 0 sampai 240 menit."),
+    work_days: z.array(z.number()).min(1, "Pilih minimal satu hari kerja."),
+  })
+  .refine((v) => v.start_time !== v.end_time, { path: ["end_time"], message: "Jam pulang tidak boleh sama dengan jam masuk." });
+export type ShiftForm = z.infer<typeof shiftSchema>;
+
+export const holidaySchema = z.object({
+  date: required("Tanggal"),
+  name: required("Keterangan").max(120, "Keterangan maksimal 120 karakter."),
+});
+export type HolidayInput = z.infer<typeof holidaySchema>;
+
 export function validate(schema: z.ZodType, values: unknown): Record<string, string> | null {
   const r = schema.safeParse(values);
   if (r.success) return null;

@@ -216,7 +216,7 @@ Scope dihitung dari struktur organisasi di DB (`subdivisions.head_employee_id`, 
 
 ```
 Aplikasi HP (Kotlin) ─┐
-                      ├─ HTTPS ─► Nginx (TLS, rate limit) ─► API Go ─► PostgreSQL (+PostGIS)
+                      ├─ HTTPS ─► Nginx (TLS, rate limit) ─► API Go ─► PostgreSQL
 Web Admin (statis) ───┘                                           ├─► Redis
                                                                   ├─► Object storage privat
                                                                   ├─► FCM
@@ -226,10 +226,10 @@ Web Admin (statis) ───┘                                           ├─
 | Zona | Isi | Aturan |
 |---|---|---|
 | Publik | Nginx, file statis web | Hanya port 443 (80 hanya redirect) |
-| Aplikasi | API Go, scheduler | Tidak punya akses internet selain FCM dan Google API |
+| Aplikasi | API Go, scheduler | Tidak punya akses internet selain FCM, Google API, dan HMS (jalur C) |
 | Data (privat) | PostgreSQL, Redis, object storage | Tidak terbuka ke internet; hanya dapat dijangkau API |
 
-**Stack:** Go (chi, pgx, sqlc, golang-migrate) · PostgreSQL 16 + PostGIS · Redis · Next.js (static export) + Refine · Kotlin Jetpack Compose · ML Kit + TFLite MobileFaceNet · FCM · Docker Compose · OpenAPI 3.
+**Stack:** Go (chi, pgx, sqlc, golang-migrate) · PostgreSQL 16+ · Redis · Next.js (static export) + Refine · Kotlin Jetpack Compose · ML Kit + TFLite MobileFaceNet · FCM · Docker Compose · OpenAPI 3.
 
 Domain terpisah: `admin.<domain>` (web statis) dan `api.<domain>` (API), keduanya satu situs (same-site) sehingga cookie `SameSite=Strict` tetap terkirim.
 
@@ -289,6 +289,7 @@ Domain terpisah: `admin.<domain>` (web statis) dan `api.<domain>` (API), keduany
 **Aktivasi akun:** SDM membuat Pejuang → sistem membuat undangan sekali pakai (hash di DB, berlaku 24 jam) → Pejuang menetapkan kata sandi sendiri. SDM tidak pernah mengetahui kata sandi siapa pun.
 
 ### 5.3 Device Binding
+- Setiap perangkat punya `integrity_tier` yang ditetapkan server (§5.4.1).
 - Satu akun, satu perangkat `approved`. Perangkat pertama otomatis `approved` setelah aktivasi; perangkat berikutnya `pending` sampai SDM menyetujui.
 - `device_hash` = hash dari ID instalasi acak (disimpan di Keystore), bukan IMEI.
 - Presensi dari perangkat `pending` atau `revoked` ditolak.
@@ -296,7 +297,7 @@ Domain terpisah: `admin.<domain>` (web statis) dan `api.<domain>` (API), keduany
 
 ### 5.4 Anti-Fraud Presensi
 
-**Prinsip:** sinyal dari HP (mock flag, deteksi root) bersifat *saran* karena bisa dipalsukan di HP yang dimodifikasi. Yang dipercaya adalah **Play Integrity yang diverifikasi server** dan validasi server.
+**Prinsip:** sinyal dari HP (mock flag, deteksi root) bersifat *saran* karena bisa dipalsukan di HP yang dimodifikasi. Yang dipercaya adalah **bukti integritas perangkat yang diverifikasi server** (jalur per perangkat, §5.4.1) dan validasi server.
 
 **Challenge-response (mencegah replay):**
 1. App meminta `POST /v1/attendance/challenge` → server membuat `nonce` acak, berlaku 90 detik, sekali pakai.
@@ -317,6 +318,8 @@ Level `MEETS_STRONG_INTEGRITY` tidak diwajibkan karena menolak banyak HP Android
 | `challenge_invalid` | keras | Tolak |
 | `device_not_approved` | keras | Tolak |
 | `integrity_basic_only` | lunak | +30 |
+| `integrity_manual` (perangkat jalur D) | lunak | +30 |
+| `integrity_unavailable` (layanan verifikasi tidak terjangkau) | lunak | +30 |
 | `accuracy_low` (`accuracy_m` > 50) | lunak | +15 |
 | `location_jump` (kecepatan implisit > 120 km/jam dari titik sebelumnya) | lunak | +40 |
 | `face_borderline` | lunak | +20 |
@@ -338,6 +341,43 @@ Level `MEETS_STRONG_INTEGRITY` tidak diwajibkan karena menolak banyak HP Android
 | `risk.reject_min` | 60 |
 | `challenge.ttl_seconds` | 90 |
 | `face.enroll_requires_geofence` | true |
+
+### 5.4.1 Jalur Verifikasi Perangkat (D24)
+
+Semua HP Android didukung lewat jalur berjenjang. Jalur ditetapkan **server** dan disimpan di `devices.integrity_tier`.
+
+| Jalur | Untuk | Bukti yang diverifikasi server | Hasil absen |
+|---|---|---|---|
+| A `play` | HP dengan Google Play, app dari Play | Play Integrity: `MEETS_DEVICE_INTEGRITY`, `PLAY_RECOGNIZED`, `request_hash` | Normal |
+| B `attestation` | HP tanpa Google Play yang mendukung Key Attestation, atau app di luar Play | Rantai sertifikat ke root Google, status CRL, keamanan `TrustedEnvironment`/`StrongBox`, `verifiedBootState` = `Verified`, `deviceLocked`, paket dan sidik jari tanda tangan app, `attestationChallenge` = `request_hash` | Normal |
+| C `hms` | HP Huawei dengan HMS | Huawei Safety Detect SysIntegrity dengan nonce dari `request_hash`. Dibangun bila data menunjukkan ada penggunanya | Normal |
+| D `manual` | HP Android tanpa bukti di atas | Persetujuan SDM per perangkat setelah diperiksa, berlaku `device.manual_approval_days` (default 90) | **Selalu `review`** (`integrity_manual`) |
+| E kiosk | Pejuang tanpa HP yang bisa dipakai, termasuk iPhone dan HP non-Android | Tablet kantor jalur A/B milik perusahaan; Pejuang memasukkan NIP lalu verifikasi wajah | Normal, geofence mengikuti lokasi kiosk |
+
+**Aturan anti-turun-jalur:**
+- Klien tidak bisa memilih jalur. Jalur lebih rendah hanya berlaku setelah disetujui SDM dan tercatat di audit (`device.integrity_tier_changed`).
+- Bukti yang **gagal** berarti `integrity_failed` dan ditolak, tanpa pindah otomatis ke jalur lebih rendah. Hanya layanan yang tidak terjangkau yang menjadi `integrity_unavailable`, dan absennya masuk `review`.
+- Sinyal keras (mock, root, emulator) dan wajah + liveness tetap berlaku di semua jalur.
+
+**Keterbatasan jalur D:** tidak ada bukti kriptografis, jadi HP yang dimodifikasi dengan rapi tetap bisa memalsukan GPS. Karena itu absennya tidak pernah diterima otomatis.
+
+**Pengganti ketergantungan Google pada app:**
+| Kebutuhan | HP dengan Google | HP tanpa Google |
+|---|---|---|
+| Lokasi | FusedLocationProvider | `LocationManager` bawaan Android |
+| Deteksi wajah | ML Kit | Model ML Kit yang dibundel di app (dipastikan saat pengembangan) |
+| Notifikasi | FCM | Ambil notifikasi saat app dibuka; HMS Push untuk jalur C |
+| Distribusi app | Play Store | APK resmi bertanda tangan sama; AppGallery untuk jalur C |
+
+### 5.4.2 Absen Tanpa Lokasi Tetap / WFA (D23)
+
+- Satu Pejuang boleh punya banyak lokasi kantor; absen sah di lokasi mana pun yang ditugaskan.
+- SDM memberi izin WFA per Pejuang di `employee_work_arrangements`: rentang tanggal (boleh tanpa akhir), hari tertentu (opsional, mis. tiap Jumat), dan alasan. Server menentukan status WFA dari `work_date`; klien tidak bisa memintanya.
+- Saat WFA aktif, **hanya geofence yang dilewati**. Perangkat, bukti integritas, sinyal keras, wajah, liveness, dan `location_jump` tetap berlaku.
+- GPS tetap wajib dan disimpan sebagai bukti. Detail lokasi hanya untuk SDM, mengikuti persetujuan `location` dan retensi §5.6.
+- `attendances` menyimpan `work_mode` (`onsite`/`wfa`) dan `location_id` (kosong saat WFA); rekap dan Review Absen bisa disaring per mode.
+- Jam kerja, telat, dan shift sama seperti absen di kantor.
+- Pejuang WFA yang tidak bisa datang ke kantor mendaftarkan wajah lewat panggilan video dengan SDM, lalu SDM menyetujuinya secara tercatat.
 
 ### 5.5 Data Wajah
 - Pencocokan bersifat **1:1** (akun sudah diketahui dari token), jadi tidak perlu pgvector. Cosine similarity dihitung di Go.
@@ -395,7 +435,7 @@ Data biometrik tergolong data pribadi bersifat spesifik dalam UU PDP (UU 27/2022
 - Monitoring: error rate, latensi clock-in, lonjakan login gagal, lonjakan `review`.
 
 ### 5.11 Registry Event Audit
-`auth.login_success`, `auth.login_failed`, `auth.logout`, `auth.mfa_enabled`, `auth.mfa_failed`, `auth.password_changed`, `auth.session_revoked`, `auth.refresh_reuse_detected`, `org.updated`, `user.created`, `user.locked`, `user.unlocked`, `user.role_changed`, `user.password_reset`, `employee.created`, `employee.updated`, `employee.deactivated`, `employee.salary_changed`, `device.registered`, `device.approved`, `device.revoked`, `face.enrolled`, `face.reset`, `attendance.clock_in`, `attendance.clock_out`, `attendance.rejected`, `attendance.review_resolved`, `approval.approved`, `approval.rejected`, `payroll.generated`, `payroll.submitted`, `payroll.finalized`, `payroll.paid`, `warning.issued`, `announcement.created`, `announcement.updated`, `announcement.deleted`, `settings.changed`, `data.exported`.
+`auth.login_success`, `auth.login_failed`, `auth.logout`, `auth.mfa_enabled`, `auth.mfa_failed`, `auth.password_changed`, `auth.session_revoked`, `auth.refresh_reuse_detected`, `org.updated`, `user.created`, `user.locked`, `user.unlocked`, `user.role_changed`, `user.password_reset`, `employee.created`, `employee.updated`, `employee.deactivated`, `employee.salary_changed`, `device.registered`, `device.approved`, `device.revoked`, `device.integrity_tier_changed`, `employee.work_arrangement_changed`, `face.enrolled`, `face.reset`, `attendance.clock_in`, `attendance.clock_out`, `attendance.rejected`, `attendance.review_resolved`, `approval.approved`, `approval.rejected`, `payroll.generated`, `payroll.submitted`, `payroll.finalized`, `payroll.paid`, `warning.issued`, `announcement.created`, `announcement.updated`, `announcement.deleted`, `settings.changed`, `data.exported`.
 
 ### 5.12 Respons Insiden
 Deteksi → **batasi** (cabut sesi, kunci akun, rotasi kunci) → **selidiki** (audit log, log akses) → **pulihkan** → **beri tahu** pihak terdampak dan otoritas sesuai UU PDP (ada batas waktu pemberitahuan; konfirmasi ke legal) → **evaluasi** dan perbaiki kontrol.
@@ -416,16 +456,17 @@ DDL dasar ada di `QUERY.sql`; perubahan di **Lampiran A** (yang berlaku). Beriku
 | `user_mfa` | `user_id`, `secret_enc`, `enabled_at`, `recovery_hashes` | |
 | `user_invites` | `id`, `user_id`, `token_hash`, `expires_at`, `used_at` | |
 | `sessions` | `id`, `user_id`, `client`, `device_id`, `refresh_hash`, `prev_refresh_hash`, `idle_expires_at`, `absolute_expires_at`, `revoked_at` | |
-| `devices` | `id`, `employee_id`, `device_hash`, `model`, `os_version`, `fcm_token`, `status`, `approved_by` | |
+| `devices` | `id`, `employee_id`, `device_hash`, `model`, `os_version`, `fcm_token`, `status`, `integrity_tier`, `manual_approved_until`, `approved_by` | §5.4.1 |
 | `face_templates` | `id`, `employee_id`, `embedding_enc`, `key_id`, `model_version`, `is_active` | |
 | `consents` | `id`, `employee_id`, `type`, `version`, `accepted_at` | |
-| `office_locations` | `id`, `name`, `center`, `radius_m`, `polygon`, `is_active` | PostGIS |
+| `employee_work_arrangements` | `id`, `employee_id`, `mode`, `starts_on`, `ends_on`, `weekdays`, `reason`, `created_by` | WFA, §5.4.2 |
+| `office_locations` | `id`, `name`, `latitude`, `longitude`, `radius_m`, `polygon`, `is_active` | Geofence dihitung di Go (D22); `polygon` JSONB |
 | `employee_locations` | `employee_id`, `location_id` | Lokasi yang diizinkan |
 | `shifts` | `id`, `name`, `start_time`, `end_time`, `late_tolerance_minutes`, `work_days` | |
 | `holidays` | `date`, `name` | |
 | `attendance_challenges` | `id`, `employee_id`, `device_id`, `nonce`, `purpose`, `expires_at`, `used_at` | |
 | `attendance_attempts` | `id`, `employee_id`, `device_id`, `purpose`, `outcome`, `reason_code`, `risk_score`, `risk_flags`, `created_at` | Semua upaya |
-| `attendances` | `id`, `employee_id`, `work_date`, `clock_in_at`, `clock_out_at`, `in_location`, `out_location`, `in_accuracy_m`, `face_score`, `risk_score`, `risk_flags`, `status`, `late_minutes`, `selfie_url`, `selfie_sha256` | Unik `(employee_id, work_date)` |
+| `attendances` | `id`, `employee_id`, `work_date`, `clock_in_at`, `clock_out_at`, `work_mode`, `location_id`, `in_latitude`, `in_longitude`, `out_latitude`, `out_longitude`, `in_accuracy_m`, `face_score`, `risk_score`, `risk_flags`, `status`, `late_minutes`, `selfie_url`, `selfie_sha256` | Unik `(employee_id, work_date)` |
 | `leave_types`, `leave_requests` | `leave_type_id`, `start_date`, `end_date`, `reason`, `attachment_upload_id`, `status` | |
 | `cash_advances`, `cash_advance_installments` | `amount`, `installments`, `status`; cicilan: `period_year`, `period_month`, `amount`, `status` | |
 | `transfer_requests` | `from_subdivision_id`, `to_subdivision_id`, `effective_date`, `status` | |
@@ -608,7 +649,10 @@ Setiap `code` baru wajib ditambahkan di tabel ini.
 | GET | `/v1/admin/devices?status=` | `device:review` |
 | POST | `/v1/admin/devices/{id}/approve`, `/revoke` | `device:review` |
 | POST | `/v1/admin/employees/{id}/face/reset` | `face:reset` |
-| CRUD | `/v1/admin/office-locations`, `/v1/admin/shifts`, `/v1/admin/holidays` | `location:manage`, `shift:manage` |
+| CRUD | `/v1/admin/office-locations` | `location:manage` |
+| CRUD | `/v1/admin/shifts`, `/v1/admin/holidays` | `shift:manage` |
+| GET, PUT | `/v1/admin/employees/{id}/locations` | `employee:write` |
+| GET, POST, DELETE | `/v1/admin/employees/{id}/work-arrangements` | `employee:write` |
 | GET | `/v1/admin/attendance`, `/v1/admin/attendance/review`, `/v1/admin/attendance/attempts` | `attendance:review` / `attendance:report` |
 | POST | `/v1/admin/attendance/{id}/resolve` | `attendance:review` |
 | GET | `/v1/admin/reports/attendance`, `/v1/admin/reports/payroll-preview` | `attendance:report` |
@@ -739,7 +783,7 @@ flowchart LR
         J["Scheduler dan worker"]
     end
     subgraph Data["Zona data privat"]
-        P[("PostgreSQL + PostGIS")]
+        P[("PostgreSQL")]
         R[("Redis")]
         S[("Object storage privat")]
     end
@@ -891,7 +935,7 @@ sequenceDiagram
     S->>S: Validasi sesi, device, challenge sekali pakai
     S->>G: Dekode verdict
     G-->>S: verdict
-    S->>D: Cek geofence PostGIS, ambil template wajah
+    S->>D: Ambil lokasi kantor dan template wajah (geofence dihitung di Go)
     S->>S: Cocokkan wajah, hitung risk_score
     S->>D: Simpan attendances dan attendance_attempts dalam satu transaksi
     S-->>A: status, late_minutes, requires_review
@@ -905,11 +949,11 @@ flowchart TD
     B -- Ya --> C["Tandai challenge used secara atomik"]
     C --> D{"Device approved?"}
     D -- Tidak --> R2["DEVICE_PENDING_APPROVAL atau DEVICE_REVOKED"]
-    D -- Ya --> E{"Integrity valid, request_hash cocok, paket benar?"}
+    D -- Ya --> E{"Bukti integritas sesuai jalur perangkat valid, request_hash cocok, paket benar?"}
     E -- Tidak --> R3["ATTENDANCE_BLOCKED"]
     E -- Ya --> F{"Ada sinyal keras: mock, fake app, root, emulator, embedding_replay?"}
     F -- Ya --> R3
-    F -- Tidak --> G{"Di dalam geofence lokasi yang diizinkan?"}
+    F -- Tidak --> G{"WFA aktif, atau di dalam geofence lokasi yang diizinkan?"}
     G -- Tidak --> R4["GEOFENCE_OUT"]
     G -- Ya --> H{"Template wajah ada?"}
     H -- Tidak --> R5["FACE_NOT_ENROLLED"]
@@ -1324,7 +1368,7 @@ Lihat F21 (contract-first) dan F22 (CI/CD). Branch: `main` (produksi), `develop`
 | Tingkat | Alat | Fokus |
 |---|---|---|
 | Unit | `go test` | Skor risiko, hitung upah, aturan approval |
-| Integrasi | testcontainers (Postgres + PostGIS) | Query, transaksi, geofence |
+| Integrasi | PostgreSQL asli di CI (`internal/integration`) | Query, transaksi, hak akses role |
 | Matriks permission | tes tabel role × endpoint | Deny by default |
 | Kontrak | schemathesis/dredd terhadap `openapi.yaml` | Respons sesuai kontrak |
 | E2E web | Playwright | Alur demo dan alur kritis |
@@ -1378,7 +1422,9 @@ Estimasi untuk tim kecil; sesuaikan setelah kapasitas tim jelas.
 **Fase 2: Presensi**
 - [ ] Lokasi kantor + shift + hari libur
 - [ ] Device binding + persetujuan SDM
-- [ ] Challenge + verifikasi Play Integrity
+- [ ] Challenge + verifikasi Play Integrity (jalur A)
+- [ ] Key Attestation (jalur B), perangkat manual (jalur D), kiosk (jalur E); Huawei (jalur C) bila ada penggunanya
+- [ ] Izin WFA per Pejuang dan pendaftaran wajah jarak jauh
 - [ ] Enroll + cocok wajah (enkripsi aplikasi)
 - [ ] Skor risiko + `attendance_attempts`
 - [ ] Halaman Review Absen
@@ -1443,6 +1489,9 @@ Estimasi untuk tim kecil; sesuaikan setelah kapasitas tim jelas.
 | D19 | Server development memakai aaPanel: Nginx + SSL dari panel, API sebagai layanan systemd, tanpa Docker. Deploy dari branch `develop` lewat `git pull` manual (`backend/deploy/deploy.sh`) | Panel sudah terpasang. Konsekuensi: server perlu Go dan Node, deploy tidak otomatis, dan langkah build/scan image di F22 ditunda sampai produksi. §4 tetap berlaku untuk zona jaringan |
 | D20 | Migrasi tidak memakai `pgcrypto` | PostgreSQL bawaan aaPanel tidak menyertakan ekstensi contrib. Migrasi 000001 diedit sekali ini karena belum pernah berhasil diterapkan di server mana pun. Konsekuensi: PostGIS di Fase 2 harus dipasang terpisah atau memakai PostgreSQL lain |
 | D21 | Fase 1 dianggap selesai; staging HTTPS, backup, dan uji restore ditangguhkan sampai sistem siap | Keputusan pemilik proyek. Syarat selesai Fase 1 di roadmap belum terpenuhi. **Wajib selesai sebelum pilot atau data asli masuk.** Risiko: mode produksi (cookie `Secure`, HSTS, MFA wajib, kunci manual) belum pernah dijalankan di server, dan data development tidak punya backup |
+| D22 | Geofence dihitung di Go (Haversine untuk radius, ray casting untuk poligon), tanpa PostGIS | PostgreSQL aaPanel tidak punya PostGIS, dan tiap Pejuang hanya punya sedikit lokasi sehingga tidak perlu indeks spasial. Konsekuensi: analitik spasial lanjutan harus dihitung sendiri atau menambah PostGIS nanti |
+| D23 | Satu Pejuang boleh banyak lokasi. WFA diizinkan per Pejuang oleh SDM dengan melewati geofence saja | Sebagian Pejuang bekerja dari lokasi yang tidak menentu. Konsekuensi: pada absen WFA, lokasi tidak lagi menjadi bukti kehadiran, jadi kontrol bertumpu pada perangkat, wajah, dan liveness |
+| D24 | Semua HP didukung lewat jalur verifikasi berjenjang A sampai E (§5.4.1), bukan hanya Play Integrity | Pengguna meminta tidak mematok satu opsi. Konsekuensi: jalur D tanpa bukti kriptografis selalu masuk `review`, sehingga menambah beban SDM |
 | D15 | `/v1/admin/reports/payroll-preview` mewajibkan `attendance:report` dan `payroll:manage` | Respons memuat gaji, sedangkan §7.6 membatasi `base_salary` untuk `sdm` dan pemilik data |
 
 ### 14.2 Pertanyaan yang Harus Dijawab (blokir pekerjaan terkait)
@@ -1451,8 +1500,8 @@ Estimasi untuk tim kecil; sesuaikan setelah kapasitas tim jelas.
 3. Kasbon: otomatis memotong upah? Plafon dan maksimum cicilan?
 4. Alur cuti: Subdiv → SDM saja, atau sampai Kadiv?
 5. Alur mutasi: apakah subdiv **tujuan** juga harus menyetujui?
-6. Satu Pejuang boleh banyak lokasi kantor? Ada shift rotasi?
-7. Kebijakan HP tanpa Google Play Services: tidak didukung atau verifikasi manual SDM?
+6. Ada shift rotasi? *(banyak lokasi dan WFA sudah dijawab: D23)*
+7. ~~Kebijakan HP tanpa Google Play Services~~ Dijawab: didukung lewat beberapa jalur (D24).
 8. Saldo cuti: aturan hak cuti per tahun?
 9. Apakah Kadiv boleh mengakses dashboard dan laporan divisinya?
 10. Perlu role terpisah untuk administrator IT dan peninjau audit (pemisahan tugas dari SDM)?
@@ -1466,7 +1515,7 @@ Estimasi untuk tim kecil; sesuaikan setelah kapasitas tim jelas.
 
 ## Lampiran A. Delta SQL terhadap `QUERY.sql`
 
-Jika database belum dibuat, gabungkan ke migrasi awal. Pgvector dan `pgcrypto` tidak dibutuhkan (`gen_random_uuid()` bawaan PostgreSQL 13+, enkripsi dilakukan di Go). Ekstensi yang dipakai: `postgis`, mulai Fase 2.
+Jika database belum dibuat, gabungkan ke migrasi awal. Pgvector dan `pgcrypto` tidak dibutuhkan (`gen_random_uuid()` bawaan PostgreSQL 13+, enkripsi dilakukan di Go). Tidak ada ekstensi yang dibutuhkan; geofence dihitung di Go (D22), jadi kolom `GEOGRAPHY` di `QUERY.sql` diganti `latitude`/`longitude`.
 
 ```sql
 -- A1. Penyesuaian enum & kolom lama
@@ -1600,7 +1649,8 @@ CREATE TABLE attendance_attempts (
   reason_code  TEXT NOT NULL,
   risk_score   INT NOT NULL DEFAULT 0,
   risk_flags   JSONB NOT NULL DEFAULT '[]',
-  location     GEOGRAPHY(Point,4326),
+  latitude     NUMERIC(9,6),
+  longitude    NUMERIC(9,6),
   ip           INET,
   created_at   TIMESTAMPTZ NOT NULL DEFAULT now()
 );
@@ -1648,7 +1698,8 @@ ALTER TABLE leave_requests ADD COLUMN attachment_upload_id UUID REFERENCES uploa
 -- REVOKE UPDATE, DELETE ON audit_logs FROM hris_app;   -- append-only
 ```
 
-Query geofence, rekap, dan dashboard di `QUERY.sql` tetap berlaku, dengan dua pengecualian:
+Query rekap dan dashboard di `QUERY.sql` tetap berlaku, dengan pengecualian:
+- **No. 3 dan 4 (geofence PostGIS): hapus.** Geofence dihitung di Go (D22).
 - **No. 5 (pencocokan wajah pgvector): hapus.** Pencocokan dilakukan di Go.
 - **No. 11 (antrian approval): sederhanakan** menjadi `WHERE approver_role = $1 AND status = 'pending'`, karena giliran langkah kini eksplisit lewat status `waiting`/`pending`.
 

@@ -212,6 +212,28 @@ type Employee struct {
 	DeletedAt      pgtype.Timestamptz
 }
 
+type EmployeeLocation struct {
+	EmployeeID uuid.UUID
+	LocationID uuid.UUID
+}
+
+type Holiday struct {
+	Date pgtype.Date
+	Name string
+}
+
+type OfficeLocation struct {
+	ID        uuid.UUID
+	Name      string
+	Latitude  decimal.Decimal
+	Longitude decimal.Decimal
+	RadiusM   int32
+	Polygon   []byte
+	IsActive  bool
+	CreatedAt pgtype.Timestamptz
+	UpdatedAt pgtype.Timestamptz
+}
+
 type Session struct {
 	ID                uuid.UUID
 	UserID            uuid.UUID

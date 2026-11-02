@@ -6,7 +6,7 @@ import { AnnouncementStatusBadge } from "@/components/announcements/status";
 import { EmployeesPerSubdivChart, SubdivsPerDivisionChart } from "@/components/dashboard/charts";
 import { Card, ErrorState, Loading, PageHeader } from "@/components/ui/layout";
 import { dateLong, dateTime, number, percent } from "@/lib/format";
-import { useAnnouncements, useMe, useOrgChart } from "@/lib/hooks";
+import { useAnnouncements, useDashboardSummary, useMe, useOrgChart } from "@/lib/hooks";
 
 function Stat({ label, value, sub, icon: Icon }: { label: string; value: string; sub?: string; icon: typeof Users }) {
   return (
@@ -23,13 +23,15 @@ function Stat({ label, value, sub, icon: Icon }: { label: string; value: string;
 
 export default function DashboardPage() {
   const { data: me } = useMe();
+  const summary = useDashboardSummary();
   const chart = useOrgChart();
   const announcements = useAnnouncements();
 
-  if (chart.isPending) return <Loading />;
+  if (summary.isPending || chart.isPending) return <Loading />;
+  if (summary.isError) return <ErrorState message={summary.error.message} onRetry={() => summary.refetch()} />;
   if (chart.isError) return <ErrorState message={chart.error.message} onRetry={() => chart.refetch()} />;
 
-  const s = chart.data.summary;
+  const s = summary.data;
   return (
     <>
       <PageHeader
@@ -38,13 +40,13 @@ export default function DashboardPage() {
       />
 
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-        <Stat label="Total Pejuang aktif" value={number(s.employees)} icon={Users} />
-        <Stat label="Divisi" value={number(s.divisions)} icon={Building2} />
-        <Stat label="Subdiv" value={number(s.subdivisions)} icon={Network} />
+        <Stat label="Total Pejuang aktif" value={number(s.employee_count)} icon={Users} />
+        <Stat label="Divisi" value={number(s.division_count)} icon={Building2} />
+        <Stat label="Subdiv" value={number(s.subdivision_count)} icon={Network} />
         <Stat
           label="Hadir hari ini"
           value={number(s.present_today)}
-          sub={`${s.employees ? percent(s.present_today / s.employees) : "0%"} · ${number(s.late_today)} terlambat`}
+          sub={`${s.employee_count ? percent(s.present_today / s.employee_count) : "0%"} · ${number(s.late_today)} terlambat`}
           icon={CalendarCheck}
         />
       </div>

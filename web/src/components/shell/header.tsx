@@ -28,7 +28,7 @@ export function Header({ onMenu }: { onMenu: () => void }) {
 
   async function logout() {
     await api.post("/auth/logout").catch(() => {});
-    window.location.href = "/login";
+    window.location.href = "/login/";
   }
 
   return (

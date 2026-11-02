@@ -1,0 +1,1156 @@
+openapi: 3.0.3
+info:
+  title: HRIS Pejuang API
+  version: 0.1.0
+  description: |
+    Kontrak API HRIS Pejuang. Acuan manusia ada di MASTER.md §7.
+
+    **Autentikasi web:** login menyetel cookie `hris_at`, `hris_rt`, dan `hris_csrf`.
+    Semua method selain GET wajib mengirim header `X-CSRF-Token` berisi nilai cookie `hris_csrf`.
+
+    Mencakup auth web (termasuk MFA dan aktivasi), kelola akun, master data, pengumuman, dashboard, dan laporan.
+servers:
+  - url: http://localhost:8080
+    description: Pengembangan lokal
+tags:
+  - name: Auth
+  - name: Profil
+  - name: Divisi
+  - name: Subdiv
+  - name: Pejuang
+  - name: Akun
+  - name: Pengumuman
+  - name: Dashboard
+  - name: Laporan
+  - name: Sistem
+security:
+  - cookieAuth: []
+paths:
+  /healthz:
+    get:
+      tags: [Sistem]
+      summary: Liveness
+      security: []
+      responses:
+        "200": { description: Server hidup }
+  /readyz:
+    get:
+      tags: [Sistem]
+      summary: Readiness (cek database)
+      security: []
+      responses:
+        "200": { description: Siap }
+        "503": { description: Database tidak terjangkau }
+
+  /v1/auth/web/login:
+    post:
+      tags: [Auth]
+      summary: Login web admin
+      description: Menyetel cookie sesi. Gagal 5 kali berturut-turut mengunci akun 15 menit.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/LoginRequest" }
+            example: { email: sdm@pejuang.id, password: "<kata sandi>" }
+      responses:
+        "200":
+          description: Berhasil, cookie disetel
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data: { $ref: "#/components/schemas/Me" }
+        "400": { $ref: "#/components/responses/ValidationFailed" }
+        "401": { $ref: "#/components/responses/Error" }
+        "423": { $ref: "#/components/responses/Error" }
+  /v1/auth/web/refresh:
+    post:
+      tags: [Auth]
+      summary: Rotasi refresh token web
+      description: Memakai cookie `hris_rt`. Token lama yang dipakai ulang mencabut sesi.
+      responses:
+        "204": { description: Cookie baru disetel }
+        "401": { $ref: "#/components/responses/Error" }
+  /v1/auth/logout:
+    post:
+      tags: [Auth]
+      summary: Cabut sesi saat ini
+      responses:
+        "204": { description: Sesi dicabut, cookie dihapus }
+
+  /v1/auth/web/mfa/verify:
+    post:
+      tags: [Auth]
+      summary: Selesaikan login dengan kode TOTP atau kode pemulihan
+      description: Memakai `mfa_token` dari `details` error AUTH_MFA_REQUIRED. Berlaku 5 menit.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/MfaVerifyRequest" }
+      responses:
+        "200":
+          description: Berhasil, cookie disetel
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data: { $ref: "#/components/schemas/Me" }
+        "400": { $ref: "#/components/responses/ValidationFailed" }
+        "401": { $ref: "#/components/responses/Error" }
+        "429": { $ref: "#/components/responses/Error" }
+  /v1/auth/activate:
+    post:
+      tags: [Auth]
+      summary: Aktivasi akun dari undangan dan tetapkan kata sandi
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ActivateRequest" }
+      responses:
+        "204": { description: Akun aktif, silakan masuk }
+        "400": { $ref: "#/components/responses/ValidationFailed" }
+        "422": { $ref: "#/components/responses/Error" }
+        "429": { $ref: "#/components/responses/Error" }
+  /v1/auth/password/change:
+    post:
+      tags: [Auth]
+      summary: Ganti kata sandi sendiri
+      description: Mencabut sesi lain milik akun ini.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/PasswordChangeRequest" }
+      responses:
+        "204": { description: Kata sandi diganti }
+        "400": { $ref: "#/components/responses/ValidationFailed" }
+        "401": { $ref: "#/components/responses/Error" }
+  /v1/auth/sessions:
+    get:
+      tags: [Auth]
+      summary: Sesi aktif milik sendiri
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: "#/components/schemas/Session" }
+  /v1/auth/sessions/{session_id}:
+    parameters:
+      - { name: session_id, in: path, required: true, schema: { type: string, format: uuid } }
+    delete:
+      tags: [Auth]
+      summary: Cabut satu sesi milik sendiri
+      responses:
+        "204": { description: Sesi dicabut }
+        "404": { $ref: "#/components/responses/Error" }
+  /v1/auth/mfa/setup:
+    post:
+      tags: [Auth]
+      summary: Mulai pendaftaran TOTP
+      description: Menghasilkan secret baru. Belum aktif sampai dikonfirmasi lewat /v1/auth/mfa/enable.
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data: { $ref: "#/components/schemas/MfaSetup" }
+        "409": { $ref: "#/components/responses/Error" }
+  /v1/auth/mfa/enable:
+    post:
+      tags: [Auth]
+      summary: Aktifkan TOTP dengan kode dari aplikasi authenticator
+      description: Kode pemulihan hanya ditampilkan sekali.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/MfaEnableRequest" }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data: { $ref: "#/components/schemas/MfaEnabled" }
+        "400": { $ref: "#/components/responses/ValidationFailed" }
+        "401": { $ref: "#/components/responses/Error" }
+
+  /v1/me:
+    get:
+      tags: [Profil]
+      summary: Profil dan permission pengguna
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data: { $ref: "#/components/schemas/Me" }
+        "401": { $ref: "#/components/responses/Error" }
+
+  /v1/admin/divisions:
+    get:
+      tags: [Divisi]
+      summary: Daftar divisi
+      description: "Permission `org:write`."
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: "#/components/schemas/Division" }
+        "403": { $ref: "#/components/responses/Error" }
+    post:
+      tags: [Divisi]
+      summary: Tambah divisi
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/DivisionInput" }
+            example: { code: OPS, name: Operasional, head_employee_id: null }
+      responses:
+        "201":
+          description: Dibuat
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data: { $ref: "#/components/schemas/Division" }
+        "400": { $ref: "#/components/responses/ValidationFailed" }
+        "409": { $ref: "#/components/responses/Error" }
+  /v1/admin/divisions/{id}:
+    parameters:
+      - $ref: "#/components/parameters/Id"
+    patch:
+      tags: [Divisi]
+      summary: Ubah divisi
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/DivisionPatch" }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data: { $ref: "#/components/schemas/Division" }
+        "400": { $ref: "#/components/responses/ValidationFailed" }
+        "404": { $ref: "#/components/responses/Error" }
+        "409": { $ref: "#/components/responses/Error" }
+    delete:
+      tags: [Divisi]
+      summary: Hapus divisi
+      description: Ditolak `CONFLICT_HAS_DEPENDENTS` bila masih memiliki subdiv.
+      responses:
+        "204": { description: Dihapus }
+        "404": { $ref: "#/components/responses/Error" }
+        "409": { $ref: "#/components/responses/Error" }
+
+  /v1/admin/subdivisions:
+    get:
+      tags: [Subdiv]
+      summary: Daftar subdiv
+      parameters:
+        - { name: division_id, in: query, schema: { type: string, format: uuid } }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: "#/components/schemas/Subdivision" }
+    post:
+      tags: [Subdiv]
+      summary: Tambah subdiv
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/SubdivisionInput" }
+      responses:
+        "201":
+          description: Dibuat
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data: { $ref: "#/components/schemas/Subdivision" }
+        "400": { $ref: "#/components/responses/ValidationFailed" }
+        "409": { $ref: "#/components/responses/Error" }
+  /v1/admin/subdivisions/{id}:
+    parameters:
+      - $ref: "#/components/parameters/Id"
+    patch:
+      tags: [Subdiv]
+      summary: Ubah subdiv
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/SubdivisionPatch" }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data: { $ref: "#/components/schemas/Subdivision" }
+        "400": { $ref: "#/components/responses/ValidationFailed" }
+        "404": { $ref: "#/components/responses/Error" }
+        "409": { $ref: "#/components/responses/Error" }
+    delete:
+      tags: [Subdiv]
+      summary: Hapus subdiv
+      description: Ditolak `CONFLICT_HAS_DEPENDENTS` bila masih memiliki Pejuang.
+      responses:
+        "204": { description: Dihapus }
+        "404": { $ref: "#/components/responses/Error" }
+        "409": { $ref: "#/components/responses/Error" }
+
+  /v1/admin/employees:
+    get:
+      tags: [Pejuang]
+      summary: Daftar Pejuang
+      description: "Permission `employee:read`, dibatasi scope. `base_salary` hanya untuk `sdm` dan pemilik data."
+      parameters:
+        - $ref: "#/components/parameters/Page"
+        - $ref: "#/components/parameters/PerPage"
+        - { name: q, in: query, description: Cari nama, NIP, email, jabatan, schema: { type: string } }
+        - { name: division_id, in: query, schema: { type: string, format: uuid } }
+        - { name: subdivision_id, in: query, schema: { type: string, format: uuid } }
+        - { name: status, in: query, schema: { $ref: "#/components/schemas/EmployeeStatus" } }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data, meta]
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: "#/components/schemas/Employee" }
+                  meta: { $ref: "#/components/schemas/PageMeta" }
+    post:
+      tags: [Pejuang]
+      summary: Tambah Pejuang
+      description: "Permission `employee:write`. `nip` kosong = dibuat otomatis. Membuat akun belum aktif beserta undangan aktivasi (F3)."
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/EmployeeInput" }
+            example:
+              full_name: Rudi Hartono
+              nip: null
+              email: rudi.hartono@pejuang.id
+              phone: "081234567890"
+              subdivision_id: 00000000-0000-4000-8000-000000000000
+              position: Staf Lapangan
+              join_date: "2026-11-02"
+              base_salary: "4250000.00"
+              status: active
+      responses:
+        "201":
+          description: Dibuat
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data: { $ref: "#/components/schemas/EmployeeCreated" }
+        "400": { $ref: "#/components/responses/ValidationFailed" }
+        "409": { $ref: "#/components/responses/Error" }
+  /v1/admin/employees/{id}:
+    parameters:
+      - $ref: "#/components/parameters/Id"
+    get:
+      tags: [Pejuang]
+      summary: Detail Pejuang
+      description: Objek di luar scope dijawab 404.
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data: { $ref: "#/components/schemas/Employee" }
+        "404": { $ref: "#/components/responses/Error" }
+    patch:
+      tags: [Pejuang]
+      summary: Ubah Pejuang
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/EmployeePatch" }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data: { $ref: "#/components/schemas/Employee" }
+        "400": { $ref: "#/components/responses/ValidationFailed" }
+        "404": { $ref: "#/components/responses/Error" }
+        "409": { $ref: "#/components/responses/Error" }
+  /v1/admin/employees/{id}/deactivate:
+    parameters:
+      - $ref: "#/components/parameters/Id"
+    post:
+      tags: [Pejuang]
+      summary: Nonaktifkan Pejuang
+      description: Riwayat presensi dan upah tetap tersimpan.
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data: { $ref: "#/components/schemas/Employee" }
+        "404": { $ref: "#/components/responses/Error" }
+
+  /v1/admin/users/{user_id}/reset-password:
+    parameters:
+      - { name: user_id, in: path, required: true, schema: { type: string, format: uuid } }
+    post:
+      tags: [Akun]
+      summary: Terbitkan undangan baru untuk menetapkan sandi
+      description: "Permission `user:manage`. Mencabut semua sesi. SDM tidak pernah mengetahui kata sandi."
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data: { $ref: "#/components/schemas/Activation" }
+        "403": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+  /v1/admin/users/{user_id}/lock:
+    parameters:
+      - { name: user_id, in: path, required: true, schema: { type: string, format: uuid } }
+    post:
+      tags: [Akun]
+      summary: Kunci akun
+      description: "Permission `user:manage`. Mencabut semua sesi."
+      responses:
+        "204": { description: Akun dikunci }
+        "403": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+  /v1/admin/users/{user_id}/unlock:
+    parameters:
+      - { name: user_id, in: path, required: true, schema: { type: string, format: uuid } }
+    post:
+      tags: [Akun]
+      summary: Buka kunci akun
+      description: "Permission `user:manage`."
+      responses:
+        "204": { description: Akun dibuka }
+        "403": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+  /v1/admin/users/{user_id}/revoke-sessions:
+    parameters:
+      - { name: user_id, in: path, required: true, schema: { type: string, format: uuid } }
+    post:
+      tags: [Akun]
+      summary: Cabut semua sesi akun
+      description: "Permission `user:manage`."
+      responses:
+        "204": { description: Sesi dicabut }
+        "403": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+
+  /v1/admin/announcements:
+    get:
+      tags: [Pengumuman]
+      summary: Daftar pengumuman
+      parameters:
+        - $ref: "#/components/parameters/Page"
+        - $ref: "#/components/parameters/PerPage"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data, meta]
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: "#/components/schemas/Announcement" }
+                  meta: { $ref: "#/components/schemas/PageMeta" }
+    post:
+      tags: [Pengumuman]
+      summary: Buat pengumuman
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/AnnouncementInput" }
+            example:
+              title: Briefing keselamatan kerja
+              body: Seluruh Pejuang wajib hadir Senin pukul 07.45 WIB.
+              type: banner
+              division_id: null
+              starts_at: "2026-11-02T00:00:00Z"
+              ends_at: null
+              is_active: true
+      responses:
+        "201":
+          description: Dibuat
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data: { $ref: "#/components/schemas/Announcement" }
+        "400": { $ref: "#/components/responses/ValidationFailed" }
+  /v1/admin/announcements/{id}:
+    parameters:
+      - $ref: "#/components/parameters/Id"
+    get:
+      tags: [Pengumuman]
+      summary: Detail pengumuman
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data: { $ref: "#/components/schemas/Announcement" }
+        "404": { $ref: "#/components/responses/Error" }
+    patch:
+      tags: [Pengumuman]
+      summary: Ubah pengumuman
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/AnnouncementPatch" }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data: { $ref: "#/components/schemas/Announcement" }
+        "400": { $ref: "#/components/responses/ValidationFailed" }
+        "404": { $ref: "#/components/responses/Error" }
+    delete:
+      tags: [Pengumuman]
+      summary: Hapus pengumuman
+      responses:
+        "204": { description: Dihapus }
+        "404": { $ref: "#/components/responses/Error" }
+
+  /v1/admin/dashboard/summary:
+    get:
+      tags: [Dashboard]
+      summary: Kartu ringkasan
+      description: "Permission `dashboard:read`."
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data: { $ref: "#/components/schemas/DashboardSummary" }
+  /v1/admin/dashboard/org-chart:
+    get:
+      tags: [Dashboard]
+      summary: Data grafik struktur organisasi
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data: { $ref: "#/components/schemas/OrgChart" }
+
+  /v1/admin/reports/attendance:
+    get:
+      tags: [Laporan]
+      summary: Rekap presensi bulanan
+      description: "Permission `attendance:report`, dibatasi scope."
+      parameters:
+        - $ref: "#/components/parameters/Year"
+        - $ref: "#/components/parameters/Month"
+        - { name: division_id, in: query, schema: { type: string, format: uuid } }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: "#/components/schemas/AttendanceReportRow" }
+        "400": { $ref: "#/components/responses/ValidationFailed" }
+  /v1/admin/reports/payroll-preview:
+    get:
+      tags: [Laporan]
+      summary: Pratinjau upah berdasarkan presensi
+      description: "Permission `attendance:report` dan `payroll:manage`. Rumus sementara, ada di `meta.rules`."
+      parameters:
+        - $ref: "#/components/parameters/Year"
+        - $ref: "#/components/parameters/Month"
+        - { name: division_id, in: query, schema: { type: string, format: uuid } }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data, meta]
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: "#/components/schemas/PayrollPreviewRow" }
+                  meta:
+                    type: object
+                    required: [rules]
+                    properties:
+                      rules: { $ref: "#/components/schemas/PayrollRules" }
+        "400": { $ref: "#/components/responses/ValidationFailed" }
+
+components:
+  securitySchemes:
+    cookieAuth:
+      type: apiKey
+      in: cookie
+      name: hris_at
+  parameters:
+    Id:
+      name: id
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    Page:
+      name: page
+      in: query
+      schema: { type: integer, minimum: 1, default: 1 }
+    PerPage:
+      name: per_page
+      in: query
+      schema: { type: integer, minimum: 1, maximum: 100, default: 20 }
+    Year:
+      name: year
+      in: query
+      required: true
+      schema: { type: integer, minimum: 2000, maximum: 2100 }
+    Month:
+      name: month
+      in: query
+      required: true
+      schema: { type: integer, minimum: 1, maximum: 12 }
+  responses:
+    Error:
+      description: Error dengan kode dari registry MASTER.md §7.4
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/ErrorResponse" }
+    ValidationFailed:
+      description: Input tidak valid, rincian per field ada di `details.fields`
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/ErrorResponse" }
+          example:
+            error:
+              code: VALIDATION_FAILED
+              message: Periksa kembali isian form.
+              details: { fields: { full_name: Nama lengkap wajib diisi. } }
+              request_id: 01J0000000000000000000000
+  schemas:
+    Money:
+      type: string
+      pattern: '^-?\d+\.\d{2}$'
+      description: Rupiah, string desimal 2 digit
+      example: "5000000.00"
+    Role:
+      type: string
+      enum: [pejuang, subdiv, kadiv, sdm]
+    ErrorCode:
+      type: string
+      description: Registry MASTER.md §7.4
+      enum:
+        - VALIDATION_FAILED
+        - AUTH_INVALID_CREDENTIALS
+        - AUTH_TOKEN_INVALID
+        - AUTH_MFA_REQUIRED
+        - AUTH_MFA_INVALID
+        - FORBIDDEN_ROLE
+        - CSRF_INVALID
+        - PASSWORD_CHANGE_REQUIRED
+        - MFA_SETUP_REQUIRED
+        - DEVICE_NOT_REGISTERED
+        - DEVICE_PENDING_APPROVAL
+        - DEVICE_REVOKED
+        - APPROVAL_NOT_YOUR_TURN
+        - APPROVAL_SELF_FORBIDDEN
+        - MAKER_CHECKER_VIOLATION
+        - NOT_FOUND
+        - METHOD_NOT_ALLOWED
+        - ALREADY_CLOCKED_IN
+        - NOT_CLOCKED_IN
+        - REQUEST_NOT_PENDING
+        - PERIOD_LOCKED
+        - DUPLICATE_REQUEST
+        - CONFLICT_DUPLICATE
+        - CONFLICT_HAS_DEPENDENTS
+        - CONFLICT_SELF_ACTION
+        - MFA_ALREADY_ENABLED
+        - PAYLOAD_TOO_LARGE
+        - UNSUPPORTED_MEDIA_TYPE
+        - GEOFENCE_OUT
+        - FACE_NOT_ENROLLED
+        - FACE_MISMATCH
+        - LIVENESS_FAILED
+        - CHALLENGE_EXPIRED
+        - ATTENDANCE_BLOCKED
+        - ACTIVATION_INVALID
+        - AUTH_ACCOUNT_LOCKED
+        - APP_UPDATE_REQUIRED
+        - RATE_LIMITED
+        - INTERNAL_ERROR
+    Permission:
+      type: string
+      description: Matriks MASTER.md §3.2
+      enum:
+        - "profile:read"
+        - "profile:update"
+        - "org:read"
+        - "org:write"
+        - "employee:read"
+        - "employee:write"
+        - "user:manage"
+        - "device:register"
+        - "device:review"
+        - "face:enroll"
+        - "face:reset"
+        - "attendance:clock"
+        - "attendance:read"
+        - "attendance:review"
+        - "attendance:report"
+        - "location:manage"
+        - "shift:manage"
+        - "leave:create"
+        - "cash_advance:create"
+        - "transfer:create"
+        - "leave:read"
+        - "cash_advance:read"
+        - "transfer:read"
+        - "approval:act"
+        - "payslip:read"
+        - "payroll:manage"
+        - "payroll:finalize"
+        - "warning:read"
+        - "warning:manage"
+        - "announcement:read"
+        - "announcement:manage"
+        - "dashboard:read"
+        - "approval_flow:manage"
+        - "audit:read"
+    EmployeeStatus:
+      type: string
+      enum: [active, inactive]
+    AnnouncementType:
+      type: string
+      enum: [popup, banner]
+    ErrorResponse:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: object
+          required: [code, message, details, request_id]
+          properties:
+            code: { $ref: "#/components/schemas/ErrorCode" }
+            message: { type: string, example: Data tidak ditemukan. }
+            details: { type: object }
+            request_id: { type: string }
+    PageMeta:
+      type: object
+      required: [page, per_page, total]
+      properties:
+        page: { type: integer }
+        per_page: { type: integer }
+        total: { type: integer }
+    Ref:
+      type: object
+      required: [id, name]
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+    LoginRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email: { type: string, format: email }
+        password: { type: string }
+    Me:
+      type: object
+      required:
+        [user_id, employee_id, role, full_name, nip, email, position, subdivision, division, permissions, must_change_password, mfa_enabled]
+      properties:
+        user_id: { type: string, format: uuid }
+        employee_id: { type: string, format: uuid }
+        role: { $ref: "#/components/schemas/Role" }
+        full_name: { type: string }
+        nip: { type: string }
+        email: { type: string }
+        position: { type: string, nullable: true }
+        subdivision: { $ref: "#/components/schemas/Ref" }
+        division: { $ref: "#/components/schemas/Ref" }
+        permissions:
+          type: array
+          items: { $ref: "#/components/schemas/Permission" }
+        must_change_password: { type: boolean }
+        mfa_enabled: { type: boolean }
+    DivisionInput:
+      allOf:
+        - $ref: "#/components/schemas/DivisionPatch"
+        - type: object
+          required: [code, name]
+    DivisionPatch:
+      type: object
+      description: Pada PATCH, field yang tidak dikirim tetap nilai lamanya.
+      properties:
+        code: { type: string, maxLength: 10, pattern: '^[A-Za-z0-9-]+$' }
+        name: { type: string, maxLength: 80 }
+        head_employee_id: { type: string, format: uuid, nullable: true }
+    Division:
+      type: object
+      required: [id, code, name, head_employee_id, head_name, subdivision_count, employee_count, created_at]
+      properties:
+        id: { type: string, format: uuid }
+        code: { type: string }
+        name: { type: string }
+        head_employee_id: { type: string, format: uuid, nullable: true }
+        head_name: { type: string, nullable: true }
+        subdivision_count: { type: integer }
+        employee_count: { type: integer }
+        created_at: { type: string, format: date-time }
+    SubdivisionInput:
+      allOf:
+        - $ref: "#/components/schemas/SubdivisionPatch"
+        - type: object
+          required: [division_id, code, name]
+    SubdivisionPatch:
+      type: object
+      description: Pada PATCH, field yang tidak dikirim tetap nilai lamanya.
+      properties:
+        division_id: { type: string, format: uuid }
+        code: { type: string, maxLength: 12, pattern: '^[A-Za-z0-9-]+$' }
+        name: { type: string, maxLength: 80 }
+        head_employee_id: { type: string, format: uuid, nullable: true }
+    Subdivision:
+      type: object
+      required: [id, division_id, division_name, code, name, head_employee_id, head_name, employee_count, created_at]
+      properties:
+        id: { type: string, format: uuid }
+        division_id: { type: string, format: uuid }
+        division_name: { type: string }
+        code: { type: string }
+        name: { type: string }
+        head_employee_id: { type: string, format: uuid, nullable: true }
+        head_name: { type: string, nullable: true }
+        employee_count: { type: integer }
+        created_at: { type: string, format: date-time }
+    EmployeeInput:
+      allOf:
+        - $ref: "#/components/schemas/EmployeePatch"
+        - type: object
+          required: [full_name, email, subdivision_id, base_salary]
+    EmployeePatch:
+      type: object
+      description: Pada PATCH, field yang tidak dikirim tetap nilai lamanya.
+      properties:
+        nip: { type: string, nullable: true, description: Kosong = dibuat otomatis }
+        full_name: { type: string, minLength: 3, maxLength: 100 }
+        email: { type: string, format: email, nullable: true }
+        phone: { type: string, nullable: true }
+        subdivision_id: { type: string, format: uuid }
+        position: { type: string, nullable: true }
+        join_date: { type: string, format: date, nullable: true }
+        base_salary: { $ref: "#/components/schemas/Money" }
+        status: { $ref: "#/components/schemas/EmployeeStatus" }
+    Employee:
+      type: object
+      required:
+        [id, nip, full_name, email, phone, subdivision_id, subdivision_name, division_id, division_name, position, join_date, status]
+      properties:
+        id: { type: string, format: uuid }
+        nip: { type: string }
+        full_name: { type: string }
+        email: { type: string, nullable: true }
+        phone: { type: string, nullable: true }
+        subdivision_id: { type: string, format: uuid }
+        subdivision_name: { type: string }
+        division_id: { type: string, format: uuid }
+        division_name: { type: string }
+        position: { type: string, nullable: true }
+        join_date: { type: string, format: date, nullable: true }
+        status: { $ref: "#/components/schemas/EmployeeStatus" }
+        base_salary:
+          allOf: [{ $ref: "#/components/schemas/Money" }]
+          description: Hanya untuk sdm dan pemilik data
+        account:
+          allOf: [{ $ref: "#/components/schemas/EmployeeAccount" }]
+          description: Hanya untuk pemegang user:manage. Tidak ada bila Pejuang belum punya akun.
+    EmployeeAccount:
+      type: object
+      required: [user_id, role, is_active, is_locked, mfa_enabled]
+      properties:
+        user_id: { type: string, format: uuid }
+        role: { $ref: "#/components/schemas/Role" }
+        is_active: { type: boolean, description: false = belum aktivasi atau dinonaktifkan }
+        is_locked: { type: boolean }
+        mfa_enabled: { type: boolean }
+    EmployeeCreated:
+      allOf:
+        - $ref: "#/components/schemas/Employee"
+        - type: object
+          required: [activation]
+          properties:
+            activation: { $ref: "#/components/schemas/Activation" }
+    Activation:
+      type: object
+      required: [token, expires_at]
+      description: Hanya tampil sekali; server menyimpan hash-nya saja.
+      properties:
+        token: { type: string }
+        expires_at: { type: string, format: date-time }
+    MfaVerifyRequest:
+      type: object
+      required: [mfa_token, code]
+      properties:
+        mfa_token: { type: string }
+        code: { type: string, description: Kode TOTP 6 digit atau kode pemulihan }
+    ActivateRequest:
+      type: object
+      required: [token, password]
+      properties:
+        token: { type: string }
+        password: { type: string, minLength: 10, maxLength: 256 }
+    PasswordChangeRequest:
+      type: object
+      required: [current_password, new_password]
+      properties:
+        current_password: { type: string }
+        new_password: { type: string, minLength: 10, maxLength: 256 }
+    Session:
+      type: object
+      required: [id, client, ip, user_agent, created_at, last_used_at, is_current]
+      properties:
+        id: { type: string, format: uuid }
+        client: { type: string, enum: [web, mobile] }
+        ip: { type: string, nullable: true }
+        user_agent: { type: string, nullable: true }
+        created_at: { type: string, format: date-time }
+        last_used_at: { type: string, format: date-time }
+        is_current: { type: boolean }
+    MfaSetup:
+      type: object
+      required: [secret, otpauth_url]
+      properties:
+        secret: { type: string, description: Base32 }
+        otpauth_url: { type: string }
+    MfaEnableRequest:
+      type: object
+      required: [code]
+      properties:
+        code: { type: string }
+    MfaEnabled:
+      type: object
+      required: [recovery_codes]
+      properties:
+        recovery_codes:
+          type: array
+          description: Hanya tampil sekali
+          items: { type: string }
+    AnnouncementInput:
+      allOf:
+        - $ref: "#/components/schemas/AnnouncementPatch"
+        - type: object
+          required: [title, body, type, starts_at]
+    AnnouncementPatch:
+      type: object
+      description: Pada PATCH, field yang tidak dikirim tetap nilai lamanya.
+      properties:
+        title: { type: string, maxLength: 120 }
+        body: { type: string, maxLength: 2000, description: Teks murni }
+        type: { $ref: "#/components/schemas/AnnouncementType" }
+        image_upload_id: { type: string, format: uuid, nullable: true }
+        division_id: { type: string, format: uuid, nullable: true, description: null = semua divisi }
+        starts_at: { type: string, format: date-time }
+        ends_at: { type: string, format: date-time, nullable: true }
+        is_active: { type: boolean, default: true }
+    Announcement:
+      type: object
+      required:
+        [id, title, body, type, image_upload_id, division_id, division_name, starts_at, ends_at, is_active, created_at]
+      properties:
+        id: { type: string, format: uuid }
+        title: { type: string }
+        body: { type: string }
+        type: { $ref: "#/components/schemas/AnnouncementType" }
+        image_upload_id: { type: string, format: uuid, nullable: true }
+        division_id: { type: string, format: uuid, nullable: true }
+        division_name: { type: string, nullable: true }
+        starts_at: { type: string, format: date-time }
+        ends_at: { type: string, format: date-time, nullable: true }
+        is_active: { type: boolean }
+        created_at: { type: string, format: date-time }
+    DashboardSummary:
+      type: object
+      required: [employee_count, division_count, subdivision_count, present_today, late_today, work_date]
+      properties:
+        employee_count: { type: integer }
+        division_count: { type: integer }
+        subdivision_count: { type: integer }
+        present_today: { type: integer }
+        late_today: { type: integer }
+        work_date: { type: string, format: date }
+    OrgChart:
+      type: object
+      required: [employees_per_subdivision, subdivisions_per_division]
+      properties:
+        employees_per_subdivision:
+          type: array
+          items:
+            type: object
+            required: [division, subdivision, employee_count]
+            properties:
+              division: { type: string }
+              subdivision: { type: string }
+              employee_count: { type: integer }
+        subdivisions_per_division:
+          type: array
+          items:
+            type: object
+            required: [division, subdivision_count]
+            properties:
+              division: { type: string }
+              subdivision_count: { type: integer }
+    AttendanceReportRow:
+      type: object
+      required: [employee_id, nip, full_name, division, subdivision, work_days, present, late, leave, absent, late_minutes]
+      properties:
+        employee_id: { type: string, format: uuid }
+        nip: { type: string }
+        full_name: { type: string }
+        division: { type: string }
+        subdivision: { type: string }
+        work_days: { type: integer }
+        present: { type: integer, description: Hadir termasuk telat }
+        late: { type: integer }
+        leave: { type: integer }
+        absent: { type: integer }
+        late_minutes: { type: integer }
+    PayrollPreviewRow:
+      type: object
+      required:
+        [employee_id, nip, full_name, division, subdivision, base_salary, absent, late, absent_deduction, late_deduction, net]
+      properties:
+        employee_id: { type: string, format: uuid }
+        nip: { type: string }
+        full_name: { type: string }
+        division: { type: string }
+        subdivision: { type: string }
+        base_salary: { $ref: "#/components/schemas/Money" }
+        absent: { type: integer }
+        late: { type: integer }
+        absent_deduction: { $ref: "#/components/schemas/Money" }
+        late_deduction: { $ref: "#/components/schemas/Money" }
+        net: { $ref: "#/components/schemas/Money" }
+    PayrollRules:
+      type: object
+      required: [version, work_days_divisor, late_penalty, note]
+      properties:
+        version: { type: string, example: preview-v0 }
+        work_days_divisor: { type: integer }
+        late_penalty: { $ref: "#/components/schemas/Money" }
+        note: { type: string }

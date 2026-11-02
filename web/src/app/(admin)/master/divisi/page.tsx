@@ -30,7 +30,7 @@ export default function DivisionsPage() {
   }, [list.data, q]);
 
   const save = useSave(
-    (v: DivisionInput) => (editing && editing !== "new" ? api.put(`/admin/divisions/${editing.id}`, v) : api.post("/admin/divisions", v)),
+    (v: DivisionInput) => (editing && editing !== "new" ? api.patch(`/admin/divisions/${editing.id}`, v) : api.post("/admin/divisions", v)),
     { success: "Divisi tersimpan.", onDone: () => setEditing(null), onFieldErrors: setErrors },
   );
   const remove = useSave((id: string) => api.del(`/admin/divisions/${id}`), {

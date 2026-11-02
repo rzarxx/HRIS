@@ -1,8 +1,9 @@
 "use client";
 
-import { Pencil, Plus, Search, Trash2 } from "lucide-react";
+import { KeyRound, Lock, LockOpen, Pencil, Plus, Search, UserX } from "lucide-react";
 import { useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useState } from "react";
+import { ActivationLinkModal } from "@/components/employees/activation-link-modal";
 import { EmployeeForm } from "@/components/employees/employee-form";
 import { Button, IconButton } from "@/components/ui/button";
 import { Input, Select } from "@/components/ui/form";
@@ -12,7 +13,7 @@ import { Pagination, Table, Td, Th } from "@/components/ui/table";
 import { api } from "@/lib/api-client";
 import { rupiah } from "@/lib/format";
 import { useDivisions, useEmployees, useSave, useSubdivisions } from "@/lib/hooks";
-import type { EmployeeListItem } from "@/lib/types";
+import type { Activation, EmployeeListItem, ItemResponse } from "@/lib/types";
 
 const PER_PAGE = 10;
 
@@ -55,10 +56,27 @@ function EmployeesView() {
 
   const [editing, setEditing] = useState<EmployeeListItem | "new" | null>(null);
   const [deleting, setDeleting] = useState<EmployeeListItem | null>(null);
-  const remove = useSave((id: string) => api.del(`/admin/employees/${id}`), {
-    success: "Data Pejuang dihapus.",
+  const remove = useSave((id: string) => api.post(`/admin/employees/${id}/deactivate`), {
+    success: "Pejuang dinonaktifkan.",
     onDone: () => setDeleting(null),
   });
+
+  const [activation, setActivation] = useState<{ name: string; activation: Activation } | null>(null);
+  const [resetting, setResetting] = useState<EmployeeListItem | null>(null);
+  const resetPassword = useSave(
+    (e: EmployeeListItem) => api.post<ItemResponse<Activation>>(`/admin/users/${e.account!.user_id}/reset-password`),
+    {
+      success: "Tautan baru diterbitkan. Sesi Pejuang ini dicabut.",
+      onDone: (res) => {
+        setActivation({ name: resetting?.full_name ?? "", activation: res.data });
+        setResetting(null);
+      },
+    },
+  );
+  const setLock = useSave(
+    ({ userId, lock }: { userId: string; lock: boolean }) => api.post(`/admin/users/${userId}/${lock ? "lock" : "unlock"}`),
+    { success: "Status akun diperbarui." },
+  );
 
   const subOptions = (subdivisions.data ?? []).filter((s) => !divisionId || s.division_id === divisionId);
 
@@ -153,16 +171,40 @@ function EmployeesView() {
                       <p className="text-xs text-slate-500">{e.division_name}</p>
                     </Td>
                     <Td align="right" className="tabular-nums whitespace-nowrap">
-                      {rupiah(e.base_salary)}
+                      {e.base_salary ? rupiah(e.base_salary) : "-"}
                     </Td>
-                    <Td>{e.status === "active" ? <Badge tone="green">Aktif</Badge> : <Badge>Nonaktif</Badge>}</Td>
+                    <Td>
+                      <div className="flex flex-col items-start gap-1">
+                        {e.status === "active" ? <Badge tone="green">Aktif</Badge> : <Badge>Nonaktif</Badge>}
+                        {e.status === "active" && e.account && !e.account.is_active && <Badge tone="amber">Belum aktivasi</Badge>}
+                        {e.account?.is_locked && <Badge tone="red">Terkunci</Badge>}
+                      </div>
+                    </Td>
                     <Td align="right" className="whitespace-nowrap">
                       <IconButton label={`Ubah ${e.full_name}`} onClick={() => setEditing(e)}>
                         <Pencil className="size-4" />
                       </IconButton>
-                      <IconButton label={`Hapus ${e.full_name}`} onClick={() => setDeleting(e)} className="hover:text-red-600">
-                        <Trash2 className="size-4" />
-                      </IconButton>
+                      {e.status === "active" && e.account && (
+                        <>
+                          <IconButton label={`Terbitkan tautan sandi untuk ${e.full_name}`} onClick={() => setResetting(e)}>
+                            <KeyRound className="size-4" />
+                          </IconButton>
+                          {e.account.is_locked ? (
+                            <IconButton label={`Buka kunci akun ${e.full_name}`} onClick={() => setLock.mutate({ userId: e.account!.user_id, lock: false })}>
+                              <LockOpen className="size-4" />
+                            </IconButton>
+                          ) : (
+                            <IconButton label={`Kunci akun ${e.full_name}`} onClick={() => setLock.mutate({ userId: e.account!.user_id, lock: true })}>
+                              <Lock className="size-4" />
+                            </IconButton>
+                          )}
+                        </>
+                      )}
+                      {e.status === "active" && (
+                        <IconButton label={`Nonaktifkan ${e.full_name}`} onClick={() => setDeleting(e)} className="hover:text-red-600">
+                          <UserX className="size-4" />
+                        </IconButton>
+                      )}
                     </Td>
                   </tr>
                 ))}
@@ -173,14 +215,38 @@ function EmployeesView() {
         )}
       </Card>
 
-      {editing !== null && <EmployeeForm employee={editing === "new" ? null : editing} onClose={() => setEditing(null)} />}
+      {editing !== null && (
+        <EmployeeForm
+          employee={editing === "new" ? null : editing}
+          onClose={() => setEditing(null)}
+          onCreated={(c) => setActivation({ name: c.full_name, activation: c.activation })}
+        />
+      )}
+
+      {activation && <ActivationLinkModal name={activation.name} activation={activation.activation} onClose={() => setActivation(null)} />}
+
+      <ConfirmDialog
+        open={resetting !== null}
+        title="Terbitkan tautan kata sandi baru?"
+        confirmLabel="Terbitkan"
+        message={
+          <>
+            Kata sandi lama <strong className="text-slate-800">{resetting?.full_name}</strong> tidak berlaku lagi dan seluruh sesinya dicabut. Anda mendapat
+            tautan untuk diteruskan kepada yang bersangkutan.
+          </>
+        }
+        loading={resetPassword.isPending}
+        onConfirm={() => resetting && resetPassword.mutate(resetting)}
+        onClose={() => setResetting(null)}
+      />
 
       <ConfirmDialog
         open={deleting !== null}
-        title="Hapus data Pejuang?"
+        title="Nonaktifkan Pejuang?"
+        confirmLabel="Nonaktifkan"
         message={
           <>
-            <strong className="text-slate-800">{deleting?.full_name}</strong> ({deleting?.nip}) akan dihapus dari daftar. Riwayat presensi dan upah tetap
+            <strong className="text-slate-800">{deleting?.full_name}</strong> ({deleting?.nip}) akan dinonaktifkan, akunnya tidak bisa masuk lagi, dan tidak lagi dihitung di grafik. Riwayat presensi dan upah tetap
             tersimpan.
           </>
         }

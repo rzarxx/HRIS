@@ -1,5 +1,5 @@
 import { Badge } from "@/components/ui/layout";
-import type { Announcement } from "@/lib/types";
+import type { AnnouncementListItem as Announcement } from "@/lib/types";
 
 export type AnnouncementState = "inactive" | "scheduled" | "live" | "ended";
 

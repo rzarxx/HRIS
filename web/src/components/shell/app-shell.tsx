@@ -1,17 +1,57 @@
 "use client";
 
 import { X } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { IconButton } from "@/components/ui/button";
+import { Loading } from "@/components/ui/layout";
+import { api } from "@/lib/api-client";
+import { useMe } from "@/lib/hooks";
 import { Header } from "./header";
 import { Sidebar } from "./sidebar";
 
+const IDLE_LIMIT_MS = 30 * 60 * 1000; // MASTER.md §5.8
+
+/** Keluar otomatis setelah 30 menit tanpa aktivitas. */
+function useIdleLogout() {
+  useEffect(() => {
+    let timer: ReturnType<typeof setTimeout>;
+    const logout = async () => {
+      await api.post("/auth/logout").catch(() => {});
+      window.location.href = "/login/";
+    };
+    const reset = () => {
+      clearTimeout(timer);
+      timer = setTimeout(logout, IDLE_LIMIT_MS);
+    };
+    const events = ["mousedown", "keydown", "scroll", "touchstart"] as const;
+    events.forEach((e) => window.addEventListener(e, reset, { passive: true }));
+    reset();
+    return () => {
+      clearTimeout(timer);
+      events.forEach((e) => window.removeEventListener(e, reset));
+    };
+  }, []);
+}
+
 export function AppShell({ children }: { children: React.ReactNode }) {
   const [mobileOpen, setMobileOpen] = useState(false);
+  const me = useMe();
+  useIdleLogout();
+
+  // Karena web statis, penjagaan ini hanya kenyamanan; penegakan akses ada di API.
+  // Bila sesi tidak valid, api-client mengarahkan ke halaman login.
+  if (me.isPending || me.isError) {
+    return (
+      <div className="flex min-h-screen items-center justify-center">
+        <Loading label={me.isError ? "Mengalihkan ke halaman masuk..." : "Memuat..."} />
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen">
       <aside className="fixed inset-y-0 left-0 z-40 hidden w-64 border-r border-slate-200 bg-white lg:block">
-        <Sidebar />
+        <Sidebar permissions={me.data.permissions} />
       </aside>
 
       {mobileOpen && (
@@ -21,7 +61,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             <IconButton label="Tutup menu" onClick={() => setMobileOpen(false)} className="absolute top-3 right-3">
               <X className="size-5" />
             </IconButton>
-            <Sidebar onNavigate={() => setMobileOpen(false)} />
+            <Sidebar permissions={me.data.permissions} onNavigate={() => setMobileOpen(false)} />
           </aside>
         </div>
       )}

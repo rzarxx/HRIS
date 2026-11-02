@@ -1,6 +1,5 @@
 "use client";
 
-import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Field, Input, Select } from "@/components/ui/form";
@@ -9,7 +8,7 @@ import { api } from "@/lib/api-client";
 import { todayWib } from "@/lib/format";
 import { useDivisions, useSave, useSubdivisions } from "@/lib/hooks";
 import { employeeSchema, validate, type EmployeeInput } from "@/lib/schemas";
-import type { EmployeeListItem, ItemResponse } from "@/lib/types";
+import type { EmployeeCreated, EmployeeListItem, ItemResponse } from "@/lib/types";
 
 type FormState = Omit<EmployeeInput, "base_salary"> & { base_salary: string; division_id: string };
 
@@ -37,20 +36,22 @@ function initial(e: EmployeeListItem | null): FormState {
     subdivision_id: e.subdivision_id,
     position: e.position ?? "",
     join_date: e.join_date ?? "",
-    base_salary: String(e.base_salary),
+    base_salary: (e.base_salary ?? "0").split(".")[0],
     status: e.status,
   };
 }
 
-export function EmployeeForm({ employee, onClose }: { employee: EmployeeListItem | null; onClose: () => void }) {
+export function EmployeeForm({
+  employee,
+  onClose,
+  onCreated,
+}: {
+  employee: EmployeeListItem | null;
+  onClose: () => void;
+  onCreated: (created: EmployeeCreated) => void;
+}) {
   const divisions = useDivisions();
   const subdivisions = useSubdivisions();
-  const nextNip = useQuery({
-    queryKey: ["next-nip"],
-    queryFn: () => api.get<ItemResponse<{ nip: string }>>("/admin/employees/next-nip").then((r) => r.data.nip),
-    enabled: !employee,
-    staleTime: 0,
-  });
   const [form, setForm] = useState<FormState>(() => initial(employee));
   const [errors, setErrors] = useState<Record<string, string>>({});
 
@@ -60,15 +61,23 @@ export function EmployeeForm({ employee, onClose }: { employee: EmployeeListItem
   };
 
   const save = useSave(
-    (v: EmployeeInput) => (employee ? api.put(`/admin/employees/${employee.id}`, v) : api.post("/admin/employees", v)),
-    { success: employee ? "Data Pejuang diperbarui." : "Pejuang baru ditambahkan.", onDone: onClose, onFieldErrors: setErrors },
+    (v: EmployeeInput) =>
+      employee ? api.patch<ItemResponse<EmployeeListItem>>(`/admin/employees/${employee.id}`, v) : api.post<ItemResponse<EmployeeCreated>>("/admin/employees", v),
+    {
+      success: employee ? "Data Pejuang diperbarui." : "Pejuang baru ditambahkan.",
+      onDone: (res) => {
+        onClose();
+        if (!employee) onCreated(res.data as EmployeeCreated);
+      },
+      onFieldErrors: setErrors,
+    },
   );
 
   function submit(e: React.FormEvent) {
     e.preventDefault();
     // division_id hanya untuk menyaring pilihan subdiv, tidak dikirim ke API
     const { division_id, base_salary, ...rest } = form;
-    const values: EmployeeInput = { ...rest, base_salary: Number(base_salary) };
+    const values: EmployeeInput = { ...rest, base_salary: base_salary ? `${base_salary}.00` : "" };
     const all = { ...(validate(employeeSchema, values) ?? {}) };
     if (!division_id) all.division_id = "Pilih divisi.";
     if (base_salary === "") all.base_salary = "Gaji pokok wajib diisi.";
@@ -105,14 +114,14 @@ export function EmployeeForm({ employee, onClose }: { employee: EmployeeListItem
             value={form.nip ?? ""}
             onChange={(e) => set("nip", e.target.value)}
             invalid={!!errors.nip}
-            placeholder={nextNip.data ?? ""}
+            placeholder={employee ? "" : "Otomatis"}
             className="font-mono"
           />
         </Field>
         <Field label="Jabatan" htmlFor="position" error={errors.position}>
           <Input id="position" value={form.position ?? ""} onChange={(e) => set("position", e.target.value)} placeholder="Staf Lapangan" />
         </Field>
-        <Field label="Email" htmlFor="email" error={errors.email}>
+        <Field label="Email" htmlFor="email" error={errors.email} required hint="Dipakai untuk masuk ke akun.">
           <Input id="email" type="email" value={form.email ?? ""} onChange={(e) => set("email", e.target.value)} invalid={!!errors.email} />
         </Field>
         <Field label="Nomor HP" htmlFor="phone" error={errors.phone}>

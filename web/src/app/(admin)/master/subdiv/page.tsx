@@ -38,7 +38,7 @@ export default function SubdivisionsPage() {
 
   const save = useSave(
     (v: SubdivisionInput) =>
-      editing && editing !== "new" ? api.put(`/admin/subdivisions/${editing.id}`, v) : api.post("/admin/subdivisions", v),
+      editing && editing !== "new" ? api.patch(`/admin/subdivisions/${editing.id}`, v) : api.post("/admin/subdivisions", v),
     { success: "Subdiv tersimpan.", onDone: () => setEditing(null), onFieldErrors: setErrors },
   );
   const remove = useSave((id: string) => api.del(`/admin/subdivisions/${id}`), {

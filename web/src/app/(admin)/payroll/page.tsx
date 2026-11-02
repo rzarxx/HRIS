@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Card, EmptyState, ErrorState, Loading, PageHeader } from "@/components/ui/layout";
 import { Table, Td, Th } from "@/components/ui/table";
 import { downloadCsv } from "@/lib/csv";
-import { MONTHS, rupiah } from "@/lib/format";
+import { MONTHS, rupiah, sumMoney } from "@/lib/format";
 import { usePayrollReport, type PeriodFilter } from "@/lib/hooks";
 
 export default function PayrollReportPage() {
@@ -18,16 +18,12 @@ export default function PayrollReportPage() {
   const rules = report.data?.meta.rules;
 
   const totals = useMemo(
-    () =>
-      rows.reduce(
-        (a, r) => ({
-          base: a.base + r.base_salary,
-          absent: a.absent + r.absent_deduction,
-          late: a.late + r.late_deduction,
-          net: a.net + r.net,
-        }),
-        { base: 0, absent: 0, late: 0, net: 0 },
-      ),
+    () => ({
+      base: sumMoney(rows.map((r) => r.base_salary)),
+      absent: sumMoney(rows.map((r) => r.absent_deduction)),
+      late: sumMoney(rows.map((r) => r.late_deduction)),
+      net: sumMoney(rows.map((r) => r.net)),
+    }),
     [rows],
   );
 
@@ -70,7 +66,7 @@ export default function PayrollReportPage() {
             ].map(([k, v]) => (
               <div key={k} className="rounded-md bg-slate-50 px-4 py-3">
                 <p className="text-xs text-slate-500">{k}</p>
-                <p className="mt-0.5 text-lg font-semibold text-slate-900 tabular-nums">{rupiah(v as number)}</p>
+                <p className="mt-0.5 text-lg font-semibold text-slate-900 tabular-nums">{rupiah(v)}</p>
               </div>
             ))}
           </div>
@@ -108,11 +104,11 @@ export default function PayrollReportPage() {
                   <Td align="right" className="tabular-nums whitespace-nowrap">{rupiah(r.base_salary)}</Td>
                   <Td align="right" className="tabular-nums">{r.absent}</Td>
                   <Td align="right" className="tabular-nums">{r.late}</Td>
-                  <Td align="right" className={`tabular-nums whitespace-nowrap ${r.absent_deduction ? "text-red-700" : "text-slate-400"}`}>
-                    {r.absent_deduction ? `−${rupiah(r.absent_deduction)}` : "-"}
+                  <Td align="right" className={`tabular-nums whitespace-nowrap ${Number(r.absent_deduction) > 0 ? "text-red-700" : "text-slate-400"}`}>
+                    {Number(r.absent_deduction) > 0 ? `−${rupiah(r.absent_deduction)}` : "-"}
                   </Td>
-                  <Td align="right" className={`tabular-nums whitespace-nowrap ${r.late_deduction ? "text-red-700" : "text-slate-400"}`}>
-                    {r.late_deduction ? `−${rupiah(r.late_deduction)}` : "-"}
+                  <Td align="right" className={`tabular-nums whitespace-nowrap ${Number(r.late_deduction) > 0 ? "text-red-700" : "text-slate-400"}`}>
+                    {Number(r.late_deduction) > 0 ? `−${rupiah(r.late_deduction)}` : "-"}
                   </Td>
                   <Td align="right" className="font-semibold tabular-nums whitespace-nowrap text-slate-900">{rupiah(r.net)}</Td>
                 </tr>

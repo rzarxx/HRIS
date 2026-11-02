@@ -4,7 +4,17 @@ export const TZ = "Asia/Jakarta";
 const rupiahFmt = new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 });
 const numberFmt = new Intl.NumberFormat("id-ID");
 
-export const rupiah = (n: number) => rupiahFmt.format(n);
+/** Uang dari API berupa string; konversi ke number hanya untuk tampilan. */
+export const rupiah = (n: number | string) => rupiahFmt.format(Number(n));
+
+/** Menjumlah string uang tanpa floating point, hasilnya string 2 digit. */
+export function sumMoney(values: string[]) {
+  const cents = values.reduce((total, v) => {
+    const [whole, frac = ""] = v.split(".");
+    return total + BigInt(whole) * 100n + BigInt(frac.padEnd(2, "0").slice(0, 2));
+  }, 0n);
+  return `${cents / 100n}.${String(cents % 100n).padStart(2, "0")}`;
+}
 export const number = (n: number) => numberFmt.format(n);
 export const percent = (r: number) => `${(r * 100).toLocaleString("id-ID", { maximumFractionDigits: 1 })}%`;
 

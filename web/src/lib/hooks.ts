@@ -6,6 +6,7 @@ import type {
   AnnouncementListItem,
   AttendanceReportRow,
   CurrentUser,
+  DashboardSummary,
   DivisionWithStats,
   EmployeeListItem,
   ItemResponse,
@@ -19,7 +20,18 @@ import type {
 import { useToast } from "@/components/ui/toast";
 
 export const useMe = () =>
-  useQuery({ queryKey: ["me"], queryFn: () => api.get<ItemResponse<CurrentUser>>("/me").then((r) => r.data), staleTime: Infinity });
+  useQuery({
+    queryKey: ["me"],
+    queryFn: () => api.get<ItemResponse<CurrentUser>>("/me").then((r) => r.data),
+    staleTime: Infinity,
+    retry: false,
+  });
+
+export const useDashboardSummary = () =>
+  useQuery({
+    queryKey: ["dashboard-summary"],
+    queryFn: () => api.get<ItemResponse<DashboardSummary>>("/admin/dashboard/summary").then((r) => r.data),
+  });
 
 export const useOrgChart = () =>
   useQuery({
@@ -55,7 +67,7 @@ export const useEmployees = (filter: EmployeeFilter) =>
     placeholderData: keepPreviousData,
   });
 
-/** Semua Pejuang (untuk pilihan kepala divisi/subdiv). */
+/** Pejuang aktif untuk pilihan kepala divisi/subdiv (maksimum per_page API = 100). */
 export const useAllEmployees = () =>
   useQuery({
     queryKey: ["employees", "all"],
@@ -65,7 +77,7 @@ export const useAllEmployees = () =>
 export const useAnnouncements = () =>
   useQuery({
     queryKey: ["announcements"],
-    queryFn: () => api.get<ListResponse<AnnouncementListItem>>("/admin/announcements").then((r) => r.data),
+    queryFn: () => api.get<Paginated<AnnouncementListItem>>("/admin/announcements", { per_page: 100 }).then((r) => r.data),
   });
 
 export interface PeriodFilter {
@@ -84,7 +96,7 @@ export const useAttendanceReport = (f: PeriodFilter) =>
 export const usePayrollReport = (f: PeriodFilter) =>
   useQuery({
     queryKey: ["report-payroll", f],
-    queryFn: () => api.get<ListResponse<PayrollReportRow> & { meta: { rules: PayrollRules } }>("/admin/reports/payroll", { ...f }),
+    queryFn: () => api.get<ListResponse<PayrollReportRow> & { meta: { rules: PayrollRules } }>("/admin/reports/payroll-preview", { ...f }),
     placeholderData: keepPreviousData,
   });
 

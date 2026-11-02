@@ -1,0 +1,22 @@
+[Unit]
+Description=HRIS Pejuang API
+After=network.target
+
+[Service]
+Type=simple
+User=hris
+Group=hris
+WorkingDirectory=/opt/hris
+ExecStart=/opt/hris/hris-api
+Restart=on-failure
+RestartSec=3
+
+# API membaca /opt/hris/.env sendiri; file itu hanya bisa dibaca user hris.
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/opt/hris/.secrets
+
+[Install]
+WantedBy=multi-user.target

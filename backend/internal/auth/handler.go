@@ -345,24 +345,26 @@ func (h *Handler) GetMe(w http.ResponseWriter, r *http.Request) error {
 }
 
 func (h *Handler) setCookies(w http.ResponseWriter, t Tokens) {
-	h.setCookie(w, CookieAccess, t.Access, "/v1", int(AccessTTL.Seconds()), true)
-	h.setCookie(w, CookieRefresh, t.Refresh, "/v1/auth/web", int(webAbsoluteTTL.Seconds()), true)
-	// hris_csrf sengaja bisa dibaca JavaScript untuk dikirim ulang lewat header.
-	h.setCookie(w, CookieCSRF, t.CSRF, "/", int(webAbsoluteTTL.Seconds()), false)
+	// Token tetap host-only di host API, jadi tidak ikut terkirim ke subdomain lain.
+	h.setCookie(w, CookieAccess, t.Access, "/v1", "", int(AccessTTL.Seconds()), true)
+	h.setCookie(w, CookieRefresh, t.Refresh, "/v1/auth/web", "", int(webAbsoluteTTL.Seconds()), true)
+	// hris_csrf sengaja bisa dibaca JavaScript web admin di subdomain lain untuk dikirim
+	// ulang lewat header, sehingga memakai domain induk.
+	h.setCookie(w, CookieCSRF, t.CSRF, "/", h.cookieDomain, int(webAbsoluteTTL.Seconds()), false)
 }
 
 func (h *Handler) clearCookies(w http.ResponseWriter) {
-	h.setCookie(w, CookieAccess, "", "/v1", -1, true)
-	h.setCookie(w, CookieRefresh, "", "/v1/auth/web", -1, true)
-	h.setCookie(w, CookieCSRF, "", "/", -1, false)
+	h.setCookie(w, CookieAccess, "", "/v1", "", -1, true)
+	h.setCookie(w, CookieRefresh, "", "/v1/auth/web", "", -1, true)
+	h.setCookie(w, CookieCSRF, "", "/", h.cookieDomain, -1, false)
 }
 
-func (h *Handler) setCookie(w http.ResponseWriter, name, value, path string, maxAge int, httpOnly bool) {
+func (h *Handler) setCookie(w http.ResponseWriter, name, value, path, domain string, maxAge int, httpOnly bool) {
 	http.SetCookie(w, &http.Cookie{
 		Name:     name,
 		Value:    value,
 		Path:     path,
-		Domain:   h.cookieDomain,
+		Domain:   domain,
 		MaxAge:   maxAge,
 		HttpOnly: httpOnly,
 		Secure:   h.secure,

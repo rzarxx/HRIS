@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"log/slog"
 	"net/http"
+	"net/netip"
 	"slices"
 	"strings"
 	"time"
@@ -31,6 +32,25 @@ const (
 type Options struct {
 	AllowedOrigins []string
 	Secure         bool
+	TrustProxy     bool
+}
+
+// realIP mengganti alamat klien dengan X-Real-IP dari reverse proxy. Header hanya dipercaya
+// bila koneksi datang dari mesin yang sama, sehingga klien luar tidak bisa memalsukannya.
+// Nginx wajib menimpa header ini: proxy_set_header X-Real-IP $remote_addr.
+func realIP(trust bool) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if trust {
+				if remote := audit.ClientIP(r); remote != nil && remote.IsLoopback() {
+					if addr, err := netip.ParseAddr(strings.TrimSpace(r.Header.Get("X-Real-IP"))); err == nil {
+						r.RemoteAddr = netip.AddrPortFrom(addr.Unmap(), 0).String()
+					}
+				}
+			}
+			next.ServeHTTP(w, r)
+		})
+	}
 }
 
 // limitByIP berjalan sebelum autentikasi (urutan F2).

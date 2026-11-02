@@ -1,0 +1,122 @@
+# Deploy ke server development (aaPanel + Git)
+
+Server development memakai **data dummy**. Jangan isi data karyawan asli: mode ini mematikan MFA dan mengizinkan seed.
+Nama menu dan lokasi folder aaPanel bisa sedikit berbeda antar versi.
+
+```
+Browser ─ HTTPS ─► Nginx aaPanel ─┬─ admin.<domain> : file statis /www/wwwroot/hris-web
+                                  └─ api.<domain>   : proxy ke 127.0.0.1:8080 (hris-api, systemd)
+                                                       └─ PostgreSQL 127.0.0.1:5432
+```
+
+Dua subdomain itu harus satu domain induk agar cookie `SameSite=Strict` tetap terkirim. `COOKIE_DOMAIN` diisi domain induk
+agar web admin bisa membaca `hris_csrf`; tanpa itu semua aksi simpan ditolak `CSRF_INVALID`.
+
+## Alur Git
+
+```
+feat/...  ──PR──►  develop  ──bash deploy.sh di server──►  server development
+```
+
+Deploy dijalankan manual. **Pastikan CI branch `develop` hijau dulu**, karena skrip tidak memeriksanya.
+
+## Penyiapan awal (sekali)
+
+### 1. aaPanel
+1. **App Store:** pasang Nginx dan PostgreSQL Manager (versi 16 ke atas). Catat kata sandi superuser `postgres`.
+2. **Security / Firewall:** jangan buka port 5432 dan 8080 ke internet. Yang perlu terbuka hanya 80 dan 443, plus SSH.
+3. **Website:** buat dua situs.
+   - `admin.<domain>`, situs statis dengan root `/www/wwwroot/hris-web`
+   - `api.<domain>`
+4. Di tiap situs, aktifkan **SSL Let's Encrypt** dan paksa HTTPS.
+
+### 2. Alat build
+Server butuh `git`, `rsync`, Go 1.27, dan Node.js 22. Cek dengan:
+
+```bash
+git --version; rsync --version | head -1; go version; node --version
+```
+
+Go dipasang dari [go.dev/dl](https://go.dev/dl/) ke `/usr/local/go`. Node.js bisa dipasang lewat Node manager di aaPanel,
+biasanya di `/www/server/nodejs/<versi>/bin`.
+
+Build Next.js butuh memori sekitar 1,5 GB. Bila RAM server di bawah 3 GB, tambahkan swap dulu.
+
+### 3. Ambil kode dan siapkan server
+Sebagai root. Sesuaikan domain dan folder Node. Skrip menanyakan kata sandi `postgres`; kata sandi itu tidak disimpan.
+
+```bash
+git clone --branch develop https://github.com/rzarxx/HRIS.git /tmp/hris-setup
+```
+
+```bash
+PSQL=/www/server/pgsql/bin/psql WEB_ORIGIN=https://admin.domain.id COOKIE_DOMAIN=domain.id NEXT_PUBLIC_API_URL=https://api.domain.id NODE_BIN_DIR=/www/server/nodejs/v22.0.0/bin bash /tmp/hris-setup/backend/deploy/setup-server.sh
+```
+
+```bash
+rm -rf /tmp/hris-setup
+```
+
+Skrip membuat user `hris` dan `hris-build`, database `hris_dev`, kode di `/opt/hris/src`, `/opt/hris/.env`, `/opt/hris/deploy.env`,
+dan memasang layanan `hris-api`. Bila repo dijadikan private, pakai deploy key baca-saja milik `hris-build`.
+
+### 4. Nginx
+Di **Config** tiap situs aaPanel, tempel `backend/deploy/nginx-web.conf` dan `nginx-api.conf` ke dalam blok `server { }`.
+Hapus blok `location` bawaan yang bentrok.
+
+### 5. Deploy pertama dan data dummy
+
+```bash
+bash /opt/hris/src/backend/deploy/deploy.sh
+```
+
+```bash
+cd /opt/hris && runuser -u hris -- ./hris-seed
+```
+
+### 6. Periksa
+
+```bash
+curl -i http://127.0.0.1:8080/readyz
+```
+```bash
+curl -i https://api.domain.id/healthz
+```
+
+Buka `https://admin.domain.id`, masuk dengan `sdm@pejuang.id`. Kata sandinya ada di server:
+
+```bash
+grep SEED_SDM_PASSWORD /opt/hris/.env
+```
+
+## Memperbarui versi
+Setelah PR masuk ke `develop` dan CI hijau:
+
+```bash
+bash /opt/hris/src/backend/deploy/deploy.sh
+```
+
+Bila build gagal, API yang sedang berjalan tidak tersentuh. Migrasi hanya maju, jadi kembali ke versi lama tidak
+membatalkan perubahan database.
+
+## Perintah lain
+Melihat log:
+
+```bash
+journalctl -u hris-api -n 100 --no-pager
+```
+
+Mengembalikan data dummy ke kondisi awal:
+
+```bash
+cd /opt/hris && runuser -u hris -- ./hris-seed --reset
+```
+
+## Tanpa domain
+Bisa memakai `http://IP:PORT` untuk tiap situs, dengan `WEB_ORIGIN` dan `NEXT_PUBLIC_API_URL` berisi alamat itu dan `COOKIE_DOMAIN`
+dikosongkan. Risikonya, kata sandi dan token terkirim tanpa enkripsi, jadi batasi aksesnya di firewall hanya untuk IP kantor
+atau lewat VPN.
+
+## Sebelum dipakai data asli
+Mode ini khusus development. Untuk data asli wajib `APP_ENV=production`, MFA aktif, HTTPS, kunci dari secret manager, backup teruji,
+dan cara membuat akun SDM pertama (seed ditolak di luar development, dan bootstrap akun belum ada).

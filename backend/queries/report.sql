@@ -46,7 +46,7 @@ ORDER BY e.full_name, e.id;
 SELECT id, join_date FROM employees WHERE deleted_at IS NULL AND status = 'active';
 
 -- name: GetDefaultShift :one
-SELECT * FROM shifts ORDER BY name LIMIT 1;
+SELECT * FROM shifts ORDER BY name = 'Reguler' DESC, name LIMIT 1;
 
 -- name: InsertAttendanceIfMissing :execrows
 INSERT INTO attendances (employee_id, work_date, shift_id, clock_in_at, clock_out_at, status, late_minutes, risk_score)

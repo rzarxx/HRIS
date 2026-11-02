@@ -12,10 +12,12 @@ import (
 	"github.com/rzarxx/HRIS/backend/internal/auth"
 	"github.com/rzarxx/HRIS/backend/internal/dashboard"
 	"github.com/rzarxx/HRIS/backend/internal/employee"
+	"github.com/rzarxx/HRIS/backend/internal/location"
 	"github.com/rzarxx/HRIS/backend/internal/org"
 	"github.com/rzarxx/HRIS/backend/internal/permission"
 	"github.com/rzarxx/HRIS/backend/internal/platform/httpx"
 	"github.com/rzarxx/HRIS/backend/internal/report"
+	"github.com/rzarxx/HRIS/backend/internal/shift"
 )
 
 // Deps adalah handler tiap modul.
@@ -26,6 +28,8 @@ type Deps struct {
 	Announcement *announcement.Handler
 	Dashboard    *dashboard.Handler
 	Report       *report.Handler
+	Location     *location.Handler
+	Shift        *shift.Handler
 	Signer       *auth.TokenSigner
 	SessionCheck auth.SessionChecker
 	Limiter      auth.Limiter
@@ -89,6 +93,22 @@ func routes(d Deps) []Route {
 		guarded(http.MethodGet, "/v1/admin/employees/{id}", d.Employee.Get, permission.EmployeeRead),
 		guarded(http.MethodPatch, "/v1/admin/employees/{id}", d.Employee.Update, permission.EmployeeWrite),
 		guarded(http.MethodPost, "/v1/admin/employees/{id}/deactivate", d.Employee.Deactivate, permission.EmployeeWrite),
+
+		guarded(http.MethodGet, "/v1/admin/employees/{id}/locations", d.Location.ForEmployee, permission.EmployeeWrite),
+		guarded(http.MethodPut, "/v1/admin/employees/{id}/locations", d.Location.SetForEmployee, permission.EmployeeWrite),
+
+		guarded(http.MethodGet, "/v1/admin/office-locations", d.Location.List, permission.LocationManage),
+		guarded(http.MethodPost, "/v1/admin/office-locations", d.Location.Create, permission.LocationManage),
+		guarded(http.MethodPatch, "/v1/admin/office-locations/{id}", d.Location.Update, permission.LocationManage),
+		guarded(http.MethodDelete, "/v1/admin/office-locations/{id}", d.Location.Delete, permission.LocationManage),
+
+		guarded(http.MethodGet, "/v1/admin/shifts", d.Shift.List, permission.ShiftManage),
+		guarded(http.MethodPost, "/v1/admin/shifts", d.Shift.Create, permission.ShiftManage),
+		guarded(http.MethodPatch, "/v1/admin/shifts/{id}", d.Shift.Update, permission.ShiftManage),
+		guarded(http.MethodDelete, "/v1/admin/shifts/{id}", d.Shift.Delete, permission.ShiftManage),
+		guarded(http.MethodGet, "/v1/admin/holidays", d.Shift.ListHolidays, permission.ShiftManage),
+		guarded(http.MethodPost, "/v1/admin/holidays", d.Shift.CreateHoliday, permission.ShiftManage),
+		guarded(http.MethodDelete, "/v1/admin/holidays/{date}", d.Shift.DeleteHoliday, permission.ShiftManage),
 
 		guarded(http.MethodGet, "/v1/admin/announcements", d.Announcement.List, permission.AnnouncementManage),
 		guarded(http.MethodPost, "/v1/admin/announcements", d.Announcement.Create, permission.AnnouncementManage),

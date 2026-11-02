@@ -17,12 +17,14 @@ import (
 	"github.com/rzarxx/HRIS/backend/internal/dashboard"
 	"github.com/rzarxx/HRIS/backend/internal/devsim"
 	"github.com/rzarxx/HRIS/backend/internal/employee"
+	"github.com/rzarxx/HRIS/backend/internal/location"
 	"github.com/rzarxx/HRIS/backend/internal/org"
 	"github.com/rzarxx/HRIS/backend/internal/platform/config"
 	"github.com/rzarxx/HRIS/backend/internal/platform/database"
 	"github.com/rzarxx/HRIS/backend/internal/platform/fieldcrypt"
 	"github.com/rzarxx/HRIS/backend/internal/report"
 	"github.com/rzarxx/HRIS/backend/internal/server"
+	"github.com/rzarxx/HRIS/backend/internal/shift"
 	"github.com/rzarxx/HRIS/backend/internal/store"
 )
 
@@ -76,6 +78,8 @@ func run() error {
 		Announcement: announcement.NewHandler(announcement.NewService(pool)),
 		Dashboard:    dashboard.NewHandler(q),
 		Report:       report.NewHandler(report.NewService(q, authSvc.ResolveScope)),
+		Location:     location.NewHandler(location.NewService(pool)),
+		Shift:        shift.NewHandler(shift.NewService(pool)),
 		Signer:       signer,
 		SessionCheck: authSvc.SessionState,
 		Limiter:      limiter,

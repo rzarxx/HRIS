@@ -9,12 +9,15 @@ import type {
   DashboardSummary,
   DivisionWithStats,
   EmployeeListItem,
+  Holiday,
   ItemResponse,
   ListResponse,
+  OfficeLocation,
   OrgChartData,
   Paginated,
   PayrollReportRow,
   PayrollRules,
+  Shift,
   SubdivisionWithStats,
 } from "./types";
 import { useToast } from "@/components/ui/toast";
@@ -49,6 +52,30 @@ export const useSubdivisions = () =>
   useQuery({
     queryKey: ["subdivisions"],
     queryFn: () => api.get<ListResponse<SubdivisionWithStats>>("/admin/subdivisions").then((r) => r.data),
+  });
+
+export const useOfficeLocations = () =>
+  useQuery({
+    queryKey: ["office-locations"],
+    queryFn: () => api.get<ListResponse<OfficeLocation>>("/admin/office-locations").then((r) => r.data),
+  });
+
+export const useEmployeeLocations = (employeeId: string) =>
+  useQuery({
+    queryKey: ["employee-locations", employeeId],
+    queryFn: () => api.get<ListResponse<OfficeLocation>>(`/admin/employees/${employeeId}/locations`).then((r) => r.data),
+  });
+
+export const useShifts = () =>
+  useQuery({
+    queryKey: ["shifts"],
+    queryFn: () => api.get<ListResponse<Shift>>("/admin/shifts").then((r) => r.data),
+  });
+
+export const useHolidays = (year: number) =>
+  useQuery({
+    queryKey: ["holidays", year],
+    queryFn: () => api.get<ListResponse<Holiday>>("/admin/holidays", { year }).then((r) => r.data),
   });
 
 export interface EmployeeFilter {

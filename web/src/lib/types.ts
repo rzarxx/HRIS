@@ -24,6 +24,9 @@ export type AttendanceReportRow = Schemas["AttendanceReportRow"];
 export type PayrollReportRow = Schemas["PayrollPreviewRow"];
 export type PayrollRules = Schemas["PayrollRules"];
 export type Session = Schemas["Session"];
+export type OfficeLocation = Schemas["OfficeLocation"];
+export type Shift = Schemas["Shift"];
+export type Holiday = Schemas["Holiday"];
 export type MfaSetup = Schemas["MfaSetup"];
 export type MfaEnabled = Schemas["MfaEnabled"];
 

@@ -35,6 +35,7 @@ const (
 	AnnouncementCreated   = "announcement.created"
 	AnnouncementUpdated   = "announcement.updated"
 	AnnouncementDeleted   = "announcement.deleted"
+	SettingsChanged       = "settings.changed"
 )
 
 // Entry adalah satu baris audit. Detail tidak boleh memuat kata sandi atau token.

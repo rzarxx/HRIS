@@ -185,8 +185,8 @@ func TestPermissionsMatchOpenAPI(t *testing.T) {
 	}
 }
 
-// PostgreSQL aaPanel tidak menyertakan ekstensi contrib (D20). PostGIS di Fase 2 harus
-// lebih dulu dipastikan tersedia di server, lalu ditambahkan ke daftar ini.
+// PostgreSQL aaPanel tidak menyertakan ekstensi contrib (D20) maupun PostGIS (D22). Ekstensi
+// baru harus lebih dulu dipastikan tersedia di server, lalu ditambahkan ke daftar ini.
 func TestMigrationsNeedNoExtensions(t *testing.T) {
 	files, err := filepath.Glob("../../migrations/*.up.sql")
 	if err != nil || len(files) == 0 {

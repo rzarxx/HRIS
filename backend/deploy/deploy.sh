@@ -65,7 +65,7 @@ echo "==> Migrasi"
 echo "==> Restart API"
 systemctl restart hris-api
 for _ in $(seq 1 15); do
-  curl -fsS -o /dev/null http://127.0.0.1:8080/readyz && break
+  curl -fs -o /dev/null http://127.0.0.1:8080/readyz && break
   sleep 1
 done
 curl -fsS -o /dev/null http://127.0.0.1:8080/readyz || {

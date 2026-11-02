@@ -10,36 +10,45 @@ import {
   type LucideIcon,
 } from "lucide-react";
 
+export interface NavChild {
+  label: string;
+  href: string;
+  soon?: boolean;
+  permission?: string;
+}
+
 export interface NavItem {
   label: string;
   href?: string;
   icon: LucideIcon;
-  children?: { label: string; href: string; soon?: boolean }[];
+  permission?: string;
+  children?: NavChild[];
 }
 
-// Urutan menu mengikuti DESIGN.md §7. `soon` = modul fase berikutnya.
+// Urutan menu mengikuti MASTER.md §10.1. `soon` = modul fase berikutnya.
+// Permission di sini hanya menyembunyikan menu; yang menegakkan tetap API (§3.3).
 export const NAV: NavItem[] = [
-  { label: "Dashboard", href: "/", icon: LayoutDashboard },
+  { label: "Dashboard", href: "/", icon: LayoutDashboard, permission: "dashboard:read" },
   {
     label: "Master Data",
     icon: Database,
     children: [
-      { label: "Divisi", href: "/master/divisi" },
-      { label: "Subdiv", href: "/master/subdiv" },
-      { label: "Pejuang", href: "/master/pejuang" },
-      { label: "Lokasi Kantor", href: "/master/lokasi", soon: true },
-      { label: "Shift", href: "/master/shift", soon: true },
+      { label: "Divisi", href: "/master/divisi", permission: "org:write" },
+      { label: "Subdiv", href: "/master/subdiv", permission: "org:write" },
+      { label: "Pejuang", href: "/master/pejuang", permission: "employee:read" },
+      { label: "Lokasi Kantor", href: "/master/lokasi", soon: true, permission: "location:manage" },
+      { label: "Shift", href: "/master/shift", soon: true, permission: "shift:manage" },
     ],
   },
   {
     label: "Presensi",
     icon: CalendarCheck,
     children: [
-      { label: "Rekap", href: "/presensi/rekap" },
-      { label: "Review Absen", href: "/presensi/review", soon: true },
+      { label: "Rekap", href: "/presensi/rekap", permission: "attendance:report" },
+      { label: "Review Absen", href: "/presensi/review", soon: true, permission: "attendance:review" },
     ],
   },
-  { label: "Payroll", href: "/payroll", icon: Wallet },
+  { label: "Payroll", href: "/payroll", icon: Wallet, permission: "payroll:manage" },
   {
     label: "Pengajuan",
     icon: FileText,
@@ -49,7 +58,18 @@ export const NAV: NavItem[] = [
       { label: "Mutasi", href: "/pengajuan/mutasi", soon: true },
     ],
   },
-  { label: "Surat Peringatan", href: "/surat-peringatan", icon: TriangleAlert },
-  { label: "Pengumuman", href: "/pengumuman", icon: Megaphone },
+  { label: "Surat Peringatan", href: "/surat-peringatan", icon: TriangleAlert, permission: "warning:manage" },
+  { label: "Pengumuman", href: "/pengumuman", icon: Megaphone, permission: "announcement:manage" },
   { label: "Pengaturan", href: "/pengaturan", icon: Settings },
 ];
+
+/** Menyaring menu sesuai permissions dari GET /v1/me. */
+export function visibleNav(permissions: string[]): NavItem[] {
+  const allowed = (key?: string) => !key || permissions.includes(key);
+  return NAV.flatMap((item) => {
+    if (!allowed(item.permission)) return [];
+    if (!item.children) return [item];
+    const children = item.children.filter((c) => allowed(c.permission));
+    return children.length ? [{ ...item, children }] : [];
+  });
+}

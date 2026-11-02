@@ -1,12 +1,25 @@
 // Ekspor CSV yang langsung terbuka rapi di Excel berlokal Indonesia:
 // pemisah titik koma + BOM UTF-8.
-export function downloadCsv(filename: string, header: string[], rows: (string | number)[][]) {
-  const esc = (v: string | number) => {
-    const s = String(v);
-    return /[";\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+
+/**
+ * Menetralkan formula injection (MASTER.md §5.8): sel teks yang diawali karakter formula
+ * diberi awalan tanda kutip agar Excel membacanya sebagai teks, bukan rumus.
+ */
+function neutralize(value: string | number) {
+  if (typeof value === "number") return String(value);
+  return /^[=+\-@\t\r]/.test(value) ? `'${value}` : value;
+}
+
+export function toCsv(header: string[], rows: (string | number)[][]) {
+  const cell = (v: string | number) => {
+    const s = neutralize(v);
+    return /[";\r\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
   };
-  const content = [header, ...rows].map((r) => r.map(esc).join(";")).join("\r\n");
-  const blob = new Blob(["﻿" + content], { type: "text/csv;charset=utf-8" });
+  return [header, ...rows].map((r) => r.map(cell).join(";")).join("\r\n");
+}
+
+export function downloadCsv(filename: string, header: string[], rows: (string | number)[][]) {
+  const blob = new Blob(["﻿" + toCsv(header, rows)], { type: "text/csv;charset=utf-8" });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;

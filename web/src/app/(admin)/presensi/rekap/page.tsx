@@ -38,7 +38,7 @@ export default function AttendanceReportPage() {
     downloadCsv(
       `rekap-presensi-${period.year}-${String(period.month).padStart(2, "0")}.csv`,
       ["NIP", "Nama", "Divisi", "Subdiv", "Hari kerja", "Hadir", "Telat", "Cuti/Izin", "Alpha", "Total menit telat", "Kehadiran (%)"],
-      rows.map((r) => [r.nip, r.full_name, r.division, r.subdivision, r.work_days, r.present, r.late, r.leave, r.absent, r.late_minutes, (r.attendance_rate * 100).toFixed(1).replace(".", ",")]),
+      rows.map((r) => [r.nip, r.full_name, r.division, r.subdivision, r.work_days, r.present, r.late, r.leave, r.absent, r.late_minutes, (r.work_days ? (r.present / r.work_days) * 100 : 0).toFixed(1).replace(".", ",")]),
     );
   }
 
@@ -105,7 +105,7 @@ export default function AttendanceReportPage() {
                   <Td align="right" className="tabular-nums">{r.leave}</Td>
                   <Td align="right" className={`tabular-nums ${r.absent > 0 ? "font-medium text-red-700" : ""}`}>{r.absent}</Td>
                   <Td align="right" className="tabular-nums">{number(r.late_minutes)}</Td>
-                  <Td align="right" className="tabular-nums">{r.work_days ? percent(r.attendance_rate) : "-"}</Td>
+                  <Td align="right" className="tabular-nums">{r.work_days ? percent(r.present / r.work_days) : "-"}</Td>
                 </tr>
               ))}
             </tbody>

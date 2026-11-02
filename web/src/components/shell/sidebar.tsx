@@ -5,7 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
 import { Logo } from "@/components/logo";
-import { NAV, type NavItem } from "./nav";
+import { visibleNav, type NavItem } from "./nav";
 
 const isActive = (pathname: string, href: string) => (href === "/" ? pathname === "/" : pathname.startsWith(href));
 
@@ -54,7 +54,7 @@ function Group({ item, pathname, onNavigate }: { item: NavItem; pathname: string
   );
 }
 
-export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
+export function Sidebar({ permissions, onNavigate }: { permissions: string[]; onNavigate?: () => void }) {
   const pathname = usePathname();
   return (
     <div className="flex h-full flex-col">
@@ -63,7 +63,7 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
       </div>
       <nav aria-label="Menu utama" className="flex-1 overflow-y-auto p-3">
         <ul className="space-y-0.5">
-          {NAV.map((item) => {
+          {visibleNav(permissions).map((item) => {
             if (item.children) return <Group key={item.label} item={item} pathname={pathname} onNavigate={onNavigate} />;
             const active = isActive(pathname, item.href!);
             const Icon = item.icon;

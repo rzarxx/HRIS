@@ -11,8 +11,8 @@ import type { OrgChartData } from "@/lib/types";
 const SERIES = ["#2a78d6", "#eb6834", "#1baf7a", "#eda100", "#e87ba4", "#008300", "#6250d6", "#e34948"];
 const AXIS = { fontSize: 12, fill: "#64748b" };
 
-export function divisionColors(divisions: { division_id: string }[]) {
-  return new Map(divisions.map((d, i) => [d.division_id, SERIES[i % SERIES.length]]));
+function divisionColors(divisions: { division: string }[]) {
+  return new Map(divisions.map((d, i) => [d.division, SERIES[i % SERIES.length]]));
 }
 
 function ViewToggle({ table, onChange }: { table: boolean; onChange: (t: boolean) => void }) {
@@ -49,20 +49,20 @@ function TooltipBox({ title, rows }: { title: string; rows: [string, string][] }
   );
 }
 
-type SubRow = OrgChartData["per_subdivision"][number];
+type SubRow = OrgChartData["employees_per_subdivision"][number];
 
 export function EmployeesPerSubdivChart({ data }: { data: OrgChartData }) {
   const [table, setTable] = useState(false);
-  const colors = divisionColors(data.per_division);
-  const rows = data.per_subdivision;
+  const colors = divisionColors(data.subdivisions_per_division);
+  const rows = data.employees_per_subdivision;
   const height = Math.max(240, rows.length * 30 + 40);
 
   return (
     <Card title="Pejuang per subdiv" actions={<ViewToggle table={table} onChange={setTable} />}>
       <ul className="mb-3 flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-600" aria-label="Legenda divisi">
-        {data.per_division.map((d) => (
-          <li key={d.division_id} className="flex items-center gap-1.5">
-            <span className="size-2.5 rounded-sm" style={{ background: colors.get(d.division_id) }} aria-hidden />
+        {data.subdivisions_per_division.map((d) => (
+          <li key={d.division} className="flex items-center gap-1.5">
+            <span className="size-2.5 rounded-sm" style={{ background: colors.get(d.division) }} aria-hidden />
             {d.division}
           </li>
         ))}
@@ -78,10 +78,10 @@ export function EmployeesPerSubdivChart({ data }: { data: OrgChartData }) {
           </thead>
           <tbody>
             {rows.map((r) => (
-              <tr key={r.subdivision_id}>
+              <tr key={`${r.division}|${r.subdivision}`}>
                 <Td>{r.division}</Td>
                 <Td>{r.subdivision}</Td>
-                <Td align="right">{number(r.employees)}</Td>
+                <Td align="right">{number(r.employee_count)}</Td>
               </tr>
             ))}
           </tbody>
@@ -98,19 +98,14 @@ export function EmployeesPerSubdivChart({ data }: { data: OrgChartData }) {
                 content={({ active, payload }: TooltipProps<number, string>) => {
                   const r = payload?.[0]?.payload as SubRow | undefined;
                   if (!active || !r) return null;
-                  return <TooltipBox title={r.subdivision} rows={[["Divisi", r.division], ["Pejuang", number(r.employees)]]} />;
+                  return <TooltipBox title={r.subdivision} rows={[["Divisi", r.division], ["Pejuang", number(r.employee_count)]]} />;
                 }}
               />
-              <Bar
-                dataKey="employees"
-                radius={[0, 4, 4, 0]}
-                maxBarSize={18}
-                isAnimationActive={false}
-              >
+              <Bar dataKey="employee_count" radius={[0, 4, 4, 0]} maxBarSize={18} isAnimationActive={false}>
                 {rows.map((r) => (
-                  <Cell key={r.subdivision_id} fill={colors.get(r.division_id)} stroke="#fff" strokeWidth={2} />
+                  <Cell key={`${r.division}|${r.subdivision}`} fill={colors.get(r.division)} stroke="#fff" strokeWidth={2} />
                 ))}
-                <LabelList dataKey="employees" position="right" fontSize={12} fill="#334155" />
+                <LabelList dataKey="employee_count" position="right" fontSize={12} fill="#334155" />
               </Bar>
             </BarChart>
           </ResponsiveContainer>
@@ -120,11 +115,14 @@ export function EmployeesPerSubdivChart({ data }: { data: OrgChartData }) {
   );
 }
 
-type DivRow = OrgChartData["per_division"][number];
+type DivRow = OrgChartData["subdivisions_per_division"][number];
 
 export function SubdivsPerDivisionChart({ data }: { data: OrgChartData }) {
   const [table, setTable] = useState(false);
-  const rows = data.per_division;
+  const rows = data.subdivisions_per_division;
+  const employeesOf = (division: string) =>
+    data.employees_per_subdivision.filter((s) => s.division === division).reduce((n, s) => n + s.employee_count, 0);
+
   return (
     <Card title="Subdiv per divisi" actions={<ViewToggle table={table} onChange={setTable} />}>
       {table ? (
@@ -138,10 +136,10 @@ export function SubdivsPerDivisionChart({ data }: { data: OrgChartData }) {
           </thead>
           <tbody>
             {rows.map((r) => (
-              <tr key={r.division_id}>
+              <tr key={r.division}>
                 <Td>{r.division}</Td>
-                <Td align="right">{number(r.subdivisions)}</Td>
-                <Td align="right">{number(r.employees)}</Td>
+                <Td align="right">{number(r.subdivision_count)}</Td>
+                <Td align="right">{number(employeesOf(r.division))}</Td>
               </tr>
             ))}
           </tbody>
@@ -165,11 +163,11 @@ export function SubdivsPerDivisionChart({ data }: { data: OrgChartData }) {
                 content={({ active, payload }: TooltipProps<number, string>) => {
                   const r = payload?.[0]?.payload as DivRow | undefined;
                   if (!active || !r) return null;
-                  return <TooltipBox title={r.division} rows={[["Subdiv", number(r.subdivisions)], ["Pejuang", number(r.employees)]]} />;
+                  return <TooltipBox title={r.division} rows={[["Subdiv", number(r.subdivision_count)], ["Pejuang", number(employeesOf(r.division))]]} />;
                 }}
               />
               <Bar
-                dataKey="subdivisions"
+                dataKey="subdivision_count"
                 fill={SERIES[0]}
                 radius={[4, 4, 0, 0]}
                 maxBarSize={40}

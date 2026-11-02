@@ -51,7 +51,7 @@ export default function AnnouncementsPage() {
 
   const save = useSave(
     (v: AnnouncementInput) =>
-      editing && editing !== "new" ? api.put(`/admin/announcements/${editing.id}`, v) : api.post("/admin/announcements", v),
+      editing && editing !== "new" ? api.patch(`/admin/announcements/${editing.id}`, v) : api.post("/admin/announcements", v),
     { success: "Pengumuman tersimpan.", onDone: () => setEditing(null), onFieldErrors: setErrors },
   );
   const remove = useSave((id: string) => api.del(`/admin/announcements/${id}`), {

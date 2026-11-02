@@ -1,64 +1,67 @@
 "use client";
 
-import { RotateCcw } from "lucide-react";
-import { useState } from "react";
-import { Button } from "@/components/ui/button";
-import { Card, PageHeader } from "@/components/ui/layout";
-import { ConfirmDialog } from "@/components/ui/modal";
-import { api } from "@/lib/api-client";
+import { TriangleAlert } from "lucide-react";
+import { useSearchParams } from "next/navigation";
+import { Suspense } from "react";
+import { MfaCard } from "@/components/settings/mfa-card";
+import { PasswordCard } from "@/components/settings/password-card";
+import { SessionsCard } from "@/components/settings/sessions-card";
+import { Card, Loading, PageHeader } from "@/components/ui/layout";
 import { dateTime } from "@/lib/format";
-import { useMe, useSave } from "@/lib/hooks";
+import { useMe } from "@/lib/hooks";
 
-const USING_MOCK_API = !process.env.NEXT_PUBLIC_API_URL;
+const REQUIRED_MESSAGE: Record<string, string> = {
+  PASSWORD_CHANGE_REQUIRED: "Ganti kata sandi Anda terlebih dahulu sebelum memakai fitur lain.",
+  MFA_SETUP_REQUIRED: "Aktifkan verifikasi dua langkah terlebih dahulu. Fitur lain terkunci sampai langkah ini selesai.",
+};
 
-export default function SettingsPage() {
+function SettingsView() {
   const { data: me } = useMe();
-  const [confirm, setConfirm] = useState(false);
-  const reset = useSave(() => api.post("/admin/demo/reset"), {
-    success: "Data dummy dikembalikan ke kondisi awal.",
-    onDone: () => setConfirm(false),
-  });
+  const required = REQUIRED_MESSAGE[useSearchParams().get("wajib") ?? ""];
 
   return (
     <>
-      <PageHeader title="Pengaturan" description="Akun dan konfigurasi sistem." />
+      <PageHeader title="Pengaturan" description="Akun dan keamanan." />
+      {required && (
+        <div role="alert" className="mb-4 flex items-start gap-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+          <TriangleAlert className="mt-0.5 size-4 shrink-0" aria-hidden />
+          {required}
+        </div>
+      )}
       <div className="grid gap-4 lg:grid-cols-2">
-        <Card title="Akun saya">
-          <dl className="grid grid-cols-3 gap-y-2 text-sm">
-            <dt className="text-slate-500">Nama</dt>
-            <dd className="col-span-2 text-slate-800">{me?.full_name ?? "-"}</dd>
-            <dt className="text-slate-500">Email</dt>
-            <dd className="col-span-2 text-slate-800">{me?.email ?? "-"}</dd>
-            <dt className="text-slate-500">Jabatan</dt>
-            <dd className="col-span-2 text-slate-800">{me?.position ?? "-"}</dd>
-            <dt className="text-slate-500">Role</dt>
-            <dd className="col-span-2 text-slate-800 uppercase">{me?.role ?? "-"}</dd>
-          </dl>
-          <p className="mt-4 text-xs text-slate-500">Ganti password, refresh token, dan audit log hadir di Fase 1. Waktu ditampilkan dalam WIB, contoh: {dateTime(new Date().toISOString())}.</p>
-        </Card>
-
-        {USING_MOCK_API && (
-          <Card title="Data pengembangan">
-            <p className="text-sm text-slate-600">
-              Aplikasi saat ini memakai API sementara dengan data dummy. Gunakan tombol ini untuk mengembalikan data ke kondisi awal sebelum demo atau
-              pengujian. Semua perubahan (tambah/ubah/hapus) akan hilang.
-            </p>
-            <Button variant="secondary" className="mt-4" onClick={() => setConfirm(true)}>
-              <RotateCcw className="size-4" /> Reset data dummy
-            </Button>
+        <div className="flex flex-col gap-4">
+          <Card title="Akun saya">
+            <dl className="grid grid-cols-3 gap-y-2 text-sm">
+              <dt className="text-slate-500">Nama</dt>
+              <dd className="col-span-2 text-slate-800">{me?.full_name ?? "-"}</dd>
+              <dt className="text-slate-500">NIP</dt>
+              <dd className="col-span-2 font-mono text-xs text-slate-800">{me?.nip ?? "-"}</dd>
+              <dt className="text-slate-500">Email</dt>
+              <dd className="col-span-2 text-slate-800">{me?.email ?? "-"}</dd>
+              <dt className="text-slate-500">Jabatan</dt>
+              <dd className="col-span-2 text-slate-800">{me?.position ?? "-"}</dd>
+              <dt className="text-slate-500">Unit</dt>
+              <dd className="col-span-2 text-slate-800">{me ? `${me.subdivision.name} · ${me.division.name}` : "-"}</dd>
+              <dt className="text-slate-500">Role</dt>
+              <dd className="col-span-2 text-slate-800 uppercase">{me?.role ?? "-"}</dd>
+            </dl>
+            <p className="mt-4 text-xs text-slate-500">Waktu ditampilkan dalam WIB, contoh: {dateTime(new Date().toISOString())}.</p>
           </Card>
-        )}
+          <MfaCard />
+        </div>
+        <div className="flex flex-col gap-4">
+          <PasswordCard />
+          <SessionsCard />
+        </div>
       </div>
-
-      <ConfirmDialog
-        open={confirm}
-        title="Reset data dummy?"
-        message="Semua divisi, subdiv, Pejuang, pengumuman, dan presensi akan dikembalikan ke data awal."
-        confirmLabel="Reset"
-        loading={reset.isPending}
-        onConfirm={() => reset.mutate(undefined)}
-        onClose={() => setConfirm(false)}
-      />
     </>
+  );
+}
+
+export default function SettingsPage() {
+  return (
+    <Suspense fallback={<Loading />}>
+      <SettingsView />
+    </Suspense>
   );
 }

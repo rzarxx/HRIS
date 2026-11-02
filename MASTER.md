@@ -1360,6 +1360,8 @@ Estimasi untuk tim kecil; sesuaikan setelah kapasitas tim jelas.
 
 **Ditunda ke Fase 1 (disebut jujur di presentasi):** MFA, rotasi refresh token penuh, audit log lengkap, rate limit lengkap, HTTPS produksi.
 
+**Status: selesai.** Dikonfirmasi pemilik proyek lewat uji manual di server development (aaPanel, data dummy, HTTP, MFA dimatikan), termasuk alur demo F23 2x. Belum ada tes end-to-end otomatis.
+
 ### 13.3 Checklist Ringkas per Fase
 **Fase 1: Fondasi**
 - [x] Refresh token rotasi + deteksi reuse (kode + tes unit; belum diuji dengan database)

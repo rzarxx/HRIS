@@ -43,7 +43,7 @@ echo "    $COMMIT"
 echo "==> Build API"
 BUILD_DIR="$APP_DIR/build-home/dist"
 as_builder mkdir -p "$BUILD_DIR"
-for program in api migrate seed; do
+for program in api migrate seed superadmin; do
   as_builder bash -c "cd '$SRC_DIR/backend' && go build -o '$BUILD_DIR/hris-$program' ./cmd/$program"
 done
 
@@ -51,7 +51,7 @@ echo "==> Build web"
 as_builder bash -c "cd '$SRC_DIR/web' && npm ci --ignore-scripts --no-audit --no-fund && npm run build"
 
 echo "==> Memasang"
-for program in api migrate seed; do
+for program in api migrate seed superadmin; do
   install -o hris -g hris -m 750 "$BUILD_DIR/hris-$program" "$APP_DIR/hris-$program.new"
   mv -f "$APP_DIR/hris-$program.new" "$APP_DIR/hris-$program"
 done

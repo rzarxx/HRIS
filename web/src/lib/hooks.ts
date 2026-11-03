@@ -3,6 +3,7 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, ApiError } from "./api-client";
 import type {
+  AdminDevice,
   AnnouncementListItem,
   AttendanceReportRow,
   CurrentUser,
@@ -76,6 +77,13 @@ export const useHolidays = (year: number) =>
   useQuery({
     queryKey: ["holidays", year],
     queryFn: () => api.get<ListResponse<Holiday>>("/admin/holidays", { year }).then((r) => r.data),
+  });
+
+export const useAdminDevices = (f: { status: string; page: number; per_page: number }) =>
+  useQuery({
+    queryKey: ["admin-devices", f],
+    queryFn: () => api.get<Paginated<AdminDevice>>("/admin/devices", { ...f }),
+    placeholderData: keepPreviousData,
   });
 
 export interface EmployeeFilter {

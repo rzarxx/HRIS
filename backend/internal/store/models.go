@@ -101,13 +101,57 @@ func (ns NullAttStatus) Value() (driver.Value, error) {
 	return string(ns.AttStatus), nil
 }
 
+type DeviceStatus string
+
+const (
+	DeviceStatusPending  DeviceStatus = "pending"
+	DeviceStatusApproved DeviceStatus = "approved"
+	DeviceStatusRevoked  DeviceStatus = "revoked"
+)
+
+func (e *DeviceStatus) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = DeviceStatus(s)
+	case string:
+		*e = DeviceStatus(s)
+	default:
+		return fmt.Errorf("unsupported scan type for DeviceStatus: %T", src)
+	}
+	return nil
+}
+
+type NullDeviceStatus struct {
+	DeviceStatus DeviceStatus
+	Valid        bool // Valid is true if DeviceStatus is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullDeviceStatus) Scan(value interface{}) error {
+	if value == nil {
+		ns.DeviceStatus, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.DeviceStatus.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullDeviceStatus) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.DeviceStatus), nil
+}
+
 type UserRole string
 
 const (
-	UserRolePejuang UserRole = "pejuang"
-	UserRoleSubdiv  UserRole = "subdiv"
-	UserRoleKadiv   UserRole = "kadiv"
-	UserRoleSdm     UserRole = "sdm"
+	UserRolePejuang    UserRole = "pejuang"
+	UserRoleSubdiv     UserRole = "subdiv"
+	UserRoleKadiv      UserRole = "kadiv"
+	UserRoleSdm        UserRole = "sdm"
+	UserRoleSuperadmin UserRole = "superadmin"
 )
 
 func (e *UserRole) Scan(src interface{}) error {
@@ -184,6 +228,23 @@ type AuditLog struct {
 	Detail    []byte
 	Ip        *netip.Addr
 	CreatedAt pgtype.Timestamptz
+}
+
+type Device struct {
+	ID            uuid.UUID
+	EmployeeID    uuid.UUID
+	DeviceHash    string
+	Model         pgtype.Text
+	OsVersion     pgtype.Text
+	FcmToken      pgtype.Text
+	Status        DeviceStatus
+	ApprovedBy    uuid.NullUUID
+	ApprovedAt    pgtype.Timestamptz
+	RevokedBy     uuid.NullUUID
+	RevokedAt     pgtype.Timestamptz
+	RevokedReason pgtype.Text
+	LastSeenAt    pgtype.Timestamptz
+	CreatedAt     pgtype.Timestamptz
 }
 
 type Division struct {

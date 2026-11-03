@@ -32,7 +32,11 @@ function EmployeesView() {
   const divisions = useDivisions();
   const subdivisions = useSubdivisions();
   const me = useMe();
-  const canAssignLocation = me.data?.permissions.includes("employee:write") ?? false;
+  const permissions = me.data?.permissions ?? [];
+  const canWrite = permissions.includes("employee:write");
+  const canReset = permissions.includes("user:reset");
+  const canFilterOrg = permissions.includes("org:write");
+  const isSuperadmin = me.data?.role === "superadmin";
   const [assigning, setAssigning] = useState<EmployeeListItem | null>(null);
 
   const [q, setQ] = useState(params.get("q") ?? "");
@@ -90,9 +94,11 @@ function EmployeesView() {
         title="Pejuang"
         description="Data karyawan aktif dan nonaktif."
         actions={
-          <Button onClick={() => setEditing("new")}>
-            <Plus className="size-4" /> Tambah Pejuang
-          </Button>
+          canWrite && (
+            <Button onClick={() => setEditing("new")}>
+              <Plus className="size-4" /> Tambah Pejuang
+            </Button>
+          )
         }
       />
       <Card bodyClassName="">
@@ -108,30 +114,34 @@ function EmployeesView() {
               className="pl-9"
             />
           </div>
-          <Select
-            value={divisionId}
-            onChange={(e) => {
-              setDivisionId(e.target.value);
-              setSubdivisionId("");
-            }}
-            aria-label="Filter divisi"
-            className="w-auto min-w-44"
-          >
-            <option value="">Semua divisi</option>
-            {divisions.data?.map((d) => (
-              <option key={d.id} value={d.id}>
-                {d.name}
-              </option>
-            ))}
-          </Select>
-          <Select value={subdivisionId} onChange={(e) => setSubdivisionId(e.target.value)} aria-label="Filter subdiv" className="w-auto min-w-44">
-            <option value="">Semua subdiv</option>
-            {subOptions.map((s) => (
-              <option key={s.id} value={s.id}>
-                {s.name}
-              </option>
-            ))}
-          </Select>
+          {canFilterOrg && (
+            <>
+              <Select
+                value={divisionId}
+                onChange={(e) => {
+                  setDivisionId(e.target.value);
+                  setSubdivisionId("");
+                }}
+                aria-label="Filter divisi"
+                className="w-auto min-w-44"
+              >
+                <option value="">Semua divisi</option>
+                {divisions.data?.map((d) => (
+                  <option key={d.id} value={d.id}>
+                    {d.name}
+                  </option>
+                ))}
+              </Select>
+              <Select value={subdivisionId} onChange={(e) => setSubdivisionId(e.target.value)} aria-label="Filter subdiv" className="w-auto min-w-44">
+                <option value="">Semua subdiv</option>
+                {subOptions.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.name}
+                  </option>
+                ))}
+              </Select>
+            </>
+          )}
           <Select value={status} onChange={(e) => setStatus(e.target.value)} aria-label="Filter status" className="w-auto">
             <option value="">Semua status</option>
             <option value="active">Aktif</option>
@@ -188,19 +198,23 @@ function EmployeesView() {
                       </div>
                     </Td>
                     <Td align="right" className="whitespace-nowrap">
-                      <IconButton label={`Ubah ${e.full_name}`} onClick={() => setEditing(e)}>
-                        <Pencil className="size-4" />
-                      </IconButton>
-                      {canAssignLocation && e.status === "active" && (
+                      {canWrite && (
+                        <IconButton label={`Ubah ${e.full_name}`} onClick={() => setEditing(e)}>
+                          <Pencil className="size-4" />
+                        </IconButton>
+                      )}
+                      {canWrite && e.status === "active" && (
                         <IconButton label={`Lokasi absen ${e.full_name}`} onClick={() => setAssigning(e)}>
                           <MapPin className="size-4" />
                         </IconButton>
                       )}
-                      {e.status === "active" && e.account && (
+                      {e.status === "active" && e.account && !(isSuperadmin && e.account.role === "sdm") && (
                         <>
-                          <IconButton label={`Terbitkan tautan sandi untuk ${e.full_name}`} onClick={() => setResetting(e)}>
-                            <KeyRound className="size-4" />
-                          </IconButton>
+                          {canReset && (
+                            <IconButton label={`Terbitkan tautan sandi untuk ${e.full_name}`} onClick={() => setResetting(e)}>
+                              <KeyRound className="size-4" />
+                            </IconButton>
+                          )}
                           {e.account.is_locked ? (
                             <IconButton label={`Buka kunci akun ${e.full_name}`} onClick={() => setLock.mutate({ userId: e.account!.user_id, lock: false })}>
                               <LockOpen className="size-4" />
@@ -212,7 +226,7 @@ function EmployeesView() {
                           )}
                         </>
                       )}
-                      {e.status === "active" && (
+                      {canWrite && e.status === "active" && (
                         <IconButton label={`Nonaktifkan ${e.full_name}`} onClick={() => setDeleting(e)} className="hover:text-red-600">
                           <UserX className="size-4" />
                         </IconButton>

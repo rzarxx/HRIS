@@ -56,6 +56,9 @@ export default function LocationMap({
     const m = L.map(box.current, { inertia: false, doubleClickZoom: false });
     L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
       maxZoom: 19,
+      // Nginx memasang no-referrer untuk seluruh web, padahal OpenStreetMap memblokir tile tanpa Referer.
+      // Hanya domain asal yang dikirim, bukan alamat halaman.
+      referrerPolicy: "strict-origin",
       attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
     }).addTo(m);
     layers.current = L.layerGroup().addTo(m);

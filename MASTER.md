@@ -171,7 +171,7 @@ Path memakai kebab-case, nilai enum memakai snake_case:
 Scope dihitung dari struktur organisasi di DB (`subdivisions.head_employee_id`, `divisions.head_employee_id`), bukan dari klaim JWT. Mutasi yang disetujui langsung mengubah scope.
 
 ### 3.2 Matriks Permission
-Role `superadmin` (D25) belum dibangun, jadi belum ada di matriks ini. Saat dibangun bersama device binding, wewenangnya **hanya urusan teknis**: `device:review`, `user:manage`, `location:manage`, `shift:manage`, dan `settings:manage` (konfigurasi teknis lewat panel, mis. SMTP). Role ini **tidak boleh** melihat `base_salary`, slip, atau laporan upah, dan tidak punya `payroll:*`. Data upah tetap milik SDM. MFA wajib. Akun super admin pertama dibuat lewat perintah di server dan diaktifkan dengan tautan yang tampil di terminal, karena SMTP baru bisa diatur setelah akun itu ada.
+Role `superadmin` (D25) tidak ditulis sebagai kolom di matriks ini. Wewenangnya **hanya urusan teknis**, ditambah izin dasar milik sendiri: `employee:read` (all, tanpa `base_salary`), `device:review`, `user:manage` (tidak berlaku pada akun SDM), `location:manage`, `shift:manage`, dan nanti `settings:manage` (konfigurasi teknis lewat panel, mis. SMTP, dibuat bersama fiturnya). Role ini **tidak boleh** melihat `base_salary`, slip, atau laporan upah, dan tidak punya `payroll:*`. Data upah tetap milik SDM. MFA wajib. Role diberikan lewat perintah `hris-superadmin grant --email ...` di server, pada akun Pejuang biasa. Bila akun belum aktif, tautan aktivasi tampil di terminal, karena SMTP baru bisa diatur setelah akun itu ada.
 
 | Permission key | pejuang | subdiv | kadiv | sdm |
 |---|---|---|---|---|
@@ -180,7 +180,8 @@ Role `superadmin` (D25) belum dibangun, jadi belum ada di matriks ini. Saat diba
 | `org:write` | | | | ✔ |
 | `employee:read` | | subdivision | division | all |
 | `employee:write` | | | | ✔ |
-| `user:manage` (reset sandi, kunci, cabut sesi) | | | | ✔ |
+| `user:manage` (kunci, buka kunci, cabut sesi) | | | | ✔ |
+| `user:reset` (terbitkan tautan sandi baru, D33) | | | | ✔ |
 | `device:register` | self | self | self | self |
 | `device:review` | | | | ✔ |
 | `face:enroll` | self | self | self | self |
@@ -310,7 +311,10 @@ Domain terpisah: `admin.<domain>` (web statis) dan `api.<domain>` (API), keduany
 
 ### 5.3 Device Binding
 - Setiap perangkat punya `integrity_tier` yang ditetapkan server (§5.4.1).
-- Satu akun, satu perangkat `approved`. Perangkat pertama otomatis `approved` setelah aktivasi; perangkat berikutnya `pending` sampai SDM atau super admin menyetujui (D25).
+- Satu akun, satu perangkat `approved`, dijaga juga oleh indeks unik di database.
+- Hanya akun yang **belum pernah** punya perangkat yang langsung `approved`. Perangkat lain `pending` sampai SDM atau super admin menyetujui (D25), termasuk setelah perangkat lama dicabut (D32).
+- Peninjau tidak bisa menyetujui perangkatnya sendiri. Perangkat yang sudah dicabut tidak bisa disetujui lagi; aplikasi yang dipasang ulang mendaftar sebagai perangkat baru.
+- Pejuang yang dinonaktifkan otomatis kehilangan semua perangkatnya.
 - `device_hash` = hash dari ID instalasi acak (disimpan di Keystore), bukan IMEI.
 - Presensi dari perangkat `pending` atau `revoked` ditolak.
 - Perangkat hilang: SDM mencabut perangkat dan seluruh sesi (alur F16).
@@ -481,7 +485,7 @@ DDL dasar ada di `QUERY.sql`; perubahan di **Lampiran A** (yang berlaku). Beriku
 | `mail_settings` | `host`, `port`, `username`, `password_enc`, `key_id`, `from_address`, `from_name`, `verified_at`, `updated_by` | Satu baris aktif, D30 |
 | `user_invites` | `id`, `user_id`, `purpose` (`activation`/`password_reset`/`email_change`), `token_hash`, `expires_at`, `used_at` | D30 |
 | `sessions` | `id`, `user_id`, `client`, `device_id`, `refresh_hash`, `prev_refresh_hash`, `idle_expires_at`, `absolute_expires_at`, `revoked_at` | |
-| `devices` | `id`, `employee_id`, `device_hash`, `model`, `os_version`, `fcm_token`, `status`, `integrity_tier`, `manual_approved_until`, `approved_by` | §5.4.1 |
+| `devices` | `id`, `employee_id`, `device_hash`, `model`, `os_version`, `fcm_token`, `status`, `integrity_tier`, `manual_approved_until`, `approved_by`, `approved_at`, `revoked_by`, `revoked_at`, `revoked_reason`, `last_seen_at` | §5.4.1. `integrity_tier` dan `manual_approved_until` ditambahkan bersama verifikasi perangkat |
 | `face_templates` | `id`, `employee_id`, `embedding_enc`, `key_id`, `model_version`, `is_active` | |
 | `consents` | `id`, `employee_id`, `type`, `version`, `accepted_at` | |
 | `employee_work_arrangements` | `id`, `employee_id`, `mode` (`wfa`/`hybrid`), `flexible_hours`, `starts_on`, `ends_on`, `weekdays`, `reason`, `created_by` | §5.4.2 |
@@ -638,7 +642,7 @@ Setiap `code` baru wajib ditambahkan di tabel ini.
 | GET | `/v1/org/divisions`, `/v1/org/subdivisions?division_id=` | `org:read` |
 | POST | `/v1/devices/register` | `device:register` |
 | GET | `/v1/devices/me` | `device:register` |
-| PUT | `/v1/devices/me/fcm-token` | `device:register` |
+| PUT | `/v1/devices/me/fcm-token` | `device:register`. Dibuat bersama notifikasi di Fase 3; sementara token dikirim saat registrasi |
 | POST | `/v1/face/enroll` | `face:enroll` |
 | GET | `/v1/face/status` | `face:enroll` |
 | POST | `/v1/consents` | self |
@@ -904,9 +908,9 @@ flowchart TD
     B -- Ya --> C{"device_hash sudah terdaftar untuk akun?"}
     C -- "Ya, revoked" --> X["403 DEVICE_REVOKED"]
     C -- "Ya, approved" --> H["Terbitkan token terikat did"]
-    C -- Belum --> D{"Akun sudah punya perangkat approved?"}
-    D -- Belum ada --> E["Daftarkan device status approved"]
-    D -- Sudah ada --> F["Daftarkan status pending, notifikasi SDM"]
+    C -- Belum --> D{"Akun pernah punya perangkat?"}
+    D -- Belum pernah --> E["Daftarkan device status approved"]
+    D -- Pernah --> F["Daftarkan status pending, tunggu SDM atau super admin"]
     E --> H
     F --> G["Login boleh, presensi ditolak DEVICE_PENDING_APPROVAL"]
     H --> I{"face_enrolled?"}
@@ -1097,7 +1101,7 @@ flowchart TD
 ```mermaid
 flowchart TD
     A["Login di HP baru"] --> B["Perangkat tercatat pending, presensi diblokir"]
-    B --> C["SDM menerima notifikasi dan menghubungi Pejuang untuk verifikasi identitas"]
+    B --> C["SDM atau super admin melihat permintaan dan menghubungi Pejuang untuk verifikasi identitas"]
     C --> D{"Identitas terverifikasi?"}
     D -- Ya --> E["approve: HP baru approved, HP lama revoked, sesi lama dicabut, audit device.approved"]
     D -- Tidak --> F["revoke HP baru, audit device.revoked"]
@@ -1558,6 +1562,8 @@ Estimasi untuk tim kecil; sesuaikan setelah kapasitas tim jelas.
 | D29 | Aturan potongan dan lembur berupa parameter berversi yang diatur SDM lewat panel | Keputusan pemilik proyek agar perubahan hitungan tidak bergantung pada kode. Konsekuensi: SDM bertanggung jawab atas angka yang dimasukkan, dan rumus sementara di `internal/report` harus diganti di Fase 5 |
 | D30 | Aktivasi, reset, dan pemberitahuan akses akun dikirim ke email terdaftar | Keputusan pemilik proyek. SDM tidak lagi memegang token. Email perusahaan dipakai lewat SMTP yang diatur super admin di panel. Konsekuensi: butuh pengaturan SMTP, domain publik, dan HTTPS sebelum akun sungguhan dipakai; keamanan akun kini bergantung pada keamanan kotak email Pejuang |
 | D31 | Jam kerja dihitung dengan cutoff periode (nilai awal tanggal 25) dan cutoff harian (nilai awal 04:00) yang diatur SDM | Permintaan pemilik proyek agar penghitungan lebih sistematis. Konsekuensi: rekap dan laporan upah yang kini per bulan kalender harus pindah ke rentang periode, dan koreksi setelah finalize tidak mengubah periode lama |
+| D32 | Perangkat langsung `approved` hanya bila akun belum pernah punya perangkat | Bila dihitung dari perangkat yang masih aktif, pencuri kata sandi mendapat persetujuan otomatis setelah HP korban dicabut. Konsekuensi: setiap ganti HP butuh persetujuan |
+| D33 | Reset kata sandi memakai izin terpisah `user:reset`, hanya SDM | Tautan reset tampil ke yang menekan tombol (D17), sehingga super admin bisa masuk ke akun SDM dan melihat upah. Ditinjau lagi setelah tautan hanya terkirim ke email (D30). Konsekuensi: SDM tetap bisa mereset akun super admin |
 | D15 | `/v1/admin/reports/payroll-preview` mewajibkan `attendance:report` dan `payroll:manage` | Respons memuat gaji, sedangkan §7.6 membatasi `base_salary` untuk `sdm` dan pemilik data |
 
 ### 14.2 Pertanyaan yang Harus Dijawab (blokir pekerjaan terkait)

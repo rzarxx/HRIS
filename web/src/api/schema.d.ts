@@ -1228,6 +1228,240 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/devices/register": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Daftarkan perangkat milik sendiri
+         * @description Akun yang belum pernah punya perangkat langsung `approved`. Selain itu `pending` sampai disetujui. Perangkat yang dicabut ditolak `DEVICE_REVOKED`.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["DeviceRegisterInput"];
+                };
+            };
+            responses: {
+                /** @description Perangkat sudah terdaftar */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data: components["schemas"]["Device"];
+                        };
+                    };
+                };
+                /** @description Perangkat baru */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data: components["schemas"]["Device"];
+                        };
+                    };
+                };
+                400: components["responses"]["ValidationFailed"];
+                403: components["responses"]["Error"];
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/devices/me": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Daftar perangkat milik sendiri */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data: components["schemas"]["Device"][];
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/devices": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Daftar perangkat untuk ditinjau
+         * @description Permission `device:review`.
+         */
+        get: {
+            parameters: {
+                query?: {
+                    status?: components["schemas"]["DeviceStatus"];
+                    page?: components["parameters"]["Page"];
+                    per_page?: components["parameters"]["PerPage"];
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data: components["schemas"]["AdminDevice"][];
+                            meta: components["schemas"]["PageMeta"];
+                        };
+                    };
+                };
+                400: components["responses"]["ValidationFailed"];
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/devices/{id}/approve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Setujui perangkat
+         * @description Perangkat lain yang masih aktif dicabut beserta sesinya. Perangkat sendiri ditolak `CONFLICT_SELF_ACTION`, dan perangkat yang sudah dicabut ditolak `DEVICE_REVOKED`.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: components["parameters"]["Id"];
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data: components["schemas"]["AdminDevice"];
+                        };
+                    };
+                };
+                403: components["responses"]["Error"];
+                404: components["responses"]["Error"];
+                409: components["responses"]["Error"];
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/devices/{id}/revoke": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Cabut perangkat beserta sesinya */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: components["parameters"]["Id"];
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data: components["schemas"]["AdminDevice"];
+                        };
+                    };
+                };
+                404: components["responses"]["Error"];
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/admin/office-locations": {
         parameters: {
             query?: never;
@@ -2058,7 +2292,7 @@ export interface components {
          */
         Money: string;
         /** @enum {string} */
-        Role: "pejuang" | "subdiv" | "kadiv" | "sdm";
+        Role: "pejuang" | "subdiv" | "kadiv" | "sdm" | "superadmin";
         /**
          * @description Registry MASTER.md §7.4
          * @enum {string}
@@ -2068,7 +2302,7 @@ export interface components {
          * @description Matriks MASTER.md §3.2
          * @enum {string}
          */
-        Permission: "profile:read" | "profile:update" | "org:read" | "org:write" | "employee:read" | "employee:write" | "user:manage" | "device:register" | "device:review" | "face:enroll" | "face:reset" | "attendance:clock" | "attendance:read" | "attendance:review" | "attendance:report" | "location:manage" | "shift:manage" | "leave:create" | "cash_advance:create" | "transfer:create" | "leave:read" | "cash_advance:read" | "transfer:read" | "approval:act" | "payslip:read" | "payroll:manage" | "payroll:finalize" | "warning:read" | "warning:manage" | "announcement:read" | "announcement:manage" | "dashboard:read" | "approval_flow:manage" | "audit:read";
+        Permission: "profile:read" | "profile:update" | "org:read" | "org:write" | "employee:read" | "employee:write" | "user:manage" | "user:reset" | "device:register" | "device:review" | "face:enroll" | "face:reset" | "attendance:clock" | "attendance:read" | "attendance:review" | "attendance:report" | "location:manage" | "shift:manage" | "leave:create" | "cash_advance:create" | "transfer:create" | "leave:read" | "cash_advance:read" | "transfer:read" | "approval:act" | "payslip:read" | "payroll:manage" | "payroll:finalize" | "warning:read" | "warning:manage" | "announcement:read" | "announcement:manage" | "dashboard:read" | "approval_flow:manage" | "audit:read";
         /** @enum {string} */
         EmployeeStatus: "active" | "inactive";
         /** @enum {string} */
@@ -2350,6 +2584,42 @@ export interface components {
             absent_deduction: components["schemas"]["Money"];
             late_deduction: components["schemas"]["Money"];
             net: components["schemas"]["Money"];
+        };
+        /** @enum {string} */
+        DeviceStatus: "pending" | "approved" | "revoked";
+        DeviceRegisterInput: {
+            /** @description SHA-256 dari ID instalasi acak, bukan IMEI */
+            device_hash: string;
+            model?: string | null;
+            os_version?: string | null;
+            fcm_token?: string | null;
+        };
+        /** @description Hash dan token notifikasi tidak pernah dikembalikan. */
+        Device: {
+            /** Format: uuid */
+            id: string;
+            model: string | null;
+            os_version: string | null;
+            status: components["schemas"]["DeviceStatus"];
+            /** Format: date-time */
+            created_at: string;
+            /** Format: date-time */
+            last_seen_at: string | null;
+        };
+        AdminDevice: components["schemas"]["Device"] & {
+            /** Format: uuid */
+            employee_id: string;
+            employee_name: string;
+            nip: string;
+            subdivision_name: string;
+            division_name: string;
+            /** Format: date-time */
+            approved_at: string | null;
+            approved_by_name: string | null;
+            /** Format: date-time */
+            revoked_at: string | null;
+            /** @description admin_revoked, replaced, atau offboarded */
+            revoked_reason: string | null;
         };
         GeoPoint: {
             /** @example -6.2001 */

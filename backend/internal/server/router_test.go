@@ -18,7 +18,7 @@ import (
 	"github.com/rzarxx/HRIS/backend/internal/permission"
 )
 
-var allRoles = []string{permission.RolePejuang, permission.RoleSubdiv, permission.RoleKadiv, permission.RoleSDM}
+var allRoles = []string{permission.RolePejuang, permission.RoleSubdiv, permission.RoleKadiv, permission.RoleSDM, permission.RoleSuperadmin}
 
 func testRouter(t *testing.T, sessionActive bool) (http.Handler, *auth.TokenSigner, []Route) {
 	t.Helper()

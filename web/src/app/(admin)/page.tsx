@@ -21,7 +21,14 @@ function Stat({ label, value, sub, icon: Icon }: { label: string; value: string;
   );
 }
 
-export default function DashboardPage() {
+export default function HomePage() {
+  const { data: me } = useMe();
+  if (!me) return <Loading />;
+  if (me.permissions.includes("dashboard:read")) return <OrgDashboard />;
+  return <PageHeader title={`Selamat datang, ${me.full_name.split(" ")[0]}`} description="Pilih menu di samping untuk mulai bekerja." />;
+}
+
+function OrgDashboard() {
   const { data: me } = useMe();
   const summary = useDashboardSummary();
   const chart = useOrgChart();

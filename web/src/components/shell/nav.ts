@@ -5,6 +5,7 @@ import {
   LayoutDashboard,
   Megaphone,
   Settings,
+  Smartphone,
   TriangleAlert,
   Wallet,
   type LucideIcon,
@@ -48,6 +49,7 @@ export const NAV: NavItem[] = [
       { label: "Review Absen", href: "/presensi/review", soon: true, permission: "attendance:review" },
     ],
   },
+  { label: "Perangkat", href: "/perangkat", icon: Smartphone, permission: "device:review" },
   { label: "Payroll", href: "/payroll", icon: Wallet, permission: "payroll:manage" },
   {
     label: "Pengajuan",

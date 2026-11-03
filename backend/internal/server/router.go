@@ -11,6 +11,7 @@ import (
 	"github.com/rzarxx/HRIS/backend/internal/announcement"
 	"github.com/rzarxx/HRIS/backend/internal/auth"
 	"github.com/rzarxx/HRIS/backend/internal/dashboard"
+	"github.com/rzarxx/HRIS/backend/internal/device"
 	"github.com/rzarxx/HRIS/backend/internal/employee"
 	"github.com/rzarxx/HRIS/backend/internal/location"
 	"github.com/rzarxx/HRIS/backend/internal/org"
@@ -29,6 +30,7 @@ type Deps struct {
 	Dashboard    *dashboard.Handler
 	Report       *report.Handler
 	Location     *location.Handler
+	Device       *device.Handler
 	Shift        *shift.Handler
 	Signer       *auth.TokenSigner
 	SessionCheck auth.SessionChecker
@@ -73,7 +75,7 @@ func routes(d Deps) []Route {
 		// Tetap terbuka saat sandi/MFA belum dipenuhi agar web tahu apa yang harus dilakukan.
 		{http.MethodGet, "/v1/me", AnyUser, nil, d.Auth.GetMe},
 
-		guarded(http.MethodPost, "/v1/admin/users/{user_id}/reset-password", d.Auth.AdminResetPassword, permission.UserManage),
+		guarded(http.MethodPost, "/v1/admin/users/{user_id}/reset-password", d.Auth.AdminResetPassword, permission.UserReset),
 		guarded(http.MethodPost, "/v1/admin/users/{user_id}/lock", d.Auth.AdminLock, permission.UserManage),
 		guarded(http.MethodPost, "/v1/admin/users/{user_id}/unlock", d.Auth.AdminUnlock, permission.UserManage),
 		guarded(http.MethodPost, "/v1/admin/users/{user_id}/revoke-sessions", d.Auth.AdminRevokeSessions, permission.UserManage),
@@ -96,6 +98,12 @@ func routes(d Deps) []Route {
 
 		guarded(http.MethodGet, "/v1/admin/employees/{id}/locations", d.Location.ForEmployee, permission.EmployeeWrite),
 		guarded(http.MethodPut, "/v1/admin/employees/{id}/locations", d.Location.SetForEmployee, permission.EmployeeWrite),
+
+		guarded(http.MethodPost, "/v1/devices/register", d.Device.Register, permission.DeviceRegister),
+		guarded(http.MethodGet, "/v1/devices/me", d.Device.Mine, permission.DeviceRegister),
+		guarded(http.MethodGet, "/v1/admin/devices", d.Device.List, permission.DeviceReview),
+		guarded(http.MethodPost, "/v1/admin/devices/{id}/approve", d.Device.Approve, permission.DeviceReview),
+		guarded(http.MethodPost, "/v1/admin/devices/{id}/revoke", d.Device.Revoke, permission.DeviceReview),
 
 		guarded(http.MethodGet, "/v1/admin/office-locations", d.Location.List, permission.LocationManage),
 		guarded(http.MethodPost, "/v1/admin/office-locations", d.Location.Create, permission.LocationManage),

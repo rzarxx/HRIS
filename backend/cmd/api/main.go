@@ -15,6 +15,7 @@ import (
 	"github.com/rzarxx/HRIS/backend/internal/announcement"
 	"github.com/rzarxx/HRIS/backend/internal/auth"
 	"github.com/rzarxx/HRIS/backend/internal/dashboard"
+	"github.com/rzarxx/HRIS/backend/internal/device"
 	"github.com/rzarxx/HRIS/backend/internal/devsim"
 	"github.com/rzarxx/HRIS/backend/internal/employee"
 	"github.com/rzarxx/HRIS/backend/internal/location"
@@ -79,6 +80,7 @@ func run() error {
 		Dashboard:    dashboard.NewHandler(q),
 		Report:       report.NewHandler(report.NewService(q, authSvc.ResolveScope)),
 		Location:     location.NewHandler(location.NewService(pool)),
+		Device:       device.NewHandler(device.NewService(pool)),
 		Shift:        shift.NewHandler(shift.NewService(pool)),
 		Signer:       signer,
 		SessionCheck: authSvc.SessionState,

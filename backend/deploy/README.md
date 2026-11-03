@@ -131,3 +131,14 @@ atau lewat VPN.
 ## Sebelum dipakai data asli
 Mode ini khusus development. Untuk data asli wajib `APP_ENV=production`, MFA aktif, HTTPS, kunci dari secret manager, backup teruji,
 dan cara membuat akun SDM pertama (seed ditolak di luar development, dan bootstrap akun belum ada).
+
+## Super admin
+
+Super admin mengurus hal teknis: perangkat, akun, lokasi, dan shift. Tanpa akses upah. Role diberikan
+lewat server, pada akun Pejuang biasa yang sudah dibuat SDM:
+
+```bash
+cd /opt/hris && runuser -u hris -- ./hris-superadmin grant --email orang@contoh.id
+```
+
+Bila akun belum aktif, tautan aktivasi tampil di terminal. Untuk mencabut, pakai `revoke`.

@@ -527,6 +527,9 @@ func offboardAccount(ctx context.Context, q *store.Queries, employeeID uuid.UUID
 	if err := q.InvalidateUserInvites(ctx, user.ID); err != nil {
 		return err
 	}
+	if err := q.RevokeEmployeeDevices(ctx, employeeID); err != nil {
+		return err
+	}
 	return q.RevokeAllSessions(ctx, store.RevokeAllSessionsParams{
 		UserID: user.ID, Reason: pgtype.Text{String: "offboarded", Valid: true},
 	})

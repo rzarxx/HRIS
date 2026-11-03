@@ -533,6 +533,8 @@ DDL dasar ada di `QUERY.sql`; perubahan di **Lampiran A** (yang berlaku). Beriku
 
 ## 7. Kontrak API
 
+**Dokumentasi Postman:** spec dan collection "HRIS Pejuang API" di workspace tim, dengan environment "HRIS Lokal" dan "HRIS Server Development". Sumbernya tetap `openapi.yaml`: setiap perubahan kontrak diunggah ke spec itu lalu collection disinkronkan, dalam perubahan yang sama. Kata sandi hanya diisi sebagai nilai lokal di environment, tidak pernah disimpan di collection atau repo.
+
 Sumber kebenaran mesin: `backend/api/openapi.yaml`. Dokumen ini adalah acuan manusianya; bila beda, perbaiki salah satunya di PR yang sama.
 
 ### 7.1 Konvensi

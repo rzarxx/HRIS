@@ -103,8 +103,8 @@ export interface paths {
                 content: {
                     /**
                      * @example {
-                     *       "email": "sdm@pejuang.id",
-                     *       "password": "<kata sandi>"
+                     *       "email": "{{email}}",
+                     *       "password": "{{password}}"
                      *     }
                      */
                     "application/json": components["schemas"]["LoginRequest"];
@@ -190,7 +190,7 @@ export interface paths {
             };
             requestBody?: never;
             responses: {
-                /** @description Sesi dicabut */
+                /** @description Sesi dicabut, cookie dihapus */
                 204: {
                     headers: {
                         [name: string]: unknown;
@@ -276,7 +276,7 @@ export interface paths {
                 };
             };
             responses: {
-                /** @description Akun aktif */
+                /** @description Akun aktif, silakan masuk */
                 204: {
                     headers: {
                         [name: string]: unknown;
@@ -851,7 +851,7 @@ export interface paths {
                 query?: {
                     page?: components["parameters"]["Page"];
                     per_page?: components["parameters"]["PerPage"];
-                    /** @description Cari nama */
+                    /** @description Cari nama, NIP, email, jabatan */
                     q?: string;
                     division_id?: string;
                     subdivision_id?: string;

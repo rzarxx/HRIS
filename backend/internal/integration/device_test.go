@@ -291,6 +291,19 @@ func TestSuperadminAllExceptFinance(t *testing.T) {
 	sdm.do(http.MethodPost, "/v1/admin/employees/"+acc.employeeID+"/deactivate", nil).wantError(t, http.StatusForbidden, "FORBIDDEN_ROLE")
 	admin.do(http.MethodGet, "/v1/me", nil).want(t, http.StatusOK)
 
+	// Lokasi absen super admin hanya diubah super admin; daftarnya tetap utuh setelah SDM ditolak.
+	loc := data[officeLocation](t, admin.do(http.MethodPost, "/v1/admin/office-locations", map[string]any{
+		"name": "Kantor Admin", "latitude": -6.2, "longitude": 106.8, "radius_m": 100,
+	}).want(t, http.StatusCreated))
+	locationsPath := "/v1/admin/employees/" + acc.employeeID + "/locations"
+	admin.do(http.MethodPut, locationsPath, map[string]any{"location_ids": []string{loc.ID}}).want(t, http.StatusOK)
+	sdm.do(http.MethodPut, locationsPath, map[string]any{"location_ids": []string{}}).wantError(t, http.StatusForbidden, "FORBIDDEN_ROLE")
+	if got := data[[]officeLocation](t, sdm.do(http.MethodGet, locationsPath, nil).want(t, http.StatusOK)); len(got) != 1 || got[0].ID != loc.ID {
+		t.Errorf("lokasi super admin berubah: %+v", got)
+	}
+	// Pejuang biasa tetap bisa diatur SDM.
+	sdm.do(http.MethodPut, "/v1/admin/employees/"+target.employeeID+"/locations", map[string]any{"location_ids": []string{loc.ID}}).want(t, http.StatusOK)
+
 	// Role lain tetap tertutup, dan SDM tetap memegang gaji.
 	login(t, srv, activeAccount(t, "pejuang", "OPS-LAP").email, seedPassword).do(http.MethodGet, "/v1/admin/devices", nil).wantError(t, http.StatusForbidden, "FORBIDDEN_ROLE")
 	sdmView := sdm.do(http.MethodGet, "/v1/admin/employees/"+target.employeeID, nil).want(t, http.StatusOK)

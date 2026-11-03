@@ -323,24 +323,6 @@ func (s *Service) assertShift(ctx context.Context, id uuid.NullUUID) error {
 	return err
 }
 
-// Super admin adalah role tertinggi, jadi SDM tidak bisa mengubah atau menonaktifkannya (D34).
-func (s *Service) assertNotProtected(ctx context.Context, p auth.Principal, employeeID uuid.UUID) error {
-	if p.Role == permission.RoleSuperadmin {
-		return nil
-	}
-	user, err := s.q.GetUserByEmployee(ctx, employeeID)
-	if pgconv.IsNoRows(err) {
-		return nil
-	}
-	if err != nil {
-		return err
-	}
-	if user.Role == store.UserRoleSuperadmin {
-		return httpx.ErrForbidden()
-	}
-	return nil
-}
-
 // Create membuat data Pejuang, akun belum aktif, dan undangan aktivasi (F3).
 func (s *Service) Create(ctx context.Context, p auth.Principal, ip audit.Entry, in Input, now time.Time) (Created, error) {
 	// Selain SDM tidak mengurus gaji: Pejuang dibuat dengan gaji 0 dan SDM yang mengisinya (D34).
@@ -424,7 +406,7 @@ func (s *Service) Update(ctx context.Context, p auth.Principal, ip audit.Entry, 
 	if err != nil {
 		return Employee{}, err
 	}
-	if err := s.assertNotProtected(ctx, p, id); err != nil {
+	if err := auth.AssertEmployeeNotProtected(ctx, s.q, p, id); err != nil {
 		return Employee{}, err
 	}
 	nip := current.Nip
@@ -523,7 +505,7 @@ func (s *Service) Deactivate(ctx context.Context, p auth.Principal, ip audit.Ent
 	if _, err := s.getScoped(ctx, p, id); err != nil {
 		return Employee{}, err
 	}
-	if err := s.assertNotProtected(ctx, p, id); err != nil {
+	if err := auth.AssertEmployeeNotProtected(ctx, s.q, p, id); err != nil {
 		return Employee{}, err
 	}
 	err := database.InTx(ctx, s.pool, func(q *store.Queries) error {

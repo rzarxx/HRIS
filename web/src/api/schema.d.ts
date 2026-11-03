@@ -2094,7 +2094,7 @@ export interface paths {
         };
         /**
          * Tetapkan lokasi absen Pejuang
-         * @description Menggantikan seluruh daftar. Daftar kosong berarti Pejuang tidak bisa absen di mana pun.
+         * @description Menggantikan seluruh daftar. Daftar kosong berarti Pejuang tidak bisa absen di mana pun. Lokasi super admin hanya bisa diubah oleh super admin (D34).
          */
         put: {
             parameters: {
@@ -2123,6 +2123,7 @@ export interface paths {
                     };
                 };
                 400: components["responses"]["ValidationFailed"];
+                403: components["responses"]["Error"];
                 404: components["responses"]["Error"];
             };
         };

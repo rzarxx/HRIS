@@ -940,7 +940,7 @@ paths:
     put:
       tags: [Pejuang]
       summary: Tetapkan lokasi absen Pejuang
-      description: Menggantikan seluruh daftar. Daftar kosong berarti Pejuang tidak bisa absen di mana pun.
+      description: Menggantikan seluruh daftar. Daftar kosong berarti Pejuang tidak bisa absen di mana pun. Lokasi super admin hanya bisa diubah oleh super admin (D34).
       requestBody:
         required: true
         content:
@@ -959,6 +959,7 @@ paths:
                     type: array
                     items: { $ref: "#/components/schemas/OfficeLocation" }
         "400": { $ref: "#/components/responses/ValidationFailed" }
+        "403": { $ref: "#/components/responses/Error" }
         "404": { $ref: "#/components/responses/Error" }
 
   /v1/admin/announcements:

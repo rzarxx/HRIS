@@ -1287,7 +1287,8 @@ components:
       allOf:
         - $ref: "#/components/schemas/EmployeePatch"
         - type: object
-          required: [full_name, email, subdivision_id, base_salary]
+          required: [full_name, email, subdivision_id]
+          description: "`base_salary` wajib untuk SDM. Super admin tidak boleh mengirimnya; gaji dimulai dari 0 dan diisi SDM."
     EmployeePatch:
       type: object
       description: Pada PATCH, field yang tidak dikirim tetap nilai lamanya.

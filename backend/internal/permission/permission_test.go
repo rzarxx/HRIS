@@ -42,19 +42,18 @@ func TestMatrix(t *testing.T) {
 	}
 }
 
-func TestSuperadminIsTechnicalOnly(t *testing.T) {
-	for _, key := range []string{DeviceReview, UserManage, LocationManage, ShiftManage, EmployeeRead} {
-		if !Allows(RoleSuperadmin, key) {
-			t.Errorf("super admin harus punya %s", key)
+func TestSuperadminHasAllExceptFinance(t *testing.T) {
+	for _, key := range Keys(RoleSDM) {
+		finance := key == PayrollManage || key == PayrollFinalize
+		if Allows(RoleSuperadmin, key) == finance {
+			t.Errorf("super admin dan %s: %v", key, Allows(RoleSuperadmin, key))
 		}
 	}
-	for _, key := range []string{
-		UserReset, PayrollManage, PayrollFinalize, AttendanceReport, DashboardRead,
-		EmployeeWrite, OrgWrite, WarningManage, AnnouncementManage,
-	} {
-		if Allows(RoleSuperadmin, key) {
-			t.Errorf("super admin tidak boleh punya %s", key)
-		}
+	if ScopeOf(RoleSuperadmin, CashAdvanceRead) != ScopeSelf {
+		t.Error("super admin hanya boleh melihat kasbon sendiri")
+	}
+	if ManagesSalary(RoleSuperadmin) || !ManagesSalary(RoleSDM) {
+		t.Error("gaji orang lain hanya untuk SDM")
 	}
 	if !RequiresMFA(RoleSuperadmin) || !RequiresMFA(RoleSDM) || RequiresMFA(RolePejuang) {
 		t.Error("MFA wajib untuk SDM dan super admin saja")

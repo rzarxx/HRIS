@@ -336,16 +336,16 @@ func (s *Service) managedUser(ctx context.Context, id uuid.UUID) (store.User, er
 	return user, err
 }
 
-// Super admin tidak boleh mengganggu akun SDM, karena SDM memegang data upah (D25).
-func (s *Service) managedTarget(ctx context.Context, actor Principal, id uuid.UUID) error {
+// Super admin adalah role tertinggi, jadi SDM tidak bisa mengubah akunnya (D34).
+func (s *Service) managedTarget(ctx context.Context, actor Principal, id uuid.UUID) (store.User, error) {
 	user, err := s.managedUser(ctx, id)
 	if err != nil {
-		return err
+		return user, err
 	}
-	if actor.Role == permission.RoleSuperadmin && user.Role == store.UserRoleSdm {
-		return httpx.ErrForbidden()
+	if actor.Role != permission.RoleSuperadmin && user.Role == store.UserRoleSuperadmin {
+		return user, httpx.ErrForbidden()
 	}
-	return nil
+	return user, nil
 }
 
 func errSelfAction(message string) error {
@@ -357,11 +357,16 @@ func (s *Service) ResetPassword(ctx context.Context, actor Principal, id uuid.UU
 	if id == actor.UserID {
 		return Activation{}, errSelfAction("Gunakan menu ganti kata sandi untuk akun sendiri.")
 	}
-	if _, err := s.managedUser(ctx, id); err != nil {
+	user, err := s.managedTarget(ctx, actor, id)
+	if err != nil {
 		return Activation{}, err
 	}
+	// Tautan tampil ke yang menekan tombol, dan akun SDM memegang data keuangan (D33).
+	if actor.Role == permission.RoleSuperadmin && user.Role == store.UserRoleSdm {
+		return Activation{}, httpx.ErrForbidden()
+	}
 	var out Activation
-	err := database.InTx(ctx, s.pool, func(q *store.Queries) error {
+	err = database.InTx(ctx, s.pool, func(q *store.Queries) error {
 		hash, err := UnusablePasswordHash()
 		if err != nil {
 			return err
@@ -386,7 +391,7 @@ func (s *Service) LockUser(ctx context.Context, actor Principal, id uuid.UUID, i
 	if id == actor.UserID {
 		return errSelfAction("Anda tidak dapat mengunci akun sendiri.")
 	}
-	if err := s.managedTarget(ctx, actor, id); err != nil {
+	if _, err := s.managedTarget(ctx, actor, id); err != nil {
 		return err
 	}
 	return database.InTx(ctx, s.pool, func(q *store.Queries) error {
@@ -403,7 +408,7 @@ func (s *Service) LockUser(ctx context.Context, actor Principal, id uuid.UUID, i
 }
 
 func (s *Service) UnlockUser(ctx context.Context, actor Principal, id uuid.UUID, ip *netip.Addr) error {
-	if err := s.managedTarget(ctx, actor, id); err != nil {
+	if _, err := s.managedTarget(ctx, actor, id); err != nil {
 		return err
 	}
 	return database.InTx(ctx, s.pool, func(q *store.Queries) error {
@@ -420,7 +425,7 @@ func (s *Service) RevokeUserSessions(ctx context.Context, actor Principal, id uu
 	if id == actor.UserID {
 		return errSelfAction("Gunakan menu sesi aktif untuk akun sendiri.")
 	}
-	if err := s.managedTarget(ctx, actor, id); err != nil {
+	if _, err := s.managedTarget(ctx, actor, id); err != nil {
 		return err
 	}
 	return database.InTx(ctx, s.pool, func(q *store.Queries) error {

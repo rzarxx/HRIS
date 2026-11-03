@@ -171,7 +171,12 @@ Path memakai kebab-case, nilai enum memakai snake_case:
 Scope dihitung dari struktur organisasi di DB (`subdivisions.head_employee_id`, `divisions.head_employee_id`), bukan dari klaim JWT. Mutasi yang disetujui langsung mengubah scope.
 
 ### 3.2 Matriks Permission
-Role `superadmin` (D25) tidak ditulis sebagai kolom di matriks ini. Wewenangnya **hanya urusan teknis**, ditambah izin dasar milik sendiri: `employee:read` (all, tanpa `base_salary`), `device:review`, `user:manage` (tidak berlaku pada akun SDM), `location:manage`, `shift:manage`, dan nanti `settings:manage` (konfigurasi teknis lewat panel, mis. SMTP, dibuat bersama fiturnya). Role ini **tidak boleh** melihat `base_salary`, slip, atau laporan upah, dan tidak punya `payroll:*`. Data upah tetap milik SDM. MFA wajib. Role diberikan lewat perintah `hris-superadmin grant --email ...` di server, pada akun Pejuang biasa. Bila akun belum aktif, tautan aktivasi tampil di terminal, karena SMTP baru bisa diatur setelah akun itu ada.
+Role `superadmin` (D34) adalah role tertinggi dan tidak ditulis sebagai kolom di matriks ini: **semua izin SDM kecuali keuangan**.
+- Tidak punya `payroll:manage`, `payroll:finalize`, dan `cash_advance:read` milik orang lain. `base_salary` orang lain tidak tampil dan tidak bisa diubah; Pejuang yang dibuatnya bergaji 0 sampai diisi SDM.
+- Bisa mengelola semua akun, kecuali menerbitkan tautan sandi untuk akun SDM (D33).
+- SDM tidak bisa mengunci, mereset, mengubah, atau menonaktifkan super admin. Bila lupa kata sandi: `hris-superadmin reset`.
+- MFA wajib. Role diberikan lewat `hris-superadmin grant --email ...` di server, pada akun Pejuang biasa. Bila akun belum aktif, tautan aktivasi tampil di terminal, karena SMTP baru bisa diatur setelah akun itu ada.
+- Penampil audit yang dibuat nanti wajib menyembunyikan nilai `employee.salary_changed` dari super admin.
 
 | Permission key | pejuang | subdiv | kadiv | sdm |
 |---|---|---|---|---|
@@ -181,7 +186,7 @@ Role `superadmin` (D25) tidak ditulis sebagai kolom di matriks ini. Wewenangnya 
 | `employee:read` | | subdivision | division | all |
 | `employee:write` | | | | ✔ |
 | `user:manage` (kunci, buka kunci, cabut sesi) | | | | ✔ |
-| `user:reset` (terbitkan tautan sandi baru, D33) | | | | ✔ |
+| `user:reset` (terbitkan tautan sandi baru) | | | | ✔ |
 | `device:register` | self | self | self | self |
 | `device:review` | | | | ✔ |
 | `face:enroll` | self | self | self | self |
@@ -1555,7 +1560,7 @@ Estimasi untuk tim kecil; sesuaikan setelah kapasitas tim jelas.
 | D22 | Geofence dihitung di Go (Haversine untuk radius, ray casting untuk poligon), tanpa PostGIS | PostgreSQL aaPanel tidak punya PostGIS, dan tiap Pejuang hanya punya sedikit lokasi sehingga tidak perlu indeks spasial. Konsekuensi: analitik spasial lanjutan harus dihitung sendiri atau menambah PostGIS nanti |
 | D23 | Satu Pejuang boleh banyak lokasi. WFA diizinkan per Pejuang oleh SDM dengan melewati geofence saja | Sebagian Pejuang bekerja dari lokasi yang tidak menentu. Konsekuensi: pada absen WFA, lokasi tidak lagi menjadi bukti kehadiran, jadi kontrol bertumpu pada perangkat, wajah, dan liveness |
 | D24 | Semua HP didukung lewat jalur verifikasi berjenjang A sampai E (§5.4.1), bukan hanya Play Integrity | Pengguna meminta tidak mematok satu opsi. Konsekuensi: jalur D tanpa bukti kriptografis selalu masuk `review`, sehingga menambah beban SDM |
-| D25 | Perangkat bisa disetujui SDM atau role baru `superadmin`. Super admin hanya mengurus hal teknis, tanpa akses upah | Keputusan pemilik proyek: payroll dan gaji tetap urusan SDM. Konsekuensi: role, matriks, dan alur pembuatan akun super admin pertama harus dibangun bersama device binding |
+| D25 | Perangkat bisa disetujui SDM atau role baru `superadmin`. Wewenang super admin diperluas oleh D34 | Keputusan pemilik proyek: payroll dan gaji tetap urusan SDM. Konsekuensi: role, matriks, dan alur pembuatan akun super admin pertama harus dibangun bersama device binding |
 | D26 | Mode hybrid dan jam fleksibel per Pejuang untuk dinas atau safari | Sebagian divisi bekerja di luar kantor dan di luar jam kerja. Konsekuensi: absen `field` tidak membuktikan kehadiran di kantor |
 | D27 | Timer sebelum "Sudah baca" ditegakkan server | Timer yang hanya ada di app bisa dilewati lewat app yang dimodifikasi. Timer membuktikan isi sudah terbuka selama waktu itu, bukan bahwa isinya benar-benar dibaca |
 | D28 | Peta area memakai Leaflet dengan OpenStreetMap, pencarian tempat memakai Nominatim | Tanpa kunci API dan biaya, cukup untuk panel admin bervolume kecil. Konsekuensi: peta butuh internet dan koordinat yang dilihat terkirim ke OpenStreetMap; bila pemakaian membesar, ganti penyedia peta |
@@ -1563,7 +1568,8 @@ Estimasi untuk tim kecil; sesuaikan setelah kapasitas tim jelas.
 | D30 | Aktivasi, reset, dan pemberitahuan akses akun dikirim ke email terdaftar | Keputusan pemilik proyek. SDM tidak lagi memegang token. Email perusahaan dipakai lewat SMTP yang diatur super admin di panel. Konsekuensi: butuh pengaturan SMTP, domain publik, dan HTTPS sebelum akun sungguhan dipakai; keamanan akun kini bergantung pada keamanan kotak email Pejuang |
 | D31 | Jam kerja dihitung dengan cutoff periode (nilai awal tanggal 25) dan cutoff harian (nilai awal 04:00) yang diatur SDM | Permintaan pemilik proyek agar penghitungan lebih sistematis. Konsekuensi: rekap dan laporan upah yang kini per bulan kalender harus pindah ke rentang periode, dan koreksi setelah finalize tidak mengubah periode lama |
 | D32 | Perangkat langsung `approved` hanya bila akun belum pernah punya perangkat | Bila dihitung dari perangkat yang masih aktif, pencuri kata sandi mendapat persetujuan otomatis setelah HP korban dicabut. Konsekuensi: setiap ganti HP butuh persetujuan |
-| D33 | Reset kata sandi memakai izin terpisah `user:reset`, hanya SDM | Tautan reset tampil ke yang menekan tombol (D17), sehingga super admin bisa masuk ke akun SDM dan melihat upah. Ditinjau lagi setelah tautan hanya terkirim ke email (D30). Konsekuensi: SDM tetap bisa mereset akun super admin |
+| D33 | Super admin tidak bisa menerbitkan tautan sandi untuk akun SDM | Tautan tampil ke yang menekan tombol (D17), sehingga bisa dipakai masuk ke akun SDM dan melihat data keuangan. Konsekuensi: lewat tautan akun Pejuang biasa, super admin masih bisa melihat gaji Pejuang itu sendiri; tercatat di audit dan tertutup setelah tautan hanya terkirim ke email (D30) |
+| D34 | Super admin adalah role tertinggi: semua akses kecuali keuangan, dan SDM tidak bisa mengubah akunnya | Keputusan pemilik proyek. Keuangan = payroll, pratinjau upah, gaji orang lain, dan kasbon orang lain. Konsekuensi: bila satu-satunya super admin lupa kata sandi, pemulihannya lewat perintah di server |
 | D15 | `/v1/admin/reports/payroll-preview` mewajibkan `attendance:report` dan `payroll:manage` | Respons memuat gaji, sedangkan §7.6 membatasi `base_salary` untuk `sdm` dan pemilik data |
 
 ### 14.2 Pertanyaan yang Harus Dijawab (blokir pekerjaan terkait)
@@ -1576,7 +1582,7 @@ Estimasi untuk tim kecil; sesuaikan setelah kapasitas tim jelas.
 7. ~~Kebijakan HP tanpa Google Play Services~~ Dijawab: didukung lewat beberapa jalur (D24).
 8. Saldo cuti: aturan hak cuti per tahun?
 9. Apakah Kadiv boleh mengakses dashboard dan laporan divisinya?
-10. Perlu role terpisah untuk peninjau audit? *(wewenang super admin sudah dijawab: D25)*
+10. Perlu role terpisah untuk peninjau audit? *(wewenang super admin sudah dijawab: D34)*
 11. Hosting: cloud atau server sendiri? Domain apa? *(memengaruhi keamanan infrastruktur)*
 12. Retensi resmi untuk selfie, template wajah, dan data lokasi (konfirmasi legal).
 13. Ambang `face.threshold_*` dan `risk.*` (dikalibrasi lewat uji lapangan).

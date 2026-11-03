@@ -37,6 +37,8 @@ function EmployeesView() {
   const canReset = permissions.includes("user:reset");
   const canFilterOrg = permissions.includes("org:write");
   const isSuperadmin = me.data?.role === "superadmin";
+  // Akun super admin tidak bisa diubah SDM; server tetap menegakkan aturan ini (D34).
+  const isProtected = (e: EmployeeListItem) => !isSuperadmin && e.account?.role === "superadmin";
   const [assigning, setAssigning] = useState<EmployeeListItem | null>(null);
 
   const [q, setQ] = useState(params.get("q") ?? "");
@@ -164,7 +166,7 @@ function EmployeesView() {
                   <Th>Nama</Th>
                   <Th>Jabatan / Shift</Th>
                   <Th>Subdiv / Divisi</Th>
-                  <Th align="right">Gaji pokok</Th>
+                  {!isSuperadmin && <Th align="right">Gaji pokok</Th>}
                   <Th>Status</Th>
                   <Th align="right">
                     <span className="sr-only">Aksi</span>
@@ -187,9 +189,11 @@ function EmployeesView() {
                       <p>{e.subdivision_name}</p>
                       <p className="text-xs text-slate-500">{e.division_name}</p>
                     </Td>
-                    <Td align="right" className="tabular-nums whitespace-nowrap">
-                      {e.base_salary ? rupiah(e.base_salary) : "-"}
-                    </Td>
+                    {!isSuperadmin && (
+                      <Td align="right" className="tabular-nums whitespace-nowrap">
+                        {e.base_salary ? rupiah(e.base_salary) : "-"}
+                      </Td>
+                    )}
                     <Td>
                       <div className="flex flex-col items-start gap-1">
                         {e.status === "active" ? <Badge tone="green">Aktif</Badge> : <Badge>Nonaktif</Badge>}
@@ -198,7 +202,7 @@ function EmployeesView() {
                       </div>
                     </Td>
                     <Td align="right" className="whitespace-nowrap">
-                      {canWrite && (
+                      {canWrite && !isProtected(e) && (
                         <IconButton label={`Ubah ${e.full_name}`} onClick={() => setEditing(e)}>
                           <Pencil className="size-4" />
                         </IconButton>
@@ -208,9 +212,9 @@ function EmployeesView() {
                           <MapPin className="size-4" />
                         </IconButton>
                       )}
-                      {e.status === "active" && e.account && !(isSuperadmin && e.account.role === "sdm") && (
+                      {e.status === "active" && e.account && !isProtected(e) && (
                         <>
-                          {canReset && (
+                          {canReset && !(isSuperadmin && e.account.role === "sdm") && (
                             <IconButton label={`Terbitkan tautan sandi untuk ${e.full_name}`} onClick={() => setResetting(e)}>
                               <KeyRound className="size-4" />
                             </IconButton>
@@ -226,7 +230,7 @@ function EmployeesView() {
                           )}
                         </>
                       )}
-                      {canWrite && e.status === "active" && (
+                      {canWrite && !isProtected(e) && e.status === "active" && (
                         <IconButton label={`Nonaktifkan ${e.full_name}`} onClick={() => setDeleting(e)} className="hover:text-red-600">
                           <UserX className="size-4" />
                         </IconButton>

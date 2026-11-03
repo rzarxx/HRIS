@@ -2,6 +2,7 @@
 // Dipakai: hris-superadmin grant --email orang@contoh.id
 //
 //	hris-superadmin revoke --email orang@contoh.id
+//	hris-superadmin reset --email orang@contoh.id
 package main
 
 import (
@@ -25,8 +26,8 @@ func main() {
 }
 
 func run() error {
-	if len(os.Args) < 2 || (os.Args[1] != "grant" && os.Args[1] != "revoke") {
-		return errors.New("pemakaian: hris-superadmin grant|revoke --email <email>")
+	if len(os.Args) < 2 || (os.Args[1] != "grant" && os.Args[1] != "revoke" && os.Args[1] != "reset") {
+		return errors.New("pemakaian: hris-superadmin grant|revoke|reset --email <email>")
 	}
 	flags := flag.NewFlagSet(os.Args[1], flag.ExitOnError)
 	email := flags.String("email", "", "email akun Pejuang")
@@ -55,6 +56,14 @@ func run() error {
 			return err
 		}
 		fmt.Println("Role super admin dicabut. Akun ini kembali menjadi Pejuang.")
+		return nil
+	}
+	if os.Args[1] == "reset" {
+		invite, err := auth.ResetSuperadmin(ctx, pool, *email, time.Now())
+		if err != nil {
+			return err
+		}
+		fmt.Printf("Kata sandi lama tidak berlaku lagi. Buka alamat web admin + /aktivasi/?token=%s\nBerlaku sampai %s.\n", invite.Token, invite.ExpiresAt)
 		return nil
 	}
 	activation, err := auth.GrantSuperadmin(ctx, pool, *email, time.Now())

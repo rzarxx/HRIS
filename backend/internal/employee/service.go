@@ -323,8 +323,33 @@ func (s *Service) assertShift(ctx context.Context, id uuid.NullUUID) error {
 	return err
 }
 
+// Super admin adalah role tertinggi, jadi SDM tidak bisa mengubah atau menonaktifkannya (D34).
+func (s *Service) assertNotProtected(ctx context.Context, p auth.Principal, employeeID uuid.UUID) error {
+	if p.Role == permission.RoleSuperadmin {
+		return nil
+	}
+	user, err := s.q.GetUserByEmployee(ctx, employeeID)
+	if pgconv.IsNoRows(err) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	if user.Role == store.UserRoleSuperadmin {
+		return httpx.ErrForbidden()
+	}
+	return nil
+}
+
 // Create membuat data Pejuang, akun belum aktif, dan undangan aktivasi (F3).
 func (s *Service) Create(ctx context.Context, p auth.Principal, ip audit.Entry, in Input, now time.Time) (Created, error) {
+	// Selain SDM tidak mengurus gaji: Pejuang dibuat dengan gaji 0 dan SDM yang mengisinya (D34).
+	if !permission.ManagesSalary(p.Role) {
+		if in.BaseSalary != "" {
+			return Created{}, httpx.ErrForbidden()
+		}
+		in.BaseSalary = "0.00"
+	}
 	if in.Status == "" {
 		in.Status = "active"
 	}
@@ -399,6 +424,9 @@ func (s *Service) Update(ctx context.Context, p auth.Principal, ip audit.Entry, 
 	if err != nil {
 		return Employee{}, err
 	}
+	if err := s.assertNotProtected(ctx, p, id); err != nil {
+		return Employee{}, err
+	}
 	nip := current.Nip
 	in := Input{
 		Nip:            &nip,
@@ -414,6 +442,9 @@ func (s *Service) Update(ctx context.Context, p auth.Principal, ip audit.Entry, 
 	}
 	if err := decode(&in); err != nil {
 		return Employee{}, err
+	}
+	if !permission.ManagesSalary(p.Role) && in.BaseSalary != current.BaseSalary.StringFixed(2) {
+		return Employee{}, httpx.ErrForbidden()
 	}
 	v, err := in.validate()
 	if err != nil {
@@ -489,6 +520,9 @@ func (s *Service) Deactivate(ctx context.Context, p auth.Principal, ip audit.Ent
 	if _, err := s.getScoped(ctx, p, id); err != nil {
 		return Employee{}, err
 	}
+	if err := s.assertNotProtected(ctx, p, id); err != nil {
+		return Employee{}, err
+	}
 	err := database.InTx(ctx, s.pool, func(q *store.Queries) error {
 		affected, err := q.DeactivateEmployee(ctx, store.DeactivateEmployeeParams{ID: id, ExitDate: pgconv.Date(pgconv.WorkDate(now))})
 		if err != nil {
@@ -545,7 +579,7 @@ func present(p auth.Principal, r store.GetEmployeeScopedRow) Employee {
 		Status:         r.Status,
 		DefaultShiftID: pgconv.UUIDPtr(r.DefaultShiftID), DefaultShiftName: pgconv.TextPtr(r.DefaultShiftName),
 	}
-	if p.Role == permission.RoleSDM || r.ID == p.EmployeeID {
+	if permission.ManagesSalary(p.Role) || r.ID == p.EmployeeID {
 		salary := r.BaseSalary.StringFixed(2)
 		e.BaseSalary = &salary
 	}

@@ -43,7 +43,8 @@ HAVING count(a.id) > 0 OR (e.status = 'active' AND (e.join_date IS NULL OR e.joi
 ORDER BY e.full_name, e.id;
 
 -- name: ListActiveEmployeesForAttendance :many
-SELECT id, join_date FROM employees WHERE deleted_at IS NULL AND status = 'active';
+SELECT id, join_date FROM employees e WHERE deleted_at IS NULL AND status = 'active'
+  AND NOT EXISTS (SELECT 1 FROM devices d WHERE d.employee_id = e.id);
 
 -- name: GetDefaultShift :one
 SELECT * FROM shifts ORDER BY name = 'Reguler' DESC, name LIMIT 1;

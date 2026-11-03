@@ -79,6 +79,38 @@ func GrantSuperadmin(ctx context.Context, pool *pgxpool.Pool, email string, now 
 	return activation, err
 }
 
+// ResetSuperadmin menerbitkan tautan sandi baru dari server. Hanya sesama super admin yang
+// bisa melakukannya lewat web, jadi ini jalan keluar bila super admin satu-satunya lupa sandi.
+func ResetSuperadmin(ctx context.Context, pool *pgxpool.Pool, email string, now time.Time) (Activation, error) {
+	hash, err := UnusablePasswordHash()
+	if err != nil {
+		return Activation{}, err
+	}
+	var out Activation
+	err = database.InTx(ctx, pool, func(q *store.Queries) error {
+		user, err := userByEmail(ctx, q, email)
+		if err != nil {
+			return err
+		}
+		if user.Role != store.UserRoleSuperadmin {
+			return fmt.Errorf("akun ini ber-role %s, bukan super admin", user.Role)
+		}
+		if err := q.SetUserPassword(ctx, store.SetUserPasswordParams{ID: user.ID, PasswordHash: hash}); err != nil {
+			return err
+		}
+		if err := q.RevokeAllSessions(ctx, store.RevokeAllSessionsParams{UserID: user.ID, Reason: pgtype.Text{String: "password_reset", Valid: true}}); err != nil {
+			return err
+		}
+		if out, err = IssueInvite(ctx, q, user.ID, now); err != nil {
+			return err
+		}
+		return audit.Write(ctx, q, audit.Entry{
+			Action: audit.UserPasswordReset, Entity: "user", EntityID: user.ID, Detail: map[string]any{"source": "cli"},
+		})
+	})
+	return out, err
+}
+
 // RevokeSuperadmin mengembalikan super admin menjadi Pejuang biasa.
 func RevokeSuperadmin(ctx context.Context, pool *pgxpool.Pool, email string) error {
 	return database.InTx(ctx, pool, func(q *store.Queries) error {

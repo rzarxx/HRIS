@@ -24,8 +24,9 @@ const (
 
 	// Batas per akun 120/menit (MASTER.md §5.7). Batas per IP dibuat longgar karena satu
 	// kantor bisa berbagi satu IP publik; fungsinya menahan banjir dari klien tak dikenal.
-	userLimitPerMinute = 120
-	ipLimitPerMinute   = 1200
+	clockLimitPerMinute = 10
+	userLimitPerMinute  = 120
+	ipLimitPerMinute    = 1200
 )
 
 // Options adalah konfigurasi middleware yang berbeda antar lingkungan.
@@ -80,6 +81,35 @@ func limitByUser(limiter auth.Limiter) func(http.Handler) http.Handler {
 				return
 			}
 			if ok, wait := limiter.Allow("user:"+p.UserID.String(), userLimitPerMinute, time.Minute, time.Now()); !ok {
+				httpx.WriteError(w, r, auth.RateLimited(w, wait))
+				return
+			}
+			next.ServeHTTP(w, r)
+		})
+	}
+}
+
+// clockPaths adalah route absen dengan batas lebih ketat (MASTER.md §5.7).
+var clockPaths = map[string]bool{
+	"/v1/attendance/challenge": true,
+	"/v1/attendance/clock-in":  true,
+	"/v1/attendance/clock-out": true,
+}
+
+// limitClock membatasi absen per akun dan IP.
+func limitClock(limiter auth.Limiter) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			p, ok := auth.PrincipalFrom(r.Context())
+			if !ok {
+				httpx.WriteError(w, r, httpx.ErrUnauthenticated())
+				return
+			}
+			key := "clock:" + p.UserID.String() + "|"
+			if addr := audit.ClientIP(r); addr != nil {
+				key += addr.String()
+			}
+			if ok, wait := limiter.Allow(key, clockLimitPerMinute, time.Minute, time.Now()); !ok {
 				httpx.WriteError(w, r, auth.RateLimited(w, wait))
 				return
 			}

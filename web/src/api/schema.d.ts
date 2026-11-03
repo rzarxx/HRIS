@@ -1228,6 +1228,205 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/attendance/challenge": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Minta tantangan absen sekali pakai
+         * @description Berlaku 90 detik dan terikat ke pengguna, perangkat, dan tujuan.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header: {
+                    /** @description ID perangkat dari hasil registrasi */
+                    "X-Device-Id": string;
+                };
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["AttendanceChallengeInput"];
+                };
+            };
+            responses: {
+                /** @description Tantangan dibuat */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data: components["schemas"]["AttendanceChallenge"];
+                        };
+                    };
+                };
+                400: components["responses"]["ValidationFailed"];
+                403: components["responses"]["Error"];
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/attendance/clock-in": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Absen masuk
+         * @description Selama verifikasi perangkat dan wajah belum dibuat, semua absen ditolak `ATTENDANCE_BLOCKED` kecuali di development dengan izin khusus (D36). Alasan keamanan tidak dikirim ke klien.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header: {
+                    /** @description ID perangkat dari hasil registrasi */
+                    "X-Device-Id": string;
+                };
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["ClockInput"];
+                };
+            };
+            responses: {
+                /** @description Absen masuk tercatat */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data: components["schemas"]["ClockInResult"];
+                        };
+                    };
+                };
+                400: components["responses"]["ValidationFailed"];
+                403: components["responses"]["Error"];
+                409: components["responses"]["Error"];
+                422: components["responses"]["Error"];
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/attendance/clock-out": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Absen pulang
+         * @description Dipasangkan dengan absen masuk yang masih terbuka, sampai batas cutoff harian berikutnya (D31).
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header: {
+                    /** @description ID perangkat dari hasil registrasi */
+                    "X-Device-Id": string;
+                };
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["ClockInput"];
+                };
+            };
+            responses: {
+                /** @description Absen pulang tercatat */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data: components["schemas"]["ClockOutResult"];
+                        };
+                    };
+                };
+                400: components["responses"]["ValidationFailed"];
+                403: components["responses"]["Error"];
+                409: components["responses"]["Error"];
+                422: components["responses"]["Error"];
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/attendance": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Riwayat absen sendiri
+         * @description Bawaannya 31 hari terakhir, rentang maksimal 92 hari. Tidak memuat skor risiko.
+         */
+        get: {
+            parameters: {
+                query?: {
+                    from?: string;
+                    to?: string;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data: components["schemas"]["AttendanceRecord"][];
+                        };
+                    };
+                };
+                400: components["responses"]["ValidationFailed"];
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/devices/register": {
         parameters: {
             query?: never;
@@ -2297,7 +2496,7 @@ export interface components {
          * @description Registry MASTER.md §7.4
          * @enum {string}
          */
-        ErrorCode: "VALIDATION_FAILED" | "AUTH_INVALID_CREDENTIALS" | "AUTH_TOKEN_INVALID" | "AUTH_MFA_REQUIRED" | "AUTH_MFA_INVALID" | "FORBIDDEN_ROLE" | "CSRF_INVALID" | "PASSWORD_CHANGE_REQUIRED" | "MFA_SETUP_REQUIRED" | "DEVICE_NOT_REGISTERED" | "DEVICE_PENDING_APPROVAL" | "DEVICE_REVOKED" | "APPROVAL_NOT_YOUR_TURN" | "APPROVAL_SELF_FORBIDDEN" | "MAKER_CHECKER_VIOLATION" | "NOT_FOUND" | "METHOD_NOT_ALLOWED" | "ALREADY_CLOCKED_IN" | "NOT_CLOCKED_IN" | "REQUEST_NOT_PENDING" | "PERIOD_LOCKED" | "DUPLICATE_REQUEST" | "CONFLICT_DUPLICATE" | "CONFLICT_HAS_DEPENDENTS" | "CONFLICT_SELF_ACTION" | "MFA_ALREADY_ENABLED" | "PAYLOAD_TOO_LARGE" | "UNSUPPORTED_MEDIA_TYPE" | "GEOFENCE_OUT" | "FACE_NOT_ENROLLED" | "FACE_MISMATCH" | "LIVENESS_FAILED" | "CHALLENGE_EXPIRED" | "ATTENDANCE_BLOCKED" | "ACTIVATION_INVALID" | "AUTH_ACCOUNT_LOCKED" | "APP_UPDATE_REQUIRED" | "RATE_LIMITED" | "INTERNAL_ERROR";
+        ErrorCode: "VALIDATION_FAILED" | "AUTH_INVALID_CREDENTIALS" | "AUTH_TOKEN_INVALID" | "AUTH_MFA_REQUIRED" | "AUTH_MFA_INVALID" | "FORBIDDEN_ROLE" | "CSRF_INVALID" | "PASSWORD_CHANGE_REQUIRED" | "MFA_SETUP_REQUIRED" | "DEVICE_NOT_REGISTERED" | "DEVICE_PENDING_APPROVAL" | "DEVICE_REVOKED" | "APPROVAL_NOT_YOUR_TURN" | "APPROVAL_SELF_FORBIDDEN" | "MAKER_CHECKER_VIOLATION" | "NOT_FOUND" | "METHOD_NOT_ALLOWED" | "ALREADY_CLOCKED_IN" | "ALREADY_CLOCKED_OUT" | "SHIFT_NOT_ASSIGNED" | "NOT_CLOCKED_IN" | "REQUEST_NOT_PENDING" | "PERIOD_LOCKED" | "DUPLICATE_REQUEST" | "CONFLICT_DUPLICATE" | "CONFLICT_HAS_DEPENDENTS" | "CONFLICT_SELF_ACTION" | "MFA_ALREADY_ENABLED" | "PAYLOAD_TOO_LARGE" | "UNSUPPORTED_MEDIA_TYPE" | "GEOFENCE_OUT" | "FACE_NOT_ENROLLED" | "FACE_MISMATCH" | "LIVENESS_FAILED" | "CHALLENGE_EXPIRED" | "ATTENDANCE_BLOCKED" | "ACTIVATION_INVALID" | "AUTH_ACCOUNT_LOCKED" | "APP_UPDATE_REQUIRED" | "RATE_LIMITED" | "INTERNAL_ERROR";
         /**
          * @description Matriks MASTER.md §3.2
          * @enum {string}
@@ -2584,6 +2783,83 @@ export interface components {
             absent_deduction: components["schemas"]["Money"];
             late_deduction: components["schemas"]["Money"];
             net: components["schemas"]["Money"];
+        };
+        AttendanceChallengeInput: {
+            /** @enum {string} */
+            purpose: "clock_in" | "clock_out";
+        };
+        AttendanceChallenge: {
+            /** Format: uuid */
+            challenge_id: string;
+            nonce: string;
+            /** Format: date-time */
+            expires_at: string;
+        };
+        /** @description Foto wajah dan token integritas ditambahkan bersama verifikasinya. */
+        ClockInput: {
+            /** Format: uuid */
+            challenge_id: string;
+            /** @example -6.2001 */
+            latitude: number;
+            /** @example 106.8166 */
+            longitude: number;
+            /** @example 12.5 */
+            accuracy_m: number;
+            /** Format: date-time */
+            captured_at: string;
+            signals?: components["schemas"]["AttendanceSignals"];
+        };
+        /** @description Laporan dari HP. Sifatnya saran, tetapi laporan buruk tetap ditolak. */
+        AttendanceSignals: {
+            is_mock_location?: boolean;
+            fake_gps_app_detected?: boolean;
+            root_detected?: boolean;
+            emulator_detected?: boolean;
+            app_version?: string;
+        };
+        ClockInResult: {
+            /** Format: uuid */
+            attendance_id: string;
+            /** Format: date */
+            work_date: string;
+            /** @enum {string} */
+            status: "present" | "late" | "review";
+            /** Format: date-time */
+            clock_in_at: string;
+            late_minutes: number;
+            office_location: {
+                /** Format: uuid */
+                id: string;
+                name: string;
+            };
+            requires_review: boolean;
+        };
+        ClockOutResult: {
+            /** Format: uuid */
+            attendance_id: string;
+            /** Format: date */
+            work_date: string;
+            /** Format: date-time */
+            clock_out_at: string;
+            worked_minutes: number;
+        };
+        AttendanceRecord: {
+            /** Format: uuid */
+            id: string;
+            /** Format: date */
+            work_date: string;
+            /** @enum {string} */
+            status: "present" | "late" | "absent" | "leave" | "review";
+            /** Format: date-time */
+            clock_in_at: string | null;
+            /** Format: date-time */
+            clock_out_at: string | null;
+            late_minutes: number;
+            /** @description Kosong bila belum atau lupa absen pulang */
+            worked_minutes: number | null;
+            /** @enum {string} */
+            work_mode: "onsite" | "wfa" | "field";
+            location_name: string | null;
         };
         /** @enum {string} */
         DeviceStatus: "pending" | "approved" | "revoked";

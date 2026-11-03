@@ -8,20 +8,25 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"time"
 )
 
 type Config struct {
-	AppEnv                 string
-	HTTPAddr               string
-	DatabaseURL            string
-	MigrateDatabaseURL     string
-	JWTSigningKeyPath      string
-	JWTKeyID               string
-	CookieDomain           string
-	CORSAllowedOrigins     []string
-	LogLevel               string
-	SeedSDMPassword        string
-	DevSimulateAttendance  bool
+	AppEnv                string
+	HTTPAddr              string
+	DatabaseURL           string
+	MigrateDatabaseURL    string
+	JWTSigningKeyPath     string
+	JWTKeyID              string
+	CookieDomain          string
+	CORSAllowedOrigins    []string
+	LogLevel              string
+	SeedSDMPassword       string
+	DevSimulateAttendance bool
+	// DevAllowUnverifiedAttendance mengizinkan absen tanpa verifikasi perangkat dan wajah (D36).
+	DevAllowUnverifiedAttendance bool
+	// ChallengeTTL adalah umur tantangan absen. Nol berarti memakai bawaan modul presensi.
+	ChallengeTTL           time.Duration
 	FieldEncryptionKeyPath string
 	MFARequired            bool
 	// CookieSecure menandai cookie hanya untuk HTTPS. Bawaan: aktif di luar development.
@@ -89,6 +94,20 @@ func Load() (Config, error) {
 		}
 		cfg.DevSimulateAttendance = v
 	}
+	if raw := os.Getenv("DEV_ALLOW_UNVERIFIED_ATTENDANCE"); raw != "" {
+		v, err := strconv.ParseBool(raw)
+		if err != nil {
+			return cfg, fmt.Errorf("DEV_ALLOW_UNVERIFIED_ATTENDANCE: %w", err)
+		}
+		cfg.DevAllowUnverifiedAttendance = v
+	}
+	if raw := os.Getenv("CHALLENGE_TTL_SECONDS"); raw != "" {
+		seconds, err := strconv.Atoi(raw)
+		if err != nil || seconds <= 0 {
+			return cfg, errors.New("CHALLENGE_TTL_SECONDS harus bilangan bulat positif")
+		}
+		cfg.ChallengeTTL = time.Duration(seconds) * time.Second
+	}
 	if raw := os.Getenv("MFA_REQUIRED"); raw != "" {
 		v, err := strconv.ParseBool(raw)
 		if err != nil {
@@ -125,6 +144,9 @@ func Load() (Config, error) {
 	}
 	if cfg.JWTSigningKeyPath == "" {
 		return cfg, errors.New("JWT_SIGNING_KEY_PATH wajib diisi")
+	}
+	if cfg.DevAllowUnverifiedAttendance && !cfg.IsDevelopment() {
+		return cfg, errors.New("DEV_ALLOW_UNVERIFIED_ATTENDANCE hanya boleh di APP_ENV=development")
 	}
 	if cfg.DevSimulateAttendance && !cfg.IsDevelopment() {
 		return cfg, errors.New("DEV_SIMULATE_ATTENDANCE hanya boleh di APP_ENV=development")

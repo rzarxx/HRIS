@@ -114,3 +114,18 @@ func TestEmployeeShiftScope(t *testing.T) {
 	}
 	head.do(http.MethodPatch, "/v1/admin/employees/"+employeeID, map[string]any{"default_shift_id": nil}).wantError(t, http.StatusForbidden, "FORBIDDEN_ROLE")
 }
+
+// Mengedit data lain tidak boleh mengganti email login yang berbeda dari email Pejuang.
+func TestEmployeeEditKeepsLoginEmail(t *testing.T) {
+	srv := fresh(t, options{})
+	sdm := loginSDM(t, srv)
+	me := data[struct {
+		EmployeeID string `json:"employee_id"`
+	}](t, sdm.do(http.MethodGet, "/v1/me", nil).want(t, http.StatusOK))
+	sdm.do(http.MethodPatch, "/v1/admin/employees/"+me.EmployeeID, map[string]any{"phone": "081234567890"}).want(t, http.StatusOK)
+	loginSDM(t, srv)
+
+	// Mengganti email Pejuang tetap memindahkan email login.
+	sdm.do(http.MethodPatch, "/v1/admin/employees/"+me.EmployeeID, map[string]any{"email": "sdm.baru@pejuang.id"}).want(t, http.StatusOK)
+	login(t, srv, "sdm.baru@pejuang.id", seedPassword)
+}

@@ -64,6 +64,9 @@ const (
 // RequiresMFA menjawab role mana yang wajib memakai MFA (§5.2, D25).
 func RequiresMFA(role string) bool { return role == RoleSDM || role == RoleSuperadmin }
 
+// ManagesSalary menjawab siapa yang boleh melihat dan mengubah gaji orang lain (D34).
+func ManagesSalary(role string) bool { return role == RoleSDM }
+
 // Permission yang dimiliki semua role, dengan scope-nya.
 var base = map[string]Scope{
 	ProfileRead:       ScopeSelf,
@@ -87,14 +90,29 @@ var base = map[string]Scope{
 // Tambahan per role; menimpa scope dari base.
 var extra = map[string]map[string]Scope{
 	RolePejuang: {},
-	// Hanya urusan teknis (D25). Reset kata sandi sengaja tidak termasuk: tautannya tampil
-	// ke yang menekan tombol, sehingga bisa dipakai masuk ke akun SDM dan melihat upah (D33).
+	// Role tertinggi: semua akses kecuali keuangan (D34). Tidak ada payroll dan kasbon orang
+	// lain, dan gaji orang lain tidak pernah tampil atau bisa diubah (lihat ManagesSalary).
 	RoleSuperadmin: {
-		EmployeeRead:   ScopeAll,
-		UserManage:     ScopeAll,
-		DeviceReview:   ScopeAll,
-		LocationManage: ScopeAll,
-		ShiftManage:    ScopeAll,
+		OrgWrite:           ScopeAll,
+		EmployeeRead:       ScopeAll,
+		EmployeeWrite:      ScopeAll,
+		UserManage:         ScopeAll,
+		UserReset:          ScopeAll,
+		DeviceReview:       ScopeAll,
+		FaceReset:          ScopeAll,
+		AttendanceRead:     ScopeAll,
+		AttendanceReview:   ScopeAll,
+		AttendanceReport:   ScopeAll,
+		LocationManage:     ScopeAll,
+		ShiftManage:        ScopeAll,
+		LeaveRead:          ScopeAll,
+		TransferRead:       ScopeAll,
+		ApprovalAct:        ScopeSelf,
+		WarningManage:      ScopeAll,
+		AnnouncementManage: ScopeAll,
+		DashboardRead:      ScopeAll,
+		ApprovalFlowManage: ScopeAll,
+		AuditRead:          ScopeAll,
 	},
 	RoleSubdiv: {
 		EmployeeRead:    ScopeSubdivision,

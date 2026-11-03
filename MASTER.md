@@ -106,7 +106,7 @@ Defense in depth, least privilege, zero trust ke klien, secure by default, priva
 | Surat Peringatan | `warning`, level `sp1`/`sp2`/`sp3` | | |
 | Pengumuman | `announcement`, tipe `popup`/`banner` | | |
 | Slip upah | `payslip` (tampilan Pejuang), `payroll` (data periode) | | |
-| Upah | `base_salary`, `gross`, `net` | "ubar" diasumsikan = upah (**konfirmasi**) | |
+| Upah | `base_salary`, `gross`, `net` | "ubar" = upah/gaji | |
 | Periode upah | `payroll_period` | Bulan penggajian | |
 | Sesi | `session` | Satu login (web/mobile) | |
 | Audit | `audit_log` | Jejak aksi, tidak boleh diubah | |
@@ -171,6 +171,8 @@ Path memakai kebab-case, nilai enum memakai snake_case:
 Scope dihitung dari struktur organisasi di DB (`subdivisions.head_employee_id`, `divisions.head_employee_id`), bukan dari klaim JWT. Mutasi yang disetujui langsung mengubah scope.
 
 ### 3.2 Matriks Permission
+Role `superadmin` (D25) belum dibangun, jadi belum ada di matriks ini. Saat dibangun bersama device binding, wewenangnya **hanya urusan teknis**: `device:review`, `user:manage`, `location:manage`, `shift:manage`, dan `settings:manage` (konfigurasi teknis lewat panel, mis. SMTP). Role ini **tidak boleh** melihat `base_salary`, slip, atau laporan upah, dan tidak punya `payroll:*`. Data upah tetap milik SDM. MFA wajib. Akun super admin pertama dibuat lewat perintah di server dan diaktifkan dengan tautan yang tampil di terminal, karena SMTP baru bisa diatur setelah akun itu ada.
+
 | Permission key | pejuang | subdiv | kadiv | sdm |
 |---|---|---|---|---|
 | `profile:read` / `profile:update` | self | self | self | self |
@@ -226,7 +228,7 @@ Web Admin (statis) ───┘                                           ├─
 | Zona | Isi | Aturan |
 |---|---|---|
 | Publik | Nginx, file statis web | Hanya port 443 (80 hanya redirect) |
-| Aplikasi | API Go, scheduler | Tidak punya akses internet selain FCM, Google API, dan HMS (jalur C) |
+| Aplikasi | API Go, scheduler | Tidak punya akses internet selain FCM, Google API, HMS (jalur C), dan SMTP |
 | Data (privat) | PostgreSQL, Redis, object storage | Tidak terbuka ke internet; hanya dapat dijangkau API |
 
 **Stack:** Go (chi, pgx, sqlc, golang-migrate) · PostgreSQL 16+ · Redis · Next.js (static export) + Refine · Kotlin Jetpack Compose · ML Kit + TFLite MobileFaceNet · FCM · Docker Compose · OpenAPI 3.
@@ -288,9 +290,27 @@ Domain terpisah: `admin.<domain>` (web statis) dan `api.<domain>` (API), keduany
 
 **Aktivasi akun:** SDM membuat Pejuang → sistem membuat undangan sekali pakai (hash di DB, berlaku 24 jam) → Pejuang menetapkan kata sandi sendiri. SDM tidak pernah mengetahui kata sandi siapa pun.
 
+### 5.2.1 Akses Akun Lewat Email Terdaftar (D30)
+
+- Tautan aktivasi dan reset kata sandi **hanya dikirim ke email terdaftar**. Di luar `APP_ENV=development`, API tidak mengembalikan token dan layar SDM tidak menampilkannya; SDM hanya melihat status terkirim atau gagal, dan bisa mengirim ulang.
+- **Email tidak pernah memuat kata sandi**, hanya tautan sekali pakai. Yang disimpan di DB hanya hash-nya. Masa berlaku: aktivasi 24 jam, reset 1 jam. Mengirim ulang membatalkan tautan lama.
+- **Lupa kata sandi:** `POST /v1/auth/password/forgot` selalu menjawab `202` dengan pesan yang sama agar tidak membocorkan email mana yang terdaftar, dan dibatasi rate limit per email + IP.
+- Reset berhasil mencabut semua sesi. MFA tetap diminta saat login berikutnya; reset kata sandi tidak melewati MFA.
+- **Ganti email terdaftar:** pemberitahuan dikirim ke email lama, konfirmasi ke email baru, dan email baru berlaku setelah dikonfirmasi. Semua sesi dicabut dan tercatat di audit (`user.email_changed`). Bila Pejuang sudah kehilangan akses ke email lama, SDM menggantinya setelah verifikasi identitas, dan kejadiannya tetap diaudit.
+- **Pemberitahuan keamanan** dikirim ke email terdaftar saat kata sandi berubah, MFA diaktifkan atau direset, akun dikunci atau dibuka, dan perangkat baru disetujui.
+- Email dikirim setelah transaksi selesai. Token asli tidak disimpan untuk dikirim belakangan: bila pengiriman gagal, statusnya dicatat (`email.delivery_failed`) dan kirim ulang membuat token baru.
+- Tautan memakai `PUBLIC_WEB_URL`, wajib HTTPS di luar development, dan halamannya memakai `Referrer-Policy: no-referrer` tanpa sumber daya pihak ketiga.
+- **Email perusahaan lewat SMTP, diatur super admin di panel (`settings:manage`):**
+  - Kata sandi SMTP disimpan terenkripsi (AES-256-GCM, `fieldcrypt`) dan bersifat tulis-saja: API tidak pernah mengembalikannya, dan tidak masuk log maupun audit.
+  - Koneksi wajib TLS dengan sertifikat terverifikasi, hanya port 465 atau 587. Host loopback dan link-local ditolak agar panel tidak bisa dipakai menjangkau layanan internal server.
+  - Pengaturan baru baru berlaku setelah uji kirim berhasil. Bila gagal, pengaturan lama tetap dipakai. Uji kirim hanya ke email akun yang sedang login.
+  - Setiap perubahan tercatat di audit (`settings.changed`) tanpa nilai rahasia.
+  - Kunci enkripsi tetap berupa file di server, tidak bisa diatur lewat panel.
+  - Domain pengirim wajib punya SPF, DKIM, dan DMARC, diatur oleh pengelola email perusahaan.
+
 ### 5.3 Device Binding
 - Setiap perangkat punya `integrity_tier` yang ditetapkan server (§5.4.1).
-- Satu akun, satu perangkat `approved`. Perangkat pertama otomatis `approved` setelah aktivasi; perangkat berikutnya `pending` sampai SDM menyetujui.
+- Satu akun, satu perangkat `approved`. Perangkat pertama otomatis `approved` setelah aktivasi; perangkat berikutnya `pending` sampai SDM atau super admin menyetujui (D25).
 - `device_hash` = hash dari ID instalasi acak (disimpan di Keystore), bukan IMEI.
 - Presensi dari perangkat `pending` atau `revoked` ditolak.
 - Perangkat hilang: SDM mencabut perangkat dan seluruh sesi (alur F16).
@@ -369,14 +389,18 @@ Semua HP Android didukung lewat jalur berjenjang. Jalur ditetapkan **server** da
 | Notifikasi | FCM | Ambil notifikasi saat app dibuka; HMS Push untuk jalur C |
 | Distribusi app | Play Store | APK resmi bertanda tangan sama; AppGallery untuk jalur C |
 
-### 5.4.2 Absen Tanpa Lokasi Tetap / WFA (D23)
+### 5.4.2 Absen Tanpa Lokasi Tetap: WFA dan Hybrid (D23, D26)
 
 - Satu Pejuang boleh punya banyak lokasi kantor; absen sah di lokasi mana pun yang ditugaskan.
 - SDM memberi izin WFA per Pejuang di `employee_work_arrangements`: rentang tanggal (boleh tanpa akhir), hari tertentu (opsional, mis. tiap Jumat), dan alasan. Server menentukan status WFA dari `work_date`; klien tidak bisa memintanya.
 - Saat WFA aktif, **hanya geofence yang dilewati**. Perangkat, bukti integritas, sinyal keras, wajah, liveness, dan `location_jump` tetap berlaku.
 - GPS tetap wajib dan disimpan sebagai bukti. Detail lokasi hanya untuk SDM, mengikuti persetujuan `location` dan retensi §5.6.
-- `attendances` menyimpan `work_mode` (`onsite`/`wfa`) dan `location_id` (kosong saat WFA); rekap dan Review Absen bisa disaring per mode.
+- `attendances` menyimpan `work_mode` (`onsite`/`wfa`/`field`) dan `location_id` (kosong saat WFA); rekap dan Review Absen bisa disaring per mode.
 - Jam kerja, telat, dan shift sama seperti absen di kantor.
+- **Hybrid (D26)** untuk Pejuang yang sering dinas atau safari di luar kantor. Absen di dalam lokasi yang ditugaskan tercatat `onsite`; absen di luar lokasi tetap sah dan tercatat `field`, dengan kontrol yang sama seperti WFA.
+- **Jam fleksibel (D26):** bila `flexible_hours` aktif, absen di luar jam shift sah dan tidak dihitung telat (`late_minutes` = 0). Perhitungan lemburnya mengikuti aturan upah yang diatur SDM (D29).
+- Absen pulang yang melewati tengah malam dipasangkan dengan absen masuk yang masih terbuka, jadi tetap masuk `work_date` hari masuknya, selama belum lewat cutoff harian berikutnya (D31).
+- Penetapan bisa massal per divisi atau subdiv, tetapi datanya tetap tersimpan per Pejuang agar pengecualian dan auditnya jelas.
 - Pejuang WFA yang tidak bisa datang ke kantor mendaftarkan wajah lewat panggilan video dengan SDM, lalu SDM menyetujuinya secara tercatat.
 
 ### 5.5 Data Wajah
@@ -415,7 +439,7 @@ Data biometrik tergolong data pribadi bersifat spesifik dalam UU PDP (UU 27/2022
 
 ### 5.8 Kontrol Web
 - Token tidak pernah di `localStorage`/`sessionStorage`.
-- CSP ketat: `default-src 'self'`; tanpa `unsafe-inline` untuk script.
+- CSP ketat: `default-src 'self'`; tanpa `unsafe-inline` untuk script. Pengecualian untuk peta (D28): `img-src https://tile.openstreetmap.org` dan `connect-src https://nominatim.openstreetmap.org`.
 - Isi pengumuman ditampilkan sebagai teks atau disanitasi (DOMPurify).
 - Ekspor CSV/Excel menetralkan *formula injection* (sel berawalan `=`, `+`, `-`, `@` diberi awalan `'`).
 - Idle logout 30 menit; aksi destruktif memakai dialog konfirmasi.
@@ -435,7 +459,7 @@ Data biometrik tergolong data pribadi bersifat spesifik dalam UU PDP (UU 27/2022
 - Monitoring: error rate, latensi clock-in, lonjakan login gagal, lonjakan `review`.
 
 ### 5.11 Registry Event Audit
-`auth.login_success`, `auth.login_failed`, `auth.logout`, `auth.mfa_enabled`, `auth.mfa_failed`, `auth.password_changed`, `auth.session_revoked`, `auth.refresh_reuse_detected`, `org.updated`, `user.created`, `user.locked`, `user.unlocked`, `user.role_changed`, `user.password_reset`, `employee.created`, `employee.updated`, `employee.deactivated`, `employee.salary_changed`, `device.registered`, `device.approved`, `device.revoked`, `device.integrity_tier_changed`, `employee.work_arrangement_changed`, `face.enrolled`, `face.reset`, `attendance.clock_in`, `attendance.clock_out`, `attendance.rejected`, `attendance.review_resolved`, `approval.approved`, `approval.rejected`, `payroll.generated`, `payroll.submitted`, `payroll.finalized`, `payroll.paid`, `warning.issued`, `announcement.created`, `announcement.updated`, `announcement.deleted`, `settings.changed`, `data.exported`.
+`auth.login_success`, `auth.login_failed`, `auth.logout`, `auth.mfa_enabled`, `auth.mfa_failed`, `auth.password_changed`, `auth.session_revoked`, `auth.refresh_reuse_detected`, `org.updated`, `user.created`, `user.locked`, `user.unlocked`, `user.role_changed`, `user.password_reset`, `user.email_changed`, `auth.password_reset_requested`, `email.delivery_failed`, `employee.created`, `employee.updated`, `employee.deactivated`, `employee.salary_changed`, `device.registered`, `device.approved`, `device.revoked`, `device.integrity_tier_changed`, `employee.work_arrangement_changed`, `face.enrolled`, `face.reset`, `attendance.clock_in`, `attendance.clock_out`, `attendance.rejected`, `attendance.review_resolved`, `attendance.adjusted`, `approval.approved`, `approval.rejected`, `payroll.rules_changed`, `payroll.generated`, `payroll.submitted`, `payroll.finalized`, `payroll.paid`, `warning.issued`, `announcement.created`, `announcement.updated`, `announcement.deleted`, `settings.changed`, `data.exported`.
 
 ### 5.12 Respons Insiden
 Deteksi → **batasi** (cabut sesi, kunci akun, rotasi kunci) → **selidiki** (audit log, log akses) → **pulihkan** → **beri tahu** pihak terdampak dan otoritas sesuai UU PDP (ada batas waktu pemberitahuan; konfirmasi ke legal) → **evaluasi** dan perbaiki kontrol.
@@ -454,29 +478,30 @@ DDL dasar ada di `QUERY.sql`; perubahan di **Lampiran A** (yang berlaku). Beriku
 | `employees` | `id`, `nip`, `full_name`, `email`, `phone`, `subdivision_id`, `position`, `join_date`, `exit_date`, `base_salary`, `default_shift_id`, `status`, `deleted_at` | Soft delete |
 | `users` | `id`, `employee_id`, `email`, `password_hash`, `role`, `is_active`, `failed_login_count`, `locked_until`, `must_change_password` | 1:1 employee |
 | `user_mfa` | `user_id`, `secret_enc`, `enabled_at`, `recovery_hashes` | |
-| `user_invites` | `id`, `user_id`, `token_hash`, `expires_at`, `used_at` | |
+| `mail_settings` | `host`, `port`, `username`, `password_enc`, `key_id`, `from_address`, `from_name`, `verified_at`, `updated_by` | Satu baris aktif, D30 |
+| `user_invites` | `id`, `user_id`, `purpose` (`activation`/`password_reset`/`email_change`), `token_hash`, `expires_at`, `used_at` | D30 |
 | `sessions` | `id`, `user_id`, `client`, `device_id`, `refresh_hash`, `prev_refresh_hash`, `idle_expires_at`, `absolute_expires_at`, `revoked_at` | |
 | `devices` | `id`, `employee_id`, `device_hash`, `model`, `os_version`, `fcm_token`, `status`, `integrity_tier`, `manual_approved_until`, `approved_by` | §5.4.1 |
 | `face_templates` | `id`, `employee_id`, `embedding_enc`, `key_id`, `model_version`, `is_active` | |
 | `consents` | `id`, `employee_id`, `type`, `version`, `accepted_at` | |
-| `employee_work_arrangements` | `id`, `employee_id`, `mode`, `starts_on`, `ends_on`, `weekdays`, `reason`, `created_by` | WFA, §5.4.2 |
+| `employee_work_arrangements` | `id`, `employee_id`, `mode` (`wfa`/`hybrid`), `flexible_hours`, `starts_on`, `ends_on`, `weekdays`, `reason`, `created_by` | §5.4.2 |
 | `office_locations` | `id`, `name`, `latitude`, `longitude`, `radius_m`, `polygon`, `is_active` | Geofence dihitung di Go (D22); `polygon` JSONB |
 | `employee_locations` | `employee_id`, `location_id` | Lokasi yang diizinkan |
 | `shifts` | `id`, `name`, `start_time`, `end_time`, `late_tolerance_minutes`, `work_days` | |
 | `holidays` | `date`, `name` | |
 | `attendance_challenges` | `id`, `employee_id`, `device_id`, `nonce`, `purpose`, `expires_at`, `used_at` | |
 | `attendance_attempts` | `id`, `employee_id`, `device_id`, `purpose`, `outcome`, `reason_code`, `risk_score`, `risk_flags`, `created_at` | Semua upaya |
-| `attendances` | `id`, `employee_id`, `work_date`, `clock_in_at`, `clock_out_at`, `work_mode`, `location_id`, `in_latitude`, `in_longitude`, `out_latitude`, `out_longitude`, `in_accuracy_m`, `face_score`, `risk_score`, `risk_flags`, `status`, `late_minutes`, `selfie_url`, `selfie_sha256` | Unik `(employee_id, work_date)` |
+| `attendances` | `id`, `employee_id`, `work_date`, `clock_in_at`, `clock_out_at`, `work_mode`, `location_id`, `worked_minutes`, `in_latitude`, `in_longitude`, `out_latitude`, `out_longitude`, `in_accuracy_m`, `face_score`, `risk_score`, `risk_flags`, `status`, `late_minutes`, `selfie_url`, `selfie_sha256` | Unik `(employee_id, work_date)` |
 | `leave_types`, `leave_requests` | `leave_type_id`, `start_date`, `end_date`, `reason`, `attachment_upload_id`, `status` | |
 | `cash_advances`, `cash_advance_installments` | `amount`, `installments`, `status`; cicilan: `period_year`, `period_month`, `amount`, `status` | |
 | `transfer_requests` | `from_subdivision_id`, `to_subdivision_id`, `effective_date`, `status` | |
 | `approval_flow_steps` | `request_type`, `step_order`, `approver_role` | Konfigurasi alur |
 | `approvals` | `request_type`, `request_id`, `step_order`, `approver_role`, `assigned_employee_id`, `status`, `note`, `acted_at` | Snapshot langkah |
-| `payroll_periods` | `year`, `month`, `status`, `created_by`, `submitted_by`, `finalized_by` | |
+| `payroll_periods` | `year`, `month`, `start_date`, `end_date`, `rule_version_id`, `status`, `created_by`, `submitted_by`, `finalized_by` | Rentang cutoff, D31 |
 | `payrolls`, `payroll_items` | `base_salary`, `gross`, `deductions`, `net`; item: `kind`, `label`, `amount` | Unik `(period_id, employee_id)` |
 | `warnings` | `level`, `reason`, `issued_by`, `issued_at`, `acknowledged_at` | |
-| `announcements`, `announcement_reads` | `title`, `body`, `type`, `division_id`, `starts_at`, `ends_at`, `is_active` | |
-| `notifications` | `employee_id`, `type`, `title`, `body`, `is_read` | |
+| `announcements`, `announcement_reads` | `title`, `body`, `type`, `division_id`, `starts_at`, `ends_at`, `is_active`, `min_read_seconds`; `opened_at`, `read_at` | Timer baca, D27 |
+| `notifications` | `employee_id`, `type`, `title`, `body`, `is_read`, `opened_at` | Timer baca, D27 |
 | `uploads` | `id`, `owner_employee_id`, `purpose`, `storage_key`, `mime`, `size_bytes`, `sha256` | |
 | `audit_logs` | `id`, `user_id`, `action`, `entity`, `entity_id`, `detail`, `ip`, `created_at` | Append-only |
 
@@ -571,6 +596,7 @@ Daftar memakai `?page=&per_page=&q=&sort=` (contoh `sort=-created_at`) dan filte
 | 413 | `PAYLOAD_TOO_LARGE` | Terlalu besar |
 | 415 | `UNSUPPORTED_MEDIA_TYPE` | Tipe file tidak diizinkan |
 | 422 | `GEOFENCE_OUT` | Di luar area kantor |
+| 422 | `READ_TOO_SOON` | Tombol sudah baca ditekan sebelum timer baca habis (D27) |
 | 422 | `FACE_NOT_ENROLLED` | Wajah belum terdaftar |
 | 422 | `FACE_MISMATCH` | Wajah tidak cocok |
 | 422 | `LIVENESS_FAILED` | Liveness gagal |
@@ -596,6 +622,8 @@ Setiap `code` baru wajib ditambahkan di tabel ini.
 | POST | `/v1/auth/mobile/refresh` | |
 | POST | `/v1/auth/logout` | Cabut sesi saat ini |
 | POST | `/v1/auth/activate` | Aktivasi dari undangan, set sandi |
+| POST | `/v1/auth/password/forgot` | Minta tautan reset ke email terdaftar, selalu `202` (D30) |
+| POST | `/v1/auth/password/reset` | Set sandi baru dari tautan reset (D30) |
 | POST | `/v1/auth/password/change` | |
 | GET | `/v1/auth/sessions` | Sesi aktif milik sendiri |
 | DELETE | `/v1/auth/sessions/{session_id}` | |
@@ -625,8 +653,8 @@ Setiap `code` baru wajib ditambahkan di tabel ini.
 | POST / GET | `/v1/transfers`, `/v1/transfers/{id}`, `POST .../cancel` | `transfer:*` |
 | GET | `/v1/payslips`, `/v1/payslips/{id}`, `/v1/payslips/{id}/pdf` | `payslip:read` |
 | GET | `/v1/warnings`, `POST /v1/warnings/{id}/acknowledge` | `warning:read` |
-| GET | `/v1/announcements/active`, `POST /v1/announcements/{id}/read` | `announcement:read` |
-| GET | `/v1/notifications`, `POST /v1/notifications/{id}/read` | self |
+| GET | `/v1/announcements/active`, `POST /v1/announcements/{id}/open`, `POST /v1/announcements/{id}/read` | `announcement:read` |
+| GET | `/v1/notifications`, `POST /v1/notifications/{id}/open`, `POST /v1/notifications/{id}/read` | self |
 | POST | `/v1/uploads` | self (multipart, `purpose`) |
 
 **Approver (Subdiv, Kadiv, SDM)**
@@ -653,6 +681,8 @@ Setiap `code` baru wajib ditambahkan di tabel ini.
 | CRUD | `/v1/admin/shifts`, `/v1/admin/holidays` | `shift:manage` |
 | GET, PUT | `/v1/admin/employees/{id}/locations` | `employee:write` |
 | GET, POST, DELETE | `/v1/admin/employees/{id}/work-arrangements` | `employee:write` |
+| GET, PUT | `/v1/admin/settings/mail` | `settings:manage` |
+| POST | `/v1/admin/settings/mail/test` | `settings:manage` |
 | GET | `/v1/admin/attendance`, `/v1/admin/attendance/review`, `/v1/admin/attendance/attempts` | `attendance:review` / `attendance:report` |
 | POST | `/v1/admin/attendance/{id}/resolve` | `attendance:review` |
 | GET | `/v1/admin/reports/attendance`, `/v1/admin/reports/payroll-preview` | `attendance:report` |
@@ -836,7 +866,7 @@ flowchart TD
 flowchart TD
     A["SDM membuat data Pejuang"] --> B["API membuat employee dan user, status belum aktif"]
     B --> C["Buat undangan sekali pakai: hash di DB, berlaku 24 jam"]
-    C --> D["Kirim tautan aktivasi ke Pejuang"]
+    C --> D["Kirim tautan aktivasi ke email terdaftar"]
     D --> E["Pejuang membuka tautan dan menetapkan kata sandi"]
     E --> F{"Role sdm?"}
     F -- Ya --> G["Wajib setup MFA TOTP dan simpan recovery codes"]
@@ -1090,6 +1120,8 @@ flowchart TD
 ```
 
 ### F18. Pengumuman Pop-up & Banner
+**Timer baca (D27):** tombol "Sudah baca" di aplikasi nonaktif dan menampilkan hitung mundur selama `min_read_seconds` (diatur SDM per pengumuman, 0 sampai 120 detik, default 10). Notifikasi memakai `notification.min_read_seconds` (default 5). Timer di app hanya tampilan: saat isi dibuka, app memanggil `/open` dan server mencatat `opened_at` sekali saja; `/read` yang datang lebih cepat dari batas ditolak `422 READ_TOO_SOON`.
+
 ```mermaid
 flowchart TD
     A["SDM membuat pengumuman"] --> B["Isi: judul, teks, tipe, target divisi, jadwal. Teks disanitasi"]
@@ -1345,7 +1377,27 @@ Request ID → recover → logger → batas body/timeout → CORS & header keama
 - Endpoint `/healthz` (liveness) dan `/readyz` (cek DB dan Redis).
 
 ### 11.5 Perhitungan Upah
-Aturan potongan telat/alpha dan lembur **belum final** (§14). Implementasi harus menyimpan **versi aturan** di `payroll_periods` agar periode lama tidak berubah saat aturan diperbarui. Semua hitungan memakai `NUMERIC`/`decimal`, tidak pernah float.
+**Aturan upah diatur SDM lewat panel, bukan ditulis di kode (D29).**
+- Nilainya berupa parameter: potongan telat (per kejadian atau per menit), potongan alpha (pembagi hari kerja atau nominal), lembur (tarif per jam atau kelipatan upah), dan perlakuan lembur untuk jam fleksibel.
+- Setiap perubahan membuat versi baru di `payroll_rule_versions` (`effective_from`, `params`, `created_by`), memakai `payroll:manage`, dan tercatat di audit (`payroll.rules_changed`).
+- Saat generate, `payroll_periods` menyimpan versi aturan yang dipakai, sehingga periode lama tidak berubah saat aturan diperbarui.
+- Potongan atau tambahan di luar parameter dicatat SDM sebagai item manual per Pejuang.
+- Rumus bebas yang diketik pengguna tidak didukung, karena lebih rawan salah hitung dan menjalankan masukan pengguna sebagai logika. Jenis perhitungan yang benar-benar baru tetap perlu perubahan kode.
+
+**Cutoff jam kerja (D31).** Ada dua batas, keduanya diatur SDM dan ikut berversi di `payroll_rule_versions`:
+
+- **Cutoff periode** (`period_cutoff_day`, 1 sampai 28, atau akhir bulan). **Nilai awal: 25**, jadi periode Januari berjalan 26 Desember sampai 25 Januari. Periode diberi label bulan berakhirnya. Nilai ini mengasumsikan upah dibayar di akhir bulan; bila dibayar lebih awal, SDM perlu memajukan cutoff, mis. ke tanggal 20.
+- **Cutoff harian** (`day_cutoff_time`, jam WIB). **Nilai awal: 04:00**. Absen masuk sebelum jam ini masuk ke `work_date` hari sebelumnya, sehingga shift malam dan dinas larut tidak terbelah dua tanggal.
+
+Aturan penghitungan:
+- Rekap dan payroll menghitung dari rentang `start_date` sampai `end_date` periode, bukan bulan kalender.
+- Rentang disimpan saat periode dibuat. Periode harus bersambung tanpa celah atau tumpang tindih, jadi perubahan cutoff baru berlaku di periode berikutnya.
+- `worked_minutes` dihitung server dari absen masuk dan pulang.
+- Absen tanpa absen pulang sampai cutoff harian berikutnya **tidak diberi jam kerja otomatis**. `worked_minutes` tetap kosong dan SDM yang mengoreksinya.
+- Periode tidak bisa di-submit selama masih ada absen `review` atau tanpa absen pulang.
+- Setelah `finalized`, absen dalam rentangnya terkunci. Koreksi sesudahnya masuk sebagai item penyesuaian di periode berikutnya, dan tercatat di audit (`attendance.adjusted`).
+
+Semua hitungan memakai `NUMERIC`/`decimal`, tidak pernah float.
 
 ---
 
@@ -1421,10 +1473,12 @@ Estimasi untuk tim kecil; sesuaikan setelah kapasitas tim jelas.
 
 **Fase 2: Presensi**
 - [ ] Lokasi kantor + shift + hari libur
-- [ ] Device binding + persetujuan SDM
+- [ ] Device binding + persetujuan SDM atau super admin (D25)
+- [ ] Peta untuk mengatur area lokasi (D28)
 - [ ] Challenge + verifikasi Play Integrity (jalur A)
 - [ ] Key Attestation (jalur B), perangkat manual (jalur D), kiosk (jalur E); Huawei (jalur C) bila ada penggunanya
-- [ ] Izin WFA per Pejuang dan pendaftaran wajah jarak jauh
+- [ ] Izin WFA dan hybrid per Pejuang, jam fleksibel, dan pendaftaran wajah jarak jauh
+- [ ] Cutoff harian dan `worked_minutes` pada absen (D31)
 - [ ] Enroll + cocok wajah (enkripsi aplikasi)
 - [ ] Skor risiko + `attendance_attempts`
 - [ ] Halaman Review Absen
@@ -1437,6 +1491,7 @@ Estimasi untuk tim kecil; sesuaikan setelah kapasitas tim jelas.
 - [ ] Kamera + liveness + embedding
 - [ ] Layar presensi + rekap
 - [ ] FCM, pop-up, banner
+- [ ] Timer sebelum tombol sudah baca, ditegakkan server (D27)
 - [ ] Uji Android 8-14, 3 HP kelas bawah
 
 **Fase 4: Pengajuan**
@@ -1446,12 +1501,14 @@ Estimasi untuk tim kecil; sesuaikan setelah kapasitas tim jelas.
 - [ ] Job: leave → attendance, mutasi efektif, cicilan kasbon
 
 **Fase 5: Payroll & SP**
-- [ ] Aturan upah tertulis dan disetujui
+- [ ] Aturan upah diatur SDM lewat panel dan berversi (D29); hapus rumus sementara di `internal/report`
+- [ ] Cutoff periode: rekap dan payroll mengikuti rentang periode, kunci setelah finalize, item penyesuaian (D31)
 - [ ] Generate, submit, finalize (maker-checker), mark-paid
 - [ ] Slip PDF + hash
 - [ ] SP + acknowledge
 
 **Fase 6: Rilis**
+- [ ] Email akun lewat SMTP yang diatur super admin, lupa kata sandi, ganti email, dan pemberitahuan keamanan (D30). Wajib sebelum akun sungguhan dipakai
 - [ ] Staging HTTPS dengan `APP_ENV=production` dan MFA aktif (ditangguhkan dari Fase 1, D21)
 - [ ] Backup terenkripsi di lokasi terpisah + uji restore (ditangguhkan dari Fase 1, D21)
 - [ ] Cara membuat akun SDM pertama di produksi (seed ditolak di luar development)
@@ -1484,7 +1541,7 @@ Estimasi untuk tim kecil; sesuaikan setelah kapasitas tim jelas.
 | D13 | PostGIS ditunda ke migrasi Fase 2, Redis ke Fase 1 | Alur demo Fase 0 tidak memakai geofence maupun rate limit lengkap; sesi dicek ke database |
 | D14 | Web memakai komponen sendiri + Tailwind + TanStack Query, bukan Refine + Ant Design | UI sudah berjalan dan §10.1 mengizinkan penggantian UI kit; kontrak API tidak berubah |
 | D16 | Rate limit fase awal memakai penyimpanan memori lewat antarmuka `Limiter` | Cukup untuk satu instance API; implementasi Redis menggantikannya saat lebih dari satu instance. Batas per IP dibuat longgar karena satu kantor bisa berbagi IP publik; batas ketat ada per akun |
-| D17 | Tautan aktivasi ditampilkan ke SDM untuk diteruskan manual | Layanan email/WhatsApp belum diputuskan (§14.2 no. 14). Konsekuensi: SDM sempat memegang token aktivasi |
+| D17 | Tautan aktivasi ditampilkan ke SDM untuk diteruskan manual. **Digantikan D30; hanya tersisa di `APP_ENV=development`** | Layanan email/WhatsApp belum diputuskan (§14.2 no. 14). Konsekuensi: SDM sempat memegang token aktivasi |
 | D18 | Email wajib saat membuat Pejuang | Email menjadi identitas login akun (F3) |
 | D19 | Server development memakai aaPanel: Nginx + SSL dari panel, API sebagai layanan systemd, tanpa Docker. Deploy dari branch `develop` lewat `git pull` manual (`backend/deploy/deploy.sh`) | Panel sudah terpasang. Konsekuensi: server perlu Go dan Node, deploy tidak otomatis, dan langkah build/scan image di F22 ditunda sampai produksi. §4 tetap berlaku untuk zona jaringan |
 | D20 | Migrasi tidak memakai `pgcrypto` | PostgreSQL bawaan aaPanel tidak menyertakan ekstensi contrib. Migrasi 000001 diedit sekali ini karena belum pernah berhasil diterapkan di server mana pun. Konsekuensi: PostGIS di Fase 2 harus dipasang terpisah atau memakai PostgreSQL lain |
@@ -1492,11 +1549,18 @@ Estimasi untuk tim kecil; sesuaikan setelah kapasitas tim jelas.
 | D22 | Geofence dihitung di Go (Haversine untuk radius, ray casting untuk poligon), tanpa PostGIS | PostgreSQL aaPanel tidak punya PostGIS, dan tiap Pejuang hanya punya sedikit lokasi sehingga tidak perlu indeks spasial. Konsekuensi: analitik spasial lanjutan harus dihitung sendiri atau menambah PostGIS nanti |
 | D23 | Satu Pejuang boleh banyak lokasi. WFA diizinkan per Pejuang oleh SDM dengan melewati geofence saja | Sebagian Pejuang bekerja dari lokasi yang tidak menentu. Konsekuensi: pada absen WFA, lokasi tidak lagi menjadi bukti kehadiran, jadi kontrol bertumpu pada perangkat, wajah, dan liveness |
 | D24 | Semua HP didukung lewat jalur verifikasi berjenjang A sampai E (§5.4.1), bukan hanya Play Integrity | Pengguna meminta tidak mematok satu opsi. Konsekuensi: jalur D tanpa bukti kriptografis selalu masuk `review`, sehingga menambah beban SDM |
+| D25 | Perangkat bisa disetujui SDM atau role baru `superadmin`. Super admin hanya mengurus hal teknis, tanpa akses upah | Keputusan pemilik proyek: payroll dan gaji tetap urusan SDM. Konsekuensi: role, matriks, dan alur pembuatan akun super admin pertama harus dibangun bersama device binding |
+| D26 | Mode hybrid dan jam fleksibel per Pejuang untuk dinas atau safari | Sebagian divisi bekerja di luar kantor dan di luar jam kerja. Konsekuensi: absen `field` tidak membuktikan kehadiran di kantor |
+| D27 | Timer sebelum "Sudah baca" ditegakkan server | Timer yang hanya ada di app bisa dilewati lewat app yang dimodifikasi. Timer membuktikan isi sudah terbuka selama waktu itu, bukan bahwa isinya benar-benar dibaca |
+| D28 | Peta area memakai Leaflet dengan OpenStreetMap, pencarian tempat memakai Nominatim | Tanpa kunci API dan biaya, cukup untuk panel admin bervolume kecil. Konsekuensi: peta butuh internet dan koordinat yang dilihat terkirim ke OpenStreetMap; bila pemakaian membesar, ganti penyedia peta |
+| D29 | Aturan potongan dan lembur berupa parameter berversi yang diatur SDM lewat panel | Keputusan pemilik proyek agar perubahan hitungan tidak bergantung pada kode. Konsekuensi: SDM bertanggung jawab atas angka yang dimasukkan, dan rumus sementara di `internal/report` harus diganti di Fase 5 |
+| D30 | Aktivasi, reset, dan pemberitahuan akses akun dikirim ke email terdaftar | Keputusan pemilik proyek. SDM tidak lagi memegang token. Email perusahaan dipakai lewat SMTP yang diatur super admin di panel. Konsekuensi: butuh pengaturan SMTP, domain publik, dan HTTPS sebelum akun sungguhan dipakai; keamanan akun kini bergantung pada keamanan kotak email Pejuang |
+| D31 | Jam kerja dihitung dengan cutoff periode (nilai awal tanggal 25) dan cutoff harian (nilai awal 04:00) yang diatur SDM | Permintaan pemilik proyek agar penghitungan lebih sistematis. Konsekuensi: rekap dan laporan upah yang kini per bulan kalender harus pindah ke rentang periode, dan koreksi setelah finalize tidak mengubah periode lama |
 | D15 | `/v1/admin/reports/payroll-preview` mewajibkan `attendance:report` dan `payroll:manage` | Respons memuat gaji, sedangkan §7.6 membatasi `base_salary` untuk `sdm` dan pemilik data |
 
 ### 14.2 Pertanyaan yang Harus Dijawab (blokir pekerjaan terkait)
-1. Apakah "ubar" = upah/gaji?
-2. Rumus potongan telat/alpha dan lembur? *(blokir Fase 5)*
+1. ~~Apakah "ubar" = upah/gaji?~~ Dijawab: ya.
+2. ~~Rumus potongan telat/alpha dan lembur~~ Dijawab: diatur SDM lewat panel (D29). Nilai awalnya tetap perlu diisi SDM sebelum payroll pertama. *(blokir generate payroll, bukan pembangunan fiturnya)*
 3. Kasbon: otomatis memotong upah? Plafon dan maksimum cicilan?
 4. Alur cuti: Subdiv → SDM saja, atau sampai Kadiv?
 5. Alur mutasi: apakah subdiv **tujuan** juga harus menyetujui?
@@ -1504,11 +1568,11 @@ Estimasi untuk tim kecil; sesuaikan setelah kapasitas tim jelas.
 7. ~~Kebijakan HP tanpa Google Play Services~~ Dijawab: didukung lewat beberapa jalur (D24).
 8. Saldo cuti: aturan hak cuti per tahun?
 9. Apakah Kadiv boleh mengakses dashboard dan laporan divisinya?
-10. Perlu role terpisah untuk administrator IT dan peninjau audit (pemisahan tugas dari SDM)?
+10. Perlu role terpisah untuk peninjau audit? *(wewenang super admin sudah dijawab: D25)*
 11. Hosting: cloud atau server sendiri? Domain apa? *(memengaruhi keamanan infrastruktur)*
 12. Retensi resmi untuk selfie, template wajah, dan data lokasi (konfirmasi legal).
 13. Ambang `face.threshold_*` dan `risk.*` (dikalibrasi lewat uji lapangan).
-14. Tautan aktivasi dikirim lewat apa: email, WhatsApp, atau diteruskan manual oleh SDM?
+14. ~~Saluran dan penyedia email~~ Dijawab: email terdaftar lewat SMTP perusahaan, diatur super admin (D30).
 15. Bagaimana role `subdiv`/`kadiv` ditetapkan: otomatis saat ditunjuk sebagai kepala, atau dipilih SDM? Belum ada endpoint ubah role di §7.5.
 
 ---
@@ -1721,6 +1785,7 @@ Query rekap dan dashboard di `QUERY.sql` tetap berlaku, dengan pengecualian:
 | `FIELD_ENCRYPTION_KEY_PATH`, `FIELD_ENCRYPTION_KEY_ID` | Kunci AES untuk template wajah dan secret MFA |
 | `PLAY_INTEGRITY_PACKAGE_NAME`, `PLAY_INTEGRITY_CREDENTIALS_PATH` | |
 | `FCM_CREDENTIALS_PATH` | |
+| `PUBLIC_WEB_URL` | Alamat dasar tautan di email (D30) |
 | `STORAGE_ENDPOINT`, `STORAGE_BUCKET`, `STORAGE_ACCESS_KEY`, `STORAGE_SECRET_KEY` | Object storage privat |
 | `FACE_THRESHOLD_PASS`, `FACE_THRESHOLD_REVIEW` | Ambang wajah |
 | `RISK_REVIEW_MIN`, `RISK_REJECT_MIN` | Ambang risiko |

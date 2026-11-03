@@ -36,8 +36,8 @@ export const NAV: NavItem[] = [
       { label: "Divisi", href: "/master/divisi", permission: "org:write" },
       { label: "Subdiv", href: "/master/subdiv", permission: "org:write" },
       { label: "Pejuang", href: "/master/pejuang", permission: "employee:read" },
-      { label: "Lokasi Kantor", href: "/master/lokasi", soon: true, permission: "location:manage" },
-      { label: "Shift", href: "/master/shift", soon: true, permission: "shift:manage" },
+      { label: "Lokasi Kantor", href: "/master/lokasi", permission: "location:manage" },
+      { label: "Shift", href: "/master/shift", permission: "shift:manage" },
     ],
   },
   {

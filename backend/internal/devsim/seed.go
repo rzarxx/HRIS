@@ -72,7 +72,7 @@ func IsSeeded(ctx context.Context, q *store.Queries) (bool, error) {
 
 // Reset mengosongkan semua tabel data. Hanya untuk pengembangan; butuh role hris_migrate.
 func Reset(ctx context.Context, pool *pgxpool.Pool) error {
-	_, err := pool.Exec(ctx, `TRUNCATE audit_logs, user_invites, user_mfa, announcements, attendances, sessions, users, employees, subdivisions, divisions, shifts RESTART IDENTITY CASCADE`)
+	_, err := pool.Exec(ctx, `TRUNCATE audit_logs, user_invites, user_mfa, employee_locations, office_locations, holidays, announcements, attendances, sessions, users, employees, subdivisions, divisions, shifts RESTART IDENTITY CASCADE`)
 	return err
 }
 

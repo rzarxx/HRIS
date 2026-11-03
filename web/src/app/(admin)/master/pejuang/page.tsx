@@ -1,10 +1,11 @@
 "use client";
 
-import { KeyRound, Lock, LockOpen, Pencil, Plus, Search, UserX } from "lucide-react";
+import { KeyRound, Lock, LockOpen, MapPin, Pencil, Plus, Search, UserX } from "lucide-react";
 import { useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useState } from "react";
 import { ActivationLinkModal } from "@/components/employees/activation-link-modal";
 import { EmployeeForm } from "@/components/employees/employee-form";
+import { EmployeeLocationsModal } from "@/components/employees/employee-locations-modal";
 import { Button, IconButton } from "@/components/ui/button";
 import { Input, Select } from "@/components/ui/form";
 import { Badge, Card, EmptyState, ErrorState, Loading, PageHeader } from "@/components/ui/layout";
@@ -12,7 +13,7 @@ import { ConfirmDialog } from "@/components/ui/modal";
 import { Pagination, Table, Td, Th } from "@/components/ui/table";
 import { api } from "@/lib/api-client";
 import { rupiah } from "@/lib/format";
-import { useDivisions, useEmployees, useSave, useSubdivisions } from "@/lib/hooks";
+import { useDivisions, useEmployees, useMe, useSave, useSubdivisions } from "@/lib/hooks";
 import type { Activation, EmployeeListItem, ItemResponse } from "@/lib/types";
 
 const PER_PAGE = 10;
@@ -30,6 +31,9 @@ function EmployeesView() {
   const params = useSearchParams();
   const divisions = useDivisions();
   const subdivisions = useSubdivisions();
+  const me = useMe();
+  const canAssignLocation = me.data?.permissions.includes("employee:write") ?? false;
+  const [assigning, setAssigning] = useState<EmployeeListItem | null>(null);
 
   const [q, setQ] = useState(params.get("q") ?? "");
   const [divisionId, setDivisionId] = useState("");
@@ -184,6 +188,11 @@ function EmployeesView() {
                       <IconButton label={`Ubah ${e.full_name}`} onClick={() => setEditing(e)}>
                         <Pencil className="size-4" />
                       </IconButton>
+                      {canAssignLocation && e.status === "active" && (
+                        <IconButton label={`Lokasi absen ${e.full_name}`} onClick={() => setAssigning(e)}>
+                          <MapPin className="size-4" />
+                        </IconButton>
+                      )}
                       {e.status === "active" && e.account && (
                         <>
                           <IconButton label={`Terbitkan tautan sandi untuk ${e.full_name}`} onClick={() => setResetting(e)}>
@@ -222,6 +231,8 @@ function EmployeesView() {
           onCreated={(c) => setActivation({ name: c.full_name, activation: c.activation })}
         />
       )}
+
+      {assigning && <EmployeeLocationsModal employee={assigning} onClose={() => setAssigning(null)} />}
 
       {activation && <ActivationLinkModal name={activation.name} activation={activation.activation} onClose={() => setActivation(null)} />}
 

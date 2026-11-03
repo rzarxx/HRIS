@@ -52,6 +52,7 @@ func testRouterState(t *testing.T, state auth.SessionState) (http.Handler, *auth
 }
 
 func call(h http.Handler, method, path, token, csrf string) *httptest.ResponseRecorder {
+	path = strings.ReplaceAll(path, "{date}", "2026-08-17")
 	req := httptest.NewRequest(method, strings.ReplaceAll(path, "{id}", uuid.NewString()), nil)
 	if token != "" {
 		req.AddCookie(&http.Cookie{Name: auth.CookieAccess, Value: token})

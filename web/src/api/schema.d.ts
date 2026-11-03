@@ -1228,6 +1228,478 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/admin/office-locations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Daftar lokasi kantor
+         * @description Permission `location:manage`.
+         */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data: components["schemas"]["OfficeLocation"][];
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        /** Tambah lokasi kantor */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["OfficeLocationInput"];
+                };
+            };
+            responses: {
+                /** @description Dibuat */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data: components["schemas"]["OfficeLocation"];
+                        };
+                    };
+                };
+                400: components["responses"]["ValidationFailed"];
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/office-locations/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Hapus lokasi kantor
+         * @description Ditolak `CONFLICT_HAS_DEPENDENTS` bila masih ditugaskan ke Pejuang.
+         */
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: components["parameters"]["Id"];
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Dihapus */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                404: components["responses"]["Error"];
+                409: components["responses"]["Error"];
+            };
+        };
+        options?: never;
+        head?: never;
+        /** Ubah lokasi kantor */
+        patch: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: components["parameters"]["Id"];
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["OfficeLocationPatch"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data: components["schemas"]["OfficeLocation"];
+                        };
+                    };
+                };
+                400: components["responses"]["ValidationFailed"];
+                404: components["responses"]["Error"];
+            };
+        };
+        trace?: never;
+    };
+    "/v1/admin/shifts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Daftar shift
+         * @description Permission `shift:manage`.
+         */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data: components["schemas"]["Shift"][];
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        /** Tambah shift */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["ShiftInput"];
+                };
+            };
+            responses: {
+                /** @description Dibuat */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data: components["schemas"]["Shift"];
+                        };
+                    };
+                };
+                400: components["responses"]["ValidationFailed"];
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/shifts/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Hapus shift
+         * @description Ditolak `CONFLICT_HAS_DEPENDENTS` bila sudah dipakai Pejuang atau presensi.
+         */
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: components["parameters"]["Id"];
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Dihapus */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                404: components["responses"]["Error"];
+                409: components["responses"]["Error"];
+            };
+        };
+        options?: never;
+        head?: never;
+        /** Ubah shift */
+        patch: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: components["parameters"]["Id"];
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["ShiftPatch"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data: components["schemas"]["Shift"];
+                        };
+                    };
+                };
+                400: components["responses"]["ValidationFailed"];
+                404: components["responses"]["Error"];
+            };
+        };
+        trace?: never;
+    };
+    "/v1/admin/holidays": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Daftar hari libur per tahun
+         * @description Permission `shift:manage`.
+         */
+        get: {
+            parameters: {
+                query: {
+                    year: components["parameters"]["Year"];
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data: components["schemas"]["Holiday"][];
+                        };
+                    };
+                };
+                400: components["responses"]["ValidationFailed"];
+            };
+        };
+        put?: never;
+        /** Tambah hari libur */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["Holiday"];
+                };
+            };
+            responses: {
+                /** @description Dibuat */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data: components["schemas"]["Holiday"];
+                        };
+                    };
+                };
+                400: components["responses"]["ValidationFailed"];
+                409: components["responses"]["Error"];
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/holidays/{date}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                date: string;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Hapus hari libur */
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    date: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Dihapus */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                404: components["responses"]["Error"];
+            };
+        };
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/employees/{id}/locations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        /**
+         * Lokasi absen yang diizinkan untuk Pejuang
+         * @description Permission `employee:write`.
+         */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: components["parameters"]["Id"];
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data: components["schemas"]["OfficeLocation"][];
+                        };
+                    };
+                };
+                404: components["responses"]["Error"];
+            };
+        };
+        /**
+         * Tetapkan lokasi absen Pejuang
+         * @description Menggantikan seluruh daftar. Daftar kosong berarti Pejuang tidak bisa absen di mana pun.
+         */
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: components["parameters"]["Id"];
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["EmployeeLocationsInput"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data: components["schemas"]["OfficeLocation"][];
+                        };
+                    };
+                };
+                400: components["responses"]["ValidationFailed"];
+                404: components["responses"]["Error"];
+            };
+        };
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/admin/announcements": {
         parameters: {
             query?: never;
@@ -1870,6 +2342,69 @@ export interface components {
             absent_deduction: components["schemas"]["Money"];
             late_deduction: components["schemas"]["Money"];
             net: components["schemas"]["Money"];
+        };
+        GeoPoint: {
+            /** @example -6.2001 */
+            latitude: number;
+            /** @example 106.8166 */
+            longitude: number;
+        };
+        /** @description Pada PATCH, field yang tidak dikirim tetap nilai lamanya. */
+        OfficeLocationPatch: {
+            name?: string;
+            latitude?: number;
+            longitude?: number;
+            radius_m?: number;
+            /** @description Bila diisi, poligon dipakai sebagai pengganti radius */
+            polygon?: components["schemas"]["GeoPoint"][] | null;
+            is_active?: boolean;
+        };
+        OfficeLocationInput: components["schemas"]["OfficeLocationPatch"] & Record<string, never>;
+        OfficeLocation: {
+            /** Format: uuid */
+            id: string;
+            name: string;
+            latitude: number;
+            longitude: number;
+            radius_m: number;
+            polygon: components["schemas"]["GeoPoint"][] | null;
+            is_active: boolean;
+            employee_count: number;
+        };
+        EmployeeLocationsInput: {
+            location_ids: string[];
+        };
+        /** @description Pada PATCH, field yang tidak dikirim tetap nilai lamanya. */
+        ShiftPatch: {
+            name?: string;
+            /**
+             * @description Jam WIB
+             * @example 08:00
+             */
+            start_time?: string;
+            /**
+             * @description Lebih awal dari start_time berarti lewat tengah malam
+             * @example 17:00
+             */
+            end_time?: string;
+            late_tolerance_minutes?: number;
+            /** @description 1=Senin sampai 7=Minggu */
+            work_days?: number[];
+        };
+        ShiftInput: components["schemas"]["ShiftPatch"] & Record<string, never>;
+        Shift: {
+            /** Format: uuid */
+            id: string;
+            name: string;
+            start_time: string;
+            end_time: string;
+            late_tolerance_minutes: number;
+            work_days: number[];
+        };
+        Holiday: {
+            /** Format: date */
+            date: string;
+            name: string;
         };
         PayrollRules: {
             /** @example preview-v0 */

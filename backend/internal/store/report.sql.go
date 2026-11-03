@@ -186,7 +186,7 @@ func (q *Queries) EmployeesPerSubdivision(ctx context.Context) ([]EmployeesPerSu
 }
 
 const getDefaultShift = `-- name: GetDefaultShift :one
-SELECT id, name, start_time, end_time, late_tolerance_minutes, work_days FROM shifts ORDER BY name LIMIT 1
+SELECT id, name, start_time, end_time, late_tolerance_minutes, work_days FROM shifts ORDER BY name = 'Reguler' DESC, name LIMIT 1
 `
 
 func (q *Queries) GetDefaultShift(ctx context.Context) (Shift, error) {

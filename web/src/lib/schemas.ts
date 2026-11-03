@@ -38,6 +38,7 @@ export const employeeSchema = z.object({
   join_date: optionalText.refine(blankOr((v) => /^\d{4}-\d{2}-\d{2}$/.test(v)), "Tanggal tidak valid."),
   base_salary: required("Gaji pokok").regex(/^\d+(\.\d{1,2})?$/, "Gaji pokok harus angka."),
   status: z.enum(["active", "inactive"]),
+  default_shift_id: z.string().uuid().nullable().optional(),
 });
 
 export const announcementSchema = z
@@ -57,7 +58,6 @@ export type SubdivisionInput = z.input<typeof subdivisionSchema>;
 export type EmployeeInput = z.input<typeof employeeSchema>;
 export type AnnouncementInput = z.input<typeof announcementSchema>;
 
-/** Mengembalikan pesan error per field atau null bila valid. */
 // Koma desimal diterima karena lazim di Indonesia.
 export const parseCoordinate = (v: string) => Number(v.trim().replace(",", "."));
 
@@ -109,6 +109,7 @@ export const holidaySchema = z.object({
 });
 export type HolidayInput = z.infer<typeof holidaySchema>;
 
+/** Mengembalikan pesan error per field atau null bila valid. */
 export function validate(schema: z.ZodType, values: unknown): Record<string, string> | null {
   const r = schema.safeParse(values);
   if (r.success) return null;

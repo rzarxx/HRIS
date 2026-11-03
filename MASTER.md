@@ -1474,9 +1474,9 @@ Estimasi untuk tim kecil; sesuaikan setelah kapasitas tim jelas.
 - [x] Tiga user DB (`hris_app`, `hris_migrate`, `hris_ro`)
 
 **Fase 2: Presensi**
-- [ ] Lokasi kantor + shift + hari libur
+- [x] Lokasi kantor + shift + hari libur
 - [ ] Device binding + persetujuan SDM atau super admin (D25)
-- [ ] Peta untuk mengatur area lokasi (D28)
+- [x] Peta untuk mengatur area lokasi (D28)
 - [ ] Challenge + verifikasi Play Integrity (jalur A)
 - [ ] Key Attestation (jalur B), perangkat manual (jalur D), kiosk (jalur E); Huawei (jalur C) bila ada penggunanya
 - [ ] Izin WFA dan hybrid per Pejuang, jam fleksibel, dan pendaftaran wajah jarak jauh

@@ -2175,6 +2175,11 @@ export interface components {
             join_date?: string | null;
             base_salary?: components["schemas"]["Money"];
             status?: components["schemas"]["EmployeeStatus"];
+            /**
+             * Format: uuid
+             * @description Shift Pejuang. null = belum ditentukan
+             */
+            default_shift_id?: string | null;
         };
         Employee: {
             /** Format: uuid */
@@ -2193,6 +2198,9 @@ export interface components {
             /** Format: date */
             join_date: string | null;
             status: components["schemas"]["EmployeeStatus"];
+            /** Format: uuid */
+            default_shift_id: string | null;
+            default_shift_name: string | null;
             /** @description Hanya untuk sdm dan pemilik data */
             base_salary?: components["schemas"]["Money"];
             /** @description Hanya untuk pemegang user:manage. Tidak ada bila Pejuang belum punya akun. */

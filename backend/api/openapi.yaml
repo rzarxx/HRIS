@@ -1192,10 +1192,11 @@ components:
         join_date: { type: string, format: date, nullable: true }
         base_salary: { $ref: "#/components/schemas/Money" }
         status: { $ref: "#/components/schemas/EmployeeStatus" }
+        default_shift_id: { type: string, format: uuid, nullable: true, description: "Shift Pejuang. null = belum ditentukan" }
     Employee:
       type: object
       required:
-        [id, nip, full_name, email, phone, subdivision_id, subdivision_name, division_id, division_name, position, join_date, status]
+        [id, nip, full_name, email, phone, subdivision_id, subdivision_name, division_id, division_name, position, join_date, status, default_shift_id, default_shift_name]
       properties:
         id: { type: string, format: uuid }
         nip: { type: string }
@@ -1209,6 +1210,8 @@ components:
         position: { type: string, nullable: true }
         join_date: { type: string, format: date, nullable: true }
         status: { $ref: "#/components/schemas/EmployeeStatus" }
+        default_shift_id: { type: string, format: uuid, nullable: true }
+        default_shift_name: { type: string, nullable: true }
         base_salary:
           allOf: [{ $ref: "#/components/schemas/Money" }]
           description: Hanya untuk sdm dan pemilik data

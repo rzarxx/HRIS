@@ -19,6 +19,7 @@ tags:
   - name: Subdiv
   - name: Pejuang
   - name: Akun
+  - name: Presensi
   - name: Perangkat
   - name: Lokasi
   - name: Shift
@@ -529,6 +530,103 @@ paths:
         "403": { $ref: "#/components/responses/Error" }
         "404": { $ref: "#/components/responses/Error" }
 
+  /v1/attendance/challenge:
+    post:
+      tags: [Presensi]
+      summary: Minta tantangan absen sekali pakai
+      description: "Berlaku 90 detik dan terikat ke pengguna, perangkat, dan tujuan."
+      parameters:
+        - { name: X-Device-Id, in: header, required: true, description: "ID perangkat dari hasil registrasi", schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/AttendanceChallengeInput" }
+      responses:
+        "201":
+          description: Tantangan dibuat
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data: { $ref: "#/components/schemas/AttendanceChallenge" }
+        "400": { $ref: "#/components/responses/ValidationFailed" }
+        "403": { $ref: "#/components/responses/Error" }
+  /v1/attendance/clock-in:
+    post:
+      tags: [Presensi]
+      summary: Absen masuk
+      description: "Selama verifikasi perangkat dan wajah belum dibuat, semua absen ditolak `ATTENDANCE_BLOCKED` kecuali di development dengan izin khusus (D36). Alasan keamanan tidak dikirim ke klien."
+      parameters:
+        - { name: X-Device-Id, in: header, required: true, description: "ID perangkat dari hasil registrasi", schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ClockInput" }
+      responses:
+        "201":
+          description: Absen masuk tercatat
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data: { $ref: "#/components/schemas/ClockInResult" }
+        "400": { $ref: "#/components/responses/ValidationFailed" }
+        "403": { $ref: "#/components/responses/Error" }
+        "409": { $ref: "#/components/responses/Error" }
+        "422": { $ref: "#/components/responses/Error" }
+  /v1/attendance/clock-out:
+    post:
+      tags: [Presensi]
+      summary: Absen pulang
+      description: "Dipasangkan dengan absen masuk yang masih terbuka, sampai batas cutoff harian berikutnya (D31)."
+      parameters:
+        - { name: X-Device-Id, in: header, required: true, description: "ID perangkat dari hasil registrasi", schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ClockInput" }
+      responses:
+        "200":
+          description: Absen pulang tercatat
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data: { $ref: "#/components/schemas/ClockOutResult" }
+        "400": { $ref: "#/components/responses/ValidationFailed" }
+        "403": { $ref: "#/components/responses/Error" }
+        "409": { $ref: "#/components/responses/Error" }
+        "422": { $ref: "#/components/responses/Error" }
+  /v1/attendance:
+    get:
+      tags: [Presensi]
+      summary: Riwayat absen sendiri
+      description: "Bawaannya 31 hari terakhir, rentang maksimal 92 hari. Tidak memuat skor risiko."
+      parameters:
+        - { name: from, in: query, schema: { type: string, format: date } }
+        - { name: to, in: query, schema: { type: string, format: date } }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: "#/components/schemas/AttendanceRecord" }
+        "400": { $ref: "#/components/responses/ValidationFailed" }
   /v1/devices/register:
     post:
       tags: [Perangkat]
@@ -1117,6 +1215,8 @@ components:
         - NOT_FOUND
         - METHOD_NOT_ALLOWED
         - ALREADY_CLOCKED_IN
+        - ALREADY_CLOCKED_OUT
+        - SHIFT_NOT_ASSIGNED
         - NOT_CLOCKED_IN
         - REQUEST_NOT_PENDING
         - PERIOD_LOCKED
@@ -1494,6 +1594,75 @@ components:
         absent_deduction: { $ref: "#/components/schemas/Money" }
         late_deduction: { $ref: "#/components/schemas/Money" }
         net: { $ref: "#/components/schemas/Money" }
+    AttendanceChallengeInput:
+      type: object
+      required: [purpose]
+      properties:
+        purpose: { type: string, enum: [clock_in, clock_out] }
+    AttendanceChallenge:
+      type: object
+      required: [challenge_id, nonce, expires_at]
+      properties:
+        challenge_id: { type: string, format: uuid }
+        nonce: { type: string }
+        expires_at: { type: string, format: date-time }
+    ClockInput:
+      type: object
+      required: [challenge_id, latitude, longitude, accuracy_m, captured_at]
+      description: "Foto wajah dan token integritas ditambahkan bersama verifikasinya."
+      properties:
+        challenge_id: { type: string, format: uuid }
+        latitude: { type: number, minimum: -90, maximum: 90, example: -6.2001 }
+        longitude: { type: number, minimum: -180, maximum: 180, example: 106.8166 }
+        accuracy_m: { type: number, minimum: 0, example: 12.5 }
+        captured_at: { type: string, format: date-time }
+        signals: { $ref: "#/components/schemas/AttendanceSignals" }
+    AttendanceSignals:
+      type: object
+      description: "Laporan dari HP. Sifatnya saran, tetapi laporan buruk tetap ditolak."
+      properties:
+        is_mock_location: { type: boolean }
+        fake_gps_app_detected: { type: boolean }
+        root_detected: { type: boolean }
+        emulator_detected: { type: boolean }
+        app_version: { type: string }
+    ClockInResult:
+      type: object
+      required: [attendance_id, work_date, status, clock_in_at, late_minutes, office_location, requires_review]
+      properties:
+        attendance_id: { type: string, format: uuid }
+        work_date: { type: string, format: date }
+        status: { type: string, enum: [present, late, review] }
+        clock_in_at: { type: string, format: date-time }
+        late_minutes: { type: integer }
+        office_location:
+          type: object
+          required: [id, name]
+          properties:
+            id: { type: string, format: uuid }
+            name: { type: string }
+        requires_review: { type: boolean }
+    ClockOutResult:
+      type: object
+      required: [attendance_id, work_date, clock_out_at, worked_minutes]
+      properties:
+        attendance_id: { type: string, format: uuid }
+        work_date: { type: string, format: date }
+        clock_out_at: { type: string, format: date-time }
+        worked_minutes: { type: integer }
+    AttendanceRecord:
+      type: object
+      required: [id, work_date, status, clock_in_at, clock_out_at, late_minutes, worked_minutes, work_mode, location_name]
+      properties:
+        id: { type: string, format: uuid }
+        work_date: { type: string, format: date }
+        status: { type: string, enum: [present, late, absent, leave, review] }
+        clock_in_at: { type: string, format: date-time, nullable: true }
+        clock_out_at: { type: string, format: date-time, nullable: true }
+        late_minutes: { type: integer }
+        worked_minutes: { type: integer, nullable: true, description: "Kosong bila belum atau lupa absen pulang" }
+        work_mode: { type: string, enum: [onsite, wfa, field] }
+        location_name: { type: string, nullable: true }
     DeviceStatus:
       type: string
       enum: [pending, approved, revoked]

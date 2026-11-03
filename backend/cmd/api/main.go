@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/rzarxx/HRIS/backend/internal/announcement"
+	"github.com/rzarxx/HRIS/backend/internal/attendance"
 	"github.com/rzarxx/HRIS/backend/internal/auth"
 	"github.com/rzarxx/HRIS/backend/internal/dashboard"
 	"github.com/rzarxx/HRIS/backend/internal/device"
@@ -81,6 +82,7 @@ func run() error {
 		Report:       report.NewHandler(report.NewService(q, authSvc.ResolveScope)),
 		Location:     location.NewHandler(location.NewService(pool)),
 		Device:       device.NewHandler(device.NewService(pool)),
+		Attendance:   attendance.NewHandler(attendance.NewService(pool, attendance.Options{AllowUnverified: cfg.DevAllowUnverifiedAttendance, ChallengeTTL: cfg.ChallengeTTL})),
 		Shift:        shift.NewHandler(shift.NewService(pool)),
 		Signer:       signer,
 		SessionCheck: authSvc.SessionState,

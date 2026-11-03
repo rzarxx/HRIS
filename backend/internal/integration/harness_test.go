@@ -24,6 +24,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/rzarxx/HRIS/backend/internal/announcement"
+	"github.com/rzarxx/HRIS/backend/internal/attendance"
 	"github.com/rzarxx/HRIS/backend/internal/auth"
 	"github.com/rzarxx/HRIS/backend/internal/dashboard"
 	"github.com/rzarxx/HRIS/backend/internal/device"
@@ -130,6 +131,10 @@ func (noLimiter) Reset(string)                                                  
 type options struct {
 	requireMFA bool
 	limiter    auth.Limiter
+	// clock dan izin absen tanpa verifikasi untuk tes presensi.
+	clock           func() time.Time
+	allowUnverified bool
+	strictIntegrity bool
 }
 
 // fresh mengisi ulang data dummy dan menyalakan API baru.
@@ -177,6 +182,7 @@ func fresh(t *testing.T, opt options) *httptest.Server {
 		Report:       report.NewHandler(report.NewService(q, authSvc.ResolveScope)),
 		Location:     location.NewHandler(location.NewService(appPool)),
 		Device:       device.NewHandler(device.NewService(appPool)),
+		Attendance:   attendance.NewHandler(attendance.NewService(appPool, attendance.Options{AllowUnverified: opt.allowUnverified, Now: opt.clock})),
 		Shift:        shift.NewHandler(shift.NewService(appPool)),
 		Signer:       signer,
 		SessionCheck: authSvc.SessionState,
@@ -193,6 +199,12 @@ type client struct {
 	t       *testing.T
 	srv     *httptest.Server
 	cookies map[string]string
+	headers map[string]string
+}
+
+func (c *client) withHeaders(h map[string]string) *client {
+	c.headers = h
+	return c
 }
 
 func newClient(t *testing.T, srv *httptest.Server) *client {
@@ -233,6 +245,9 @@ func (c *client) do(method, path string, body any) response {
 	}
 	if method != http.MethodGet {
 		req.Header.Set(auth.HeaderCSRF, c.cookies[auth.CookieCSRF])
+	}
+	for name, value := range c.headers {
+		req.Header.Set(name, value)
 	}
 	for name, value := range c.cookies {
 		req.AddCookie(&http.Cookie{Name: name, Value: value})

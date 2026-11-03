@@ -42,6 +42,25 @@ func TestMatrix(t *testing.T) {
 	}
 }
 
+func TestSuperadminIsTechnicalOnly(t *testing.T) {
+	for _, key := range []string{DeviceReview, UserManage, LocationManage, ShiftManage, EmployeeRead} {
+		if !Allows(RoleSuperadmin, key) {
+			t.Errorf("super admin harus punya %s", key)
+		}
+	}
+	for _, key := range []string{
+		UserReset, PayrollManage, PayrollFinalize, AttendanceReport, DashboardRead,
+		EmployeeWrite, OrgWrite, WarningManage, AnnouncementManage,
+	} {
+		if Allows(RoleSuperadmin, key) {
+			t.Errorf("super admin tidak boleh punya %s", key)
+		}
+	}
+	if !RequiresMFA(RoleSuperadmin) || !RequiresMFA(RoleSDM) || RequiresMFA(RolePejuang) {
+		t.Error("MFA wajib untuk SDM dan super admin saja")
+	}
+}
+
 func TestDenyByDefault(t *testing.T) {
 	if Allows("admin", DashboardRead) {
 		t.Error("role tak dikenal tidak boleh punya akses")

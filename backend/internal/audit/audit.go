@@ -36,6 +36,10 @@ const (
 	AnnouncementUpdated   = "announcement.updated"
 	AnnouncementDeleted   = "announcement.deleted"
 	SettingsChanged       = "settings.changed"
+	UserRoleChanged       = "user.role_changed"
+	DeviceRegistered      = "device.registered"
+	DeviceApproved        = "device.approved"
+	DeviceRevoked         = "device.revoked"
 )
 
 // Entry adalah satu baris audit. Detail tidak boleh memuat kata sandi atau token.

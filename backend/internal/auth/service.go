@@ -289,7 +289,7 @@ func (s *Service) SessionState(ctx context.Context, sessionID uuid.UUID) (Sessio
 }
 
 func (s *Service) mfaSetupRequired(role string, enabled bool) bool {
-	return s.requireMFA && role == permission.RoleSDM && !enabled
+	return s.requireMFA && permission.RequiresMFA(role) && !enabled
 }
 
 // Me membentuk objek baku GET /v1/me (MASTER.md §7.6).

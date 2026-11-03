@@ -15,10 +15,11 @@ const (
 )
 
 const (
-	RolePejuang = "pejuang"
-	RoleSubdiv  = "subdiv"
-	RoleKadiv   = "kadiv"
-	RoleSDM     = "sdm"
+	RolePejuang    = "pejuang"
+	RoleSubdiv     = "subdiv"
+	RoleKadiv      = "kadiv"
+	RoleSDM        = "sdm"
+	RoleSuperadmin = "superadmin"
 )
 
 // Permission key.
@@ -30,6 +31,7 @@ const (
 	EmployeeRead       = "employee:read"
 	EmployeeWrite      = "employee:write"
 	UserManage         = "user:manage"
+	UserReset          = "user:reset"
 	DeviceRegister     = "device:register"
 	DeviceReview       = "device:review"
 	FaceEnroll         = "face:enroll"
@@ -59,6 +61,9 @@ const (
 	AuditRead          = "audit:read"
 )
 
+// RequiresMFA menjawab role mana yang wajib memakai MFA (§5.2, D25).
+func RequiresMFA(role string) bool { return role == RoleSDM || role == RoleSuperadmin }
+
 // Permission yang dimiliki semua role, dengan scope-nya.
 var base = map[string]Scope{
 	ProfileRead:       ScopeSelf,
@@ -82,6 +87,15 @@ var base = map[string]Scope{
 // Tambahan per role; menimpa scope dari base.
 var extra = map[string]map[string]Scope{
 	RolePejuang: {},
+	// Hanya urusan teknis (D25). Reset kata sandi sengaja tidak termasuk: tautannya tampil
+	// ke yang menekan tombol, sehingga bisa dipakai masuk ke akun SDM dan melihat upah (D33).
+	RoleSuperadmin: {
+		EmployeeRead:   ScopeAll,
+		UserManage:     ScopeAll,
+		DeviceReview:   ScopeAll,
+		LocationManage: ScopeAll,
+		ShiftManage:    ScopeAll,
+	},
 	RoleSubdiv: {
 		EmployeeRead:    ScopeSubdivision,
 		AttendanceRead:  ScopeSubdivision,
@@ -104,6 +118,7 @@ var extra = map[string]map[string]Scope{
 		EmployeeRead:       ScopeAll,
 		EmployeeWrite:      ScopeAll,
 		UserManage:         ScopeAll,
+		UserReset:          ScopeAll,
 		DeviceReview:       ScopeAll,
 		FaceReset:          ScopeAll,
 		AttendanceRead:     ScopeAll,

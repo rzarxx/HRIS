@@ -8,7 +8,8 @@ import { api } from "@/lib/api-client";
 import { initials } from "@/lib/format";
 import { useMe } from "@/lib/hooks";
 
-const ROLE_LABEL = { sdm: "SDM", kadiv: "Kadiv", subdiv: "Subdiv", pejuang: "Pejuang" } as const;
+const ROLE_LABEL = { sdm: "SDM",
+  superadmin: "Super Admin", kadiv: "Kadiv", subdiv: "Subdiv", pejuang: "Pejuang" } as const;
 
 export function Header({ onMenu }: { onMenu: () => void }) {
   const router = useRouter();

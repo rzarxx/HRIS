@@ -13,6 +13,7 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 
 	"github.com/rzarxx/HRIS/backend/internal/audit"
+	"github.com/rzarxx/HRIS/backend/internal/permission"
 	"github.com/rzarxx/HRIS/backend/internal/platform/database"
 	"github.com/rzarxx/HRIS/backend/internal/platform/httpx"
 	"github.com/rzarxx/HRIS/backend/internal/platform/pgconv"
@@ -335,6 +336,18 @@ func (s *Service) managedUser(ctx context.Context, id uuid.UUID) (store.User, er
 	return user, err
 }
 
+// Super admin tidak boleh mengganggu akun SDM, karena SDM memegang data upah (D25).
+func (s *Service) managedTarget(ctx context.Context, actor Principal, id uuid.UUID) error {
+	user, err := s.managedUser(ctx, id)
+	if err != nil {
+		return err
+	}
+	if actor.Role == permission.RoleSuperadmin && user.Role == store.UserRoleSdm {
+		return httpx.ErrForbidden()
+	}
+	return nil
+}
+
 func errSelfAction(message string) error {
 	return httpx.NewError(http.StatusConflict, "CONFLICT_SELF_ACTION", message)
 }
@@ -373,7 +386,7 @@ func (s *Service) LockUser(ctx context.Context, actor Principal, id uuid.UUID, i
 	if id == actor.UserID {
 		return errSelfAction("Anda tidak dapat mengunci akun sendiri.")
 	}
-	if _, err := s.managedUser(ctx, id); err != nil {
+	if err := s.managedTarget(ctx, actor, id); err != nil {
 		return err
 	}
 	return database.InTx(ctx, s.pool, func(q *store.Queries) error {
@@ -390,7 +403,7 @@ func (s *Service) LockUser(ctx context.Context, actor Principal, id uuid.UUID, i
 }
 
 func (s *Service) UnlockUser(ctx context.Context, actor Principal, id uuid.UUID, ip *netip.Addr) error {
-	if _, err := s.managedUser(ctx, id); err != nil {
+	if err := s.managedTarget(ctx, actor, id); err != nil {
 		return err
 	}
 	return database.InTx(ctx, s.pool, func(q *store.Queries) error {
@@ -407,7 +420,7 @@ func (s *Service) RevokeUserSessions(ctx context.Context, actor Principal, id uu
 	if id == actor.UserID {
 		return errSelfAction("Gunakan menu sesi aktif untuk akun sendiri.")
 	}
-	if _, err := s.managedUser(ctx, id); err != nil {
+	if err := s.managedTarget(ctx, actor, id); err != nil {
 		return err
 	}
 	return database.InTx(ctx, s.pool, func(q *store.Queries) error {

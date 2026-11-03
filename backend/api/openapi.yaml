@@ -19,6 +19,7 @@ tags:
   - name: Subdiv
   - name: Pejuang
   - name: Akun
+  - name: Perangkat
   - name: Lokasi
   - name: Shift
   - name: Pengumuman
@@ -528,6 +529,113 @@ paths:
         "403": { $ref: "#/components/responses/Error" }
         "404": { $ref: "#/components/responses/Error" }
 
+  /v1/devices/register:
+    post:
+      tags: [Perangkat]
+      summary: Daftarkan perangkat milik sendiri
+      description: "Akun yang belum pernah punya perangkat langsung `approved`. Selain itu `pending` sampai disetujui. Perangkat yang dicabut ditolak `DEVICE_REVOKED`."
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/DeviceRegisterInput" }
+      responses:
+        "200":
+          description: Perangkat sudah terdaftar
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data: { $ref: "#/components/schemas/Device" }
+        "201":
+          description: Perangkat baru
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data: { $ref: "#/components/schemas/Device" }
+        "400": { $ref: "#/components/responses/ValidationFailed" }
+        "403": { $ref: "#/components/responses/Error" }
+  /v1/devices/me:
+    get:
+      tags: [Perangkat]
+      summary: Daftar perangkat milik sendiri
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: "#/components/schemas/Device" }
+  /v1/admin/devices:
+    get:
+      tags: [Perangkat]
+      summary: Daftar perangkat untuk ditinjau
+      description: "Permission `device:review`."
+      parameters:
+        - { name: status, in: query, schema: { $ref: "#/components/schemas/DeviceStatus" } }
+        - $ref: "#/components/parameters/Page"
+        - $ref: "#/components/parameters/PerPage"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data, meta]
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: "#/components/schemas/AdminDevice" }
+                  meta: { $ref: "#/components/schemas/PageMeta" }
+        "400": { $ref: "#/components/responses/ValidationFailed" }
+  /v1/admin/devices/{id}/approve:
+    parameters:
+      - $ref: "#/components/parameters/Id"
+    post:
+      tags: [Perangkat]
+      summary: Setujui perangkat
+      description: "Perangkat lain yang masih aktif dicabut beserta sesinya. Perangkat sendiri ditolak `CONFLICT_SELF_ACTION`, dan perangkat yang sudah dicabut ditolak `DEVICE_REVOKED`."
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data: { $ref: "#/components/schemas/AdminDevice" }
+        "403": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+        "409": { $ref: "#/components/responses/Error" }
+  /v1/admin/devices/{id}/revoke:
+    parameters:
+      - $ref: "#/components/parameters/Id"
+    post:
+      tags: [Perangkat]
+      summary: Cabut perangkat beserta sesinya
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data: { $ref: "#/components/schemas/AdminDevice" }
+        "404": { $ref: "#/components/responses/Error" }
   /v1/admin/office-locations:
     get:
       tags: [Lokasi]
@@ -986,7 +1094,7 @@ components:
       example: "5000000.00"
     Role:
       type: string
-      enum: [pejuang, subdiv, kadiv, sdm]
+      enum: [pejuang, subdiv, kadiv, sdm, superadmin]
     ErrorCode:
       type: string
       description: Registry MASTER.md §7.4
@@ -1041,6 +1149,7 @@ components:
         - "employee:read"
         - "employee:write"
         - "user:manage"
+        - user:reset
         - "device:register"
         - "device:review"
         - "face:enroll"
@@ -1384,6 +1493,43 @@ components:
         absent_deduction: { $ref: "#/components/schemas/Money" }
         late_deduction: { $ref: "#/components/schemas/Money" }
         net: { $ref: "#/components/schemas/Money" }
+    DeviceStatus:
+      type: string
+      enum: [pending, approved, revoked]
+    DeviceRegisterInput:
+      type: object
+      required: [device_hash]
+      properties:
+        device_hash: { type: string, pattern: '^[a-f0-9]{64}$', description: "SHA-256 dari ID instalasi acak, bukan IMEI" }
+        model: { type: string, nullable: true, maxLength: 100 }
+        os_version: { type: string, nullable: true, maxLength: 50 }
+        fcm_token: { type: string, nullable: true, maxLength: 4096 }
+    Device:
+      type: object
+      description: Hash dan token notifikasi tidak pernah dikembalikan.
+      required: [id, model, os_version, status, created_at, last_seen_at]
+      properties:
+        id: { type: string, format: uuid }
+        model: { type: string, nullable: true }
+        os_version: { type: string, nullable: true }
+        status: { $ref: "#/components/schemas/DeviceStatus" }
+        created_at: { type: string, format: date-time }
+        last_seen_at: { type: string, format: date-time, nullable: true }
+    AdminDevice:
+      allOf:
+        - $ref: "#/components/schemas/Device"
+        - type: object
+          required: [employee_id, employee_name, nip, subdivision_name, division_name, approved_at, approved_by_name, revoked_at, revoked_reason]
+          properties:
+            employee_id: { type: string, format: uuid }
+            employee_name: { type: string }
+            nip: { type: string }
+            subdivision_name: { type: string }
+            division_name: { type: string }
+            approved_at: { type: string, format: date-time, nullable: true }
+            approved_by_name: { type: string, nullable: true }
+            revoked_at: { type: string, format: date-time, nullable: true }
+            revoked_reason: { type: string, nullable: true, description: "admin_revoked, replaced, atau offboarded" }
     GeoPoint:
       type: object
       required: [latitude, longitude]

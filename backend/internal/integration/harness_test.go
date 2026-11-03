@@ -26,6 +26,7 @@ import (
 	"github.com/rzarxx/HRIS/backend/internal/announcement"
 	"github.com/rzarxx/HRIS/backend/internal/auth"
 	"github.com/rzarxx/HRIS/backend/internal/dashboard"
+	"github.com/rzarxx/HRIS/backend/internal/device"
 	"github.com/rzarxx/HRIS/backend/internal/devsim"
 	"github.com/rzarxx/HRIS/backend/internal/employee"
 	"github.com/rzarxx/HRIS/backend/internal/location"
@@ -175,6 +176,7 @@ func fresh(t *testing.T, opt options) *httptest.Server {
 		Dashboard:    dashboard.NewHandler(q),
 		Report:       report.NewHandler(report.NewService(q, authSvc.ResolveScope)),
 		Location:     location.NewHandler(location.NewService(appPool)),
+		Device:       device.NewHandler(device.NewService(appPool)),
 		Shift:        shift.NewHandler(shift.NewService(appPool)),
 		Signer:       signer,
 		SessionCheck: authSvc.SessionState,

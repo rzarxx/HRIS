@@ -15,7 +15,8 @@ interface Place extends LatLng {
 async function searchPlaces(query: string): Promise<Place[]> {
   const url = new URL("https://nominatim.openstreetmap.org/search");
   url.search = new URLSearchParams({ format: "jsonv2", limit: "5", countrycodes: "id", q: query }).toString();
-  const res = await fetch(url, { credentials: "omit" });
+  // Sama seperti tile peta: kirim domain asal saja karena halaman memakai no-referrer.
+  const res = await fetch(url, { credentials: "omit", referrerPolicy: "strict-origin" });
   if (!res.ok) throw new Error(`status ${res.status}`);
   const rows = (await res.json()) as { lat: string; lon: string; display_name: string }[];
   return rows

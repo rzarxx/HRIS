@@ -439,7 +439,7 @@ Data biometrik tergolong data pribadi bersifat spesifik dalam UU PDP (UU 27/2022
 
 ### 5.8 Kontrol Web
 - Token tidak pernah di `localStorage`/`sessionStorage`.
-- CSP ketat: `default-src 'self'`; tanpa `unsafe-inline` untuk script. Pengecualian untuk peta (D28): `img-src https://tile.openstreetmap.org` dan `connect-src https://nominatim.openstreetmap.org`.
+- CSP ketat: `default-src 'self'`; tanpa `unsafe-inline` untuk script. Pengecualian untuk peta (D28): `img-src https://tile.openstreetmap.org` dan `connect-src https://nominatim.openstreetmap.org`. `Referrer-Policy: no-referrer` tetap berlaku untuk seluruh web; hanya permintaan peta yang memakai `strict-origin`, karena OpenStreetMap memblokir permintaan tanpa `Referer`.
 - Isi pengumuman ditampilkan sebagai teks atau disanitasi (DOMPurify).
 - Ekspor CSV/Excel menetralkan *formula injection* (sel berawalan `=`, `+`, `-`, `@` diberi awalan `'`).
 - Idle logout 30 menit; aksi destruktif memakai dialog konfirmasi.

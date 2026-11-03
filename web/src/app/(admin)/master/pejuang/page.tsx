@@ -152,7 +152,7 @@ function EmployeesView() {
                 <tr>
                   <Th>NIP</Th>
                   <Th>Nama</Th>
-                  <Th>Jabatan</Th>
+                  <Th>Jabatan / Shift</Th>
                   <Th>Subdiv / Divisi</Th>
                   <Th align="right">Gaji pokok</Th>
                   <Th>Status</Th>
@@ -169,7 +169,10 @@ function EmployeesView() {
                       <p className="font-medium text-slate-900">{e.full_name}</p>
                       <p className="text-xs text-slate-500">{e.email ?? "-"}</p>
                     </Td>
-                    <Td>{e.position ?? "-"}</Td>
+                    <Td>
+                      <p>{e.position ?? "-"}</p>
+                      <p className="text-xs text-slate-500">{e.default_shift_name ?? "Shift belum ditentukan"}</p>
+                    </Td>
                     <Td>
                       <p>{e.subdivision_name}</p>
                       <p className="text-xs text-slate-500">{e.division_name}</p>

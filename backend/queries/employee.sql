@@ -1,10 +1,11 @@
 -- Filter scope: scope_all = true untuk SDM; selain itu dibatasi subdiv/divisi yang dipimpin.
 
 -- name: ListEmployees :many
-SELECT e.*, s.name AS subdivision_name, s.division_id, d.name AS division_name
+SELECT e.*, s.name AS subdivision_name, s.division_id, d.name AS division_name, sh.name AS default_shift_name
 FROM employees e
 JOIN subdivisions s ON s.id = e.subdivision_id
 JOIN divisions d ON d.id = s.division_id
+LEFT JOIN shifts sh ON sh.id = e.default_shift_id
 WHERE e.deleted_at IS NULL
   AND (@scope_all::boolean OR s.id = ANY(@scope_subdivision_ids::uuid[]) OR d.id = ANY(@scope_division_ids::uuid[]))
   AND (sqlc.narg(q)::text IS NULL
@@ -35,22 +36,23 @@ WHERE e.deleted_at IS NULL
   AND (sqlc.narg(status)::text IS NULL OR e.status = sqlc.narg(status));
 
 -- name: GetEmployeeScoped :one
-SELECT e.*, s.name AS subdivision_name, s.division_id, d.name AS division_name
+SELECT e.*, s.name AS subdivision_name, s.division_id, d.name AS division_name, sh.name AS default_shift_name
 FROM employees e
 JOIN subdivisions s ON s.id = e.subdivision_id
 JOIN divisions d ON d.id = s.division_id
+LEFT JOIN shifts sh ON sh.id = e.default_shift_id
 WHERE e.id = @id AND e.deleted_at IS NULL
   AND (@scope_all::boolean OR s.id = ANY(@scope_subdivision_ids::uuid[]) OR d.id = ANY(@scope_division_ids::uuid[]));
 
 -- name: CreateEmployee :one
-INSERT INTO employees (nip, full_name, email, phone, subdivision_id, position, join_date, base_salary, status)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+INSERT INTO employees (nip, full_name, email, phone, subdivision_id, position, join_date, base_salary, status, default_shift_id)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
 RETURNING id;
 
 -- name: UpdateEmployee :execrows
 UPDATE employees
 SET nip = $2, full_name = $3, email = $4, phone = $5, subdivision_id = $6,
-    position = $7, join_date = $8, base_salary = $9, status = $10, updated_at = now()
+    position = $7, join_date = $8, base_salary = $9, status = $10, default_shift_id = $11, updated_at = now()
 WHERE id = $1 AND deleted_at IS NULL;
 
 -- name: DeactivateEmployee :execrows

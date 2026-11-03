@@ -6,7 +6,7 @@ import { Field, Input, Select } from "@/components/ui/form";
 import { Modal } from "@/components/ui/modal";
 import { api } from "@/lib/api-client";
 import { todayWib } from "@/lib/format";
-import { useDivisions, useSave, useSubdivisions } from "@/lib/hooks";
+import { useDivisions, useSave, useShifts, useSubdivisions } from "@/lib/hooks";
 import { employeeSchema, validate, type EmployeeInput } from "@/lib/schemas";
 import type { EmployeeCreated, EmployeeListItem, ItemResponse } from "@/lib/types";
 
@@ -25,6 +25,7 @@ function initial(e: EmployeeListItem | null): FormState {
       join_date: todayWib(),
       base_salary: "",
       status: "active",
+      default_shift_id: null,
     };
   }
   return {
@@ -38,6 +39,7 @@ function initial(e: EmployeeListItem | null): FormState {
     join_date: e.join_date ?? "",
     base_salary: (e.base_salary ?? "0").split(".")[0],
     status: e.status,
+    default_shift_id: e.default_shift_id,
   };
 }
 
@@ -52,6 +54,7 @@ export function EmployeeForm({
 }) {
   const divisions = useDivisions();
   const subdivisions = useSubdivisions();
+  const shifts = useShifts();
   const [form, setForm] = useState<FormState>(() => initial(employee));
   const [errors, setErrors] = useState<Record<string, string>>({});
 
@@ -154,6 +157,21 @@ export function EmployeeForm({
             {subOptions.map((s) => (
               <option key={s.id} value={s.id}>
                 {s.name}
+              </option>
+            ))}
+          </Select>
+        </Field>
+        <Field label="Shift" htmlFor="default_shift_id" error={errors.default_shift_id}>
+          <Select
+            id="default_shift_id"
+            value={form.default_shift_id ?? ""}
+            onChange={(e) => set("default_shift_id", e.target.value || null)}
+            invalid={!!errors.default_shift_id}
+          >
+            <option value="">— Belum ditentukan —</option>
+            {shifts.data?.map((s) => (
+              <option key={s.id} value={s.id}>
+                {s.name} ({s.start_time} sampai {s.end_time})
               </option>
             ))}
           </Select>

@@ -103,8 +103,8 @@ export interface paths {
                 content: {
                     /**
                      * @example {
-                     *       "email": "sdm@pejuang.id",
-                     *       "password": "<kata sandi>"
+                     *       "email": "{{email}}",
+                     *       "password": "{{password}}"
                      *     }
                      */
                     "application/json": components["schemas"]["LoginRequest"];
@@ -190,7 +190,7 @@ export interface paths {
             };
             requestBody?: never;
             responses: {
-                /** @description Sesi dicabut */
+                /** @description Sesi dicabut, cookie dihapus */
                 204: {
                     headers: {
                         [name: string]: unknown;
@@ -276,7 +276,7 @@ export interface paths {
                 };
             };
             responses: {
-                /** @description Akun aktif */
+                /** @description Akun aktif, silakan masuk */
                 204: {
                     headers: {
                         [name: string]: unknown;
@@ -851,7 +851,7 @@ export interface paths {
                 query?: {
                     page?: components["parameters"]["Page"];
                     per_page?: components["parameters"]["PerPage"];
-                    /** @description Cari nama */
+                    /** @description Cari nama, NIP, email, jabatan */
                     q?: string;
                     division_id?: string;
                     subdivision_id?: string;
@@ -2175,6 +2175,11 @@ export interface components {
             join_date?: string | null;
             base_salary?: components["schemas"]["Money"];
             status?: components["schemas"]["EmployeeStatus"];
+            /**
+             * Format: uuid
+             * @description Shift Pejuang. null = belum ditentukan
+             */
+            default_shift_id?: string | null;
         };
         Employee: {
             /** Format: uuid */
@@ -2193,6 +2198,9 @@ export interface components {
             /** Format: date */
             join_date: string | null;
             status: components["schemas"]["EmployeeStatus"];
+            /** Format: uuid */
+            default_shift_id: string | null;
+            default_shift_name: string | null;
             /** @description Hanya untuk sdm dan pemilik data */
             base_salary?: components["schemas"]["Money"];
             /** @description Hanya untuk pemegang user:manage. Tidak ada bila Pejuang belum punya akun. */

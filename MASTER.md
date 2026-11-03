@@ -439,7 +439,7 @@ Data biometrik tergolong data pribadi bersifat spesifik dalam UU PDP (UU 27/2022
 
 ### 5.8 Kontrol Web
 - Token tidak pernah di `localStorage`/`sessionStorage`.
-- CSP ketat: `default-src 'self'`; tanpa `unsafe-inline` untuk script. Pengecualian untuk peta (D28): `img-src https://tile.openstreetmap.org` dan `connect-src https://nominatim.openstreetmap.org`.
+- CSP ketat: `default-src 'self'`; tanpa `unsafe-inline` untuk script. Pengecualian untuk peta (D28): `img-src https://tile.openstreetmap.org` dan `connect-src https://nominatim.openstreetmap.org`. `Referrer-Policy: no-referrer` tetap berlaku untuk seluruh web; hanya permintaan peta yang memakai `strict-origin`, karena OpenStreetMap memblokir permintaan tanpa `Referer`.
 - Isi pengumuman ditampilkan sebagai teks atau disanitasi (DOMPurify).
 - Ekspor CSV/Excel menetralkan *formula injection* (sel berawalan `=`, `+`, `-`, `@` diberi awalan `'`).
 - Idle logout 30 menit; aksi destruktif memakai dialog konfirmasi.
@@ -532,6 +532,8 @@ DDL dasar ada di `QUERY.sql`; perubahan di **Lampiran A** (yang berlaku). Beriku
 ---
 
 ## 7. Kontrak API
+
+**Dokumentasi Postman:** spec dan collection "HRIS Pejuang API" di workspace tim, dengan environment "HRIS Lokal" dan "HRIS Server Development". Sumbernya tetap `openapi.yaml`: setiap perubahan kontrak diunggah ke spec itu lalu collection disinkronkan, dalam perubahan yang sama. Kata sandi hanya diisi sebagai nilai lokal di environment, tidak pernah disimpan di collection atau repo.
 
 Sumber kebenaran mesin: `backend/api/openapi.yaml`. Dokumen ini adalah acuan manusianya; bila beda, perbaiki salah satunya di PR yang sama.
 
@@ -1472,9 +1474,9 @@ Estimasi untuk tim kecil; sesuaikan setelah kapasitas tim jelas.
 - [x] Tiga user DB (`hris_app`, `hris_migrate`, `hris_ro`)
 
 **Fase 2: Presensi**
-- [ ] Lokasi kantor + shift + hari libur
+- [x] Lokasi kantor + shift + hari libur
 - [ ] Device binding + persetujuan SDM atau super admin (D25)
-- [ ] Peta untuk mengatur area lokasi (D28)
+- [x] Peta untuk mengatur area lokasi (D28)
 - [ ] Challenge + verifikasi Play Integrity (jalur A)
 - [ ] Key Attestation (jalur B), perangkat manual (jalur D), kiosk (jalur E); Huawei (jalur C) bila ada penggunanya
 - [ ] Izin WFA dan hybrid per Pejuang, jam fleksibel, dan pendaftaran wajah jarak jauh

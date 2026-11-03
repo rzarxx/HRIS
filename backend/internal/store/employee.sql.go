@@ -56,21 +56,22 @@ func (q *Queries) CountEmployees(ctx context.Context, arg CountEmployeesParams) 
 }
 
 const createEmployee = `-- name: CreateEmployee :one
-INSERT INTO employees (nip, full_name, email, phone, subdivision_id, position, join_date, base_salary, status)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+INSERT INTO employees (nip, full_name, email, phone, subdivision_id, position, join_date, base_salary, status, default_shift_id)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
 RETURNING id
 `
 
 type CreateEmployeeParams struct {
-	Nip           string
-	FullName      string
-	Email         pgtype.Text
-	Phone         pgtype.Text
-	SubdivisionID uuid.UUID
-	Position      pgtype.Text
-	JoinDate      pgtype.Date
-	BaseSalary    decimal.Decimal
-	Status        string
+	Nip            string
+	FullName       string
+	Email          pgtype.Text
+	Phone          pgtype.Text
+	SubdivisionID  uuid.UUID
+	Position       pgtype.Text
+	JoinDate       pgtype.Date
+	BaseSalary     decimal.Decimal
+	Status         string
+	DefaultShiftID uuid.NullUUID
 }
 
 func (q *Queries) CreateEmployee(ctx context.Context, arg CreateEmployeeParams) (uuid.UUID, error) {
@@ -84,6 +85,7 @@ func (q *Queries) CreateEmployee(ctx context.Context, arg CreateEmployeeParams) 
 		arg.JoinDate,
 		arg.BaseSalary,
 		arg.Status,
+		arg.DefaultShiftID,
 	)
 	var id uuid.UUID
 	err := row.Scan(&id)
@@ -120,10 +122,11 @@ func (q *Queries) GetEmployeeBaseSalary(ctx context.Context, id uuid.UUID) (deci
 }
 
 const getEmployeeScoped = `-- name: GetEmployeeScoped :one
-SELECT e.id, e.nip, e.full_name, e.email, e.phone, e.subdivision_id, e.position, e.join_date, e.exit_date, e.base_salary, e.default_shift_id, e.status, e.created_at, e.updated_at, e.deleted_at, s.name AS subdivision_name, s.division_id, d.name AS division_name
+SELECT e.id, e.nip, e.full_name, e.email, e.phone, e.subdivision_id, e.position, e.join_date, e.exit_date, e.base_salary, e.default_shift_id, e.status, e.created_at, e.updated_at, e.deleted_at, s.name AS subdivision_name, s.division_id, d.name AS division_name, sh.name AS default_shift_name
 FROM employees e
 JOIN subdivisions s ON s.id = e.subdivision_id
 JOIN divisions d ON d.id = s.division_id
+LEFT JOIN shifts sh ON sh.id = e.default_shift_id
 WHERE e.id = $1 AND e.deleted_at IS NULL
   AND ($2::boolean OR s.id = ANY($3::uuid[]) OR d.id = ANY($4::uuid[]))
 `
@@ -136,24 +139,25 @@ type GetEmployeeScopedParams struct {
 }
 
 type GetEmployeeScopedRow struct {
-	ID              uuid.UUID
-	Nip             string
-	FullName        string
-	Email           pgtype.Text
-	Phone           pgtype.Text
-	SubdivisionID   uuid.UUID
-	Position        pgtype.Text
-	JoinDate        pgtype.Date
-	ExitDate        pgtype.Date
-	BaseSalary      decimal.Decimal
-	DefaultShiftID  uuid.NullUUID
-	Status          string
-	CreatedAt       pgtype.Timestamptz
-	UpdatedAt       pgtype.Timestamptz
-	DeletedAt       pgtype.Timestamptz
-	SubdivisionName string
-	DivisionID      uuid.UUID
-	DivisionName    string
+	ID               uuid.UUID
+	Nip              string
+	FullName         string
+	Email            pgtype.Text
+	Phone            pgtype.Text
+	SubdivisionID    uuid.UUID
+	Position         pgtype.Text
+	JoinDate         pgtype.Date
+	ExitDate         pgtype.Date
+	BaseSalary       decimal.Decimal
+	DefaultShiftID   uuid.NullUUID
+	Status           string
+	CreatedAt        pgtype.Timestamptz
+	UpdatedAt        pgtype.Timestamptz
+	DeletedAt        pgtype.Timestamptz
+	SubdivisionName  string
+	DivisionID       uuid.UUID
+	DivisionName     string
+	DefaultShiftName pgtype.Text
 }
 
 func (q *Queries) GetEmployeeScoped(ctx context.Context, arg GetEmployeeScopedParams) (GetEmployeeScopedRow, error) {
@@ -183,16 +187,18 @@ func (q *Queries) GetEmployeeScoped(ctx context.Context, arg GetEmployeeScopedPa
 		&i.SubdivisionName,
 		&i.DivisionID,
 		&i.DivisionName,
+		&i.DefaultShiftName,
 	)
 	return i, err
 }
 
 const listEmployees = `-- name: ListEmployees :many
 
-SELECT e.id, e.nip, e.full_name, e.email, e.phone, e.subdivision_id, e.position, e.join_date, e.exit_date, e.base_salary, e.default_shift_id, e.status, e.created_at, e.updated_at, e.deleted_at, s.name AS subdivision_name, s.division_id, d.name AS division_name
+SELECT e.id, e.nip, e.full_name, e.email, e.phone, e.subdivision_id, e.position, e.join_date, e.exit_date, e.base_salary, e.default_shift_id, e.status, e.created_at, e.updated_at, e.deleted_at, s.name AS subdivision_name, s.division_id, d.name AS division_name, sh.name AS default_shift_name
 FROM employees e
 JOIN subdivisions s ON s.id = e.subdivision_id
 JOIN divisions d ON d.id = s.division_id
+LEFT JOIN shifts sh ON sh.id = e.default_shift_id
 WHERE e.deleted_at IS NULL
   AND ($1::boolean OR s.id = ANY($2::uuid[]) OR d.id = ANY($3::uuid[]))
   AND ($4::text IS NULL
@@ -220,24 +226,25 @@ type ListEmployeesParams struct {
 }
 
 type ListEmployeesRow struct {
-	ID              uuid.UUID
-	Nip             string
-	FullName        string
-	Email           pgtype.Text
-	Phone           pgtype.Text
-	SubdivisionID   uuid.UUID
-	Position        pgtype.Text
-	JoinDate        pgtype.Date
-	ExitDate        pgtype.Date
-	BaseSalary      decimal.Decimal
-	DefaultShiftID  uuid.NullUUID
-	Status          string
-	CreatedAt       pgtype.Timestamptz
-	UpdatedAt       pgtype.Timestamptz
-	DeletedAt       pgtype.Timestamptz
-	SubdivisionName string
-	DivisionID      uuid.UUID
-	DivisionName    string
+	ID               uuid.UUID
+	Nip              string
+	FullName         string
+	Email            pgtype.Text
+	Phone            pgtype.Text
+	SubdivisionID    uuid.UUID
+	Position         pgtype.Text
+	JoinDate         pgtype.Date
+	ExitDate         pgtype.Date
+	BaseSalary       decimal.Decimal
+	DefaultShiftID   uuid.NullUUID
+	Status           string
+	CreatedAt        pgtype.Timestamptz
+	UpdatedAt        pgtype.Timestamptz
+	DeletedAt        pgtype.Timestamptz
+	SubdivisionName  string
+	DivisionID       uuid.UUID
+	DivisionName     string
+	DefaultShiftName pgtype.Text
 }
 
 // Filter scope: scope_all = true untuk SDM; selain itu dibatasi subdiv/divisi yang dipimpin.
@@ -279,6 +286,7 @@ func (q *Queries) ListEmployees(ctx context.Context, arg ListEmployeesParams) ([
 			&i.SubdivisionName,
 			&i.DivisionID,
 			&i.DivisionName,
+			&i.DefaultShiftName,
 		); err != nil {
 			return nil, err
 		}
@@ -304,21 +312,22 @@ func (q *Queries) NextNipSequence(ctx context.Context) (int32, error) {
 const updateEmployee = `-- name: UpdateEmployee :execrows
 UPDATE employees
 SET nip = $2, full_name = $3, email = $4, phone = $5, subdivision_id = $6,
-    position = $7, join_date = $8, base_salary = $9, status = $10, updated_at = now()
+    position = $7, join_date = $8, base_salary = $9, status = $10, default_shift_id = $11, updated_at = now()
 WHERE id = $1 AND deleted_at IS NULL
 `
 
 type UpdateEmployeeParams struct {
-	ID            uuid.UUID
-	Nip           string
-	FullName      string
-	Email         pgtype.Text
-	Phone         pgtype.Text
-	SubdivisionID uuid.UUID
-	Position      pgtype.Text
-	JoinDate      pgtype.Date
-	BaseSalary    decimal.Decimal
-	Status        string
+	ID             uuid.UUID
+	Nip            string
+	FullName       string
+	Email          pgtype.Text
+	Phone          pgtype.Text
+	SubdivisionID  uuid.UUID
+	Position       pgtype.Text
+	JoinDate       pgtype.Date
+	BaseSalary     decimal.Decimal
+	Status         string
+	DefaultShiftID uuid.NullUUID
 }
 
 func (q *Queries) UpdateEmployee(ctx context.Context, arg UpdateEmployeeParams) (int64, error) {
@@ -333,6 +342,7 @@ func (q *Queries) UpdateEmployee(ctx context.Context, arg UpdateEmployeeParams) 
 		arg.JoinDate,
 		arg.BaseSalary,
 		arg.Status,
+		arg.DefaultShiftID,
 	)
 	if err != nil {
 		return 0, err

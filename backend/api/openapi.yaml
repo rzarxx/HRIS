@@ -8,7 +8,7 @@ info:
     **Autentikasi web:** login menyetel cookie `hris_at`, `hris_rt`, dan `hris_csrf`.
     Semua method selain GET wajib mengirim header `X-CSRF-Token` berisi nilai cookie `hris_csrf`.
 
-    Mencakup auth web (termasuk MFA dan aktivasi), kelola akun, master data, pengumuman, dashboard, dan laporan.
+    Mencakup auth web (termasuk MFA dan aktivasi), kelola akun, master data, lokasi kantor, shift, hari libur, pengumuman, dashboard, dan laporan.
 servers:
   - url: http://localhost:8080
     description: Pengembangan lokal
@@ -26,7 +26,8 @@ tags:
   - name: Laporan
   - name: Sistem
 security:
-  - cookieAuth: []
+  - csrfToken: []
+    cookieAuth: []
 paths:
   /healthz:
     get:
@@ -55,7 +56,7 @@ paths:
         content:
           application/json:
             schema: { $ref: "#/components/schemas/LoginRequest" }
-            example: { email: sdm@pejuang.id, password: "<kata sandi>" }
+            example: { email: "{{email}}", password: "{{password}}" }
       responses:
         "200":
           description: Berhasil, cookie disetel
@@ -82,7 +83,7 @@ paths:
       tags: [Auth]
       summary: Cabut sesi saat ini
       responses:
-        "204": { description: Sesi dicabut, cookie dihapus }
+        "204": { description: "Sesi dicabut, cookie dihapus" }
 
   /v1/auth/web/mfa/verify:
     post:
@@ -119,7 +120,7 @@ paths:
           application/json:
             schema: { $ref: "#/components/schemas/ActivateRequest" }
       responses:
-        "204": { description: Akun aktif, silakan masuk }
+        "204": { description: "Akun aktif, silakan masuk" }
         "400": { $ref: "#/components/responses/ValidationFailed" }
         "422": { $ref: "#/components/responses/Error" }
         "429": { $ref: "#/components/responses/Error" }
@@ -368,7 +369,7 @@ paths:
       parameters:
         - $ref: "#/components/parameters/Page"
         - $ref: "#/components/parameters/PerPage"
-        - { name: q, in: query, description: Cari nama, NIP, email, jabatan, schema: { type: string } }
+        - { name: q, in: query, description: "Cari nama, NIP, email, jabatan", schema: { type: string } }
         - { name: division_id, in: query, schema: { type: string, format: uuid } }
         - { name: subdivision_id, in: query, schema: { type: string, format: uuid } }
         - { name: status, in: query, schema: { $ref: "#/components/schemas/EmployeeStatus" } }
@@ -927,6 +928,11 @@ paths:
 
 components:
   securitySchemes:
+    csrfToken:
+      type: apiKey
+      in: header
+      name: X-CSRF-Token
+      description: Nilai cookie `hris_csrf`. Wajib untuk semua method selain GET, HEAD, dan OPTIONS.
     cookieAuth:
       type: apiKey
       in: cookie
@@ -1186,10 +1192,11 @@ components:
         join_date: { type: string, format: date, nullable: true }
         base_salary: { $ref: "#/components/schemas/Money" }
         status: { $ref: "#/components/schemas/EmployeeStatus" }
+        default_shift_id: { type: string, format: uuid, nullable: true, description: "Shift Pejuang. null = belum ditentukan" }
     Employee:
       type: object
       required:
-        [id, nip, full_name, email, phone, subdivision_id, subdivision_name, division_id, division_name, position, join_date, status]
+        [id, nip, full_name, email, phone, subdivision_id, subdivision_name, division_id, division_name, position, join_date, status, default_shift_id, default_shift_name]
       properties:
         id: { type: string, format: uuid }
         nip: { type: string }
@@ -1203,6 +1210,8 @@ components:
         position: { type: string, nullable: true }
         join_date: { type: string, format: date, nullable: true }
         status: { $ref: "#/components/schemas/EmployeeStatus" }
+        default_shift_id: { type: string, format: uuid, nullable: true }
+        default_shift_name: { type: string, nullable: true }
         base_salary:
           allOf: [{ $ref: "#/components/schemas/Money" }]
           description: Hanya untuk sdm dan pemilik data

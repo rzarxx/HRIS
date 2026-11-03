@@ -46,20 +46,22 @@ func NewService(pool *pgxpool.Pool, scope ScopeResolver) *Service {
 
 // Employee adalah objek baku (MASTER.md §7.6). base_salary hanya untuk sdm dan pemilik data.
 type Employee struct {
-	ID              string   `json:"id"`
-	Nip             string   `json:"nip"`
-	FullName        string   `json:"full_name"`
-	Email           *string  `json:"email"`
-	Phone           *string  `json:"phone"`
-	SubdivisionID   string   `json:"subdivision_id"`
-	SubdivisionName string   `json:"subdivision_name"`
-	DivisionID      string   `json:"division_id"`
-	DivisionName    string   `json:"division_name"`
-	Position        *string  `json:"position"`
-	JoinDate        *string  `json:"join_date"`
-	Status          string   `json:"status"`
-	BaseSalary      *string  `json:"base_salary,omitempty"`
-	Account         *Account `json:"account,omitempty"`
+	ID               string   `json:"id"`
+	Nip              string   `json:"nip"`
+	FullName         string   `json:"full_name"`
+	Email            *string  `json:"email"`
+	Phone            *string  `json:"phone"`
+	SubdivisionID    string   `json:"subdivision_id"`
+	SubdivisionName  string   `json:"subdivision_name"`
+	DivisionID       string   `json:"division_id"`
+	DivisionName     string   `json:"division_name"`
+	Position         *string  `json:"position"`
+	JoinDate         *string  `json:"join_date"`
+	Status           string   `json:"status"`
+	DefaultShiftID   *string  `json:"default_shift_id"`
+	DefaultShiftName *string  `json:"default_shift_name"`
+	BaseSalary       *string  `json:"base_salary,omitempty"`
+	Account          *Account `json:"account,omitempty"`
 }
 
 // Account adalah ringkasan akun, hanya untuk pemegang user:manage.
@@ -79,27 +81,29 @@ type Created struct {
 
 // Input juga dipakai untuk PATCH: field yang tidak dikirim tetap nilai lamanya.
 type Input struct {
-	Nip           *string `json:"nip"`
-	FullName      string  `json:"full_name"`
-	Email         *string `json:"email"`
-	Phone         *string `json:"phone"`
-	SubdivisionID string  `json:"subdivision_id"`
-	Position      *string `json:"position"`
-	JoinDate      *string `json:"join_date"`
-	BaseSalary    string  `json:"base_salary"`
-	Status        string  `json:"status"`
+	Nip            *string `json:"nip"`
+	FullName       string  `json:"full_name"`
+	Email          *string `json:"email"`
+	Phone          *string `json:"phone"`
+	SubdivisionID  string  `json:"subdivision_id"`
+	Position       *string `json:"position"`
+	JoinDate       *string `json:"join_date"`
+	BaseSalary     string  `json:"base_salary"`
+	Status         string  `json:"status"`
+	DefaultShiftID *string `json:"default_shift_id"`
 }
 
 type validated struct {
-	Nip           string
-	FullName      string
-	Email         pgtype.Text
-	Phone         pgtype.Text
-	SubdivisionID uuid.UUID
-	Position      pgtype.Text
-	JoinDate      pgtype.Date
-	BaseSalary    decimal.Decimal
-	Status        string
+	Nip            string
+	FullName       string
+	Email          pgtype.Text
+	Phone          pgtype.Text
+	SubdivisionID  uuid.UUID
+	Position       pgtype.Text
+	JoinDate       pgtype.Date
+	BaseSalary     decimal.Decimal
+	Status         string
+	DefaultShiftID uuid.NullUUID
 }
 
 func (in Input) validate() (validated, error) {
@@ -165,6 +169,11 @@ func (in Input) validate() (validated, error) {
 	if v.Status != "active" && v.Status != "inactive" {
 		fields["status"] = "Status tidak valid."
 	}
+	shiftID, err := pgconv.ParseOptionalUUID(in.DefaultShiftID)
+	if err != nil {
+		fields["default_shift_id"] = "Pilih shift."
+	}
+	v.DefaultShiftID = shiftID
 	if len(fields) > 0 {
 		return v, httpx.Validation(fields)
 	}
@@ -303,6 +312,17 @@ func (s *Service) assertSubdivision(ctx context.Context, id uuid.UUID) error {
 	return err
 }
 
+func (s *Service) assertShift(ctx context.Context, id uuid.NullUUID) error {
+	if !id.Valid {
+		return nil
+	}
+	_, err := s.q.GetShift(ctx, id.UUID)
+	if pgconv.IsNoRows(err) {
+		return httpx.Validation(map[string]string{"default_shift_id": "Shift tidak ditemukan."})
+	}
+	return err
+}
+
 // Create membuat data Pejuang, akun belum aktif, dan undangan aktivasi (F3).
 func (s *Service) Create(ctx context.Context, p auth.Principal, ip audit.Entry, in Input, now time.Time) (Created, error) {
 	if in.Status == "" {
@@ -313,6 +333,9 @@ func (s *Service) Create(ctx context.Context, p auth.Principal, ip audit.Entry, 
 		return Created{}, err
 	}
 	if err := s.assertSubdivision(ctx, v.SubdivisionID); err != nil {
+		return Created{}, err
+	}
+	if err := s.assertShift(ctx, v.DefaultShiftID); err != nil {
 		return Created{}, err
 	}
 	// Argon2 sengaja lambat, jadi dihitung sebelum transaksi dibuka.
@@ -338,7 +361,7 @@ func (s *Service) Create(ctx context.Context, p auth.Principal, ip audit.Entry, 
 		id, err = q.CreateEmployee(ctx, store.CreateEmployeeParams{
 			Nip: nip, FullName: v.FullName, Email: v.Email, Phone: v.Phone,
 			SubdivisionID: v.SubdivisionID, Position: v.Position, JoinDate: v.JoinDate,
-			BaseSalary: v.BaseSalary, Status: v.Status,
+			BaseSalary: v.BaseSalary, Status: v.Status, DefaultShiftID: v.DefaultShiftID,
 		})
 		if err != nil {
 			return mapUnique(err)
@@ -378,15 +401,16 @@ func (s *Service) Update(ctx context.Context, p auth.Principal, ip audit.Entry, 
 	}
 	nip := current.Nip
 	in := Input{
-		Nip:           &nip,
-		FullName:      current.FullName,
-		Email:         pgconv.TextPtr(current.Email),
-		Phone:         pgconv.TextPtr(current.Phone),
-		SubdivisionID: current.SubdivisionID.String(),
-		Position:      pgconv.TextPtr(current.Position),
-		JoinDate:      pgconv.DateString(current.JoinDate),
-		BaseSalary:    current.BaseSalary.StringFixed(2),
-		Status:        current.Status,
+		Nip:            &nip,
+		FullName:       current.FullName,
+		Email:          pgconv.TextPtr(current.Email),
+		Phone:          pgconv.TextPtr(current.Phone),
+		SubdivisionID:  current.SubdivisionID.String(),
+		Position:       pgconv.TextPtr(current.Position),
+		JoinDate:       pgconv.DateString(current.JoinDate),
+		BaseSalary:     current.BaseSalary.StringFixed(2),
+		Status:         current.Status,
+		DefaultShiftID: pgconv.UUIDPtr(current.DefaultShiftID),
 	}
 	if err := decode(&in); err != nil {
 		return Employee{}, err
@@ -401,6 +425,9 @@ func (s *Service) Update(ctx context.Context, p auth.Principal, ip audit.Entry, 
 	if err := s.assertSubdivision(ctx, v.SubdivisionID); err != nil {
 		return Employee{}, err
 	}
+	if err := s.assertShift(ctx, v.DefaultShiftID); err != nil {
+		return Employee{}, err
+	}
 	if v.Status == "inactive" && id == p.EmployeeID {
 		return Employee{}, errSelfDeactivate()
 	}
@@ -408,7 +435,7 @@ func (s *Service) Update(ctx context.Context, p auth.Principal, ip audit.Entry, 
 		affected, err := q.UpdateEmployee(ctx, store.UpdateEmployeeParams{
 			ID: id, Nip: v.Nip, FullName: v.FullName, Email: v.Email, Phone: v.Phone,
 			SubdivisionID: v.SubdivisionID, Position: v.Position, JoinDate: v.JoinDate,
-			BaseSalary: v.BaseSalary, Status: v.Status,
+			BaseSalary: v.BaseSalary, Status: v.Status, DefaultShiftID: v.DefaultShiftID,
 		})
 		if err != nil {
 			return mapUnique(err)
@@ -431,6 +458,9 @@ func (s *Service) Update(ctx context.Context, p auth.Principal, ip audit.Entry, 
 		}
 		entry := ip
 		entry.Action, entry.Entity, entry.EntityID = audit.EmployeeUpdated, "employee", id
+		if v.DefaultShiftID != current.DefaultShiftID {
+			entry.Detail = map[string]any{"default_shift_id": pgconv.UUIDPtr(v.DefaultShiftID)}
+		}
 		if err := audit.Write(ctx, q, entry); err != nil {
 			return err
 		}
@@ -509,7 +539,8 @@ func present(p auth.Principal, r store.GetEmployeeScopedRow) Employee {
 		SubdivisionID: r.SubdivisionID.String(), SubdivisionName: r.SubdivisionName,
 		DivisionID: r.DivisionID.String(), DivisionName: r.DivisionName,
 		Position: pgconv.TextPtr(r.Position), JoinDate: pgconv.DateString(r.JoinDate),
-		Status: r.Status,
+		Status:         r.Status,
+		DefaultShiftID: pgconv.UUIDPtr(r.DefaultShiftID), DefaultShiftName: pgconv.TextPtr(r.DefaultShiftName),
 	}
 	if p.Role == permission.RoleSDM || r.ID == p.EmployeeID {
 		salary := r.BaseSalary.StringFixed(2)

@@ -132,6 +132,20 @@ atau lewat VPN.
 Mode ini khusus development. Untuk data asli wajib `APP_ENV=production`, MFA aktif, HTTPS, kunci dari secret manager, backup teruji,
 dan cara membuat akun SDM pertama (seed ditolak di luar development, dan bootstrap akun belum ada).
 
+## Mencoba absen sebelum verifikasi selesai
+
+Absen ditolak bawaan, karena verifikasi perangkat dan wajah belum dibuat. Hanya untuk uji di server
+development, tambahkan baris ini ke `/opt/hris/.env` lalu jalankan `systemctl restart hris-api`:
+
+```bash
+DEV_ALLOW_UNVERIFIED_ATTENDANCE=true
+```
+
+API menolak menyala bila baris ini dipakai di luar `APP_ENV=development`.
+
+Simulasi presensi melewati Pejuang yang sudah punya perangkat. Daftarkan perangkat sebelum jam masuk,
+karena bila baris simulasi hari ini sudah terisi, absen baru bisa dicoba keesokan harinya.
+
 ## Super admin
 
 Super admin adalah role tertinggi: semua akses kecuali keuangan. Role diberikan lewat server, pada

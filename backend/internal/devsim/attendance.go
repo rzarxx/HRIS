@@ -44,7 +44,8 @@ func isWorkDay(date time.Time, workDays []int16) bool {
 
 // FillAttendance mengisi hari kerja yang belum punya baris, termasuk baris absent
 // karena alpha harus berupa baris nyata agar terhitung di laporan. Hasilnya deterministik
-// per Pejuang dan tanggal. Mengembalikan jumlah baris baru.
+// per Pejuang dan tanggal. Pejuang yang punya perangkat dilewati karena absen sungguhan.
+// Mengembalikan jumlah baris baru.
 func FillAttendance(ctx context.Context, q *store.Queries, now time.Time) (int, error) {
 	shift, err := q.GetDefaultShift(ctx)
 	if err != nil {

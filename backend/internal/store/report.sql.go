@@ -238,7 +238,8 @@ func (q *Queries) InsertAttendanceIfMissing(ctx context.Context, arg InsertAtten
 }
 
 const listActiveEmployeesForAttendance = `-- name: ListActiveEmployeesForAttendance :many
-SELECT id, join_date FROM employees WHERE deleted_at IS NULL AND status = 'active'
+SELECT id, join_date FROM employees e WHERE deleted_at IS NULL AND status = 'active'
+  AND NOT EXISTS (SELECT 1 FROM devices d WHERE d.employee_id = e.id)
 `
 
 type ListActiveEmployeesForAttendanceRow struct {

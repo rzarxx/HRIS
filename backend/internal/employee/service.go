@@ -479,8 +479,11 @@ func (s *Service) Update(ctx context.Context, p auth.Principal, ip audit.Entry, 
 				return err
 			}
 		}
-		if err := q.UpdateUserEmail(ctx, store.UpdateUserEmailParams{EmployeeID: id, Email: v.Email.String}); err != nil {
-			return mapUnique(err)
+		// Email login hanya ikut berubah bila email Pejuang memang diganti, karena keduanya bisa berbeda.
+		if v.Email.String != current.Email.String {
+			if err := q.UpdateUserEmail(ctx, store.UpdateUserEmailParams{EmployeeID: id, Email: v.Email.String}); err != nil {
+				return mapUnique(err)
+			}
 		}
 		if v.Status == "inactive" && current.Status != "inactive" {
 			if err := offboardAccount(ctx, q, id); err != nil {

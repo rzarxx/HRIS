@@ -347,6 +347,8 @@ Level `MEETS_STRONG_INTEGRITY` tidak diwajibkan karena menolak banyak HP Android
 | `challenge_invalid` | keras | Tolak |
 | `device_not_approved` | keras | Tolak |
 | `integrity_basic_only` | lunak | +30 |
+| `unverified_integrity` (absen tanpa verifikasi, hanya development, D36) | catatan | 0 |
+| `off_schedule` (absen di hari libur atau di luar hari kerja shift, tidak dihitung telat) | catatan | 0 |
 | `integrity_manual` (perangkat jalur D) | lunak | +30 |
 | `integrity_unavailable` (layanan verifikasi tidak terjangkau) | lunak | +30 |
 | `accuracy_low` (`accuracy_m` > 50) | lunak | +15 |
@@ -536,7 +538,7 @@ DDL dasar ada di `QUERY.sql`; perubahan di **Lampiran A** (yang berlaku). Beriku
 | `notification_type` | `approval_requested`, `approval_result`, `announcement_new`, `payslip_ready`, `warning_issued`, `device_decision`, `attendance_review_result` |
 
 ### 6.3 Reason Code Internal (`attendance_attempts.reason_code`)
-`ok`, `challenge_invalid`, `challenge_expired`, `device_not_approved`, `integrity_failed`, `integrity_nonce_mismatch`, `hard_signal`, `geofence_out`, `face_not_enrolled`, `liveness_failed`, `face_mismatch`, `risk_too_high`, `risk_review`, `embedding_replay`.
+`ok`, `challenge_invalid`, `challenge_expired`, `device_not_approved`, `integrity_failed`, `integrity_nonce_mismatch`, `hard_signal`, `geofence_out`, `shift_not_assigned`, `already_clocked_in`, `already_clocked_out`, `not_clocked_in`, `face_not_enrolled`, `liveness_failed`, `face_mismatch`, `risk_too_high`, `risk_review`, `embedding_replay`.
 
 ---
 
@@ -596,6 +598,7 @@ Daftar memakai `?page=&per_page=&q=&sort=` (contoh `sort=-created_at`) dan filte
 | 404 | `NOT_FOUND` | Tidak ada, atau di luar scope |
 | 405 | `METHOD_NOT_ALLOWED` | Method tidak didukung path ini |
 | 409 | `ALREADY_CLOCKED_IN` | Sudah absen masuk hari ini |
+| 409 | `ALREADY_CLOCKED_OUT` | Sudah absen pulang |
 | 409 | `NOT_CLOCKED_IN` | Belum absen masuk |
 | 409 | `REQUEST_NOT_PENDING` | Status sudah bukan `pending` |
 | 409 | `PERIOD_LOCKED` | Periode payroll terkunci |
@@ -607,6 +610,7 @@ Daftar memakai `?page=&per_page=&q=&sort=` (contoh `sort=-created_at`) dan filte
 | 413 | `PAYLOAD_TOO_LARGE` | Terlalu besar |
 | 415 | `UNSUPPORTED_MEDIA_TYPE` | Tipe file tidak diizinkan |
 | 422 | `GEOFENCE_OUT` | Di luar area kantor |
+| 422 | `SHIFT_NOT_ASSIGNED` | Shift Pejuang belum ditentukan SDM |
 | 422 | `READ_TOO_SOON` | Tombol sudah baca ditekan sebelum timer baca habis (D27) |
 | 422 | `FACE_NOT_ENROLLED` | Wajah belum terdaftar |
 | 422 | `FACE_MISMATCH` | Wajah tidak cocok |
@@ -735,7 +739,7 @@ respons: `{ "data": { "access_token", "refresh_token", "expires_in", "device_id"
 **Challenge** — `POST /v1/attendance/challenge`
 request: `{ "purpose": "clock_in" }` → respons: `{ "data": { "challenge_id": "uuid", "nonce": "string", "expires_at": "2026-11-02T01:01:30Z" } }`
 
-**Clock-in** — `POST /v1/attendance/clock-in` (`multipart/form-data`)
+**Clock-in** — `POST /v1/attendance/clock-in`. Target akhirnya `multipart/form-data` seperti di bawah. Sampai verifikasi wajah dan perangkat dibuat, API menerima JSON tanpa `selfie`, `face_*`, `liveness_passed`, dan `integrity_token` (D36).
 - bagian `payload` (JSON):
 ```json
 { "challenge_id": "uuid",
@@ -1398,13 +1402,13 @@ Request ID → recover → logger → batas body/timeout → CORS & header keama
 **Cutoff jam kerja (D31).** Ada dua batas, keduanya diatur SDM dan ikut berversi di `payroll_rule_versions`:
 
 - **Cutoff periode** (`period_cutoff_day`, 1 sampai 28, atau akhir bulan). **Nilai awal: 25**, jadi periode Januari berjalan 26 Desember sampai 25 Januari. Periode diberi label bulan berakhirnya. Nilai ini mengasumsikan upah dibayar di akhir bulan; bila dibayar lebih awal, SDM perlu memajukan cutoff, mis. ke tanggal 20.
-- **Cutoff harian** (`day_cutoff_time`, jam WIB). **Nilai awal: 04:00**. Absen masuk sebelum jam ini masuk ke `work_date` hari sebelumnya, sehingga shift malam dan dinas larut tidak terbelah dua tanggal.
+- **Cutoff harian** (`day_cutoff_time`, jam WIB). **Nilai awal: 04:00**, untuk sementara tertulis di kode sampai pengaturan SDM dibuat di Fase 5. Shift yang memang dimulai sebelum cutoff (mis. 03.00) tetap masuk hari yang sama, dan absen sampai 2 jam sebelum shift tengah malam masuk ke tanggal shift itu. Absen masuk sebelum jam ini masuk ke `work_date` hari sebelumnya, sehingga shift malam dan dinas larut tidak terbelah dua tanggal.
 
 Aturan penghitungan:
 - Rekap dan payroll menghitung dari rentang `start_date` sampai `end_date` periode, bukan bulan kalender.
 - Rentang disimpan saat periode dibuat. Periode harus bersambung tanpa celah atau tumpang tindih, jadi perubahan cutoff baru berlaku di periode berikutnya.
 - `worked_minutes` dihitung server dari absen masuk dan pulang.
-- Absen tanpa absen pulang sampai cutoff harian berikutnya **tidak diberi jam kerja otomatis**. `worked_minutes` tetap kosong dan SDM yang mengoreksinya.
+- Absen tanpa absen pulang sampai cutoff harian berikutnya **tidak diberi jam kerja otomatis**. Shift malam yang berakhir setelah cutoff diberi batas 4 jam setelah jam pulang shift. `worked_minutes` tetap kosong dan SDM yang mengoreksinya.
 - Periode tidak bisa di-submit selama masih ada absen `review` atau tanpa absen pulang.
 - Setelah `finalized`, absen dalam rentangnya terkunci. Koreksi sesudahnya masuk sebagai item penyesuaian di periode berikutnya, dan tercatat di audit (`attendance.adjusted`).
 
@@ -1489,7 +1493,7 @@ Estimasi untuk tim kecil; sesuaikan setelah kapasitas tim jelas.
 - [ ] Challenge + verifikasi Play Integrity (jalur A)
 - [ ] Key Attestation (jalur B), perangkat manual (jalur D), kiosk (jalur E); Huawei (jalur C) bila ada penggunanya
 - [ ] Izin WFA dan hybrid per Pejuang, jam fleksibel, dan pendaftaran wajah jarak jauh
-- [ ] Cutoff harian dan `worked_minutes` pada absen (D31)
+- [x] Challenge, clock-in, clock-out, cutoff harian, dan `worked_minutes` (D31), masih tanpa verifikasi perangkat dan wajah (D36)
 - [ ] Enroll + cocok wajah (enkripsi aplikasi)
 - [ ] Skor risiko + `attendance_attempts`
 - [ ] Halaman Review Absen
@@ -1497,6 +1501,7 @@ Estimasi untuk tim kecil; sesuaikan setelah kapasitas tim jelas.
 - [ ] Kalibrasi ambang wajah dan risiko dengan data uji
 
 **Fase 3: Mobile**
+- [ ] Aplikasi minimal dimajukan: login, daftar perangkat, absen tanpa wajah. Dikerjakan sebelum Play Integrity dan wajah agar keduanya diuji di HP sungguhan (D35)
 - [ ] Login, profile, penyimpanan token aman
 - [ ] Modul deteksi native
 - [ ] Kamera + liveness + embedding
@@ -1570,6 +1575,8 @@ Estimasi untuk tim kecil; sesuaikan setelah kapasitas tim jelas.
 | D32 | Perangkat langsung `approved` hanya bila akun belum pernah punya perangkat | Bila dihitung dari perangkat yang masih aktif, pencuri kata sandi mendapat persetujuan otomatis setelah HP korban dicabut. Konsekuensi: setiap ganti HP butuh persetujuan |
 | D33 | Super admin tidak bisa menerbitkan tautan sandi untuk akun SDM | Tautan tampil ke yang menekan tombol (D17), sehingga bisa dipakai masuk ke akun SDM dan melihat data keuangan. Konsekuensi: lewat tautan akun Pejuang biasa, super admin masih bisa melihat gaji Pejuang itu sendiri; tercatat di audit dan tertutup setelah tautan hanya terkirim ke email (D30) |
 | D34 | Super admin adalah role tertinggi: semua akses kecuali keuangan, dan SDM tidak bisa mengubah akunnya | Keputusan pemilik proyek. Keuangan = payroll, pratinjau upah, gaji orang lain, dan kasbon orang lain. Konsekuensi: bila satu-satunya super admin lupa kata sandi, pemulihannya lewat perintah di server |
+| D35 | Aplikasi Android minimal dibuat sebelum Play Integrity dan wajah | Keduanya hanya bisa dibuktikan di HP sungguhan, jadi masalahnya harus ketahuan lebih awal. Konsekuensi: sebagian Fase 3 dikerjakan sebelum Fase 2 selesai |
+| D36 | Selama verifikasi perangkat dan wajah belum dibuat, semua absen ditolak, kecuali di development dengan `DEV_ALLOW_UNVERIFIED_ATTENDANCE` | Absen tanpa verifikasi tidak boleh bisa terpakai di produksi. API menolak menyala bila izin ini dipakai di luar development, dan absennya diberi penanda `unverified_integrity` |
 | D15 | `/v1/admin/reports/payroll-preview` mewajibkan `attendance:report` dan `payroll:manage` | Respons memuat gaji, sedangkan §7.6 membatasi `base_salary` untuk `sdm` dan pemilik data |
 
 ### 14.2 Pertanyaan yang Harus Dijawab (blokir pekerjaan terkait)
@@ -1804,10 +1811,11 @@ Query rekap dan dashboard di `QUERY.sql` tetap berlaku, dengan pengecualian:
 | `FACE_THRESHOLD_PASS`, `FACE_THRESHOLD_REVIEW` | Ambang wajah |
 | `RISK_REVIEW_MIN`, `RISK_REJECT_MIN` | Ambang risiko |
 | `CHALLENGE_TTL_SECONDS` | Default 90 |
+| `DEV_ALLOW_UNVERIFIED_ATTENDANCE` | Hanya `APP_ENV=development`. Mengizinkan absen tanpa verifikasi perangkat dan wajah (D36) |
 | `LOG_LEVEL` | |
 | `MFA_REQUIRED` | Default `true`. `false` hanya untuk `APP_ENV=development` |
 | `SEED_SDM_PASSWORD` | Kata sandi akun SDM data dummy; hanya pengembangan |
-| `DEV_SIMULATE_ATTENDANCE` | `true` = isi presensi dummy; ditolak di luar `APP_ENV=development` |
+| `DEV_SIMULATE_ATTENDANCE` | `true` = isi presensi dummy, melewati Pejuang yang sudah punya perangkat; ditolak di luar `APP_ENV=development` |
 
 Rahasia dibaca dari file/secret manager; **tidak pernah** di Git atau gambar Docker.
 

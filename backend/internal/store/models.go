@@ -204,19 +204,53 @@ type Announcement struct {
 }
 
 type Attendance struct {
-	ID          uuid.UUID
+	ID            uuid.UUID
+	EmployeeID    uuid.UUID
+	WorkDate      pgtype.Date
+	ShiftID       uuid.NullUUID
+	ClockInAt     pgtype.Timestamptz
+	ClockOutAt    pgtype.Timestamptz
+	InAccuracyM   decimal.NullDecimal
+	FaceScore     decimal.NullDecimal
+	RiskScore     int32
+	RiskFlags     []byte
+	Status        AttStatus
+	LateMinutes   int32
+	CreatedAt     pgtype.Timestamptz
+	WorkMode      string
+	LocationID    uuid.NullUUID
+	WorkedMinutes pgtype.Int4
+	InLatitude    decimal.NullDecimal
+	InLongitude   decimal.NullDecimal
+	OutLatitude   decimal.NullDecimal
+	OutLongitude  decimal.NullDecimal
+}
+
+type AttendanceAttempt struct {
+	ID          int64
 	EmployeeID  uuid.UUID
-	WorkDate    pgtype.Date
-	ShiftID     uuid.NullUUID
-	ClockInAt   pgtype.Timestamptz
-	ClockOutAt  pgtype.Timestamptz
-	InAccuracyM decimal.NullDecimal
-	FaceScore   decimal.NullDecimal
+	DeviceID    uuid.NullUUID
+	ChallengeID uuid.NullUUID
+	Purpose     string
+	Outcome     string
+	ReasonCode  string
 	RiskScore   int32
 	RiskFlags   []byte
-	Status      AttStatus
-	LateMinutes int32
+	Latitude    decimal.NullDecimal
+	Longitude   decimal.NullDecimal
+	Ip          *netip.Addr
 	CreatedAt   pgtype.Timestamptz
+}
+
+type AttendanceChallenge struct {
+	ID         uuid.UUID
+	EmployeeID uuid.UUID
+	DeviceID   uuid.UUID
+	Nonce      string
+	Purpose    string
+	ExpiresAt  pgtype.Timestamptz
+	UsedAt     pgtype.Timestamptz
+	CreatedAt  pgtype.Timestamptz
 }
 
 type AuditLog struct {

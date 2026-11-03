@@ -9,6 +9,7 @@ import (
 	"github.com/go-chi/chi/v5"
 
 	"github.com/rzarxx/HRIS/backend/internal/announcement"
+	"github.com/rzarxx/HRIS/backend/internal/attendance"
 	"github.com/rzarxx/HRIS/backend/internal/auth"
 	"github.com/rzarxx/HRIS/backend/internal/dashboard"
 	"github.com/rzarxx/HRIS/backend/internal/device"
@@ -31,6 +32,7 @@ type Deps struct {
 	Report       *report.Handler
 	Location     *location.Handler
 	Device       *device.Handler
+	Attendance   *attendance.Handler
 	Shift        *shift.Handler
 	Signer       *auth.TokenSigner
 	SessionCheck auth.SessionChecker
@@ -99,6 +101,11 @@ func routes(d Deps) []Route {
 		guarded(http.MethodGet, "/v1/admin/employees/{id}/locations", d.Location.ForEmployee, permission.EmployeeWrite),
 		guarded(http.MethodPut, "/v1/admin/employees/{id}/locations", d.Location.SetForEmployee, permission.EmployeeWrite),
 
+		guarded(http.MethodPost, "/v1/attendance/challenge", d.Attendance.Challenge, permission.AttendanceClock),
+		guarded(http.MethodPost, "/v1/attendance/clock-in", d.Attendance.ClockIn, permission.AttendanceClock),
+		guarded(http.MethodPost, "/v1/attendance/clock-out", d.Attendance.ClockOut, permission.AttendanceClock),
+		guarded(http.MethodGet, "/v1/attendance", d.Attendance.Mine, permission.AttendanceRead),
+
 		guarded(http.MethodPost, "/v1/devices/register", d.Device.Register, permission.DeviceRegister),
 		guarded(http.MethodGet, "/v1/devices/me", d.Device.Mine, permission.DeviceRegister),
 		guarded(http.MethodGet, "/v1/admin/devices", d.Device.List, permission.DeviceReview),
@@ -163,6 +170,9 @@ func build(d Deps, table []Route) http.Handler {
 			chain = auth.Require(route.Permissions...)(chain)
 		}
 		if route.Access != Public {
+			if clockPaths[route.Path] {
+				chain = limitClock(d.Limiter)(chain)
+			}
 			chain = authenticate(limitByUser(d.Limiter)(chain))
 		}
 		r.Method(route.Method, route.Path, chain)

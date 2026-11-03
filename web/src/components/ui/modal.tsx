@@ -20,6 +20,7 @@ export function Modal({
   size?: "sm" | "md" | "lg";
 }) {
   const ref = useRef<HTMLDialogElement>(null);
+  const pressedBackdrop = useRef(false);
 
   useEffect(() => {
     const el = ref.current;
@@ -37,8 +38,12 @@ export function Modal({
         e.preventDefault();
         onClose();
       }}
+      onPointerDown={(e) => {
+        pressedBackdrop.current = e.target === ref.current;
+      }}
       onClick={(e) => {
-        if (e.target === ref.current) onClose();
+        // Seret dari dalam modal lalu lepas di luar juga memicu click di dialog, dan tidak boleh menutup form.
+        if (e.target === ref.current && pressedBackdrop.current) onClose();
       }}
       className={`m-auto w-[calc(100%-2rem)] ${width} rounded-lg bg-white p-0 shadow-xl backdrop:bg-slate-900/40`}
     >

@@ -1,7 +1,10 @@
 "use client";
 
 import { Pencil, Plus, Search, Trash2 } from "lucide-react";
+import dynamic from "next/dynamic";
 import { useMemo, useState } from "react";
+import type { LatLng } from "@/components/locations/location-map";
+import { PlaceSearch } from "@/components/locations/place-search";
 import { Button, IconButton } from "@/components/ui/button";
 import { Field, Input, Select, Textarea } from "@/components/ui/form";
 import { Badge, Card, EmptyState, ErrorState, Loading, PageHeader } from "@/components/ui/layout";
@@ -12,6 +15,21 @@ import { number } from "@/lib/format";
 import { useOfficeLocations, useSave } from "@/lib/hooks";
 import { locationSchema, parseCoordinate, parsePolygon, validate, type LocationForm } from "@/lib/schemas";
 import type { OfficeLocation } from "@/lib/types";
+
+const LocationMap = dynamic(() => import("@/components/locations/location-map"), { ssr: false, loading: () => <Loading label="Memuat peta..." /> });
+
+const MAX_SLIDER_RADIUS = 1000;
+const fixed = (n: number) => n.toFixed(6);
+
+const polygonLines = (text: string) => text.split("\n").map((l) => l.trim()).filter(Boolean);
+
+// API tetap mewajibkan titik pusat, jadi pada mode poligon pusatnya mengikuti rata-rata titik sudut.
+function withPolygon(form: LocationForm, text: string): LocationForm {
+  const points = parsePolygon(text);
+  if (!points) return { ...form, polygon: text };
+  const average = (pick: (p: LatLng) => number) => points.reduce((sum, p) => sum + pick(p), 0) / points.length;
+  return { ...form, polygon: text, latitude: fixed(average((p) => p.latitude)), longitude: fixed(average((p) => p.longitude)) };
+}
 
 const EMPTY: LocationForm = { name: "", latitude: "", longitude: "", radius_m: "100", polygon: "", is_active: true };
 
@@ -33,6 +51,7 @@ export default function OfficeLocationsPage() {
   const [form, setForm] = useState<LocationForm>(EMPTY);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [deleting, setDeleting] = useState<OfficeLocation | null>(null);
+  const [areaMode, setAreaMode] = useState<"radius" | "polygon">("radius");
 
   const rows = useMemo(() => {
     const term = q.trim().toLowerCase();
@@ -61,7 +80,40 @@ export default function OfficeLocationsPage() {
   function open(l: OfficeLocation | "new") {
     setErrors({});
     setForm(l === "new" ? EMPTY : toForm(l));
+    setAreaMode(l !== "new" && l.polygon ? "polygon" : "radius");
     setEditing(l);
+  }
+
+  const center = useMemo<LatLng | null>(() => {
+    const latitude = parseCoordinate(form.latitude);
+    const longitude = parseCoordinate(form.longitude);
+    const filled = form.latitude.trim() !== "" && form.longitude.trim() !== "";
+    return filled && Math.abs(latitude) <= 90 && Math.abs(longitude) <= 180 ? { latitude, longitude } : null;
+  }, [form.latitude, form.longitude]);
+  const polygonPoints = useMemo(() => parsePolygon(form.polygon) ?? [], [form.polygon]);
+  const radius = Number(form.radius_m);
+
+  function setCenter(p: LatLng) {
+    setForm((f) => ({ ...f, latitude: fixed(p.latitude), longitude: fixed(p.longitude) }));
+  }
+
+  // Selalu dihitung dari nilai form terbaru agar klik cepat di peta tidak menimpa titik sebelumnya.
+  function setPolygon(next: (current: string[]) => string) {
+    setForm((f) => withPolygon(f, next(polygonLines(f.polygon))));
+  }
+
+  function addPolygonPoint(p: LatLng) {
+    setPolygon((lines) => [...lines, `${fixed(p.latitude)}, ${fixed(p.longitude)}`].join("\n"));
+  }
+
+  function removeLastPolygonPoint() {
+    setPolygon((lines) => lines.slice(0, -1).join("\n"));
+  }
+
+  function changeAreaMode(next: "radius" | "polygon") {
+    setAreaMode(next);
+    // Poligon yang terisi menggantikan radius saat disimpan, jadi harus dikosongkan di mode radius.
+    if (next === "radius") setForm((f) => ({ ...f, polygon: "" }));
   }
 
   function submit(e: React.FormEvent) {
@@ -137,6 +189,7 @@ export default function OfficeLocationsPage() {
       <Modal
         open={editing !== null}
         title={editing === "new" ? "Tambah lokasi kantor" : "Ubah lokasi kantor"}
+        size="lg"
         onClose={() => setEditing(null)}
         footer={
           <>
@@ -150,6 +203,32 @@ export default function OfficeLocationsPage() {
         }
       >
         <form id="location-form" onSubmit={submit} noValidate className="grid gap-4 sm:grid-cols-2">
+          <div className="grid gap-3 sm:col-span-2">
+            <PlaceSearch onSelect={setCenter} />
+            <div role="group" aria-label="Bentuk area absen" className="flex gap-2">
+              <Button type="button" variant={areaMode === "radius" ? "primary" : "secondary"} aria-pressed={areaMode === "radius"} onClick={() => changeAreaMode("radius")}>
+                Radius
+              </Button>
+              <Button type="button" variant={areaMode === "polygon" ? "primary" : "secondary"} aria-pressed={areaMode === "polygon"} onClick={() => changeAreaMode("polygon")}>
+                Poligon
+              </Button>
+            </div>
+            {editing !== null && (
+              <LocationMap
+                mode={areaMode}
+                center={center}
+                radiusM={Number.isFinite(radius) && radius > 0 ? radius : 0}
+                polygon={polygonPoints}
+                onPick={areaMode === "radius" ? setCenter : addPolygonPoint}
+                onCenterDrag={setCenter}
+              />
+            )}
+            <p className="text-xs text-slate-500">
+              {areaMode === "radius"
+                ? "Klik peta atau seret penanda untuk menentukan titik pusat. Lingkaran biru adalah area absen."
+                : "Klik peta untuk menambah titik sudut. Area biru adalah area absen."}
+            </p>
+          </div>
           <Field label="Nama lokasi" htmlFor="name" error={errors.name} required className="sm:col-span-2">
             <Input id="name" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} invalid={!!errors.name} placeholder="Kantor Pusat" />
           </Field>
@@ -159,32 +238,49 @@ export default function OfficeLocationsPage() {
           <Field label="Bujur (longitude)" htmlFor="longitude" error={errors.longitude} required>
             <Input id="longitude" inputMode="decimal" value={form.longitude} onChange={(e) => setForm({ ...form, longitude: e.target.value })} invalid={!!errors.longitude} placeholder="106.816600" />
           </Field>
-          <Field label="Radius (meter)" htmlFor="radius" error={errors.radius_m} hint="10 sampai 5000 meter." required>
-            <Input id="radius" inputMode="numeric" value={form.radius_m} onChange={(e) => setForm({ ...form, radius_m: e.target.value })} invalid={!!errors.radius_m} />
-          </Field>
+          {areaMode === "radius" && (
+            <Field label="Radius (meter)" htmlFor="radius" error={errors.radius_m} hint="10 sampai 5000 meter. Penggeser sampai 1000 meter, lebih dari itu ketik angkanya." required>
+              <Input id="radius" inputMode="numeric" value={form.radius_m} onChange={(e) => setForm({ ...form, radius_m: e.target.value })} invalid={!!errors.radius_m} />
+              <input
+                type="range"
+                min={10}
+                max={MAX_SLIDER_RADIUS}
+                step={10}
+                value={Number.isFinite(radius) ? Math.min(radius, MAX_SLIDER_RADIUS) : 100}
+                onChange={(e) => setForm({ ...form, radius_m: e.target.value })}
+                aria-label="Penggeser radius"
+                className="mt-2 w-full accent-primary-600"
+              />
+            </Field>
+          )}
           <Field label="Status" htmlFor="status">
             <Select id="status" value={form.is_active ? "1" : "0"} onChange={(e) => setForm({ ...form, is_active: e.target.value === "1" })}>
               <option value="1">Aktif</option>
               <option value="0">Nonaktif</option>
             </Select>
           </Field>
+          {areaMode === "polygon" && (
           <Field
-            label="Poligon area (opsional)"
+            label="Titik sudut poligon"
             htmlFor="polygon"
             error={errors.polygon}
-            hint="Satu titik per baris: lintang, bujur. Minimal 3 titik. Bila diisi, poligon menggantikan radius."
+            hint="Klik peta untuk menambah titik, atau ketik satu titik per baris: lintang, bujur. Minimal 3 titik."
             className="sm:col-span-2"
           >
             <Textarea
               id="polygon"
               rows={4}
               value={form.polygon}
-              onChange={(e) => setForm({ ...form, polygon: e.target.value })}
+              onChange={(e) => setForm((f) => withPolygon(f, e.target.value))}
               invalid={!!errors.polygon}
               placeholder={"-6.2001, 106.8166\n-6.2001, 106.8176\n-6.2011, 106.8176"}
               className="font-mono text-xs"
             />
+            <Button type="button" variant="secondary" className="mt-2" onClick={removeLastPolygonPoint} disabled={!form.polygon.trim()}>
+              Hapus titik terakhir
+            </Button>
           </Field>
+          )}
         </form>
       </Modal>
 

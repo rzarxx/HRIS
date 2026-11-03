@@ -134,11 +134,12 @@ dan cara membuat akun SDM pertama (seed ditolak di luar development, dan bootstr
 
 ## Super admin
 
-Super admin mengurus hal teknis: perangkat, akun, lokasi, dan shift. Tanpa akses upah. Role diberikan
-lewat server, pada akun Pejuang biasa yang sudah dibuat SDM:
+Super admin adalah role tertinggi: semua akses kecuali keuangan. Role diberikan lewat server, pada
+akun Pejuang biasa yang sudah dibuat SDM:
 
 ```bash
 cd /opt/hris && runuser -u hris -- ./hris-superadmin grant --email orang@contoh.id
 ```
 
-Bila akun belum aktif, tautan aktivasi tampil di terminal. Untuk mencabut, pakai `revoke`.
+Bila akun belum aktif, tautan aktivasi tampil di terminal. Untuk mencabut, pakai `revoke`. Bila
+super admin lupa kata sandi, pakai `reset`, karena SDM tidak bisa mereset akun super admin.

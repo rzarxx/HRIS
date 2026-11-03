@@ -6,7 +6,7 @@ import { Field, Input, Select } from "@/components/ui/form";
 import { Modal } from "@/components/ui/modal";
 import { api } from "@/lib/api-client";
 import { todayWib } from "@/lib/format";
-import { useDivisions, useSave, useShifts, useSubdivisions } from "@/lib/hooks";
+import { useDivisions, useMe, useSave, useShifts, useSubdivisions } from "@/lib/hooks";
 import { employeeSchema, validate, type EmployeeInput } from "@/lib/schemas";
 import type { EmployeeCreated, EmployeeListItem, ItemResponse } from "@/lib/types";
 
@@ -55,6 +55,9 @@ export function EmployeeForm({
   const divisions = useDivisions();
   const subdivisions = useSubdivisions();
   const shifts = useShifts();
+  const me = useMe();
+  // Gaji hanya urusan SDM; super admin tidak melihat atau mengubahnya (D34).
+  const managesSalary = me.data?.role === "sdm";
   const [form, setForm] = useState<FormState>(() => initial(employee));
   const [errors, setErrors] = useState<Record<string, string>>({});
 
@@ -80,10 +83,10 @@ export function EmployeeForm({
     e.preventDefault();
     // division_id hanya untuk menyaring pilihan subdiv, tidak dikirim ke API
     const { division_id, base_salary, ...rest } = form;
-    const values: EmployeeInput = { ...rest, base_salary: base_salary ? `${base_salary}.00` : "" };
+    const values: EmployeeInput = managesSalary ? { ...rest, base_salary: base_salary ? `${base_salary}.00` : "" } : rest;
     const all = { ...(validate(employeeSchema, values) ?? {}) };
     if (!division_id) all.division_id = "Pilih divisi.";
-    if (base_salary === "") all.base_salary = "Gaji pokok wajib diisi.";
+    if (managesSalary && base_salary === "") all.base_salary = "Gaji pokok wajib diisi.";
     setErrors(all);
     if (Object.keys(all).length === 0) save.mutate(values);
   }
@@ -179,6 +182,7 @@ export function EmployeeForm({
         <Field label="Tanggal bergabung" htmlFor="join_date" error={errors.join_date}>
           <Input id="join_date" type="date" value={form.join_date ?? ""} onChange={(e) => set("join_date", e.target.value)} invalid={!!errors.join_date} />
         </Field>
+        {managesSalary && (
         <Field label="Gaji pokok (Rp)" htmlFor="base_salary" error={errors.base_salary} required>
           <Input
             id="base_salary"
@@ -190,6 +194,7 @@ export function EmployeeForm({
             className="tabular-nums"
           />
         </Field>
+        )}
         <Field label="Status" htmlFor="status">
           <Select id="status" value={form.status} onChange={(e) => set("status", e.target.value as FormState["status"])}>
             <option value="active">Aktif</option>

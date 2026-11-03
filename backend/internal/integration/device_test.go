@@ -210,8 +210,8 @@ func TestOffboardingRevokesDevices(t *testing.T) {
 	}
 }
 
-// Super admin hanya urusan teknis, tanpa jalan ke data upah (D25, D33).
-func TestSuperadminBoundaries(t *testing.T) {
+// Super admin bisa semua kecuali keuangan (D34), dan SDM tidak bisa mengubah akunnya.
+func TestSuperadminAllExceptFinance(t *testing.T) {
 	srv := fresh(t, options{})
 	sdm := loginSDM(t, srv)
 	admin, acc := superadminClient(t, srv, "IT-INF")
@@ -219,54 +219,97 @@ func TestSuperadminBoundaries(t *testing.T) {
 	register(hp, "a").want(t, http.StatusCreated)
 	second := data[deviceRow](t, register(hp, "b").want(t, http.StatusCreated))
 
-	// Yang boleh.
-	admin.do(http.MethodGet, "/v1/admin/devices", nil).want(t, http.StatusOK)
+	// Akses luas di luar keuangan.
+	for _, path := range []string{
+		"/v1/admin/devices", "/v1/admin/office-locations", "/v1/admin/shifts", "/v1/admin/divisions", "/v1/admin/subdivisions",
+		"/v1/admin/dashboard/summary", "/v1/admin/dashboard/org-chart", "/v1/admin/announcements",
+		"/v1/admin/reports/attendance?year=2026&month=1",
+	} {
+		admin.do(http.MethodGet, path, nil).want(t, http.StatusOK)
+	}
 	admin.do(http.MethodPost, "/v1/admin/devices/"+second.ID+"/approve", nil).want(t, http.StatusOK)
-	admin.do(http.MethodGet, "/v1/admin/office-locations", nil).want(t, http.StatusOK)
-	admin.do(http.MethodGet, "/v1/admin/shifts", nil).want(t, http.StatusOK)
-	admin.do(http.MethodPost, "/v1/admin/users/"+target.userID+"/lock", nil).want(t, http.StatusNoContent)
-	admin.do(http.MethodPost, "/v1/admin/users/"+target.userID+"/unlock", nil).want(t, http.StatusNoContent)
 
-	// Melihat Pejuang tanpa gaji orang lain.
+	// Keuangan tertutup, dan gaji orang lain tidak pernah tampil.
+	admin.do(http.MethodGet, "/v1/admin/reports/payroll-preview?year=2026&month=1", nil).wantError(t, http.StatusForbidden, "FORBIDDEN_ROLE")
 	res := admin.do(http.MethodGet, "/v1/admin/employees/"+target.employeeID, nil).want(t, http.StatusOK)
 	if strings.Contains(string(res.body), "base_salary") {
 		t.Errorf("gaji orang lain terlihat: %s", res.body)
 	}
 	list := admin.do(http.MethodGet, "/v1/admin/employees?per_page=100", nil).want(t, http.StatusOK)
-	if strings.Count(string(list.body), "base_salary") > 1 {
-		t.Errorf("daftar memuat gaji orang lain: %d", strings.Count(string(list.body), "base_salary"))
+	if got := strings.Count(string(list.body), "base_salary"); got > 1 {
+		t.Errorf("daftar memuat gaji orang lain: %d", got)
 	}
 
-	// Yang tidak boleh.
-	for _, route := range []struct {
-		method, path string
-		body         any
-	}{
-		{http.MethodGet, "/v1/admin/reports/payroll-preview?year=2026&month=1", nil},
-		{http.MethodGet, "/v1/admin/reports/attendance?year=2026&month=1", nil},
-		{http.MethodGet, "/v1/admin/dashboard/summary", nil},
-		{http.MethodPost, "/v1/admin/employees", map[string]any{}},
-		{http.MethodPatch, "/v1/admin/employees/" + target.employeeID, map[string]any{"base_salary": "1.00"}},
-		{http.MethodPost, "/v1/admin/users/" + target.userID + "/reset-password", nil},
-	} {
-		admin.do(route.method, route.path, route.body).wantError(t, http.StatusForbidden, "FORBIDDEN_ROLE")
+	// Mengubah Pejuang boleh, mengubah gaji tidak.
+	updated := data[employeeShift](t, admin.do(http.MethodPatch, "/v1/admin/employees/"+target.employeeID, map[string]any{"full_name": "Nama Baru Uji"}).want(t, http.StatusOK))
+	if updated.FullName != "Nama Baru Uji" {
+		t.Errorf("ubah nama: %+v", updated)
+	}
+	admin.do(http.MethodPatch, "/v1/admin/employees/"+target.employeeID, map[string]any{"base_salary": "9999999.00"}).wantError(t, http.StatusForbidden, "FORBIDDEN_ROLE")
+	var salary string
+	if err := ownerPool.QueryRow(context.Background(), `SELECT base_salary::text FROM employees WHERE id = $1`, target.employeeID).Scan(&salary); err != nil {
+		t.Fatal(err)
+	}
+	if strings.HasPrefix(salary, "9999999") {
+		t.Errorf("gaji berubah: %s", salary)
 	}
 
-	// Akun SDM tidak bisa diganggu.
+	// Pejuang baru dari super admin bergaji 0, dan mengirim gaji ditolak.
+	payload := func(email string) map[string]any {
+		return map[string]any{"full_name": "Dibuat Admin", "email": email, "subdivision_id": subdivisionID(t, "OPS-LAP")}
+	}
+	made := data[createdEmployee](t, admin.do(http.MethodPost, "/v1/admin/employees", payload("dibuat.admin@pejuang.id")).want(t, http.StatusCreated))
+	var madeSalary string
+	if err := ownerPool.QueryRow(context.Background(), `SELECT base_salary::text FROM employees WHERE id = $1`, made.ID).Scan(&madeSalary); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.HasPrefix(madeSalary, "0") {
+		t.Errorf("gaji awal: %s", madeSalary)
+	}
+	withSalary := payload("dibuat.admin2@pejuang.id")
+	withSalary["base_salary"] = "5000000.00"
+	admin.do(http.MethodPost, "/v1/admin/employees", withSalary).wantError(t, http.StatusForbidden, "FORBIDDEN_ROLE")
+	// SDM tetap wajib mengisi gaji.
+	sdm.do(http.MethodPost, "/v1/admin/employees", payload("dibuat.sdm@pejuang.id")).wantError(t, http.StatusBadRequest, "VALIDATION_FAILED")
+
+	// Super admin boleh mengunci akun SDM, tetapi tidak boleh mengambil alihnya lewat tautan reset.
 	var sdmUser string
 	if err := ownerPool.QueryRow(context.Background(), `SELECT id::text FROM users WHERE role = 'sdm' LIMIT 1`).Scan(&sdmUser); err != nil {
 		t.Fatal(err)
 	}
-	for _, action := range []string{"lock", "unlock", "revoke-sessions", "reset-password"} {
-		admin.do(http.MethodPost, "/v1/admin/users/"+sdmUser+"/"+action, nil).wantError(t, http.StatusForbidden, "FORBIDDEN_ROLE")
-	}
-	sdm.do(http.MethodGet, "/v1/me", nil).want(t, http.StatusOK)
+	admin.do(http.MethodPost, "/v1/admin/users/"+sdmUser+"/reset-password", nil).wantError(t, http.StatusForbidden, "FORBIDDEN_ROLE")
+	admin.do(http.MethodPost, "/v1/admin/users/"+target.userID+"/reset-password", nil).want(t, http.StatusOK)
+	admin.do(http.MethodPost, "/v1/admin/users/"+sdmUser+"/lock", nil).want(t, http.StatusNoContent)
+	admin.do(http.MethodPost, "/v1/admin/users/"+sdmUser+"/unlock", nil).want(t, http.StatusNoContent)
 
-	// Tiap role lain ditolak di halaman peninjauan.
-	// Sesi target sudah dicabut oleh kunci akun di atas, jadi masuk ulang.
-	login(t, srv, target.email, seedPassword).do(http.MethodGet, "/v1/admin/devices", nil).wantError(t, http.StatusForbidden, "FORBIDDEN_ROLE")
-	if acc.userID == "" {
-		t.Error("akun super admin kosong")
+	// SDM tidak bisa mengubah akun super admin dengan cara apa pun.
+	sdm = loginSDM(t, srv)
+	for _, action := range []string{"lock", "unlock", "revoke-sessions", "reset-password"} {
+		sdm.do(http.MethodPost, "/v1/admin/users/"+acc.userID+"/"+action, nil).wantError(t, http.StatusForbidden, "FORBIDDEN_ROLE")
+	}
+	sdm.do(http.MethodPatch, "/v1/admin/employees/"+acc.employeeID, map[string]any{"full_name": "Diubah SDM"}).wantError(t, http.StatusForbidden, "FORBIDDEN_ROLE")
+	sdm.do(http.MethodPost, "/v1/admin/employees/"+acc.employeeID+"/deactivate", nil).wantError(t, http.StatusForbidden, "FORBIDDEN_ROLE")
+	admin.do(http.MethodGet, "/v1/me", nil).want(t, http.StatusOK)
+
+	// Role lain tetap tertutup, dan SDM tetap memegang gaji.
+	login(t, srv, activeAccount(t, "pejuang", "OPS-LAP").email, seedPassword).do(http.MethodGet, "/v1/admin/devices", nil).wantError(t, http.StatusForbidden, "FORBIDDEN_ROLE")
+	sdmView := sdm.do(http.MethodGet, "/v1/admin/employees/"+target.employeeID, nil).want(t, http.StatusOK)
+	if !strings.Contains(string(sdmView.body), "base_salary") {
+		t.Error("SDM harus melihat gaji")
+	}
+}
+
+func TestResetSuperadminFromServer(t *testing.T) {
+	srv := fresh(t, options{})
+	_, acc := superadminClient(t, srv, "IT-INF")
+	invite, err := auth.ResetSuperadmin(context.Background(), appPool, acc.email, time.Now())
+	if err != nil || invite.Token == "" {
+		t.Fatalf("reset: %v %v", invite, err)
+	}
+	newClient(t, srv).do(http.MethodPost, "/v1/auth/activate", map[string]any{"token": invite.Token, "password": "kata-sandi-baru-kuat-2"}).want(t, http.StatusNoContent) // gitleaks:allow
+	login(t, srv, acc.email, "kata-sandi-baru-kuat-2").do(http.MethodGet, "/v1/admin/devices", nil).want(t, http.StatusOK)                                                // gitleaks:allow
+	if _, err := auth.ResetSuperadmin(context.Background(), appPool, "sdm@pejuang.id", time.Now()); err == nil {
+		t.Error("akun SDM tidak boleh direset lewat perintah ini")
 	}
 }
 
@@ -323,6 +366,9 @@ func TestGrantSuperadmin(t *testing.T) {
 	newClient.do(http.MethodPost, "/v1/auth/activate", map[string]any{"token": invite.Token, "password": "kata-sandi-baru-kuat-1"}).want(t, http.StatusNoContent)
 	login(t, srv, "admin.it@pejuang.id", "kata-sandi-baru-kuat-1").do(http.MethodGet, "/v1/admin/devices", nil).want(t, http.StatusOK) // gitleaks:allow
 
+	if err := auth.RevokeSuperadmin(ctx, appPool, "admin.it@pejuang.id"); err != nil {
+		t.Fatal(err)
+	}
 	sdm.do(http.MethodPost, "/v1/admin/employees/"+created.ID+"/deactivate", nil).want(t, http.StatusOK)
 	if _, err := auth.GrantSuperadmin(ctx, appPool, "admin.it@pejuang.id", time.Now()); err == nil {
 		t.Error("Pejuang nonaktif tidak boleh dijadikan super admin")

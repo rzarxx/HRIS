@@ -2138,6 +2138,132 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/admin/employees/{id}/work-arrangements": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        /**
+         * Izin kerja Pejuang (WFA, hybrid, jam fleksibel)
+         * @description Permission `employee:write`.
+         */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: components["parameters"]["Id"];
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data: components["schemas"]["WorkArrangement"][];
+                        };
+                    };
+                };
+                404: components["responses"]["Error"];
+            };
+        };
+        put?: never;
+        /**
+         * Tetapkan izin kerja
+         * @description Tidak bisa untuk diri sendiri (`CONFLICT_SELF_ACTION`), dan izin super admin hanya bisa diatur super admin (D34). Izin yang berlaku pada tanggal yang sama dengan izin lain ditolak (`CONFLICT_DUPLICATE`).
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: components["parameters"]["Id"];
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["WorkArrangementInput"];
+                };
+            };
+            responses: {
+                /** @description Dibuat */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data: components["schemas"]["WorkArrangement"];
+                        };
+                    };
+                };
+                400: components["responses"]["ValidationFailed"];
+                403: components["responses"]["Error"];
+                404: components["responses"]["Error"];
+                409: components["responses"]["Error"];
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/employees/{id}/work-arrangements/{arrangement_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+                arrangement_id: string;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Cabut izin kerja
+         * @description Langsung berlaku, termasuk untuk absen pulang hari itu. Absen yang sudah tercatat tidak berubah.
+         */
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: components["parameters"]["Id"];
+                    arrangement_id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Izin dicabut */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                403: components["responses"]["Error"];
+                404: components["responses"]["Error"];
+            };
+        };
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/admin/announcements": {
         parameters: {
             query?: never;
@@ -2832,11 +2958,17 @@ export interface components {
             /** Format: date-time */
             clock_in_at: string;
             late_minutes: number;
+            /**
+             * @description Ditentukan server dari izin kerja dan lokasi
+             * @enum {string}
+             */
+            work_mode: "onsite" | "wfa" | "field";
+            /** @description Kosong saat `wfa` dan `field` */
             office_location: {
                 /** Format: uuid */
                 id: string;
                 name: string;
-            };
+            } | null;
             requires_review: boolean;
         };
         ClockOutResult: {
@@ -2931,6 +3063,39 @@ export interface components {
             polygon: components["schemas"]["GeoPoint"][] | null;
             is_active: boolean;
             employee_count: number;
+        };
+        WorkArrangementInput: {
+            /** @enum {string} */
+            mode: "wfa" | "hybrid";
+            /** @default false */
+            flexible_hours: boolean;
+            /** Format: date */
+            starts_on: string;
+            /**
+             * Format: date
+             * @description Kosong berarti tanpa akhir
+             */
+            ends_on?: string | null;
+            /** @description 1=Senin sampai 7=Minggu. Kosong berarti setiap hari. */
+            weekdays?: number[];
+            reason: string;
+        };
+        WorkArrangement: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            employee_id: string;
+            /** @enum {string} */
+            mode: "wfa" | "hybrid";
+            flexible_hours: boolean;
+            /** Format: date */
+            starts_on: string;
+            /** Format: date */
+            ends_on: string | null;
+            weekdays: number[];
+            reason: string;
+            /** Format: date-time */
+            created_at: string;
         };
         EmployeeLocationsInput: {
             location_ids: string[];

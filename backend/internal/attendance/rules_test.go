@@ -99,3 +99,56 @@ func TestWorkedMinutes(t *testing.T) {
 		t.Errorf("waktu terbalik: %d", got)
 	}
 }
+
+func TestArrangementActiveOn(t *testing.T) {
+	day := func(d int) time.Time { return time.Date(2026, 11, d, 0, 0, 0, 0, time.UTC) }
+	end := day(13)
+	friday := Arrangement{StartsOn: day(2), EndsOn: &end, Weekdays: []int16{5}}
+	cases := []struct {
+		name string
+		date time.Time
+		a    Arrangement
+		want bool
+	}{
+		{"sebelum mulai", day(1), Arrangement{StartsOn: day(2)}, false},
+		{"hari mulai", day(2), Arrangement{StartsOn: day(2)}, true},
+		{"tanpa akhir", day(2).AddDate(5, 0, 0), Arrangement{StartsOn: day(2)}, true},
+		{"Jumat dalam rentang", day(6), friday, true},
+		{"bukan Jumat", day(5), friday, false},
+		{"hari terakhir", day(13), friday, true},
+		{"lewat akhir", day(20), friday, false},
+		{"Minggu bernilai 7", day(8), Arrangement{StartsOn: day(2), Weekdays: []int16{7}}, true},
+		// Zona WIB malam hari tetap dibaca sebagai tanggalnya sendiri.
+		{"tanggal WIB", time.Date(2026, 11, 6, 23, 0, 0, 0, pgconv.WIB), friday, true},
+	}
+	for _, c := range cases {
+		if got := c.a.ActiveOn(c.date); got != c.want {
+			t.Errorf("%s: got %v, want %v", c.name, got, c.want)
+		}
+	}
+}
+
+func TestArrangementOverlaps(t *testing.T) {
+	day := func(d int) time.Time { return time.Date(2026, 11, d, 0, 0, 0, 0, time.UTC) }
+	until := func(d int) *time.Time { e := day(d); return &e }
+	cases := []struct {
+		name string
+		a, b Arrangement
+		want bool
+	}{
+		{"rentang terpisah", Arrangement{StartsOn: day(2), EndsOn: until(5)}, Arrangement{StartsOn: day(6), EndsOn: until(9)}, false},
+		{"bersentuhan satu hari", Arrangement{StartsOn: day(2), EndsOn: until(6)}, Arrangement{StartsOn: day(6)}, true},
+		{"hari berbeda tanpa akhir", Arrangement{StartsOn: day(2), Weekdays: []int16{1, 2}}, Arrangement{StartsOn: day(2), Weekdays: []int16{5}}, false},
+		{"hari sama tanpa akhir", Arrangement{StartsOn: day(2), Weekdays: []int16{5}}, Arrangement{StartsOn: day(20), Weekdays: []int16{5, 6}}, true},
+		{"satu hari Senin dan izin Jumat", Arrangement{StartsOn: day(2), EndsOn: until(2)}, Arrangement{StartsOn: day(1), Weekdays: []int16{5}}, false},
+		{"izin hari kosong dalam rentang", Arrangement{StartsOn: day(2), EndsOn: until(2), Weekdays: []int16{5}}, Arrangement{StartsOn: day(2), EndsOn: until(2), Weekdays: []int16{5}}, false},
+	}
+	for _, c := range cases {
+		if got := c.a.Overlaps(c.b); got != c.want {
+			t.Errorf("%s: got %v, want %v", c.name, got, c.want)
+		}
+		if got := c.b.Overlaps(c.a); got != c.want {
+			t.Errorf("%s (dibalik): got %v, want %v", c.name, got, c.want)
+		}
+	}
+}

@@ -15,24 +15,26 @@ import (
 )
 
 const clockIn = `-- name: ClockIn :one
-INSERT INTO attendances (employee_id, work_date, shift_id, clock_in_at, in_accuracy_m, risk_flags, status, late_minutes, work_mode, location_id, in_latitude, in_longitude)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'onsite', $9, $10, $11)
+INSERT INTO attendances (employee_id, work_date, shift_id, clock_in_at, in_accuracy_m, risk_flags, status, late_minutes, work_mode, flexible_hours, location_id, in_latitude, in_longitude)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
 ON CONFLICT (employee_id, work_date) DO NOTHING
-RETURNING id, employee_id, work_date, shift_id, clock_in_at, clock_out_at, in_accuracy_m, face_score, risk_score, risk_flags, status, late_minutes, created_at, work_mode, location_id, worked_minutes, in_latitude, in_longitude, out_latitude, out_longitude
+RETURNING id, employee_id, work_date, shift_id, clock_in_at, clock_out_at, in_accuracy_m, face_score, risk_score, risk_flags, status, late_minutes, created_at, work_mode, location_id, worked_minutes, in_latitude, in_longitude, out_latitude, out_longitude, flexible_hours
 `
 
 type ClockInParams struct {
-	EmployeeID  uuid.UUID
-	WorkDate    pgtype.Date
-	ShiftID     uuid.NullUUID
-	ClockInAt   pgtype.Timestamptz
-	InAccuracyM decimal.NullDecimal
-	RiskFlags   []byte
-	Status      AttStatus
-	LateMinutes int32
-	LocationID  uuid.NullUUID
-	InLatitude  decimal.NullDecimal
-	InLongitude decimal.NullDecimal
+	EmployeeID    uuid.UUID
+	WorkDate      pgtype.Date
+	ShiftID       uuid.NullUUID
+	ClockInAt     pgtype.Timestamptz
+	InAccuracyM   decimal.NullDecimal
+	RiskFlags     []byte
+	Status        AttStatus
+	LateMinutes   int32
+	WorkMode      string
+	FlexibleHours bool
+	LocationID    uuid.NullUUID
+	InLatitude    decimal.NullDecimal
+	InLongitude   decimal.NullDecimal
 }
 
 func (q *Queries) ClockIn(ctx context.Context, arg ClockInParams) (Attendance, error) {
@@ -45,6 +47,8 @@ func (q *Queries) ClockIn(ctx context.Context, arg ClockInParams) (Attendance, e
 		arg.RiskFlags,
 		arg.Status,
 		arg.LateMinutes,
+		arg.WorkMode,
+		arg.FlexibleHours,
 		arg.LocationID,
 		arg.InLatitude,
 		arg.InLongitude,
@@ -71,15 +75,16 @@ func (q *Queries) ClockIn(ctx context.Context, arg ClockInParams) (Attendance, e
 		&i.InLongitude,
 		&i.OutLatitude,
 		&i.OutLongitude,
+		&i.FlexibleHours,
 	)
 	return i, err
 }
 
 const clockOut = `-- name: ClockOut :one
 UPDATE attendances
-SET clock_out_at = $1, worked_minutes = $2, out_latitude = $3, out_longitude = $4
-WHERE id = $5 AND clock_out_at IS NULL
-RETURNING id, employee_id, work_date, shift_id, clock_in_at, clock_out_at, in_accuracy_m, face_score, risk_score, risk_flags, status, late_minutes, created_at, work_mode, location_id, worked_minutes, in_latitude, in_longitude, out_latitude, out_longitude
+SET clock_out_at = $1, worked_minutes = $2, out_latitude = $3, out_longitude = $4, work_mode = $5
+WHERE id = $6 AND clock_out_at IS NULL
+RETURNING id, employee_id, work_date, shift_id, clock_in_at, clock_out_at, in_accuracy_m, face_score, risk_score, risk_flags, status, late_minutes, created_at, work_mode, location_id, worked_minutes, in_latitude, in_longitude, out_latitude, out_longitude, flexible_hours
 `
 
 type ClockOutParams struct {
@@ -87,6 +92,7 @@ type ClockOutParams struct {
 	WorkedMinutes pgtype.Int4
 	OutLatitude   decimal.NullDecimal
 	OutLongitude  decimal.NullDecimal
+	WorkMode      string
 	ID            uuid.UUID
 }
 
@@ -96,6 +102,7 @@ func (q *Queries) ClockOut(ctx context.Context, arg ClockOutParams) (Attendance,
 		arg.WorkedMinutes,
 		arg.OutLatitude,
 		arg.OutLongitude,
+		arg.WorkMode,
 		arg.ID,
 	)
 	var i Attendance
@@ -120,6 +127,7 @@ func (q *Queries) ClockOut(ctx context.Context, arg ClockOutParams) (Attendance,
 		&i.InLongitude,
 		&i.OutLatitude,
 		&i.OutLongitude,
+		&i.FlexibleHours,
 	)
 	return i, err
 }
@@ -189,6 +197,33 @@ func (q *Queries) CreateAttendanceChallenge(ctx context.Context, arg CreateAtten
 	return i, err
 }
 
+const deleteWorkArrangement = `-- name: DeleteWorkArrangement :one
+DELETE FROM employee_work_arrangements WHERE id = $1 AND employee_id = $2 RETURNING id, employee_id, mode, flexible_hours, starts_on, ends_on, weekdays, reason, created_by, created_at
+`
+
+type DeleteWorkArrangementParams struct {
+	ID         uuid.UUID
+	EmployeeID uuid.UUID
+}
+
+func (q *Queries) DeleteWorkArrangement(ctx context.Context, arg DeleteWorkArrangementParams) (EmployeeWorkArrangement, error) {
+	row := q.db.QueryRow(ctx, deleteWorkArrangement, arg.ID, arg.EmployeeID)
+	var i EmployeeWorkArrangement
+	err := row.Scan(
+		&i.ID,
+		&i.EmployeeID,
+		&i.Mode,
+		&i.FlexibleHours,
+		&i.StartsOn,
+		&i.EndsOn,
+		&i.Weekdays,
+		&i.Reason,
+		&i.CreatedBy,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
 const getEmployeeDefaultShift = `-- name: GetEmployeeDefaultShift :one
 SELECT sh.id, sh.name, sh.start_time, sh.end_time, sh.late_tolerance_minutes, sh.work_days FROM employees e JOIN shifts sh ON sh.id = e.default_shift_id WHERE e.id = $1
 `
@@ -208,7 +243,7 @@ func (q *Queries) GetEmployeeDefaultShift(ctx context.Context, id uuid.UUID) (Sh
 }
 
 const getLastClosedAttendance = `-- name: GetLastClosedAttendance :one
-SELECT id, employee_id, work_date, shift_id, clock_in_at, clock_out_at, in_accuracy_m, face_score, risk_score, risk_flags, status, late_minutes, created_at, work_mode, location_id, worked_minutes, in_latitude, in_longitude, out_latitude, out_longitude FROM attendances
+SELECT id, employee_id, work_date, shift_id, clock_in_at, clock_out_at, in_accuracy_m, face_score, risk_score, risk_flags, status, late_minutes, created_at, work_mode, location_id, worked_minutes, in_latitude, in_longitude, out_latitude, out_longitude, flexible_hours FROM attendances
 WHERE employee_id = $1 AND clock_out_at IS NOT NULL
 ORDER BY work_date DESC LIMIT 1
 `
@@ -237,12 +272,13 @@ func (q *Queries) GetLastClosedAttendance(ctx context.Context, employeeID uuid.U
 		&i.InLongitude,
 		&i.OutLatitude,
 		&i.OutLongitude,
+		&i.FlexibleHours,
 	)
 	return i, err
 }
 
 const getOpenAttendance = `-- name: GetOpenAttendance :one
-SELECT id, employee_id, work_date, shift_id, clock_in_at, clock_out_at, in_accuracy_m, face_score, risk_score, risk_flags, status, late_minutes, created_at, work_mode, location_id, worked_minutes, in_latitude, in_longitude, out_latitude, out_longitude FROM attendances
+SELECT id, employee_id, work_date, shift_id, clock_in_at, clock_out_at, in_accuracy_m, face_score, risk_score, risk_flags, status, late_minutes, created_at, work_mode, location_id, worked_minutes, in_latitude, in_longitude, out_latitude, out_longitude, flexible_hours FROM attendances
 WHERE employee_id = $1 AND clock_in_at IS NOT NULL AND clock_out_at IS NULL
 ORDER BY work_date DESC LIMIT 1
 `
@@ -271,6 +307,7 @@ func (q *Queries) GetOpenAttendance(ctx context.Context, employeeID uuid.UUID) (
 		&i.InLongitude,
 		&i.OutLatitude,
 		&i.OutLongitude,
+		&i.FlexibleHours,
 	)
 	return i, err
 }
@@ -340,6 +377,50 @@ func (q *Queries) InsertAttendanceAttempt(ctx context.Context, arg InsertAttenda
 	return err
 }
 
+const insertWorkArrangement = `-- name: InsertWorkArrangement :one
+INSERT INTO employee_work_arrangements (employee_id, mode, flexible_hours, starts_on, ends_on, weekdays, reason, created_by)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+RETURNING id, employee_id, mode, flexible_hours, starts_on, ends_on, weekdays, reason, created_by, created_at
+`
+
+type InsertWorkArrangementParams struct {
+	EmployeeID    uuid.UUID
+	Mode          string
+	FlexibleHours bool
+	StartsOn      pgtype.Date
+	EndsOn        pgtype.Date
+	Weekdays      []int16
+	Reason        string
+	CreatedBy     uuid.UUID
+}
+
+func (q *Queries) InsertWorkArrangement(ctx context.Context, arg InsertWorkArrangementParams) (EmployeeWorkArrangement, error) {
+	row := q.db.QueryRow(ctx, insertWorkArrangement,
+		arg.EmployeeID,
+		arg.Mode,
+		arg.FlexibleHours,
+		arg.StartsOn,
+		arg.EndsOn,
+		arg.Weekdays,
+		arg.Reason,
+		arg.CreatedBy,
+	)
+	var i EmployeeWorkArrangement
+	err := row.Scan(
+		&i.ID,
+		&i.EmployeeID,
+		&i.Mode,
+		&i.FlexibleHours,
+		&i.StartsOn,
+		&i.EndsOn,
+		&i.Weekdays,
+		&i.Reason,
+		&i.CreatedBy,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
 const isHoliday = `-- name: IsHoliday :one
 SELECT EXISTS (SELECT 1 FROM holidays WHERE date = $1)
 `
@@ -396,6 +477,41 @@ func (q *Queries) ListMyAttendance(ctx context.Context, arg ListMyAttendancePara
 			&i.WorkedMinutes,
 			&i.WorkMode,
 			&i.LocationName,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listWorkArrangements = `-- name: ListWorkArrangements :many
+SELECT id, employee_id, mode, flexible_hours, starts_on, ends_on, weekdays, reason, created_by, created_at FROM employee_work_arrangements WHERE employee_id = $1 ORDER BY starts_on DESC, id
+`
+
+func (q *Queries) ListWorkArrangements(ctx context.Context, employeeID uuid.UUID) ([]EmployeeWorkArrangement, error) {
+	rows, err := q.db.Query(ctx, listWorkArrangements, employeeID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []EmployeeWorkArrangement{}
+	for rows.Next() {
+		var i EmployeeWorkArrangement
+		if err := rows.Scan(
+			&i.ID,
+			&i.EmployeeID,
+			&i.Mode,
+			&i.FlexibleHours,
+			&i.StartsOn,
+			&i.EndsOn,
+			&i.Weekdays,
+			&i.Reason,
+			&i.CreatedBy,
+			&i.CreatedAt,
 		); err != nil {
 			return nil, err
 		}

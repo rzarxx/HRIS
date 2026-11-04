@@ -964,6 +964,67 @@ paths:
         "403": { $ref: "#/components/responses/Error" }
         "404": { $ref: "#/components/responses/Error" }
 
+  /v1/admin/employees/{id}/work-arrangements:
+    parameters:
+      - $ref: "#/components/parameters/Id"
+    get:
+      tags: [Pejuang]
+      summary: Izin kerja Pejuang (WFA, hybrid, jam fleksibel)
+      description: "Permission `employee:write`."
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: "#/components/schemas/WorkArrangement" }
+        "404": { $ref: "#/components/responses/Error" }
+    post:
+      tags: [Pejuang]
+      summary: Tetapkan izin kerja
+      description: >-
+        Tidak bisa untuk diri sendiri (`CONFLICT_SELF_ACTION`), dan izin super admin hanya bisa diatur super admin (D34).
+        Izin yang berlaku pada tanggal yang sama dengan izin lain ditolak (`CONFLICT_DUPLICATE`).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/WorkArrangementInput" }
+      responses:
+        "201":
+          description: Dibuat
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data: { $ref: "#/components/schemas/WorkArrangement" }
+        "400": { $ref: "#/components/responses/ValidationFailed" }
+        "403": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+        "409": { $ref: "#/components/responses/Error" }
+  /v1/admin/employees/{id}/work-arrangements/{arrangement_id}:
+    parameters:
+      - $ref: "#/components/parameters/Id"
+      - name: arrangement_id
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    delete:
+      tags: [Pejuang]
+      summary: Cabut izin kerja
+      description: Langsung berlaku, termasuk untuk absen pulang hari itu. Absen yang sudah tercatat tidak berubah.
+      responses:
+        "204": { description: Izin dicabut }
+        "403": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+
   /v1/admin/announcements:
     get:
       tags: [Pengumuman]
@@ -1631,15 +1692,18 @@ components:
         app_version: { type: string }
     ClockInResult:
       type: object
-      required: [attendance_id, work_date, status, clock_in_at, late_minutes, office_location, requires_review]
+      required: [attendance_id, work_date, status, clock_in_at, late_minutes, work_mode, office_location, requires_review]
       properties:
         attendance_id: { type: string, format: uuid }
         work_date: { type: string, format: date }
         status: { type: string, enum: [present, late, review] }
         clock_in_at: { type: string, format: date-time }
         late_minutes: { type: integer }
+        work_mode: { type: string, enum: [onsite, wfa, field], description: Ditentukan server dari izin kerja dan lokasi }
         office_location:
           type: object
+          nullable: true
+          description: Kosong saat `wfa` dan `field`
           required: [id, name]
           properties:
             id: { type: string, format: uuid }
@@ -1746,6 +1810,34 @@ components:
           items: { $ref: "#/components/schemas/GeoPoint" }
         is_active: { type: boolean }
         employee_count: { type: integer }
+    WorkArrangementInput:
+      type: object
+      required: [mode, starts_on, reason]
+      properties:
+        mode: { type: string, enum: [wfa, hybrid] }
+        flexible_hours: { type: boolean, default: false }
+        starts_on: { type: string, format: date }
+        ends_on: { type: string, format: date, nullable: true, description: Kosong berarti tanpa akhir }
+        weekdays:
+          type: array
+          description: 1=Senin sampai 7=Minggu. Kosong berarti setiap hari.
+          items: { type: integer, minimum: 1, maximum: 7 }
+        reason: { type: string, maxLength: 500 }
+    WorkArrangement:
+      type: object
+      required: [id, employee_id, mode, flexible_hours, starts_on, ends_on, weekdays, reason, created_at]
+      properties:
+        id: { type: string, format: uuid }
+        employee_id: { type: string, format: uuid }
+        mode: { type: string, enum: [wfa, hybrid] }
+        flexible_hours: { type: boolean }
+        starts_on: { type: string, format: date }
+        ends_on: { type: string, format: date, nullable: true }
+        weekdays:
+          type: array
+          items: { type: integer, minimum: 1, maximum: 7 }
+        reason: { type: string }
+        created_at: { type: string, format: date-time }
     EmployeeLocationsInput:
       type: object
       required: [location_ids]

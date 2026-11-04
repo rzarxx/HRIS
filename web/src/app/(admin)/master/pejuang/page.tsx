@@ -1,9 +1,10 @@
 "use client";
 
-import { KeyRound, Lock, LockOpen, MapPin, Pencil, Plus, Search, UserX } from "lucide-react";
+import { CalendarClock, KeyRound, Lock, LockOpen, MapPin, Pencil, Plus, Search, UserX } from "lucide-react";
 import { useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useState } from "react";
 import { ActivationLinkModal } from "@/components/employees/activation-link-modal";
+import { EmployeeArrangementsModal } from "@/components/employees/employee-arrangements-modal";
 import { EmployeeForm } from "@/components/employees/employee-form";
 import { EmployeeLocationsModal } from "@/components/employees/employee-locations-modal";
 import { Button, IconButton } from "@/components/ui/button";
@@ -42,6 +43,7 @@ function EmployeesView() {
   // Server menolak aksi ini untuk akun sendiri, jadi tombolnya tidak perlu tampil.
   const isSelf = (e: EmployeeListItem) => e.id === me.data?.employee_id;
   const [assigning, setAssigning] = useState<EmployeeListItem | null>(null);
+  const [arranging, setArranging] = useState<EmployeeListItem | null>(null);
 
   const [q, setQ] = useState(params.get("q") ?? "");
   const [divisionId, setDivisionId] = useState("");
@@ -214,6 +216,11 @@ function EmployeesView() {
                           <MapPin className="size-4" />
                         </IconButton>
                       )}
+                      {canWrite && !isProtected(e) && e.status === "active" && (
+                        <IconButton label={`Izin kerja ${e.full_name}`} onClick={() => setArranging(e)}>
+                          <CalendarClock className="size-4" />
+                        </IconButton>
+                      )}
                       {e.status === "active" && e.account && !isProtected(e) && !isSelf(e) && (
                         <>
                           {canReset && !(isSuperadmin && e.account.role === "sdm") && (
@@ -256,6 +263,8 @@ function EmployeesView() {
       )}
 
       {assigning && <EmployeeLocationsModal employee={assigning} onClose={() => setAssigning(null)} />}
+
+      {arranging && <EmployeeArrangementsModal employee={arranging} onClose={() => setArranging(null)} />}
 
       {activation && <ActivationLinkModal name={activation.name} activation={activation.activation} onClose={() => setActivation(null)} />}
 

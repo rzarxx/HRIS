@@ -8,12 +8,11 @@ import { Card, EmptyState, ErrorState, Loading, PageHeader } from "@/components/
 import { ConfirmDialog, Modal } from "@/components/ui/modal";
 import { Table, Td, Th } from "@/components/ui/table";
 import { api } from "@/lib/api-client";
-import { dateLong, todayWib } from "@/lib/format";
+import { DAYS, dateLong, todayWib } from "@/lib/format";
 import { useHolidays, useSave, useShifts } from "@/lib/hooks";
 import { holidaySchema, shiftSchema, validate, type HolidayInput, type ShiftForm } from "@/lib/schemas";
 import type { Holiday, Shift } from "@/lib/types";
 
-const DAYS = ["Sen", "Sel", "Rab", "Kam", "Jum", "Sab", "Min"];
 const EMPTY_SHIFT: ShiftForm = { name: "", start_time: "08:00", end_time: "17:00", late_tolerance_minutes: "10", work_days: [1, 2, 3, 4, 5] };
 
 function workDaysLabel(days: number[]) {

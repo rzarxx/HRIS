@@ -19,6 +19,7 @@ import type {
   PayrollReportRow,
   PayrollRules,
   Shift,
+  WorkArrangement,
   SubdivisionWithStats,
 } from "./types";
 import { useToast } from "@/components/ui/toast";
@@ -65,6 +66,12 @@ export const useEmployeeLocations = (employeeId: string) =>
   useQuery({
     queryKey: ["employee-locations", employeeId],
     queryFn: () => api.get<ListResponse<OfficeLocation>>(`/admin/employees/${employeeId}/locations`).then((r) => r.data),
+  });
+
+export const useWorkArrangements = (employeeId: string) =>
+  useQuery({
+    queryKey: ["work-arrangements", employeeId],
+    queryFn: () => api.get<ListResponse<WorkArrangement>>(`/admin/employees/${employeeId}/work-arrangements`).then((r) => r.data),
   });
 
 export const useShifts = () =>

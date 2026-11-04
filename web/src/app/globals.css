@@ -1,12 +1,12 @@
 @import "tailwindcss";
 
-/* DESIGN.md §7: bersih, dominan putih/abu, aksen biru #2563EB, font Inter, mode terang. */
+/* DESIGN.md §7: bersih, dominan putih/abu, aksen hijau #15803D, font Inter, mode terang. */
 @theme {
   --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
-  --color-primary-50: #eff6ff;
-  --color-primary-100: #dbeafe;
-  --color-primary-600: #2563eb;
-  --color-primary-700: #1d4ed8;
+  --color-primary-50: #f0fdf4;
+  --color-primary-100: #dcfce7;
+  --color-primary-600: #15803d;
+  --color-primary-700: #166534;
   --radius-card: 8px;
 
   /* Slot kategori grafik (palet tervalidasi dataviz, mode terang) */

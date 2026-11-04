@@ -35,7 +35,7 @@ export function Card({ title, actions, children, className = "", bodyClassName =
 
 const badgeTones = {
   gray: "bg-slate-100 text-slate-700",
-  blue: "bg-primary-50 text-primary-700",
+  accent: "bg-primary-50 text-primary-700",
   green: "bg-emerald-50 text-emerald-700",
   amber: "bg-amber-50 text-amber-800",
   red: "bg-red-50 text-red-700",

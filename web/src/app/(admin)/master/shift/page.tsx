@@ -3,7 +3,7 @@
 import { Pencil, Plus, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { Button, IconButton } from "@/components/ui/button";
-import { Field, Input, Select } from "@/components/ui/form";
+import { Field, Input, Select, Toggle } from "@/components/ui/form";
 import { Card, EmptyState, ErrorState, Loading, PageHeader } from "@/components/ui/layout";
 import { ConfirmDialog, Modal } from "@/components/ui/modal";
 import { Table, Td, Th } from "@/components/ui/table";
@@ -147,12 +147,11 @@ function ShiftsCard() {
             <legend className="mb-1 block text-sm font-medium text-slate-700">
               Hari kerja <span className="text-red-600">*</span>
             </legend>
-            <div className="flex flex-wrap gap-3">
+            <div className="flex flex-wrap gap-x-4 gap-y-2">
               {DAYS.map((label, i) => (
-                <label key={label} className="flex items-center gap-1.5 text-sm text-slate-700">
-                  <input type="checkbox" checked={form.work_days.includes(i + 1)} onChange={() => toggleDay(i + 1)} className="size-4 rounded border-slate-300" />
+                <Toggle key={label} checked={form.work_days.includes(i + 1)} onChange={() => toggleDay(i + 1)}>
                   {label}
-                </label>
+                </Toggle>
               ))}
             </div>
             {errors.work_days && <p className="mt-1 text-xs text-red-600">{errors.work_days}</p>}

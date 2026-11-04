@@ -10,11 +10,11 @@ export function announcementState(a: Announcement, now = new Date().toISOString(
   return "live";
 }
 
-const LABEL: Record<AnnouncementState, [string, "green" | "blue" | "gray" | "amber"]> = {
+const LABEL: Record<AnnouncementState, [string, "green" | "gray" | "amber"]> = {
   live: ["Tayang", "green"],
-  scheduled: ["Terjadwal", "blue"],
+  scheduled: ["Terjadwal", "amber"],
   ended: ["Berakhir", "gray"],
-  inactive: ["Nonaktif", "amber"],
+  inactive: ["Nonaktif", "gray"],
 };
 
 export function AnnouncementStatusBadge({ a }: { a: Announcement }) {

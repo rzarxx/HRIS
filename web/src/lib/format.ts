@@ -18,6 +18,9 @@ export function sumMoney(values: string[]) {
 export const number = (n: number) => numberFmt.format(n);
 export const percent = (r: number) => `${(r * 100).toLocaleString("id-ID", { maximumFractionDigits: 1 })}%`;
 
+// Urutan mengikuti nilai hari di API: 1=Senin sampai 7=Minggu.
+export const DAYS = ["Sen", "Sel", "Rab", "Kam", "Jum", "Sab", "Min"];
+
 export function dateLong(iso: string | null | undefined) {
   if (!iso) return "-";
   const d = iso.length === 10 ? new Date(`${iso}T00:00:00+07:00`) : new Date(iso);

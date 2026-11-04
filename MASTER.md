@@ -1499,8 +1499,8 @@ Estimasi untuk tim kecil; sesuaikan setelah kapasitas tim jelas.
 - [x] Peta untuk mengatur area lokasi (D28)
 - [ ] Challenge + verifikasi Play Integrity (jalur A)
 - [ ] Key Attestation (jalur B), perangkat manual (jalur D), kiosk (jalur E); Huawei (jalur C) bila ada penggunanya
-- [x] Izin WFA dan hybrid per Pejuang dan jam fleksibel di API
-- [ ] Layar izin kerja, penetapan massal, saring rekap per `work_mode`, dan pendaftaran wajah jarak jauh
+- [x] Izin WFA dan hybrid per Pejuang dan jam fleksibel, di API dan layar SDM
+- [ ] Penetapan izin massal, saring rekap per `work_mode`, dan pendaftaran wajah jarak jauh
 - [x] Challenge, clock-in, clock-out, cutoff harian, dan `worked_minutes` (D31), masih tanpa verifikasi perangkat dan wajah (D36)
 - [ ] Enroll + cocok wajah (enkripsi aplikasi)
 - [ ] Skor risiko + `attendance_attempts`

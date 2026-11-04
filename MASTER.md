@@ -1506,7 +1506,7 @@ Estimasi untuk tim kecil; sesuaikan setelah kapasitas tim jelas.
 - [x] Challenge, clock-in, clock-out, cutoff harian, dan `worked_minutes` (D31), masih tanpa verifikasi perangkat dan wajah (D36)
 - [ ] Enroll + cocok wajah (enkripsi aplikasi)
 - [x] Skor risiko dari sinyal yang sudah tersedia + `attendance_attempts`; sinyal integritas dan wajah menyusul bersama verifikasinya
-- [ ] Halaman Review Absen
+- [x] Halaman Review Absen
 - [ ] Uji serangan: fake GPS, foto, emulator, root, replay
 - [ ] Kalibrasi ambang wajah dan risiko dengan data uji
 

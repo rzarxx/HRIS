@@ -270,8 +270,11 @@ func (s *Service) ForEmployee(ctx context.Context, employeeID uuid.UUID) ([]Offi
 }
 
 // SetForEmployee menggantikan seluruh daftar lokasi seorang Pejuang.
-func (s *Service) SetForEmployee(ctx context.Context, entry audit.Entry, employeeID uuid.UUID, rawIDs []string) ([]OfficeLocation, error) {
+func (s *Service) SetForEmployee(ctx context.Context, p auth.Principal, entry audit.Entry, employeeID uuid.UUID, rawIDs []string) ([]OfficeLocation, error) {
 	if err := s.assertEmployee(ctx, employeeID); err != nil {
+		return nil, err
+	}
+	if err := auth.AssertEmployeeNotProtected(ctx, s.q, p, employeeID); err != nil {
 		return nil, err
 	}
 	seen := map[uuid.UUID]bool{}
@@ -389,7 +392,8 @@ func (h *Handler) SetForEmployee(w http.ResponseWriter, r *http.Request) error {
 	if in.LocationIDs == nil {
 		return httpx.Validation(map[string]string{"location_ids": "Daftar lokasi wajib dikirim."})
 	}
-	rows, err := h.svc.SetForEmployee(r.Context(), actor(r), id, *in.LocationIDs)
+	p, _ := auth.PrincipalFrom(r.Context())
+	rows, err := h.svc.SetForEmployee(r.Context(), p, actor(r), id, *in.LocationIDs)
 	if err != nil {
 		return err
 	}

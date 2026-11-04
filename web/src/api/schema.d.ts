@@ -1629,7 +1629,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Cabut perangkat beserta sesinya */
+        /**
+         * Cabut perangkat beserta sesinya
+         * @description SDM tidak bisa mencabut perangkat super admin (D34). Super admin bisa mencabut perangkatnya sendiri.
+         */
         post: {
             parameters: {
                 query?: never;
@@ -1652,6 +1655,7 @@ export interface paths {
                         };
                     };
                 };
+                403: components["responses"]["Error"];
                 404: components["responses"]["Error"];
             };
         };
@@ -2094,7 +2098,7 @@ export interface paths {
         };
         /**
          * Tetapkan lokasi absen Pejuang
-         * @description Menggantikan seluruh daftar. Daftar kosong berarti Pejuang tidak bisa absen di mana pun.
+         * @description Menggantikan seluruh daftar. Daftar kosong berarti Pejuang tidak bisa absen di mana pun. Lokasi super admin hanya bisa diubah oleh super admin (D34).
          */
         put: {
             parameters: {
@@ -2123,6 +2127,7 @@ export interface paths {
                     };
                 };
                 400: components["responses"]["ValidationFailed"];
+                403: components["responses"]["Error"];
                 404: components["responses"]["Error"];
             };
         };
@@ -2896,6 +2901,8 @@ export interface components {
             revoked_at: string | null;
             /** @description admin_revoked, replaced, atau offboarded */
             revoked_reason: string | null;
+            /** @description Pemiliknya super admin; hanya super admin yang bisa mencabutnya */
+            owner_is_superadmin: boolean;
         };
         GeoPoint: {
             /** @example -6.2001 */

@@ -52,7 +52,8 @@ func (q *Queries) CountEmployeeDevices(ctx context.Context, employeeID uuid.UUID
 const getAdminDevice = `-- name: GetAdminDevice :one
 SELECT d.id, d.employee_id, d.model, d.os_version, d.status, d.created_at, d.approved_at, d.revoked_at,
        d.revoked_reason, d.last_seen_at, e.full_name AS employee_name, e.nip, s.name AS subdivision_name,
-       dv.name AS division_name, ae.full_name AS approved_by_name
+       dv.name AS division_name, ae.full_name AS approved_by_name,
+       EXISTS (SELECT 1 FROM users ou WHERE ou.employee_id = d.employee_id AND ou.role = 'superadmin') AS owner_is_superadmin
 FROM devices d
 JOIN employees e ON e.id = d.employee_id
 JOIN subdivisions s ON s.id = e.subdivision_id
@@ -63,21 +64,22 @@ WHERE d.id = $1
 `
 
 type GetAdminDeviceRow struct {
-	ID              uuid.UUID
-	EmployeeID      uuid.UUID
-	Model           pgtype.Text
-	OsVersion       pgtype.Text
-	Status          DeviceStatus
-	CreatedAt       pgtype.Timestamptz
-	ApprovedAt      pgtype.Timestamptz
-	RevokedAt       pgtype.Timestamptz
-	RevokedReason   pgtype.Text
-	LastSeenAt      pgtype.Timestamptz
-	EmployeeName    string
-	Nip             string
-	SubdivisionName string
-	DivisionName    string
-	ApprovedByName  pgtype.Text
+	ID                uuid.UUID
+	EmployeeID        uuid.UUID
+	Model             pgtype.Text
+	OsVersion         pgtype.Text
+	Status            DeviceStatus
+	CreatedAt         pgtype.Timestamptz
+	ApprovedAt        pgtype.Timestamptz
+	RevokedAt         pgtype.Timestamptz
+	RevokedReason     pgtype.Text
+	LastSeenAt        pgtype.Timestamptz
+	EmployeeName      string
+	Nip               string
+	SubdivisionName   string
+	DivisionName      string
+	ApprovedByName    pgtype.Text
+	OwnerIsSuperadmin bool
 }
 
 func (q *Queries) GetAdminDevice(ctx context.Context, id uuid.UUID) (GetAdminDeviceRow, error) {
@@ -99,6 +101,7 @@ func (q *Queries) GetAdminDevice(ctx context.Context, id uuid.UUID) (GetAdminDev
 		&i.SubdivisionName,
 		&i.DivisionName,
 		&i.ApprovedByName,
+		&i.OwnerIsSuperadmin,
 	)
 	return i, err
 }
@@ -220,7 +223,8 @@ func (q *Queries) InsertDevice(ctx context.Context, arg InsertDeviceParams) (Dev
 const listDevices = `-- name: ListDevices :many
 SELECT d.id, d.employee_id, d.model, d.os_version, d.status, d.created_at, d.approved_at, d.revoked_at,
        d.revoked_reason, d.last_seen_at, e.full_name AS employee_name, e.nip, s.name AS subdivision_name,
-       dv.name AS division_name, ae.full_name AS approved_by_name
+       dv.name AS division_name, ae.full_name AS approved_by_name,
+       EXISTS (SELECT 1 FROM users ou WHERE ou.employee_id = d.employee_id AND ou.role = 'superadmin') AS owner_is_superadmin
 FROM devices d
 JOIN employees e ON e.id = d.employee_id
 JOIN subdivisions s ON s.id = e.subdivision_id
@@ -239,21 +243,22 @@ type ListDevicesParams struct {
 }
 
 type ListDevicesRow struct {
-	ID              uuid.UUID
-	EmployeeID      uuid.UUID
-	Model           pgtype.Text
-	OsVersion       pgtype.Text
-	Status          DeviceStatus
-	CreatedAt       pgtype.Timestamptz
-	ApprovedAt      pgtype.Timestamptz
-	RevokedAt       pgtype.Timestamptz
-	RevokedReason   pgtype.Text
-	LastSeenAt      pgtype.Timestamptz
-	EmployeeName    string
-	Nip             string
-	SubdivisionName string
-	DivisionName    string
-	ApprovedByName  pgtype.Text
+	ID                uuid.UUID
+	EmployeeID        uuid.UUID
+	Model             pgtype.Text
+	OsVersion         pgtype.Text
+	Status            DeviceStatus
+	CreatedAt         pgtype.Timestamptz
+	ApprovedAt        pgtype.Timestamptz
+	RevokedAt         pgtype.Timestamptz
+	RevokedReason     pgtype.Text
+	LastSeenAt        pgtype.Timestamptz
+	EmployeeName      string
+	Nip               string
+	SubdivisionName   string
+	DivisionName      string
+	ApprovedByName    pgtype.Text
+	OwnerIsSuperadmin bool
 }
 
 func (q *Queries) ListDevices(ctx context.Context, arg ListDevicesParams) ([]ListDevicesRow, error) {
@@ -281,6 +286,7 @@ func (q *Queries) ListDevices(ctx context.Context, arg ListDevicesParams) ([]Lis
 			&i.SubdivisionName,
 			&i.DivisionName,
 			&i.ApprovedByName,
+			&i.OwnerIsSuperadmin,
 		); err != nil {
 			return nil, err
 		}

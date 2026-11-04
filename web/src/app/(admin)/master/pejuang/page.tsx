@@ -39,6 +39,8 @@ function EmployeesView() {
   const isSuperadmin = me.data?.role === "superadmin";
   // Akun super admin tidak bisa diubah SDM; server tetap menegakkan aturan ini (D34).
   const isProtected = (e: EmployeeListItem) => !isSuperadmin && e.account?.role === "superadmin";
+  // Server menolak aksi ini untuk akun sendiri, jadi tombolnya tidak perlu tampil.
+  const isSelf = (e: EmployeeListItem) => e.id === me.data?.employee_id;
   const [assigning, setAssigning] = useState<EmployeeListItem | null>(null);
 
   const [q, setQ] = useState(params.get("q") ?? "");
@@ -207,12 +209,12 @@ function EmployeesView() {
                           <Pencil className="size-4" />
                         </IconButton>
                       )}
-                      {canWrite && e.status === "active" && (
+                      {canWrite && !isProtected(e) && e.status === "active" && (
                         <IconButton label={`Lokasi absen ${e.full_name}`} onClick={() => setAssigning(e)}>
                           <MapPin className="size-4" />
                         </IconButton>
                       )}
-                      {e.status === "active" && e.account && !isProtected(e) && (
+                      {e.status === "active" && e.account && !isProtected(e) && !isSelf(e) && (
                         <>
                           {canReset && !(isSuperadmin && e.account.role === "sdm") && (
                             <IconButton label={`Terbitkan tautan sandi untuk ${e.full_name}`} onClick={() => setResetting(e)}>
@@ -230,7 +232,7 @@ function EmployeesView() {
                           )}
                         </>
                       )}
-                      {canWrite && !isProtected(e) && e.status === "active" && (
+                      {canWrite && !isProtected(e) && !isSelf(e) && e.status === "active" && (
                         <IconButton label={`Nonaktifkan ${e.full_name}`} onClick={() => setDeleting(e)} className="hover:text-red-600">
                           <UserX className="size-4" />
                         </IconButton>

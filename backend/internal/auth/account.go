@@ -348,6 +348,25 @@ func (s *Service) managedTarget(ctx context.Context, actor Principal, id uuid.UU
 	return user, nil
 }
 
+// AssertEmployeeNotProtected menolak perubahan data Pejuang yang akunnya super admin, kecuali
+// oleh super admin sendiri (D34).
+func AssertEmployeeNotProtected(ctx context.Context, q *store.Queries, actor Principal, employeeID uuid.UUID) error {
+	if actor.Role == permission.RoleSuperadmin {
+		return nil
+	}
+	user, err := q.GetUserByEmployee(ctx, employeeID)
+	if pgconv.IsNoRows(err) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	if user.Role == store.UserRoleSuperadmin {
+		return httpx.ErrForbidden()
+	}
+	return nil
+}
+
 func errSelfAction(message string) error {
 	return httpx.NewError(http.StatusConflict, "CONFLICT_SELF_ACTION", message)
 }

@@ -54,6 +54,43 @@ func realIP(trust bool) func(http.Handler) http.Handler {
 	}
 }
 
+// blockDirectAccess menolak request yang bukan dari web admin atau aplikasi (D37). Header bisa
+// dipalsukan, jadi ini hanya menutup akses langsung dan pemindaian biasa. Perlindungan data tetap
+// berada di autentikasi dan permission.
+func blockDirectAccess(allowed []string) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if slices.Contains(allowed, r.Header.Get("Origin")) || r.Header.Get("Authorization") != "" || isDirectLocal(r) {
+				next.ServeHTTP(w, r)
+				return
+			}
+			if len(allowed) > 0 && isBrowserNavigation(r) {
+				// Tujuannya dari konfigurasi, bukan dari request, jadi tidak bisa dipakai untuk open redirect.
+				http.Redirect(w, r, allowed[0]+"/", http.StatusFound)
+				return
+			}
+			httpx.WriteError(w, r, httpx.NewError(http.StatusForbidden, "API_ACCESS_DENIED", "Akses langsung ke API tidak diizinkan."))
+		})
+	}
+}
+
+// isDirectLocal menjawab apakah koneksi datang langsung dari mesin ini, misalnya pemeriksaan
+// deploy. Nginx selalu menimpa X-Real-IP, jadi request dari luar tidak bisa lolos sebagai lokal.
+func isDirectLocal(r *http.Request) bool {
+	if r.Header.Get("X-Real-IP") != "" {
+		return false
+	}
+	addr := audit.ClientIP(r)
+	return addr != nil && addr.IsLoopback()
+}
+
+func isBrowserNavigation(r *http.Request) bool {
+	if r.Method != http.MethodGet && r.Method != http.MethodHead {
+		return false
+	}
+	return r.Header.Get("Sec-Fetch-Mode") == "navigate" || strings.Contains(r.Header.Get("Accept"), "text/html")
+}
+
 // limitByIP berjalan sebelum autentikasi (urutan F2).
 func limitByIP(limiter auth.Limiter) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {

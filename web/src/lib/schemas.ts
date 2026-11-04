@@ -109,6 +109,17 @@ export const holidaySchema = z.object({
 });
 export type HolidayInput = z.infer<typeof holidaySchema>;
 
+export const workArrangementSchema = z
+  .object({
+    mode: z.enum(["wfa", "hybrid"], { error: "Pilih mode." }),
+    flexible_hours: z.boolean(),
+    starts_on: required("Tanggal mulai"),
+    ends_on: z.string().nullable(),
+    weekdays: z.array(z.number()),
+    reason: required("Alasan").max(500, "Alasan maksimal 500 karakter."),
+  })
+  .refine((v) => !v.ends_on || v.ends_on >= v.starts_on, { path: ["ends_on"], message: "Tanggal selesai tidak boleh sebelum tanggal mulai." });
+
 /** Mengembalikan pesan error per field atau null bila valid. */
 export function validate(schema: z.ZodType, values: unknown): Record<string, string> | null {
   const r = schema.safeParse(values);

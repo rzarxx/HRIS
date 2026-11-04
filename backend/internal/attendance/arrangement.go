@@ -222,7 +222,7 @@ func (s *Service) DeleteArrangement(ctx context.Context, p auth.Principal, ip *n
 
 func arrangementAudit(p auth.Principal, ip *netip.Addr, r store.EmployeeWorkArrangement, change string) audit.Entry {
 	return audit.Entry{
-		UserID: audit.Actor(p.UserID), Action: audit.EmployeeUpdated, Entity: "employee", EntityID: r.EmployeeID, IP: ip,
+		UserID: audit.Actor(p.UserID), Action: audit.EmployeeWorkArrangementChanged, Entity: "employee", EntityID: r.EmployeeID, IP: ip,
 		Detail: map[string]any{
 			"change": change, "arrangement_id": r.ID, "mode": r.Mode, "flexible_hours": r.FlexibleHours,
 			"starts_on": r.StartsOn.Time.Format("2006-01-02"), "ends_on": pgconv.DateString(r.EndsOn), "weekdays": r.Weekdays,

@@ -2138,6 +2138,105 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/admin/attendance/review": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Antrian Review Absen
+         * @description Permission `attendance:review`. Yang terlama lebih dulu.
+         */
+        get: {
+            parameters: {
+                query?: {
+                    work_mode?: "onsite" | "wfa" | "field";
+                    page?: components["parameters"]["Page"];
+                    per_page?: components["parameters"]["PerPage"];
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data: components["schemas"]["AttendanceReviewItem"][];
+                            meta: components["schemas"]["PageMeta"];
+                        };
+                    };
+                };
+                400: components["responses"]["ValidationFailed"];
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/attendance/{id}/resolve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Putuskan absen review
+         * @description Permission `attendance:review`. `present` menghapus keterlambatan, `late` hanya untuk absen yang memang terlambat, dan `absent` wajib memakai catatan. Absen sendiri ditolak `CONFLICT_SELF_ACTION`, dan absen yang sudah diputuskan ditolak `REQUEST_NOT_PENDING`.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: components["parameters"]["Id"];
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["AttendanceResolveInput"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data: components["schemas"]["AttendanceResolved"];
+                        };
+                    };
+                };
+                400: components["responses"]["ValidationFailed"];
+                404: components["responses"]["Error"];
+                409: components["responses"]["Error"];
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/admin/employees/{id}/work-arrangements": {
         parameters: {
             query?: never;
@@ -2979,6 +3078,7 @@ export interface components {
             /** Format: date-time */
             clock_out_at: string;
             worked_minutes: number;
+            requires_review: boolean;
         };
         AttendanceRecord: {
             /** Format: uuid */
@@ -3063,6 +3163,53 @@ export interface components {
             polygon: components["schemas"]["GeoPoint"][] | null;
             is_active: boolean;
             employee_count: number;
+        };
+        /** @description Skor dan alasan risiko hanya untuk peninjau (D8). */
+        AttendanceReviewItem: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            employee_id: string;
+            employee_name: string;
+            nip: string;
+            subdivision_name: string;
+            division_name: string;
+            /** Format: date */
+            work_date: string;
+            /** Format: date-time */
+            clock_in_at: string | null;
+            /** Format: date-time */
+            clock_out_at: string | null;
+            late_minutes: number;
+            /** @enum {string} */
+            work_mode: "onsite" | "wfa" | "field";
+            flexible_hours: boolean;
+            location_name: string | null;
+            in_latitude: number | null;
+            in_longitude: number | null;
+            out_latitude: number | null;
+            out_longitude: number | null;
+            in_accuracy_m: number | null;
+            risk_score: number;
+            risk_flags: string[];
+        };
+        AttendanceResolveInput: {
+            /** @enum {string} */
+            decision: "present" | "late" | "absent";
+            /** @description Wajib minimal 3 karakter bila absent */
+            note?: string;
+        };
+        AttendanceResolved: {
+            /** Format: uuid */
+            id: string;
+            /** Format: date */
+            work_date: string;
+            /** @enum {string} */
+            status: "present" | "late" | "absent";
+            late_minutes: number;
+            review_note: string | null;
+            /** Format: date-time */
+            reviewed_at: string;
         };
         WorkArrangementInput: {
             /** @enum {string} */

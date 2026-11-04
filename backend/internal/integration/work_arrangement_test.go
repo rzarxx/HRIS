@@ -39,12 +39,12 @@ func (f clockFixture) grant(t *testing.T, body map[string]any) arrangementRow {
 
 func (f clockFixture) clockInAt(t *testing.T, lat, lon float64) response {
 	t.Helper()
-	return f.hp.do(http.MethodPost, "/v1/attendance/clock-in", clockBody(f.challenge(t, "clock_in"), lat, lon))
+	return f.hp.do(http.MethodPost, "/v1/attendance/clock-in", f.clockBody(f.challenge(t, "clock_in"), lat, lon))
 }
 
 func (f clockFixture) clockOutAt(t *testing.T, lat, lon float64) response {
 	t.Helper()
-	return f.hp.do(http.MethodPost, "/v1/attendance/clock-out", clockBody(f.challenge(t, "clock_out"), lat, lon))
+	return f.hp.do(http.MethodPost, "/v1/attendance/clock-out", f.clockBody(f.challenge(t, "clock_out"), lat, lon))
 }
 
 // attendanceRow membaca baris absen yang tidak semuanya dikirim ke klien.
@@ -68,7 +68,7 @@ func TestWFASkipsOnlyGeofence(t *testing.T) {
 	f.grant(t, map[string]any{"mode": "wfa", "starts_on": "2026-11-02", "reason": "Bekerja dari rumah"})
 
 	// Sinyal keras tetap ditolak walau WFA.
-	mock := clockBody(f.challenge(t, "clock_in"), farLat, farLon)
+	mock := f.clockBody(f.challenge(t, "clock_in"), farLat, farLon)
 	mock["signals"] = map[string]any{"is_mock_location": true, "app_version": "1.0.0"}
 	f.hp.do(http.MethodPost, "/v1/attendance/clock-in", mock).wantError(t, http.StatusUnprocessableEntity, "ATTENDANCE_BLOCKED")
 
@@ -197,7 +197,7 @@ func TestRevokeArrangementTakesEffect(t *testing.T) {
 	err := ownerPool.QueryRow(context.Background(), `
 		SELECT count(*) FILTER (WHERE detail->>'change' = 'work_arrangement_added'),
 		       count(*) FILTER (WHERE detail->>'change' = 'work_arrangement_removed')
-		FROM audit_logs WHERE action = 'employee.updated' AND entity_id = $1`, f.account.employeeID,
+		FROM audit_logs WHERE action = 'employee.work_arrangement_changed' AND entity_id = $1`, f.account.employeeID,
 	).Scan(&added, &removed)
 	if err != nil {
 		t.Fatal(err)

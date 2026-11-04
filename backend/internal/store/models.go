@@ -225,6 +225,9 @@ type Attendance struct {
 	OutLatitude   decimal.NullDecimal
 	OutLongitude  decimal.NullDecimal
 	FlexibleHours bool
+	ReviewBy      uuid.NullUUID
+	ReviewedAt    pgtype.Timestamptz
+	ReviewNote    pgtype.Text
 }
 
 type AttendanceAttempt struct {

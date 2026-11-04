@@ -121,7 +121,7 @@ export function EmployeeArrangementsModal({ employee, onClose }: { employee: Emp
         {isSelf ? (
           <p className="mt-4 text-sm text-slate-500">Izin kerja untuk akun sendiri harus diberikan peninjau lain.</p>
         ) : (
-          <form id="arrangement-form" onSubmit={submit} noValidate className="mt-5 grid gap-4 border-t border-slate-100 pt-4 sm:grid-cols-2">
+          <form id="arrangement-form" onSubmit={submit} noValidate className="mt-5 grid grid-cols-1 gap-4 border-t border-slate-100 pt-4 sm:grid-cols-2">
             <h3 className="text-sm font-medium text-slate-900 sm:col-span-2">Tambah izin</h3>
             {!employee.default_shift_name && (
               <p className="rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-800 sm:col-span-2">

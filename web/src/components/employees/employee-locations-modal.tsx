@@ -53,7 +53,7 @@ export function EmployeeLocationsModal({ employee, onClose }: { employee: Employ
       ) : (
         <>
           <p className="mb-3 text-sm text-slate-500">Tanpa lokasi yang dipilih, Pejuang ini tidak bisa absen di mana pun.</p>
-          <ul className="grid gap-2">
+          <ul className="grid grid-cols-1 gap-2">
             {locations.data.map((l) => (
               <li key={l.id}>
                 <Toggle checked={selected.includes(l.id)} onChange={() => toggle(l.id)}>

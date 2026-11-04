@@ -58,7 +58,7 @@ function OrgDashboard() {
         />
       </div>
 
-      <div className="mt-4 grid gap-4 xl:grid-cols-5">
+      <div className="mt-4 grid grid-cols-1 gap-4 xl:grid-cols-5">
         <div className="xl:col-span-3">
           <EmployeesPerSubdivChart data={chart.data} />
         </div>

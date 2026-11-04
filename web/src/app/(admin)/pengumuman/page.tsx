@@ -176,8 +176,8 @@ export default function AnnouncementsPage() {
           </>
         }
       >
-        <div className="grid gap-6 md:grid-cols-[1fr_auto]">
-          <form id="announcement-form" onSubmit={submit} noValidate className="grid content-start gap-4 sm:grid-cols-2">
+        <div className="grid grid-cols-1 gap-6 md:grid-cols-[minmax(0,1fr)_auto]">
+          <form id="announcement-form" onSubmit={submit} noValidate className="grid grid-cols-1 content-start gap-4 sm:grid-cols-2">
             <Field label="Judul" htmlFor="title" error={errors.title} required className="sm:col-span-2">
               <Input id="title" value={form.title} onChange={(e) => set("title", e.target.value)} invalid={!!errors.title} />
             </Field>

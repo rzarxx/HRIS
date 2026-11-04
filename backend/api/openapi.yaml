@@ -1379,6 +1379,7 @@ components:
         - AUTH_ACCOUNT_LOCKED
         - APP_UPDATE_REQUIRED
         - RATE_LIMITED
+        - API_ACCESS_DENIED
         - INTERNAL_ERROR
     Permission:
       type: string

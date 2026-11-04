@@ -18,6 +18,8 @@ import (
 	"github.com/rzarxx/HRIS/backend/internal/permission"
 )
 
+const testWebOrigin = "http://localhost:3000"
+
 var allRoles = []string{permission.RolePejuang, permission.RoleSubdiv, permission.RoleKadiv, permission.RoleSDM, permission.RoleSuperadmin}
 
 func testRouter(t *testing.T, sessionActive bool) (http.Handler, *auth.TokenSigner, []Route) {
@@ -38,7 +40,7 @@ func testRouterState(t *testing.T, state auth.SessionState) (http.Handler, *auth
 			return state, nil
 		},
 		Limiter: auth.NewMemoryLimiter(),
-		Options: Options{AllowedOrigins: []string{"http://localhost:3000"}},
+		Options: Options{AllowedOrigins: []string{testWebOrigin}},
 	}
 	// Handler asli diganti stub: tes ini hanya memeriksa gerbang akses.
 	table := routes(d)
@@ -54,6 +56,8 @@ func testRouterState(t *testing.T, state auth.SessionState) (http.Handler, *auth
 func call(h http.Handler, method, path, token, csrf string) *httptest.ResponseRecorder {
 	path = strings.ReplaceAll(path, "{date}", "2026-08-17")
 	req := httptest.NewRequest(method, strings.ReplaceAll(path, "{id}", uuid.NewString()), nil)
+	// Tes ini memeriksa gerbang akses; penjaga akses langsung punya tes sendiri.
+	req.Header.Set("Origin", testWebOrigin)
 	if token != "" {
 		req.AddCookie(&http.Cookie{Name: auth.CookieAccess, Value: token})
 	}
@@ -293,5 +297,111 @@ func TestCORSOnlyAllowsConfiguredOrigin(t *testing.T) {
 	}
 	if got := preflight("https://jahat.example").Header().Get("Access-Control-Allow-Origin"); got != "" {
 		t.Errorf("origin asing diizinkan: %q", got)
+	}
+}
+
+func directRequest(method, path string, headers map[string]string) *http.Request {
+	req := httptest.NewRequest(method, strings.ReplaceAll(strings.ReplaceAll(strings.ReplaceAll(strings.ReplaceAll(path, "{id}", uuid.NewString()), "{date}", "2026-08-17"), "{user_id}", uuid.NewString()), "{session_id}", uuid.NewString()), nil)
+	for k, v := range headers {
+		req.Header.Set(k, v)
+	}
+	return req
+}
+
+// Akses langsung dari luar tidak boleh mencapai route mana pun, termasuk route publik (D37).
+func TestDirectAccessIsBlocked(t *testing.T) {
+	h, _, table := testRouter(t, true)
+	paths := []struct{ method, path string }{{http.MethodGet, "/"}, {http.MethodGet, "/healthz"}, {http.MethodGet, "/readyz"}, {http.MethodGet, "/tidak-ada"}, {http.MethodGet, "/.env"}}
+	for _, r := range table {
+		paths = append(paths, struct{ method, path string }{r.Method, r.Path})
+	}
+	for _, p := range paths {
+		rec := httptest.NewRecorder()
+		h.ServeHTTP(rec, directRequest(p.method, p.path, nil))
+		if rec.Code != http.StatusForbidden || errorCode(t, rec) != "API_ACCESS_DENIED" {
+			t.Errorf("%s %s: %d %s", p.method, p.path, rec.Code, rec.Body.String())
+		}
+	}
+
+	// Asal yang tidak dikenal, termasuk preflight, juga ditolak tanpa header CORS.
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, directRequest(http.MethodOptions, "/v1/me", map[string]string{"Origin": "https://evil.example", "Access-Control-Request-Method": "GET"}))
+	if rec.Code != http.StatusForbidden || rec.Header().Get("Access-Control-Allow-Origin") != "" {
+		t.Errorf("preflight asing: %d %v", rec.Code, rec.Header())
+	}
+	// Respons penolakan tetap memuat header keamanan.
+	if rec.Header().Get("X-Content-Type-Options") != "nosniff" {
+		t.Errorf("header keamanan hilang: %v", rec.Header())
+	}
+}
+
+// Membuka alamat API dari browser dialihkan ke web admin, dan tujuannya tidak bisa dipengaruhi request.
+func TestBrowserNavigationRedirectsToWeb(t *testing.T) {
+	h, _, _ := testRouter(t, true)
+	for name, headers := range map[string]map[string]string{
+		"sec-fetch":  {"Sec-Fetch-Mode": "navigate"},
+		"accept":     {"Accept": "text/html,application/xhtml+xml"},
+		"host palsu": {"Accept": "text/html", "X-Forwarded-Host": "evil.example", "Referer": "https://evil.example/"},
+	} {
+		rec := httptest.NewRecorder()
+		h.ServeHTTP(rec, directRequest(http.MethodGet, "/v1/admin/employees?next=https://evil.example", headers))
+		if rec.Code != http.StatusFound || rec.Header().Get("Location") != testWebOrigin+"/" {
+			t.Errorf("%s: %d %q", name, rec.Code, rec.Header().Get("Location"))
+		}
+		if strings.Contains(rec.Body.String(), "employee") {
+			t.Errorf("%s: isi respons bocor: %s", name, rec.Body.String())
+		}
+	}
+	// Selain GET dan HEAD tidak pernah dialihkan.
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, directRequest(http.MethodPost, "/v1/auth/web/login", map[string]string{"Accept": "text/html"}))
+	if rec.Code != http.StatusForbidden {
+		t.Errorf("POST: %d", rec.Code)
+	}
+}
+
+// Web admin dan aplikasi tetap bisa masuk, tetapi route data tetap wajib login.
+func TestAllowedClientsStillNeedLogin(t *testing.T) {
+	h, _, table := testRouter(t, true)
+	for _, r := range table {
+		if r.Access == Public {
+			continue
+		}
+		for name, headers := range map[string]map[string]string{
+			"web":      {"Origin": testWebOrigin},
+			"aplikasi": {"Authorization": "Bearer palsu"},
+		} {
+			rec := httptest.NewRecorder()
+			h.ServeHTTP(rec, directRequest(r.Method, r.Path, headers))
+			if rec.Code != http.StatusUnauthorized {
+				t.Errorf("%s %s (%s): %d %s", r.Method, r.Path, name, rec.Code, rec.Body.String())
+			}
+		}
+	}
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, directRequest(http.MethodOptions, "/v1/me", map[string]string{"Origin": testWebOrigin, "Access-Control-Request-Method": "GET"}))
+	if rec.Code != http.StatusNoContent || rec.Header().Get("Access-Control-Allow-Origin") != testWebOrigin {
+		t.Errorf("preflight web: %d %v", rec.Code, rec.Header())
+	}
+}
+
+// Pemeriksaan deploy dari mesin ini tetap jalan, tetapi request lewat Nginx tidak ikut dianggap lokal.
+func TestLocalAccess(t *testing.T) {
+	h, _, _ := testRouter(t, true)
+	local := directRequest(http.MethodGet, "/readyz", nil)
+	local.RemoteAddr = "127.0.0.1:50000"
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, local)
+	if rec.Code != http.StatusOK {
+		t.Errorf("lokal: %d", rec.Code)
+	}
+	for _, realIP := range []string{"203.0.113.9", "127.0.0.1"} {
+		proxied := directRequest(http.MethodGet, "/readyz", map[string]string{"X-Real-IP": realIP})
+		proxied.RemoteAddr = "127.0.0.1:50000"
+		rec := httptest.NewRecorder()
+		h.ServeHTTP(rec, proxied)
+		if rec.Code != http.StatusForbidden {
+			t.Errorf("lewat proxy %s: %d", realIP, rec.Code)
+		}
 	}
 }

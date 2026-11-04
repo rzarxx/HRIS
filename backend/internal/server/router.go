@@ -154,7 +154,7 @@ func New(d Deps) http.Handler {
 
 func build(d Deps, table []Route) http.Handler {
 	r := chi.NewRouter()
-	r.Use(realIP(d.Options.TrustProxy), requestID, recoverer, requestLogger, limitBody, withTimeout, cors(d.Options.AllowedOrigins), securityHeaders(d.Options.Secure), limitByIP(d.Limiter))
+	r.Use(realIP(d.Options.TrustProxy), requestID, recoverer, requestLogger, securityHeaders(d.Options.Secure), blockDirectAccess(d.Options.AllowedOrigins), limitBody, withTimeout, cors(d.Options.AllowedOrigins), limitByIP(d.Limiter))
 
 	r.NotFound(func(w http.ResponseWriter, req *http.Request) { httpx.WriteError(w, req, httpx.ErrNotFound()) })
 	r.MethodNotAllowed(func(w http.ResponseWriter, req *http.Request) {

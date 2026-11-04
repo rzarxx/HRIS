@@ -437,6 +437,7 @@ Data biometrik tergolong data pribadi bersifat spesifik dalam UU PDP (UU 27/2022
 
 ### 5.7 Kontrol API
 - TLS 1.2+ dengan HSTS; HTTP hanya redirect.
+- Akses langsung ditutup (D37): hanya request dari origin web admin, request dengan `Authorization`, atau koneksi langsung dari mesin itu sendiri yang diteruskan. Membuka alamat API dari browser dialihkan ke web admin, selain itu dijawab `API_ACCESS_DENIED`.
 - Batas ukuran body (JSON 1 MB, upload 5 MB) dan timeout per request.
 - **Rate limit awal** (per akun + IP):
   | Endpoint | Batas |
@@ -593,6 +594,7 @@ Daftar memakai `?page=&per_page=&q=&sort=` (contoh `sort=-created_at`) dan filte
 | 403 | `CSRF_INVALID` | Token CSRF salah (web) |
 | 403 | `PASSWORD_CHANGE_REQUIRED` | Wajib ganti sandi dulu |
 | 403 | `MFA_SETUP_REQUIRED` | Role `sdm` wajib mengaktifkan MFA dulu |
+| 403 | `API_ACCESS_DENIED` | Akses langsung ke API, bukan dari web admin atau aplikasi (D37) |
 | 403 | `DEVICE_NOT_REGISTERED` | `X-Device-Id` tidak dikenal |
 | 403 | `DEVICE_PENDING_APPROVAL` | Perangkat menunggu persetujuan SDM |
 | 403 | `DEVICE_REVOKED` | Perangkat dicabut |
@@ -1589,6 +1591,7 @@ Estimasi untuk tim kecil; sesuaikan setelah kapasitas tim jelas.
 | D34 | Super admin adalah role tertinggi: semua akses kecuali keuangan, dan SDM tidak bisa mengubah akunnya | Keputusan pemilik proyek. Keuangan = payroll, pratinjau upah, gaji orang lain, dan kasbon orang lain. Konsekuensi: bila satu-satunya super admin lupa kata sandi, pemulihannya lewat perintah di server |
 | D35 | Aplikasi Android minimal dibuat sebelum Play Integrity dan wajah | Keduanya hanya bisa dibuktikan di HP sungguhan, jadi masalahnya harus ketahuan lebih awal. Konsekuensi: sebagian Fase 3 dikerjakan sebelum Fase 2 selesai |
 | D36 | Selama verifikasi perangkat dan wajah belum dibuat, semua absen ditolak, kecuali di development dengan `DEV_ALLOW_UNVERIFIED_ATTENDANCE` | Absen tanpa verifikasi tidak boleh bisa terpakai di produksi. API menolak menyala bila izin ini dipakai di luar development, dan absennya diberi penanda `unverified_integrity` |
+| D37 | API menolak akses langsung dari luar web admin dan aplikasi | Keputusan pemilik proyek. Header bisa dipalsukan, jadi ini menutup akses langsung dan pemindaian biasa, bukan pengganti autentikasi. Konsekuensi: alat seperti Postman ke server harus mengirim header `Origin`. API tetap terjangkau internet karena aplikasi Android di lapangan membutuhkannya |
 | D15 | `/v1/admin/reports/payroll-preview` mewajibkan `attendance:report` dan `payroll:manage` | Respons memuat gaji, sedangkan §7.6 membatasi `base_salary` untuk `sdm` dan pemilik data |
 
 ### 14.2 Pertanyaan yang Harus Dijawab (blokir pekerjaan terkait)

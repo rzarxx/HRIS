@@ -412,6 +412,9 @@ Semua HP Android didukung lewat jalur berjenjang. Jalur ditetapkan **server** da
 - **Hybrid (D26)** untuk Pejuang yang sering dinas atau safari di luar kantor. Absen di dalam lokasi yang ditugaskan tercatat `onsite`; absen di luar lokasi tetap sah dan tercatat `field`, dengan kontrol yang sama seperti WFA.
 - **Jam fleksibel (D26):** bila `flexible_hours` aktif, absen di luar jam shift sah dan tidak dihitung telat (`late_minutes` = 0). Perhitungan lemburnya mengikuti aturan upah yang diatur SDM (D29).
 - Absen pulang yang melewati tengah malam dipasangkan dengan absen masuk yang masih terbuka, jadi tetap masuk `work_date` hari masuknya, selama belum lewat cutoff harian berikutnya (D31).
+- Saat absen pulang, izin dibaca dari `work_date` absen masuknya. Bila masuk dari kantor lalu pulang dari luar, `work_mode` berubah sesuai tempat pulang. Mencabut izin langsung berlaku, termasuk untuk absen pulang hari itu; absen yang sudah tercatat tidak berubah.
+- `attendances.flexible_hours` menyimpan status jam fleksibel saat absen, agar perhitungan lembur tidak bergantung pada izin yang sudah dicabut. Jam fleksibel tetap membutuhkan shift, karena shift menentukan `work_date` dan batas absen pulang. Jam fleksibel hanya tersedia bersama mode `wfa` atau `hybrid`.
+- Satu tanggal hanya punya satu izin; izin yang tumpang tindih ditolak (`CONFLICT_DUPLICATE`). Peninjau tidak bisa memberi izin untuk dirinya sendiri (`CONFLICT_SELF_ACTION`), dan SDM tidak bisa mengatur izin super admin (D34).
 - Penetapan bisa massal per divisi atau subdiv, tetapi datanya tetap tersimpan per Pejuang agar pengecualian dan auditnya jelas.
 - Pejuang WFA yang tidak bisa datang ke kantor mendaftarkan wajah lewat panggilan video dengan SDM, lalu SDM menyetujuinya secara tercatat.
 
@@ -496,14 +499,14 @@ DDL dasar ada di `QUERY.sql`; perubahan di **Lampiran A** (yang berlaku). Beriku
 | `devices` | `id`, `employee_id`, `device_hash`, `model`, `os_version`, `fcm_token`, `status`, `integrity_tier`, `manual_approved_until`, `approved_by`, `approved_at`, `revoked_by`, `revoked_at`, `revoked_reason`, `last_seen_at` | §5.4.1. `integrity_tier` dan `manual_approved_until` ditambahkan bersama verifikasi perangkat |
 | `face_templates` | `id`, `employee_id`, `embedding_enc`, `key_id`, `model_version`, `is_active` | |
 | `consents` | `id`, `employee_id`, `type`, `version`, `accepted_at` | |
-| `employee_work_arrangements` | `id`, `employee_id`, `mode` (`wfa`/`hybrid`), `flexible_hours`, `starts_on`, `ends_on`, `weekdays`, `reason`, `created_by` | §5.4.2 |
+| `employee_work_arrangements` | `id`, `employee_id`, `mode` (`wfa`/`hybrid`), `flexible_hours`, `starts_on`, `ends_on`, `weekdays`, `reason`, `created_by`, `created_at` | §5.4.2 |
 | `office_locations` | `id`, `name`, `latitude`, `longitude`, `radius_m`, `polygon`, `is_active` | Geofence dihitung di Go (D22); `polygon` JSONB |
 | `employee_locations` | `employee_id`, `location_id` | Lokasi yang diizinkan |
 | `shifts` | `id`, `name`, `start_time`, `end_time`, `late_tolerance_minutes`, `work_days` | |
 | `holidays` | `date`, `name` | |
 | `attendance_challenges` | `id`, `employee_id`, `device_id`, `nonce`, `purpose`, `expires_at`, `used_at` | |
 | `attendance_attempts` | `id`, `employee_id`, `device_id`, `purpose`, `outcome`, `reason_code`, `risk_score`, `risk_flags`, `created_at` | Semua upaya |
-| `attendances` | `id`, `employee_id`, `work_date`, `clock_in_at`, `clock_out_at`, `work_mode`, `location_id`, `worked_minutes`, `in_latitude`, `in_longitude`, `out_latitude`, `out_longitude`, `in_accuracy_m`, `face_score`, `risk_score`, `risk_flags`, `status`, `late_minutes`, `selfie_url`, `selfie_sha256` | Unik `(employee_id, work_date)` |
+| `attendances` | `id`, `employee_id`, `work_date`, `clock_in_at`, `clock_out_at`, `work_mode`, `flexible_hours`, `location_id`, `worked_minutes`, `in_latitude`, `in_longitude`, `out_latitude`, `out_longitude`, `in_accuracy_m`, `face_score`, `risk_score`, `risk_flags`, `status`, `late_minutes`, `selfie_url`, `selfie_sha256` | Unik `(employee_id, work_date)` |
 | `leave_types`, `leave_requests` | `leave_type_id`, `start_date`, `end_date`, `reason`, `attachment_upload_id`, `status` | |
 | `cash_advances`, `cash_advance_installments` | `amount`, `installments`, `status`; cicilan: `period_year`, `period_month`, `amount`, `status` | |
 | `transfer_requests` | `from_subdivision_id`, `to_subdivision_id`, `effective_date`, `status` | |
@@ -696,7 +699,8 @@ Setiap `code` baru wajib ditambahkan di tabel ini.
 | CRUD | `/v1/admin/office-locations` | `location:manage` |
 | CRUD | `/v1/admin/shifts`, `/v1/admin/holidays` | `shift:manage` |
 | GET, PUT | `/v1/admin/employees/{id}/locations` | `employee:write` |
-| GET, POST, DELETE | `/v1/admin/employees/{id}/work-arrangements` | `employee:write` |
+| GET, POST | `/v1/admin/employees/{id}/work-arrangements` | `employee:write` |
+| DELETE | `/v1/admin/employees/{id}/work-arrangements/{arrangement_id}` | `employee:write` |
 | GET, PUT | `/v1/admin/settings/mail` | `settings:manage` |
 | POST | `/v1/admin/settings/mail/test` | `settings:manage` |
 | GET | `/v1/admin/attendance`, `/v1/admin/attendance/review`, `/v1/admin/attendance/attempts` | `attendance:review` / `attendance:report` |
@@ -761,10 +765,12 @@ request: `{ "purpose": "clock_in" }` → respons: `{ "data": { "challenge_id": "
 Respons:
 ```json
 { "data": { "attendance_id": "uuid", "work_date": "2026-11-02", "status": "present",
-            "clock_in_at": "2026-11-02T01:00:03Z", "late_minutes": 0,
+            "clock_in_at": "2026-11-02T01:00:03Z", "late_minutes": 0, "work_mode": "onsite",
             "office_location": { "id": "uuid", "name": "Kantor Pusat" },
             "requires_review": false } }
 ```
+`office_location` bernilai `null` saat `work_mode` adalah `wfa` atau `field`.
+
 `clock-out` memakai bentuk yang sama (tanpa `late_minutes`), dengan `challenge` `purpose = clock_out`.
 
 **Attendance (riwayat)**: `id`, `work_date`, `clock_in_at`, `clock_out_at`, `status`, `late_minutes`, `office_location`.
@@ -1493,7 +1499,8 @@ Estimasi untuk tim kecil; sesuaikan setelah kapasitas tim jelas.
 - [x] Peta untuk mengatur area lokasi (D28)
 - [ ] Challenge + verifikasi Play Integrity (jalur A)
 - [ ] Key Attestation (jalur B), perangkat manual (jalur D), kiosk (jalur E); Huawei (jalur C) bila ada penggunanya
-- [ ] Izin WFA dan hybrid per Pejuang, jam fleksibel, dan pendaftaran wajah jarak jauh
+- [x] Izin WFA dan hybrid per Pejuang dan jam fleksibel di API
+- [ ] Layar izin kerja, penetapan massal, saring rekap per `work_mode`, dan pendaftaran wajah jarak jauh
 - [x] Challenge, clock-in, clock-out, cutoff harian, dan `worked_minutes` (D31), masih tanpa verifikasi perangkat dan wajah (D36)
 - [ ] Enroll + cocok wajah (enkripsi aplikasi)
 - [ ] Skor risiko + `attendance_attempts`

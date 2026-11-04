@@ -1,6 +1,7 @@
 package attendance
 
 import (
+	"slices"
 	"time"
 
 	"github.com/rzarxx/HRIS/backend/internal/platform/pgconv"
@@ -44,16 +45,57 @@ func WorkDate(now time.Time, s Schedule) time.Time {
 	return date
 }
 
-// IsWorkDay menjawab apakah tanggal termasuk hari kerja shift.
-func IsWorkDay(date time.Time, s Schedule) bool {
+func isoWeekday(date time.Time) int16 {
 	day := int16(date.Weekday())
 	if day == 0 {
-		day = 7
+		return 7
 	}
-	for _, d := range s.WorkDays {
-		if d == day {
+	return day
+}
+
+// IsWorkDay menjawab apakah tanggal termasuk hari kerja shift.
+func IsWorkDay(date time.Time, s Schedule) bool {
+	return slices.Contains(s.WorkDays, isoWeekday(date))
+}
+
+// Arrangement adalah aturan tanggal izin kerja. Weekdays kosong berarti setiap hari.
+type Arrangement struct {
+	StartsOn time.Time
+	EndsOn   *time.Time // kosong berarti tanpa akhir
+	Weekdays []int16
+}
+
+// calendarDay membuang jam dan zona waktu, karena tanggal dari database dan dari WorkDate
+// memakai zona yang berbeda.
+func calendarDay(t time.Time) time.Time {
+	y, m, d := t.Date()
+	return time.Date(y, m, d, 0, 0, 0, 0, time.UTC)
+}
+
+// ActiveOn menjawab apakah izin berlaku pada tanggal itu.
+func (a Arrangement) ActiveOn(date time.Time) bool {
+	day := calendarDay(date)
+	if day.Before(calendarDay(a.StartsOn)) {
+		return false
+	}
+	if a.EndsOn != nil && day.After(calendarDay(*a.EndsOn)) {
+		return false
+	}
+	return len(a.Weekdays) == 0 || slices.Contains(a.Weekdays, isoWeekday(day))
+}
+
+// Overlaps menjawab apakah dua izin berlaku pada tanggal yang sama. Tujuh hari berturut-turut
+// sudah mencakup semua hari dalam seminggu, jadi izin tanpa akhir pun cukup diperiksa sejauh itu.
+func (a Arrangement) Overlaps(b Arrangement) bool {
+	day := calendarDay(a.StartsOn)
+	if start := calendarDay(b.StartsOn); start.After(day) {
+		day = start
+	}
+	for range 7 {
+		if a.ActiveOn(day) && b.ActiveOn(day) {
 			return true
 		}
+		day = day.AddDate(0, 0, 1)
 	}
 	return false
 }

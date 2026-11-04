@@ -66,6 +66,8 @@ func newClockFixture(t *testing.T, opt options, startTime, endTime string) clock
 	exec(t, `DELETE FROM attendances WHERE employee_id = $1`, acc.employeeID)
 
 	d := data[deviceRow](t, register(hp, "utama").want(t, http.StatusCreated))
+	// Perangkat lama, agar sinyal new_device_recent hanya menyala di tes yang memintanya.
+	exec(t, `UPDATE devices SET approved_at = $1 WHERE id = $2`, clock.Now().AddDate(0, 0, -7), d.ID)
 	loc := data[officeLocation](t, sdm.do(http.MethodPost, "/v1/admin/office-locations", map[string]any{
 		"name": "Kantor Pusat", "latitude": officeLat, "longitude": officeLon, "radius_m": 100,
 	}).want(t, http.StatusCreated))
@@ -88,22 +90,22 @@ func (f clockFixture) challenge(t *testing.T, purpose string) string {
 	return data[challengeResp](t, f.hp.do(http.MethodPost, "/v1/attendance/challenge", map[string]any{"purpose": purpose}).want(t, http.StatusCreated)).ChallengeID
 }
 
-func clockBody(challenge string, lat, lon float64) map[string]any {
+func (f clockFixture) clockBody(challenge string, lat, lon float64) map[string]any {
 	return map[string]any{
 		"challenge_id": challenge, "latitude": lat, "longitude": lon, "accuracy_m": 12.5,
-		"captured_at": "2026-11-02T01:00:00Z",
+		"captured_at": f.clock.Now().UTC().Format(time.RFC3339),
 		"signals":     map[string]any{"app_version": "1.0.0"},
 	}
 }
 
 func (f clockFixture) clockIn(t *testing.T) response {
 	t.Helper()
-	return f.hp.do(http.MethodPost, "/v1/attendance/clock-in", clockBody(f.challenge(t, "clock_in"), officeLat, officeLon))
+	return f.hp.do(http.MethodPost, "/v1/attendance/clock-in", f.clockBody(f.challenge(t, "clock_in"), officeLat, officeLon))
 }
 
 func (f clockFixture) clockOut(t *testing.T) response {
 	t.Helper()
-	return f.hp.do(http.MethodPost, "/v1/attendance/clock-out", clockBody(f.challenge(t, "clock_out"), officeLat, officeLon))
+	return f.hp.do(http.MethodPost, "/v1/attendance/clock-out", f.clockBody(f.challenge(t, "clock_out"), officeLat, officeLon))
 }
 
 type clockInResp struct {
@@ -249,11 +251,11 @@ func TestMissedClockOut(t *testing.T) {
 
 func TestChallengeRules(t *testing.T) {
 	f := newClockFixture(t, options{}, "08:00", "17:00")
-	body := func(c string) map[string]any { return clockBody(c, officeLat, officeLon) }
+	body := func(c string) map[string]any { return f.clockBody(c, officeLat, officeLon) }
 
 	// Sekali pakai: walau upaya pertama gagal karena lokasi, tantangan tidak bisa diulang.
 	used := f.challenge(t, "clock_in")
-	f.hp.do(http.MethodPost, "/v1/attendance/clock-in", clockBody(used, 0, 0)).wantError(t, http.StatusUnprocessableEntity, "GEOFENCE_OUT")
+	f.hp.do(http.MethodPost, "/v1/attendance/clock-in", f.clockBody(used, 0, 0)).wantError(t, http.StatusUnprocessableEntity, "GEOFENCE_OUT")
 	f.hp.do(http.MethodPost, "/v1/attendance/clock-in", body(used)).wantError(t, http.StatusUnprocessableEntity, "CHALLENGE_EXPIRED")
 
 	// Kedaluwarsa.
@@ -282,7 +284,7 @@ func TestChallengeRules(t *testing.T) {
 func TestClockInDeviceRules(t *testing.T) {
 	f := newClockFixture(t, options{}, "08:00", "17:00")
 	challenge := f.challenge(t, "clock_in")
-	body := clockBody(challenge, officeLat, officeLon)
+	body := f.clockBody(challenge, officeLat, officeLon)
 
 	f.hp.headers = nil
 	f.hp.do(http.MethodPost, "/v1/attendance/challenge", map[string]any{"purpose": "clock_in"}).wantError(t, http.StatusForbidden, "DEVICE_NOT_REGISTERED")
@@ -314,7 +316,7 @@ func TestClockInLocationAndShiftRules(t *testing.T) {
 	f := newClockFixture(t, options{}, "08:00", "17:00")
 
 	// Jarak 101 meter dari pusat berradius 100 meter.
-	f.hp.do(http.MethodPost, "/v1/attendance/clock-in", clockBody(f.challenge(t, "clock_in"), officeLat-0.00091, officeLon)).wantError(t, http.StatusUnprocessableEntity, "GEOFENCE_OUT")
+	f.hp.do(http.MethodPost, "/v1/attendance/clock-in", f.clockBody(f.challenge(t, "clock_in"), officeLat-0.00091, officeLon)).wantError(t, http.StatusUnprocessableEntity, "GEOFENCE_OUT")
 	if outcome, reason, _ := lastAttempt(t, f.account.employeeID); outcome != "rejected" || reason != "geofence_out" {
 		t.Errorf("upaya: %s %s", outcome, reason)
 	}
@@ -335,13 +337,13 @@ func TestClockInLocationAndShiftRules(t *testing.T) {
 	f.clockIn(t).wantError(t, http.StatusUnprocessableEntity, "SHIFT_NOT_ASSIGNED")
 	f.sdm.do(http.MethodPatch, "/v1/admin/employees/"+f.account.employeeID, map[string]any{"default_shift_id": f.shiftID}).want(t, http.StatusOK)
 
-	in := data[clockInResp](t, f.hp.do(http.MethodPost, "/v1/attendance/clock-in", clockBody(f.challenge(t, "clock_in"), -6.9, 107.6)).want(t, http.StatusCreated))
+	in := data[clockInResp](t, f.hp.do(http.MethodPost, "/v1/attendance/clock-in", f.clockBody(f.challenge(t, "clock_in"), -6.9, 107.6)).want(t, http.StatusCreated))
 	if in.OfficeLocation.Name != "Cabang" {
 		t.Errorf("lokasi: %+v", in)
 	}
 
 	// Koordinat rusak ditolak sebelum menyentuh tantangan.
-	bad := clockBody(f.challenge(t, "clock_out"), 95, 0)
+	bad := f.clockBody(f.challenge(t, "clock_out"), 95, 0)
 	f.hp.do(http.MethodPost, "/v1/attendance/clock-out", bad).wantError(t, http.StatusBadRequest, "VALIDATION_FAILED")
 	bad["latitude"] = officeLat
 	bad["accuracy_m"] = -1
@@ -358,7 +360,7 @@ func TestHardSignalsAreGeneric(t *testing.T) {
 		"is_mock_location": "mock_location", "fake_gps_app_detected": "fake_gps_app",
 		"root_detected": "root_detected", "emulator_detected": "emulator",
 	} {
-		body := clockBody(f.challenge(t, "clock_in"), officeLat, officeLon)
+		body := f.clockBody(f.challenge(t, "clock_in"), officeLat, officeLon)
 		body["signals"] = map[string]any{key: true}
 		res := f.hp.do(http.MethodPost, "/v1/attendance/clock-in", body).wantError(t, http.StatusUnprocessableEntity, "ATTENDANCE_BLOCKED")
 		if strings.Contains(string(res.body), flag) {
@@ -396,7 +398,7 @@ func TestClockRateLimit(t *testing.T) {
 	for i := 0; i < 10; i++ {
 		f.hp.do(http.MethodPost, "/v1/attendance/challenge", map[string]any{"purpose": "clock_in"}).want(t, http.StatusCreated)
 	}
-	f.hp.do(http.MethodPost, "/v1/attendance/clock-in", clockBody("salah", officeLat, officeLon)).wantError(t, http.StatusTooManyRequests, "RATE_LIMITED")
+	f.hp.do(http.MethodPost, "/v1/attendance/clock-in", f.clockBody("salah", officeLat, officeLon)).wantError(t, http.StatusTooManyRequests, "RATE_LIMITED")
 	f.hp.do(http.MethodGet, "/v1/attendance", nil).want(t, http.StatusOK)
 }
 
@@ -426,7 +428,7 @@ func TestConcurrentClockIn(t *testing.T) {
 		wg.Add(1)
 		go func(i int, c string) {
 			defer wg.Done()
-			statuses[i] = f.hp.clone().withHeaders(f.hp.headers).do(http.MethodPost, "/v1/attendance/clock-in", clockBody(c, officeLat, officeLon)).status
+			statuses[i] = f.hp.clone().withHeaders(f.hp.headers).do(http.MethodPost, "/v1/attendance/clock-in", f.clockBody(c, officeLat, officeLon)).status
 		}(i, c)
 	}
 	wg.Wait()

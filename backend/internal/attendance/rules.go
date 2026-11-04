@@ -122,6 +122,78 @@ func CloseDeadline(date time.Time, s *Schedule) time.Time {
 	return deadline
 }
 
+// Nilai awal sinyal risiko (MASTER.md §5.4). Ambang skor menjadi pengaturan di Fase 5.
+const (
+	riskReviewMin = 30
+	riskRejectMin = 60
+
+	accuracyLowM    = 50
+	locationJumpKmH = 120
+	clockSkewLimit  = 5 * time.Minute
+	newDeviceWindow = 24 * time.Hour
+	// Di bawah jarak ini, selisih dianggap gangguan GPS. Absen masuk dan pulang yang berdekatan
+	// waktunya bisa terbaca sangat cepat walau Pejuang tidak berpindah.
+	locationJumpMinM = 1000
+
+	flagAccuracyLow  = "accuracy_low"
+	flagLocationJump = "location_jump"
+	flagClockSkew    = "clock_skew"
+	flagNewDevice    = "new_device_recent"
+)
+
+var softPoints = map[string]int{
+	flagAccuracyLow:  15,
+	flagLocationJump: 40,
+	flagClockSkew:    20,
+	flagNewDevice:    10,
+}
+
+// PointAt adalah titik absen beserta waktunya.
+type PointAt struct {
+	Point Point
+	At    time.Time
+}
+
+// RiskInput adalah bahan penilaian sinyal lunak satu upaya absen.
+type RiskInput struct {
+	Now              time.Time
+	Point            Point
+	AccuracyM        float64
+	CapturedAt       time.Time
+	DeviceApprovedAt *time.Time
+	Previous         *PointAt // absen terakhir yang tercatat
+}
+
+// SoftFlags mengembalikan sinyal lunak yang menyala.
+func SoftFlags(in RiskInput) []string {
+	var flags []string
+	if in.AccuracyM > accuracyLowM {
+		flags = append(flags, flagAccuracyLow)
+	}
+	if in.Previous != nil {
+		meters := DistanceM(in.Previous.Point, in.Point)
+		if hours := in.Now.Sub(in.Previous.At).Hours(); meters >= locationJumpMinM && (hours <= 0 || meters/1000/hours > locationJumpKmH) {
+			flags = append(flags, flagLocationJump)
+		}
+	}
+	if skew := in.Now.Sub(in.CapturedAt); skew > clockSkewLimit || skew < -clockSkewLimit {
+		flags = append(flags, flagClockSkew)
+	}
+	if in.DeviceApprovedAt != nil && in.Now.Sub(*in.DeviceApprovedAt) < newDeviceWindow {
+		flags = append(flags, flagNewDevice)
+	}
+	return flags
+}
+
+// RiskScore menjumlahkan poin. Penanda tanpa poin, seperti off_schedule, bernilai 0.
+func RiskScore(flags []string) int {
+	total := 0
+	for _, f := range flags {
+		total += softPoints[f]
+	}
+	return total
+}
+
 // WorkedMinutes menghitung jam kerja dalam menit penuh.
 func WorkedMinutes(in, out time.Time) int {
 	minutes := int(out.Sub(in) / time.Minute)

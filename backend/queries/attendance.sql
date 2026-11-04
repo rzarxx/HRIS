@@ -14,8 +14,8 @@ WHERE id = @id AND employee_id = @employee_id AND device_id = @device_id AND pur
 RETURNING id;
 
 -- name: InsertAttendanceAttempt :exec
-INSERT INTO attendance_attempts (employee_id, device_id, challenge_id, purpose, outcome, reason_code, risk_flags, latitude, longitude, ip)
-VALUES (@employee_id, @device_id, @challenge_id, @purpose, @outcome, @reason_code, @risk_flags, @latitude, @longitude, @ip);
+INSERT INTO attendance_attempts (employee_id, device_id, challenge_id, purpose, outcome, reason_code, risk_score, risk_flags, latitude, longitude, ip)
+VALUES (@employee_id, @device_id, @challenge_id, @purpose, @outcome, @reason_code, @risk_score, @risk_flags, @latitude, @longitude, @ip);
 
 -- name: GetEmployeeDefaultShift :one
 SELECT sh.* FROM employees e JOIN shifts sh ON sh.id = e.default_shift_id WHERE e.id = $1;
@@ -24,14 +24,14 @@ SELECT sh.* FROM employees e JOIN shifts sh ON sh.id = e.default_shift_id WHERE 
 SELECT EXISTS (SELECT 1 FROM holidays WHERE date = $1);
 
 -- name: ClockIn :one
-INSERT INTO attendances (employee_id, work_date, shift_id, clock_in_at, in_accuracy_m, risk_flags, status, late_minutes, work_mode, flexible_hours, location_id, in_latitude, in_longitude)
-VALUES (@employee_id, @work_date, @shift_id, @clock_in_at, @in_accuracy_m, @risk_flags, @status, @late_minutes, @work_mode, @flexible_hours, @location_id, @in_latitude, @in_longitude)
+INSERT INTO attendances (employee_id, work_date, shift_id, clock_in_at, in_accuracy_m, risk_score, risk_flags, status, late_minutes, work_mode, flexible_hours, location_id, in_latitude, in_longitude)
+VALUES (@employee_id, @work_date, @shift_id, @clock_in_at, @in_accuracy_m, @risk_score, @risk_flags, @status, @late_minutes, @work_mode, @flexible_hours, @location_id, @in_latitude, @in_longitude)
 ON CONFLICT (employee_id, work_date) DO NOTHING
 RETURNING *;
 
 -- name: GetOpenAttendance :one
 SELECT * FROM attendances
-WHERE employee_id = $1 AND clock_in_at IS NOT NULL AND clock_out_at IS NULL
+WHERE employee_id = $1 AND clock_in_at IS NOT NULL AND clock_out_at IS NULL AND status <> 'absent'
 ORDER BY work_date DESC LIMIT 1;
 
 -- name: GetLastClosedAttendance :one
@@ -41,7 +41,8 @@ ORDER BY work_date DESC LIMIT 1;
 
 -- name: ClockOut :one
 UPDATE attendances
-SET clock_out_at = @clock_out_at, worked_minutes = @worked_minutes, out_latitude = @out_latitude, out_longitude = @out_longitude, work_mode = @work_mode
+SET clock_out_at = @clock_out_at, worked_minutes = @worked_minutes, out_latitude = @out_latitude, out_longitude = @out_longitude, work_mode = @work_mode,
+    status = @status, risk_score = @risk_score, risk_flags = @risk_flags
 WHERE id = @id AND clock_out_at IS NULL
 RETURNING *;
 
@@ -62,3 +63,34 @@ RETURNING *;
 
 -- name: DeleteWorkArrangement :one
 DELETE FROM employee_work_arrangements WHERE id = @id AND employee_id = @employee_id RETURNING *;
+
+-- name: GetLastAttendancePoint :one
+SELECT clock_in_at, clock_out_at, in_latitude, in_longitude, out_latitude, out_longitude FROM attendances
+WHERE employee_id = $1 AND in_latitude IS NOT NULL
+ORDER BY work_date DESC LIMIT 1;
+
+-- name: ListAttendanceReview :many
+SELECT a.id, a.employee_id, a.work_date, a.clock_in_at, a.clock_out_at, a.late_minutes, a.work_mode, a.flexible_hours,
+       a.in_latitude, a.in_longitude, a.out_latitude, a.out_longitude, a.in_accuracy_m, a.risk_score, a.risk_flags,
+       e.full_name AS employee_name, e.nip, s.name AS subdivision_name, d.name AS division_name, l.name AS location_name
+FROM attendances a
+JOIN employees e ON e.id = a.employee_id
+JOIN subdivisions s ON s.id = e.subdivision_id
+JOIN divisions d ON d.id = s.division_id
+LEFT JOIN office_locations l ON l.id = a.location_id
+WHERE a.status = 'review' AND (sqlc.narg(work_mode)::text IS NULL OR a.work_mode = sqlc.narg(work_mode))
+ORDER BY a.work_date, a.clock_in_at, a.id
+LIMIT @page_limit OFFSET @page_offset;
+
+-- name: CountAttendanceReview :one
+SELECT count(*) FROM attendances a
+WHERE a.status = 'review' AND (sqlc.narg(work_mode)::text IS NULL OR a.work_mode = sqlc.narg(work_mode));
+
+-- name: GetAttendanceForUpdate :one
+SELECT * FROM attendances WHERE id = $1 FOR UPDATE;
+
+-- name: ResolveAttendanceReview :one
+UPDATE attendances
+SET status = @status, late_minutes = @late_minutes, review_by = @review_by, reviewed_at = @reviewed_at, review_note = @review_note
+WHERE id = @id
+RETURNING *;

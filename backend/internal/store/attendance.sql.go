@@ -15,10 +15,10 @@ import (
 )
 
 const clockIn = `-- name: ClockIn :one
-INSERT INTO attendances (employee_id, work_date, shift_id, clock_in_at, in_accuracy_m, risk_flags, status, late_minutes, work_mode, flexible_hours, location_id, in_latitude, in_longitude)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+INSERT INTO attendances (employee_id, work_date, shift_id, clock_in_at, in_accuracy_m, risk_score, risk_flags, status, late_minutes, work_mode, flexible_hours, location_id, in_latitude, in_longitude)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
 ON CONFLICT (employee_id, work_date) DO NOTHING
-RETURNING id, employee_id, work_date, shift_id, clock_in_at, clock_out_at, in_accuracy_m, face_score, risk_score, risk_flags, status, late_minutes, created_at, work_mode, location_id, worked_minutes, in_latitude, in_longitude, out_latitude, out_longitude, flexible_hours
+RETURNING id, employee_id, work_date, shift_id, clock_in_at, clock_out_at, in_accuracy_m, face_score, risk_score, risk_flags, status, late_minutes, created_at, work_mode, location_id, worked_minutes, in_latitude, in_longitude, out_latitude, out_longitude, flexible_hours, review_by, reviewed_at, review_note
 `
 
 type ClockInParams struct {
@@ -27,6 +27,7 @@ type ClockInParams struct {
 	ShiftID       uuid.NullUUID
 	ClockInAt     pgtype.Timestamptz
 	InAccuracyM   decimal.NullDecimal
+	RiskScore     int32
 	RiskFlags     []byte
 	Status        AttStatus
 	LateMinutes   int32
@@ -44,6 +45,7 @@ func (q *Queries) ClockIn(ctx context.Context, arg ClockInParams) (Attendance, e
 		arg.ShiftID,
 		arg.ClockInAt,
 		arg.InAccuracyM,
+		arg.RiskScore,
 		arg.RiskFlags,
 		arg.Status,
 		arg.LateMinutes,
@@ -76,15 +78,19 @@ func (q *Queries) ClockIn(ctx context.Context, arg ClockInParams) (Attendance, e
 		&i.OutLatitude,
 		&i.OutLongitude,
 		&i.FlexibleHours,
+		&i.ReviewBy,
+		&i.ReviewedAt,
+		&i.ReviewNote,
 	)
 	return i, err
 }
 
 const clockOut = `-- name: ClockOut :one
 UPDATE attendances
-SET clock_out_at = $1, worked_minutes = $2, out_latitude = $3, out_longitude = $4, work_mode = $5
-WHERE id = $6 AND clock_out_at IS NULL
-RETURNING id, employee_id, work_date, shift_id, clock_in_at, clock_out_at, in_accuracy_m, face_score, risk_score, risk_flags, status, late_minutes, created_at, work_mode, location_id, worked_minutes, in_latitude, in_longitude, out_latitude, out_longitude, flexible_hours
+SET clock_out_at = $1, worked_minutes = $2, out_latitude = $3, out_longitude = $4, work_mode = $5,
+    status = $6, risk_score = $7, risk_flags = $8
+WHERE id = $9 AND clock_out_at IS NULL
+RETURNING id, employee_id, work_date, shift_id, clock_in_at, clock_out_at, in_accuracy_m, face_score, risk_score, risk_flags, status, late_minutes, created_at, work_mode, location_id, worked_minutes, in_latitude, in_longitude, out_latitude, out_longitude, flexible_hours, review_by, reviewed_at, review_note
 `
 
 type ClockOutParams struct {
@@ -93,6 +99,9 @@ type ClockOutParams struct {
 	OutLatitude   decimal.NullDecimal
 	OutLongitude  decimal.NullDecimal
 	WorkMode      string
+	Status        AttStatus
+	RiskScore     int32
+	RiskFlags     []byte
 	ID            uuid.UUID
 }
 
@@ -103,6 +112,9 @@ func (q *Queries) ClockOut(ctx context.Context, arg ClockOutParams) (Attendance,
 		arg.OutLatitude,
 		arg.OutLongitude,
 		arg.WorkMode,
+		arg.Status,
+		arg.RiskScore,
+		arg.RiskFlags,
 		arg.ID,
 	)
 	var i Attendance
@@ -128,6 +140,9 @@ func (q *Queries) ClockOut(ctx context.Context, arg ClockOutParams) (Attendance,
 		&i.OutLatitude,
 		&i.OutLongitude,
 		&i.FlexibleHours,
+		&i.ReviewBy,
+		&i.ReviewedAt,
+		&i.ReviewNote,
 	)
 	return i, err
 }
@@ -159,6 +174,18 @@ func (q *Queries) ConsumeAttendanceChallenge(ctx context.Context, arg ConsumeAtt
 	var id uuid.UUID
 	err := row.Scan(&id)
 	return id, err
+}
+
+const countAttendanceReview = `-- name: CountAttendanceReview :one
+SELECT count(*) FROM attendances a
+WHERE a.status = 'review' AND ($1::text IS NULL OR a.work_mode = $1)
+`
+
+func (q *Queries) CountAttendanceReview(ctx context.Context, workMode pgtype.Text) (int64, error) {
+	row := q.db.QueryRow(ctx, countAttendanceReview, workMode)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
 }
 
 const createAttendanceChallenge = `-- name: CreateAttendanceChallenge :one
@@ -224,6 +251,42 @@ func (q *Queries) DeleteWorkArrangement(ctx context.Context, arg DeleteWorkArran
 	return i, err
 }
 
+const getAttendanceForUpdate = `-- name: GetAttendanceForUpdate :one
+SELECT id, employee_id, work_date, shift_id, clock_in_at, clock_out_at, in_accuracy_m, face_score, risk_score, risk_flags, status, late_minutes, created_at, work_mode, location_id, worked_minutes, in_latitude, in_longitude, out_latitude, out_longitude, flexible_hours, review_by, reviewed_at, review_note FROM attendances WHERE id = $1 FOR UPDATE
+`
+
+func (q *Queries) GetAttendanceForUpdate(ctx context.Context, id uuid.UUID) (Attendance, error) {
+	row := q.db.QueryRow(ctx, getAttendanceForUpdate, id)
+	var i Attendance
+	err := row.Scan(
+		&i.ID,
+		&i.EmployeeID,
+		&i.WorkDate,
+		&i.ShiftID,
+		&i.ClockInAt,
+		&i.ClockOutAt,
+		&i.InAccuracyM,
+		&i.FaceScore,
+		&i.RiskScore,
+		&i.RiskFlags,
+		&i.Status,
+		&i.LateMinutes,
+		&i.CreatedAt,
+		&i.WorkMode,
+		&i.LocationID,
+		&i.WorkedMinutes,
+		&i.InLatitude,
+		&i.InLongitude,
+		&i.OutLatitude,
+		&i.OutLongitude,
+		&i.FlexibleHours,
+		&i.ReviewBy,
+		&i.ReviewedAt,
+		&i.ReviewNote,
+	)
+	return i, err
+}
+
 const getEmployeeDefaultShift = `-- name: GetEmployeeDefaultShift :one
 SELECT sh.id, sh.name, sh.start_time, sh.end_time, sh.late_tolerance_minutes, sh.work_days FROM employees e JOIN shifts sh ON sh.id = e.default_shift_id WHERE e.id = $1
 `
@@ -242,8 +305,37 @@ func (q *Queries) GetEmployeeDefaultShift(ctx context.Context, id uuid.UUID) (Sh
 	return i, err
 }
 
+const getLastAttendancePoint = `-- name: GetLastAttendancePoint :one
+SELECT clock_in_at, clock_out_at, in_latitude, in_longitude, out_latitude, out_longitude FROM attendances
+WHERE employee_id = $1 AND in_latitude IS NOT NULL
+ORDER BY work_date DESC LIMIT 1
+`
+
+type GetLastAttendancePointRow struct {
+	ClockInAt    pgtype.Timestamptz
+	ClockOutAt   pgtype.Timestamptz
+	InLatitude   decimal.NullDecimal
+	InLongitude  decimal.NullDecimal
+	OutLatitude  decimal.NullDecimal
+	OutLongitude decimal.NullDecimal
+}
+
+func (q *Queries) GetLastAttendancePoint(ctx context.Context, employeeID uuid.UUID) (GetLastAttendancePointRow, error) {
+	row := q.db.QueryRow(ctx, getLastAttendancePoint, employeeID)
+	var i GetLastAttendancePointRow
+	err := row.Scan(
+		&i.ClockInAt,
+		&i.ClockOutAt,
+		&i.InLatitude,
+		&i.InLongitude,
+		&i.OutLatitude,
+		&i.OutLongitude,
+	)
+	return i, err
+}
+
 const getLastClosedAttendance = `-- name: GetLastClosedAttendance :one
-SELECT id, employee_id, work_date, shift_id, clock_in_at, clock_out_at, in_accuracy_m, face_score, risk_score, risk_flags, status, late_minutes, created_at, work_mode, location_id, worked_minutes, in_latitude, in_longitude, out_latitude, out_longitude, flexible_hours FROM attendances
+SELECT id, employee_id, work_date, shift_id, clock_in_at, clock_out_at, in_accuracy_m, face_score, risk_score, risk_flags, status, late_minutes, created_at, work_mode, location_id, worked_minutes, in_latitude, in_longitude, out_latitude, out_longitude, flexible_hours, review_by, reviewed_at, review_note FROM attendances
 WHERE employee_id = $1 AND clock_out_at IS NOT NULL
 ORDER BY work_date DESC LIMIT 1
 `
@@ -273,13 +365,16 @@ func (q *Queries) GetLastClosedAttendance(ctx context.Context, employeeID uuid.U
 		&i.OutLatitude,
 		&i.OutLongitude,
 		&i.FlexibleHours,
+		&i.ReviewBy,
+		&i.ReviewedAt,
+		&i.ReviewNote,
 	)
 	return i, err
 }
 
 const getOpenAttendance = `-- name: GetOpenAttendance :one
-SELECT id, employee_id, work_date, shift_id, clock_in_at, clock_out_at, in_accuracy_m, face_score, risk_score, risk_flags, status, late_minutes, created_at, work_mode, location_id, worked_minutes, in_latitude, in_longitude, out_latitude, out_longitude, flexible_hours FROM attendances
-WHERE employee_id = $1 AND clock_in_at IS NOT NULL AND clock_out_at IS NULL
+SELECT id, employee_id, work_date, shift_id, clock_in_at, clock_out_at, in_accuracy_m, face_score, risk_score, risk_flags, status, late_minutes, created_at, work_mode, location_id, worked_minutes, in_latitude, in_longitude, out_latitude, out_longitude, flexible_hours, review_by, reviewed_at, review_note FROM attendances
+WHERE employee_id = $1 AND clock_in_at IS NOT NULL AND clock_out_at IS NULL AND status <> 'absent'
 ORDER BY work_date DESC LIMIT 1
 `
 
@@ -308,6 +403,9 @@ func (q *Queries) GetOpenAttendance(ctx context.Context, employeeID uuid.UUID) (
 		&i.OutLatitude,
 		&i.OutLongitude,
 		&i.FlexibleHours,
+		&i.ReviewBy,
+		&i.ReviewedAt,
+		&i.ReviewNote,
 	)
 	return i, err
 }
@@ -344,8 +442,8 @@ func (q *Queries) GetOwnDevice(ctx context.Context, arg GetOwnDeviceParams) (Dev
 }
 
 const insertAttendanceAttempt = `-- name: InsertAttendanceAttempt :exec
-INSERT INTO attendance_attempts (employee_id, device_id, challenge_id, purpose, outcome, reason_code, risk_flags, latitude, longitude, ip)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+INSERT INTO attendance_attempts (employee_id, device_id, challenge_id, purpose, outcome, reason_code, risk_score, risk_flags, latitude, longitude, ip)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
 `
 
 type InsertAttendanceAttemptParams struct {
@@ -355,6 +453,7 @@ type InsertAttendanceAttemptParams struct {
 	Purpose     string
 	Outcome     string
 	ReasonCode  string
+	RiskScore   int32
 	RiskFlags   []byte
 	Latitude    decimal.NullDecimal
 	Longitude   decimal.NullDecimal
@@ -369,6 +468,7 @@ func (q *Queries) InsertAttendanceAttempt(ctx context.Context, arg InsertAttenda
 		arg.Purpose,
 		arg.Outcome,
 		arg.ReasonCode,
+		arg.RiskScore,
 		arg.RiskFlags,
 		arg.Latitude,
 		arg.Longitude,
@@ -430,6 +530,90 @@ func (q *Queries) IsHoliday(ctx context.Context, date pgtype.Date) (bool, error)
 	var exists bool
 	err := row.Scan(&exists)
 	return exists, err
+}
+
+const listAttendanceReview = `-- name: ListAttendanceReview :many
+SELECT a.id, a.employee_id, a.work_date, a.clock_in_at, a.clock_out_at, a.late_minutes, a.work_mode, a.flexible_hours,
+       a.in_latitude, a.in_longitude, a.out_latitude, a.out_longitude, a.in_accuracy_m, a.risk_score, a.risk_flags,
+       e.full_name AS employee_name, e.nip, s.name AS subdivision_name, d.name AS division_name, l.name AS location_name
+FROM attendances a
+JOIN employees e ON e.id = a.employee_id
+JOIN subdivisions s ON s.id = e.subdivision_id
+JOIN divisions d ON d.id = s.division_id
+LEFT JOIN office_locations l ON l.id = a.location_id
+WHERE a.status = 'review' AND ($1::text IS NULL OR a.work_mode = $1)
+ORDER BY a.work_date, a.clock_in_at, a.id
+LIMIT $3 OFFSET $2
+`
+
+type ListAttendanceReviewParams struct {
+	WorkMode   pgtype.Text
+	PageOffset int32
+	PageLimit  int32
+}
+
+type ListAttendanceReviewRow struct {
+	ID              uuid.UUID
+	EmployeeID      uuid.UUID
+	WorkDate        pgtype.Date
+	ClockInAt       pgtype.Timestamptz
+	ClockOutAt      pgtype.Timestamptz
+	LateMinutes     int32
+	WorkMode        string
+	FlexibleHours   bool
+	InLatitude      decimal.NullDecimal
+	InLongitude     decimal.NullDecimal
+	OutLatitude     decimal.NullDecimal
+	OutLongitude    decimal.NullDecimal
+	InAccuracyM     decimal.NullDecimal
+	RiskScore       int32
+	RiskFlags       []byte
+	EmployeeName    string
+	Nip             string
+	SubdivisionName string
+	DivisionName    string
+	LocationName    pgtype.Text
+}
+
+func (q *Queries) ListAttendanceReview(ctx context.Context, arg ListAttendanceReviewParams) ([]ListAttendanceReviewRow, error) {
+	rows, err := q.db.Query(ctx, listAttendanceReview, arg.WorkMode, arg.PageOffset, arg.PageLimit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListAttendanceReviewRow{}
+	for rows.Next() {
+		var i ListAttendanceReviewRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.EmployeeID,
+			&i.WorkDate,
+			&i.ClockInAt,
+			&i.ClockOutAt,
+			&i.LateMinutes,
+			&i.WorkMode,
+			&i.FlexibleHours,
+			&i.InLatitude,
+			&i.InLongitude,
+			&i.OutLatitude,
+			&i.OutLongitude,
+			&i.InAccuracyM,
+			&i.RiskScore,
+			&i.RiskFlags,
+			&i.EmployeeName,
+			&i.Nip,
+			&i.SubdivisionName,
+			&i.DivisionName,
+			&i.LocationName,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const listMyAttendance = `-- name: ListMyAttendance :many
@@ -521,4 +705,59 @@ func (q *Queries) ListWorkArrangements(ctx context.Context, employeeID uuid.UUID
 		return nil, err
 	}
 	return items, nil
+}
+
+const resolveAttendanceReview = `-- name: ResolveAttendanceReview :one
+UPDATE attendances
+SET status = $1, late_minutes = $2, review_by = $3, reviewed_at = $4, review_note = $5
+WHERE id = $6
+RETURNING id, employee_id, work_date, shift_id, clock_in_at, clock_out_at, in_accuracy_m, face_score, risk_score, risk_flags, status, late_minutes, created_at, work_mode, location_id, worked_minutes, in_latitude, in_longitude, out_latitude, out_longitude, flexible_hours, review_by, reviewed_at, review_note
+`
+
+type ResolveAttendanceReviewParams struct {
+	Status      AttStatus
+	LateMinutes int32
+	ReviewBy    uuid.NullUUID
+	ReviewedAt  pgtype.Timestamptz
+	ReviewNote  pgtype.Text
+	ID          uuid.UUID
+}
+
+func (q *Queries) ResolveAttendanceReview(ctx context.Context, arg ResolveAttendanceReviewParams) (Attendance, error) {
+	row := q.db.QueryRow(ctx, resolveAttendanceReview,
+		arg.Status,
+		arg.LateMinutes,
+		arg.ReviewBy,
+		arg.ReviewedAt,
+		arg.ReviewNote,
+		arg.ID,
+	)
+	var i Attendance
+	err := row.Scan(
+		&i.ID,
+		&i.EmployeeID,
+		&i.WorkDate,
+		&i.ShiftID,
+		&i.ClockInAt,
+		&i.ClockOutAt,
+		&i.InAccuracyM,
+		&i.FaceScore,
+		&i.RiskScore,
+		&i.RiskFlags,
+		&i.Status,
+		&i.LateMinutes,
+		&i.CreatedAt,
+		&i.WorkMode,
+		&i.LocationID,
+		&i.WorkedMinutes,
+		&i.InLatitude,
+		&i.InLongitude,
+		&i.OutLatitude,
+		&i.OutLongitude,
+		&i.FlexibleHours,
+		&i.ReviewBy,
+		&i.ReviewedAt,
+		&i.ReviewNote,
+	)
+	return i, err
 }

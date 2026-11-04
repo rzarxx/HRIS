@@ -130,7 +130,7 @@ function ShiftsCard() {
           </>
         }
       >
-        <form id="shift-form" onSubmit={submit} noValidate className="grid gap-4 sm:grid-cols-3">
+        <form id="shift-form" onSubmit={submit} noValidate className="grid grid-cols-1 gap-4 sm:grid-cols-3">
           <Field label="Nama shift" htmlFor="shift-name" error={errors.name} required className="sm:col-span-3">
             <Input id="shift-name" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} invalid={!!errors.name} placeholder="Reguler" />
           </Field>
@@ -277,7 +277,7 @@ function HolidaysCard() {
           </>
         }
       >
-        <form id="holiday-form" onSubmit={submit} noValidate className="grid gap-4">
+        <form id="holiday-form" onSubmit={submit} noValidate className="grid grid-cols-1 gap-4">
           <Field label="Tanggal" htmlFor="holiday-date" error={errors.date} required>
             <Input id="holiday-date" type="date" value={form.date} onChange={(e) => setForm({ ...form, date: e.target.value })} invalid={!!errors.date} />
           </Field>
@@ -307,7 +307,7 @@ export default function ShiftPage() {
   return (
     <>
       <PageHeader title="Shift" description="Jam kerja, toleransi telat, dan hari libur yang dipakai untuk menghitung presensi." />
-      <div className="grid gap-6">
+      <div className="grid grid-cols-1 gap-6">
         <ShiftsCard />
         <HolidaysCard />
       </div>

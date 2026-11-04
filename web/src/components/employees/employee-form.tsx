@@ -110,7 +110,7 @@ export function EmployeeForm({
         </>
       }
     >
-      <form id="employee-form" onSubmit={submit} noValidate className="grid gap-4 sm:grid-cols-2">
+      <form id="employee-form" onSubmit={submit} noValidate className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <Field label="Nama lengkap" htmlFor="full_name" error={errors.full_name} required className="sm:col-span-2">
           <Input id="full_name" value={form.full_name} onChange={(e) => set("full_name", e.target.value)} invalid={!!errors.full_name} autoFocus />
         </Field>

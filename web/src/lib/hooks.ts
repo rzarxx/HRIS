@@ -6,6 +6,7 @@ import type {
   AdminDevice,
   AnnouncementListItem,
   AttendanceReportRow,
+  AttendanceReviewItem,
   CurrentUser,
   DashboardSummary,
   DivisionWithStats,
@@ -72,6 +73,13 @@ export const useWorkArrangements = (employeeId: string) =>
   useQuery({
     queryKey: ["work-arrangements", employeeId],
     queryFn: () => api.get<ListResponse<WorkArrangement>>(`/admin/employees/${employeeId}/work-arrangements`).then((r) => r.data),
+  });
+
+export const useAttendanceReview = (f: { work_mode: string; page: number; per_page: number }) =>
+  useQuery({
+    queryKey: ["attendance-review", f],
+    queryFn: () => api.get<Paginated<AttendanceReviewItem>>("/admin/attendance/review", { ...f }),
+    placeholderData: keepPreviousData,
   });
 
 export const useShifts = () =>

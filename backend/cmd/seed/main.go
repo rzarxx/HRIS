@@ -1,5 +1,5 @@
 // Command seed mengisi data dummy untuk pengembangan dan demo.
-// Dipakai: go run ./cmd/seed [--reset]. Ditolak di luar APP_ENV=development.
+// Dipakai: go run ./cmd/seed [--reset | --demo]. Ditolak di luar APP_ENV=development.
 package main
 
 import (
@@ -25,6 +25,7 @@ func main() {
 
 func run() error {
 	reset := flag.Bool("reset", false, "kosongkan semua data lalu isi ulang")
+	demo := flag.Bool("demo", false, "siapkan atau pulihkan data demo Review Absen, izin kerja, dan perangkat")
 	flag.Parse()
 
 	if err := config.LoadDotEnv(".env"); err != nil {
@@ -44,6 +45,18 @@ func run() error {
 	}
 	defer pool.Close()
 
+	if *demo {
+		if *reset {
+			return errors.New("--demo tidak bisa digabung dengan --reset, jalankan terpisah")
+		}
+		summary, err := devsim.SeedDemo(ctx, pool, time.Now())
+		if err != nil {
+			return err
+		}
+		fmt.Printf("Data demo siap untuk tanggal kerja %s: %d absen di Review Absen, %d izin kerja, %d perangkat.\n",
+			summary.WorkDate.Format("2006-01-02"), summary.Reviews, summary.Arrangements, summary.Devices)
+		return nil
+	}
 	if *reset {
 		if err := devsim.Reset(ctx, pool); err != nil {
 			return err

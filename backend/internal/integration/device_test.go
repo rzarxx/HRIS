@@ -19,6 +19,8 @@ type deviceRow struct {
 	EmployeeName   string  `json:"employee_name"`
 	ApprovedByName *string `json:"approved_by_name"`
 	RevokedReason  *string `json:"revoked_reason"`
+
+	OwnerIsSuperadmin bool `json:"owner_is_superadmin"`
 }
 
 func deviceHash(name string) string {
@@ -191,6 +193,47 @@ func TestCannotApproveOwnDevice(t *testing.T) {
 	admin, _ := superadminClient(t, srv, "OPS-GDG")
 	admin.do(http.MethodPost, "/v1/admin/devices/"+second.ID+"/approve", nil).want(t, http.StatusOK)
 	sdm.do(http.MethodPost, "/v1/admin/devices/"+second.ID+"/revoke", nil).want(t, http.StatusOK)
+}
+
+// SDM boleh menyetujui perangkat super admin sebagai peninjau lain, tetapi tidak boleh mencabutnya (D34).
+func TestSDMCannotRevokeSuperadminDevice(t *testing.T) {
+	srv := fresh(t, options{})
+	sdm := loginSDM(t, srv)
+	admin, _ := superadminClient(t, srv, "IT-INF")
+	hp, _ := pejuangClient(t, srv, "OPS-GDG")
+
+	first := data[deviceRow](t, register(admin, "admin-1").want(t, http.StatusCreated))
+	sdm.do(http.MethodPost, "/v1/admin/devices/"+first.ID+"/revoke", nil).wantError(t, http.StatusForbidden, "FORBIDDEN_ROLE")
+
+	second := data[deviceRow](t, register(admin, "admin-2").want(t, http.StatusCreated))
+	sdm.do(http.MethodPost, "/v1/admin/devices/"+second.ID+"/approve", nil).want(t, http.StatusOK)
+	sdm.do(http.MethodPost, "/v1/admin/devices/"+second.ID+"/revoke", nil).wantError(t, http.StatusForbidden, "FORBIDDEN_ROLE")
+	var status string
+	if err := ownerPool.QueryRow(context.Background(), `SELECT status::text FROM devices WHERE id = $1`, second.ID).Scan(&status); err != nil {
+		t.Fatal(err)
+	}
+	if status != "approved" {
+		t.Errorf("perangkat super admin berubah: %s", status)
+	}
+
+	// Penanda untuk web hanya menyala pada perangkat super admin.
+	owned := func(id string) bool {
+		for _, d := range data[[]deviceRow](t, sdm.do(http.MethodGet, "/v1/admin/devices?per_page=100", nil).want(t, http.StatusOK)) {
+			if d.ID == id {
+				return d.OwnerIsSuperadmin
+			}
+		}
+		t.Fatalf("perangkat %s tidak ada di daftar", id)
+		return false
+	}
+	other := data[deviceRow](t, register(hp, "biasa").want(t, http.StatusCreated))
+	if !owned(second.ID) || owned(other.ID) {
+		t.Errorf("penanda salah: admin %v, biasa %v", owned(second.ID), owned(other.ID))
+	}
+
+	// Perangkat Pejuang biasa tetap bisa dicabut SDM, dan super admin bisa mencabut miliknya.
+	sdm.do(http.MethodPost, "/v1/admin/devices/"+other.ID+"/revoke", nil).want(t, http.StatusOK)
+	admin.do(http.MethodPost, "/v1/admin/devices/"+second.ID+"/revoke", nil).want(t, http.StatusOK)
 }
 
 func TestOffboardingRevokesDevices(t *testing.T) {

@@ -55,6 +55,8 @@ type AdminDevice struct {
 	ApprovedByName  *string `json:"approved_by_name"`
 	RevokedAt       *string `json:"revoked_at"`
 	RevokedReason   *string `json:"revoked_reason"`
+	// Web memakainya untuk menyembunyikan tombol cabut dari SDM (D34).
+	OwnerIsSuperadmin bool `json:"owner_is_superadmin"`
 }
 
 // RegisterInput adalah data perangkat dari aplikasi.
@@ -116,6 +118,7 @@ func presentAdmin(r store.GetAdminDeviceRow) AdminDevice {
 		SubdivisionName: r.SubdivisionName, DivisionName: r.DivisionName,
 		ApprovedAt: pgconv.TimeString(r.ApprovedAt), ApprovedByName: pgconv.TextPtr(r.ApprovedByName),
 		RevokedAt: pgconv.TimeString(r.RevokedAt), RevokedReason: pgconv.TextPtr(r.RevokedReason),
+		OwnerIsSuperadmin: r.OwnerIsSuperadmin,
 	}
 }
 
@@ -285,11 +288,15 @@ func (s *Service) Approve(ctx context.Context, p auth.Principal, ip *netip.Addr,
 }
 
 // Revoke mencabut perangkat beserta sesinya. Mencabut perangkat sendiri boleh, misalnya HP hilang.
+// SDM tidak bisa mencabut perangkat super admin (D34).
 func (s *Service) Revoke(ctx context.Context, p auth.Principal, ip *netip.Addr, id uuid.UUID) (AdminDevice, error) {
 	actor := audit.Actor(p.UserID)
 	err := database.InTx(ctx, s.pool, func(q *store.Queries) error {
 		d, err := lockDevice(ctx, q, id)
 		if err != nil {
+			return err
+		}
+		if err := auth.AssertEmployeeNotProtected(ctx, q, p, d.EmployeeID); err != nil {
 			return err
 		}
 		if d.Status == store.DeviceStatusRevoked {

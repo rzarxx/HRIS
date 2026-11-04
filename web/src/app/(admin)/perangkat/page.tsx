@@ -9,7 +9,7 @@ import { ConfirmDialog } from "@/components/ui/modal";
 import { Pagination, Table, Td, Th } from "@/components/ui/table";
 import { api } from "@/lib/api-client";
 import { dateTime } from "@/lib/format";
-import { useAdminDevices, useSave } from "@/lib/hooks";
+import { useAdminDevices, useMe, useSave } from "@/lib/hooks";
 import type { AdminDevice, DeviceStatus } from "@/lib/types";
 
 const PER_PAGE = 20;
@@ -36,6 +36,9 @@ export default function DevicesPage() {
   const list = useAdminDevices({ status, page, per_page: PER_PAGE });
   const [approving, setApproving] = useState<AdminDevice | null>(null);
   const [revoking, setRevoking] = useState<AdminDevice | null>(null);
+  const me = useMe();
+  // Perangkat super admin hanya bisa dicabut super admin; server tetap menegakkan aturan ini (D34).
+  const canRevoke = (d: AdminDevice) => d.status !== "revoked" && (!d.owner_is_superadmin || me.data?.role === "superadmin");
 
   const approve = useSave((id: string) => api.post(`/admin/devices/${id}/approve`), {
     success: "Perangkat disetujui.",
@@ -108,7 +111,7 @@ export default function DevicesPage() {
                           <Check className="size-4" />
                         </IconButton>
                       )}
-                      {d.status !== "revoked" && (
+                      {canRevoke(d) && (
                         <IconButton label={`Cabut perangkat ${d.employee_name}`} onClick={() => setRevoking(d)} className="hover:text-red-600">
                           <X className="size-4" />
                         </IconButton>

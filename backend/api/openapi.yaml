@@ -723,6 +723,7 @@ paths:
     post:
       tags: [Perangkat]
       summary: Cabut perangkat beserta sesinya
+      description: SDM tidak bisa mencabut perangkat super admin (D34). Super admin bisa mencabut perangkatnya sendiri.
       responses:
         "200":
           description: OK
@@ -733,6 +734,7 @@ paths:
                 required: [data]
                 properties:
                   data: { $ref: "#/components/schemas/AdminDevice" }
+        "403": { $ref: "#/components/responses/Error" }
         "404": { $ref: "#/components/responses/Error" }
   /v1/admin/office-locations:
     get:
@@ -1690,7 +1692,7 @@ components:
       allOf:
         - $ref: "#/components/schemas/Device"
         - type: object
-          required: [employee_id, employee_name, nip, subdivision_name, division_name, approved_at, approved_by_name, revoked_at, revoked_reason]
+          required: [employee_id, employee_name, nip, subdivision_name, division_name, approved_at, approved_by_name, revoked_at, revoked_reason, owner_is_superadmin]
           properties:
             employee_id: { type: string, format: uuid }
             employee_name: { type: string }
@@ -1701,6 +1703,7 @@ components:
             approved_by_name: { type: string, nullable: true }
             revoked_at: { type: string, format: date-time, nullable: true }
             revoked_reason: { type: string, nullable: true, description: "admin_revoked, replaced, atau offboarded" }
+            owner_is_superadmin: { type: boolean, description: Pemiliknya super admin; hanya super admin yang bisa mencabutnya }
     GeoPoint:
       type: object
       required: [latitude, longitude]

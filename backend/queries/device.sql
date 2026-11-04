@@ -24,7 +24,8 @@ SELECT * FROM devices WHERE employee_id = $1 ORDER BY created_at DESC, id;
 -- name: ListDevices :many
 SELECT d.id, d.employee_id, d.model, d.os_version, d.status, d.created_at, d.approved_at, d.revoked_at,
        d.revoked_reason, d.last_seen_at, e.full_name AS employee_name, e.nip, s.name AS subdivision_name,
-       dv.name AS division_name, ae.full_name AS approved_by_name
+       dv.name AS division_name, ae.full_name AS approved_by_name,
+       EXISTS (SELECT 1 FROM users ou WHERE ou.employee_id = d.employee_id AND ou.role = 'superadmin') AS owner_is_superadmin
 FROM devices d
 JOIN employees e ON e.id = d.employee_id
 JOIN subdivisions s ON s.id = e.subdivision_id
@@ -42,7 +43,8 @@ WHERE sqlc.narg(status)::device_status IS NULL OR d.status = sqlc.narg(status);
 -- name: GetAdminDevice :one
 SELECT d.id, d.employee_id, d.model, d.os_version, d.status, d.created_at, d.approved_at, d.revoked_at,
        d.revoked_reason, d.last_seen_at, e.full_name AS employee_name, e.nip, s.name AS subdivision_name,
-       dv.name AS division_name, ae.full_name AS approved_by_name
+       dv.name AS division_name, ae.full_name AS approved_by_name,
+       EXISTS (SELECT 1 FROM users ou WHERE ou.employee_id = d.employee_id AND ou.role = 'superadmin') AS owner_is_superadmin
 FROM devices d
 JOIN employees e ON e.id = d.employee_id
 JOIN subdivisions s ON s.id = e.subdivision_id

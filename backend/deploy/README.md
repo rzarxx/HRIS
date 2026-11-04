@@ -116,7 +116,7 @@ Mengembalikan data dummy ke kondisi awal:
 cd /opt/hris && runuser -u hris -- ./hris-seed --reset
 ```
 
-Menyiapkan data demo: lima absen di Review Absen, tiga izin kerja, dan dua permintaan perangkat. Perintah
+Menyiapkan data demo: lima absen di Review Absen, enam absen hari ini di Monitor Absen, tiga izin kerja, dan dua permintaan perangkat. Perintah
 ini aman diulang, dan mengembalikan data demo ke kondisi awal setelah latihan:
 
 ```bash

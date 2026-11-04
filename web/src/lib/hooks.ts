@@ -5,6 +5,7 @@ import { api, ApiError } from "./api-client";
 import type {
   AdminDevice,
   AnnouncementListItem,
+  AttendanceMonitorItem,
   AttendanceReportRow,
   AttendanceReviewItem,
   CurrentUser,
@@ -73,6 +74,15 @@ export const useWorkArrangements = (employeeId: string) =>
   useQuery({
     queryKey: ["work-arrangements", employeeId],
     queryFn: () => api.get<ListResponse<WorkArrangement>>(`/admin/employees/${employeeId}/work-arrangements`).then((r) => r.data),
+  });
+
+// Diperbarui tiap 60 detik selama yang dilihat adalah hari ini.
+export const useAttendanceMonitor = (f: { date: string; division_id: string }, live: boolean) =>
+  useQuery({
+    queryKey: ["attendance-monitor", f],
+    queryFn: () => api.get<ListResponse<AttendanceMonitorItem>>("/admin/attendance/monitor", { ...f }).then((r) => r.data),
+    placeholderData: keepPreviousData,
+    refetchInterval: live ? 60_000 : false,
   });
 
 export const useAttendanceReview = (f: { work_mode: string; page: number; per_page: number }) =>

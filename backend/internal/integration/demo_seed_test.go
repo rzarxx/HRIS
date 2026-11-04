@@ -21,7 +21,7 @@ func TestDemoSeed(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if summary.Reviews != 5 || summary.Arrangements != 3 || summary.Devices != 3 || summary.WorkDate.Format("2006-01-02") != "2026-11-03" {
+	if summary.Reviews != 5 || summary.Today != 6 || summary.Arrangements != 3 || summary.Devices != 3 || summary.WorkDate.Format("2006-01-02") != "2026-11-03" {
 		t.Errorf("ringkasan: %+v", summary)
 	}
 

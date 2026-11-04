@@ -2138,6 +2138,51 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/admin/attendance/monitor": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Monitor absen semua Pejuang pada satu tanggal kerja
+         * @description Permission `attendance:review`. Memuat semua Pejuang aktif, termasuk yang belum absen. Tanggal kosong berarti tanggal kerja saat ini.
+         */
+        get: {
+            parameters: {
+                query?: {
+                    date?: string;
+                    division_id?: string;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data: components["schemas"]["AttendanceMonitorItem"][];
+                        };
+                    };
+                };
+                400: components["responses"]["ValidationFailed"];
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/admin/attendance/review": {
         parameters: {
             query?: never;
@@ -3163,6 +3208,36 @@ export interface components {
             polygon: components["schemas"]["GeoPoint"][] | null;
             is_active: boolean;
             employee_count: number;
+        };
+        AttendanceMonitorItem: {
+            /** Format: uuid */
+            employee_id: string;
+            employee_name: string;
+            nip: string;
+            subdivision_name: string;
+            /** Format: uuid */
+            division_id: string;
+            division_name: string;
+            shift_name: string | null;
+            /** @description false bila hari libur, di luar hari kerja shift, atau shift belum ditentukan */
+            scheduled: boolean;
+            /**
+             * @description Kosong berarti belum ada absen
+             * @enum {string|null}
+             */
+            status: "present" | "late" | "absent" | "leave" | "review" | null;
+            /** Format: date-time */
+            clock_in_at: string | null;
+            /** Format: date-time */
+            clock_out_at: string | null;
+            late_minutes: number;
+            /** @enum {string|null} */
+            work_mode: "onsite" | "wfa" | "field" | null;
+            location_name: string | null;
+            in_latitude: number | null;
+            in_longitude: number | null;
+            out_latitude: number | null;
+            out_longitude: number | null;
         };
         /** @description Skor dan alasan risiko hanya untuk peninjau (D8). */
         AttendanceReviewItem: {

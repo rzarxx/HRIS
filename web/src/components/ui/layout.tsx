@@ -35,7 +35,7 @@ export function Card({ title, actions, children, className = "", bodyClassName =
 
 const badgeTones = {
   gray: "bg-slate-100 text-slate-700",
-  blue: "bg-primary-50 text-primary-700",
+  accent: "bg-primary-50 text-primary-700",
   green: "bg-emerald-50 text-emerald-700",
   amber: "bg-amber-50 text-amber-800",
   red: "bg-red-50 text-red-700",
@@ -91,7 +91,7 @@ export function ComingSoon({ title, phase, items }: { title: string; phase: stri
           </div>
           <p className="text-base font-semibold text-slate-900">Dalam pengembangan</p>
           <p className="mt-1 text-sm text-slate-500">Modul ini dijadwalkan pada {phase}.</p>
-          <ul className="mt-5 grid gap-2 text-left text-sm text-slate-600 sm:grid-cols-2">
+          <ul className="mt-5 grid grid-cols-1 gap-2 text-left text-sm text-slate-600 sm:grid-cols-2">
             {items.map((i) => (
               <li key={i} className="flex items-start gap-2">
                 <span className="mt-1.5 size-1.5 shrink-0 rounded-full bg-primary-600" aria-hidden />

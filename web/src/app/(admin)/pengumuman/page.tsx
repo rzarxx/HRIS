@@ -5,7 +5,7 @@ import { useState } from "react";
 import { PhonePreview } from "@/components/announcements/phone-preview";
 import { AnnouncementStatusBadge } from "@/components/announcements/status";
 import { Button, IconButton } from "@/components/ui/button";
-import { Field, Input, Select, Textarea } from "@/components/ui/form";
+import { Field, Input, Select, Textarea, Toggle } from "@/components/ui/form";
 import { Badge, Card, EmptyState, ErrorState, Loading, PageHeader } from "@/components/ui/layout";
 import { ConfirmDialog, Modal } from "@/components/ui/modal";
 import { Table, Td, Th } from "@/components/ui/table";
@@ -132,7 +132,7 @@ export default function AnnouncementsPage() {
                     <p className="font-medium text-slate-900">{a.title}</p>
                     <p className="line-clamp-1 max-w-md text-xs text-slate-500">{a.body}</p>
                   </Td>
-                  <Td>{a.type === "popup" ? <Badge tone="blue">Pop-up</Badge> : <Badge>Banner</Badge>}</Td>
+                  <Td>{a.type === "popup" ? <Badge tone="accent">Pop-up</Badge> : <Badge>Banner</Badge>}</Td>
                   <Td className="whitespace-nowrap">{a.division_name ?? "Semua divisi"}</Td>
                   <Td className="text-xs whitespace-nowrap">
                     {dateTime(a.starts_at)}
@@ -176,8 +176,8 @@ export default function AnnouncementsPage() {
           </>
         }
       >
-        <div className="grid gap-6 md:grid-cols-[1fr_auto]">
-          <form id="announcement-form" onSubmit={submit} noValidate className="grid content-start gap-4 sm:grid-cols-2">
+        <div className="grid grid-cols-1 gap-6 md:grid-cols-[minmax(0,1fr)_auto]">
+          <form id="announcement-form" onSubmit={submit} noValidate className="grid grid-cols-1 content-start gap-4 sm:grid-cols-2">
             <Field label="Judul" htmlFor="title" error={errors.title} required className="sm:col-span-2">
               <Input id="title" value={form.title} onChange={(e) => set("title", e.target.value)} invalid={!!errors.title} />
             </Field>
@@ -206,10 +206,9 @@ export default function AnnouncementsPage() {
             <Field label="Berakhir (WIB)" htmlFor="ends_at" error={errors.ends_at} hint="Kosongkan bila tanpa batas.">
               <Input id="ends_at" type="datetime-local" value={form.ends_at} onChange={(e) => set("ends_at", e.target.value)} invalid={!!errors.ends_at} />
             </Field>
-            <label className="flex items-center gap-2 text-sm text-slate-700 sm:col-span-2">
-              <input type="checkbox" checked={form.is_active} onChange={(e) => set("is_active", e.target.checked)} className="size-4 rounded border-slate-300 accent-primary-600" />
+            <Toggle checked={form.is_active} onChange={(v) => set("is_active", v)} className="sm:col-span-2">
               Aktif
-            </label>
+            </Toggle>
           </form>
           <div>
             <p className="mb-2 text-center text-xs font-medium text-slate-500">Pratinjau di aplikasi</p>

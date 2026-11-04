@@ -109,6 +109,8 @@ func routes(d Deps) []Route {
 		guarded(http.MethodPost, "/v1/attendance/clock-in", d.Attendance.ClockIn, permission.AttendanceClock),
 		guarded(http.MethodPost, "/v1/attendance/clock-out", d.Attendance.ClockOut, permission.AttendanceClock),
 		guarded(http.MethodGet, "/v1/attendance", d.Attendance.Mine, permission.AttendanceRead),
+		guarded(http.MethodGet, "/v1/admin/attendance/review", d.Attendance.ReviewQueue, permission.AttendanceReview),
+		guarded(http.MethodPost, "/v1/admin/attendance/{id}/resolve", d.Attendance.Resolve, permission.AttendanceReview),
 
 		guarded(http.MethodPost, "/v1/devices/register", d.Device.Register, permission.DeviceRegister),
 		guarded(http.MethodGet, "/v1/devices/me", d.Device.Mine, permission.DeviceRegister),

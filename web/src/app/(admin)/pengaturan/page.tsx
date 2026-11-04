@@ -28,7 +28,7 @@ function SettingsView() {
           {required}
         </div>
       )}
-      <div className="grid gap-4 lg:grid-cols-2">
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <div className="flex flex-col gap-4">
           <Card title="Akun saya">
             <dl className="grid grid-cols-3 gap-y-2 text-sm">
@@ -37,7 +37,7 @@ function SettingsView() {
               <dt className="text-slate-500">NIP</dt>
               <dd className="col-span-2 font-mono text-xs text-slate-800">{me?.nip ?? "-"}</dd>
               <dt className="text-slate-500">Email</dt>
-              <dd className="col-span-2 text-slate-800">{me?.email ?? "-"}</dd>
+              <dd className="col-span-2 break-words text-slate-800">{me?.email ?? "-"}</dd>
               <dt className="text-slate-500">Jabatan</dt>
               <dd className="col-span-2 text-slate-800">{me?.position ?? "-"}</dd>
               <dt className="text-slate-500">Unit</dt>

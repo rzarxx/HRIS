@@ -964,6 +964,59 @@ paths:
         "403": { $ref: "#/components/responses/Error" }
         "404": { $ref: "#/components/responses/Error" }
 
+  /v1/admin/attendance/review:
+    get:
+      tags: [Presensi]
+      summary: Antrian Review Absen
+      description: "Permission `attendance:review`. Yang terlama lebih dulu."
+      parameters:
+        - name: work_mode
+          in: query
+          schema: { type: string, enum: [onsite, wfa, field] }
+        - $ref: "#/components/parameters/Page"
+        - $ref: "#/components/parameters/PerPage"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data, meta]
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: "#/components/schemas/AttendanceReviewItem" }
+                  meta: { $ref: "#/components/schemas/PageMeta" }
+        "400": { $ref: "#/components/responses/ValidationFailed" }
+  /v1/admin/attendance/{id}/resolve:
+    parameters:
+      - $ref: "#/components/parameters/Id"
+    post:
+      tags: [Presensi]
+      summary: Putuskan absen review
+      description: >-
+        Permission `attendance:review`. `present` menghapus keterlambatan, `late` hanya untuk absen yang memang terlambat, dan
+        `absent` wajib memakai catatan. Absen sendiri ditolak `CONFLICT_SELF_ACTION`, dan absen yang sudah diputuskan ditolak `REQUEST_NOT_PENDING`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/AttendanceResolveInput" }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data: { $ref: "#/components/schemas/AttendanceResolved" }
+        "400": { $ref: "#/components/responses/ValidationFailed" }
+        "404": { $ref: "#/components/responses/Error" }
+        "409": { $ref: "#/components/responses/Error" }
+
   /v1/admin/employees/{id}/work-arrangements:
     parameters:
       - $ref: "#/components/parameters/Id"
@@ -1711,12 +1764,13 @@ components:
         requires_review: { type: boolean }
     ClockOutResult:
       type: object
-      required: [attendance_id, work_date, clock_out_at, worked_minutes]
+      required: [attendance_id, work_date, clock_out_at, worked_minutes, requires_review]
       properties:
         attendance_id: { type: string, format: uuid }
         work_date: { type: string, format: date }
         clock_out_at: { type: string, format: date-time }
         worked_minutes: { type: integer }
+        requires_review: { type: boolean }
     AttendanceRecord:
       type: object
       required: [id, work_date, status, clock_in_at, clock_out_at, late_minutes, worked_minutes, work_mode, location_name]
@@ -1810,6 +1864,49 @@ components:
           items: { $ref: "#/components/schemas/GeoPoint" }
         is_active: { type: boolean }
         employee_count: { type: integer }
+    AttendanceReviewItem:
+      type: object
+      description: Skor dan alasan risiko hanya untuk peninjau (D8).
+      required: [id, employee_id, employee_name, nip, subdivision_name, division_name, work_date, clock_in_at, clock_out_at, late_minutes, work_mode, flexible_hours, location_name, in_latitude, in_longitude, out_latitude, out_longitude, in_accuracy_m, risk_score, risk_flags]
+      properties:
+        id: { type: string, format: uuid }
+        employee_id: { type: string, format: uuid }
+        employee_name: { type: string }
+        nip: { type: string }
+        subdivision_name: { type: string }
+        division_name: { type: string }
+        work_date: { type: string, format: date }
+        clock_in_at: { type: string, format: date-time, nullable: true }
+        clock_out_at: { type: string, format: date-time, nullable: true }
+        late_minutes: { type: integer }
+        work_mode: { type: string, enum: [onsite, wfa, field] }
+        flexible_hours: { type: boolean }
+        location_name: { type: string, nullable: true }
+        in_latitude: { type: number, nullable: true }
+        in_longitude: { type: number, nullable: true }
+        out_latitude: { type: number, nullable: true }
+        out_longitude: { type: number, nullable: true }
+        in_accuracy_m: { type: number, nullable: true }
+        risk_score: { type: integer }
+        risk_flags:
+          type: array
+          items: { type: string }
+    AttendanceResolveInput:
+      type: object
+      required: [decision]
+      properties:
+        decision: { type: string, enum: [present, late, absent] }
+        note: { type: string, maxLength: 500, description: Wajib minimal 3 karakter bila absent }
+    AttendanceResolved:
+      type: object
+      required: [id, work_date, status, late_minutes, review_note, reviewed_at]
+      properties:
+        id: { type: string, format: uuid }
+        work_date: { type: string, format: date }
+        status: { type: string, enum: [present, late, absent] }
+        late_minutes: { type: integer }
+        review_note: { type: string, nullable: true }
+        reviewed_at: { type: string, format: date-time }
     WorkArrangementInput:
       type: object
       required: [mode, starts_on, reason]

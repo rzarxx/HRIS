@@ -129,7 +129,7 @@ export default function DivisionsPage() {
           </>
         }
       >
-        <form id="division-form" onSubmit={submit} noValidate className="grid gap-4 sm:grid-cols-3">
+        <form id="division-form" onSubmit={submit} noValidate className="grid grid-cols-1 gap-4 sm:grid-cols-3">
           <Field label="Kode" htmlFor="code" error={errors.code} required>
             <Input id="code" value={form.code} onChange={(e) => setForm({ ...form, code: e.target.value })} invalid={!!errors.code} placeholder="OPS" />
           </Field>

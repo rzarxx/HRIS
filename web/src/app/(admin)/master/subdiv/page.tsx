@@ -153,7 +153,7 @@ export default function SubdivisionsPage() {
           </>
         }
       >
-        <form id="subdiv-form" onSubmit={submit} noValidate className="grid gap-4 sm:grid-cols-3">
+        <form id="subdiv-form" onSubmit={submit} noValidate className="grid grid-cols-1 gap-4 sm:grid-cols-3">
           <Field label="Divisi" htmlFor="division" error={errors.division_id} required className="sm:col-span-3">
             <Select
               id="division"

@@ -8,6 +8,7 @@ import (
 	"math"
 	"net/http"
 	"net/netip"
+	"slices"
 	"time"
 
 	"github.com/google/uuid"
@@ -102,6 +103,7 @@ type parsedClock struct {
 	challengeID uuid.UUID
 	point       Point
 	accuracyM   float64
+	capturedAt  time.Time
 }
 
 func (in ClockInput) parse() (parsedClock, error) {
@@ -125,9 +127,11 @@ func (in ClockInput) parse() (parsedClock, error) {
 	} else {
 		p.accuracyM = *in.AccuracyM
 	}
-	if _, err := time.Parse(time.RFC3339, in.CapturedAt); err != nil {
+	captured, err := time.Parse(time.RFC3339, in.CapturedAt)
+	if err != nil {
 		fields["captured_at"] = "Waktu pengambilan tidak valid."
 	}
+	p.capturedAt = captured
 	if len(fields) > 0 {
 		return p, httpx.Validation(fields)
 	}
@@ -213,6 +217,9 @@ type attempt struct {
 	challenge uuid.NullUUID
 	point     Point
 	flags     []string
+	score     int
+	// approvedAt adalah waktu perangkat disetujui, untuk sinyal new_device_recent.
+	approvedAt pgtype.Timestamptz
 }
 
 func (a attempt) params(outcome, reason string) (store.InsertAttendanceAttemptParams, error) {
@@ -226,7 +233,7 @@ func (a attempt) params(outcome, reason string) (store.InsertAttendanceAttemptPa
 	}
 	return store.InsertAttendanceAttemptParams{
 		EmployeeID: a.p.EmployeeID, DeviceID: a.device, ChallengeID: a.challenge, Purpose: a.purpose,
-		Outcome: outcome, ReasonCode: reason, RiskFlags: raw,
+		Outcome: outcome, ReasonCode: reason, RiskScore: int32(a.score), RiskFlags: raw,
 		Latitude: coordinate(a.point.Latitude), Longitude: coordinate(a.point.Longitude), Ip: a.ip,
 	}, nil
 }
@@ -261,6 +268,7 @@ func (s *Service) verify(ctx context.Context, a *attempt, deviceHeader string, i
 		return s.reject(ctx, *a, "device_not_approved", err)
 	}
 	a.device = uuid.NullUUID{UUID: device.ID, Valid: true}
+	a.approvedAt = device.ApprovedAt
 
 	if _, err := s.q.ConsumeAttendanceChallenge(ctx, store.ConsumeAttendanceChallengeParams{
 		Now: pgconv.Time(s.opt.Now()), ID: parsed.challengeID, EmployeeID: a.p.EmployeeID, DeviceID: device.ID, Purpose: a.purpose,
@@ -282,6 +290,46 @@ func (s *Service) verify(ctx context.Context, a *attempt, deviceHeader string, i
 		return s.reject(ctx, *a, "hard_signal", errBlocked())
 	}
 	return nil
+}
+
+// assess menilai sinyal lunak (§5.4). Skor tinggi ditolak dengan pesan generik, karena klien tidak
+// boleh tahu alasannya (D8). Skor menengah tetap tercatat dan masuk antrian Review Absen.
+func (s *Service) assess(ctx context.Context, a *attempt, parsed parsedClock, now time.Time) error {
+	input := RiskInput{Now: now, Point: parsed.point, AccuracyM: parsed.accuracyM, CapturedAt: parsed.capturedAt}
+	if a.approvedAt.Valid {
+		input.DeviceApprovedAt = &a.approvedAt.Time
+	}
+	row, err := s.q.GetLastAttendancePoint(ctx, a.p.EmployeeID)
+	switch {
+	case err == nil:
+		input.Previous = previousPoint(row)
+	case !pgconv.IsNoRows(err):
+		return err
+	}
+	a.flags = append(a.flags, SoftFlags(input)...)
+	a.score = RiskScore(a.flags)
+	if a.score >= riskRejectMin {
+		return s.reject(ctx, *a, "risk_too_high", errBlocked())
+	}
+	return nil
+}
+
+func previousPoint(r store.GetLastAttendancePointRow) *PointAt {
+	if r.ClockOutAt.Valid && r.OutLatitude.Valid && r.OutLongitude.Valid {
+		return &PointAt{Point: Point{Latitude: r.OutLatitude.Decimal.InexactFloat64(), Longitude: r.OutLongitude.Decimal.InexactFloat64()}, At: r.ClockOutAt.Time}
+	}
+	if r.ClockInAt.Valid && r.InLatitude.Valid && r.InLongitude.Valid {
+		return &PointAt{Point: Point{Latitude: r.InLatitude.Decimal.InexactFloat64(), Longitude: r.InLongitude.Decimal.InexactFloat64()}, At: r.ClockInAt.Time}
+	}
+	return nil
+}
+
+// recorded mengembalikan baris attempt untuk upaya yang tercatat, sesuai skornya.
+func (a attempt) recorded() (store.InsertAttendanceAttemptParams, error) {
+	if a.score >= riskReviewMin {
+		return a.params("review", "risk_review")
+	}
+	return a.params("accepted", "ok")
 }
 
 func (s *Service) matchLocation(ctx context.Context, employeeID uuid.UUID, p Point) (store.ListEmployeeLocationsRow, bool, error) {
@@ -353,6 +401,9 @@ func (s *Service) ClockIn(ctx context.Context, p auth.Principal, ip *netip.Addr,
 	if err != nil {
 		return ClockInResult{}, err
 	}
+	if err := s.assess(ctx, &a, parsed, now); err != nil {
+		return ClockInResult{}, err
+	}
 	holiday, err := s.q.IsHoliday(ctx, pgconv.Date(workDate))
 	if err != nil {
 		return ClockInResult{}, err
@@ -369,8 +420,11 @@ func (s *Service) ClockIn(ctx context.Context, p auth.Principal, ip *netip.Addr,
 			status = store.AttStatusLate
 		}
 	}
+	if a.score >= riskReviewMin {
+		status = store.AttStatusReview
+	}
 
-	accepted, err := a.params("accepted", "ok")
+	accepted, err := a.recorded()
 	if err != nil {
 		return ClockInResult{}, err
 	}
@@ -382,7 +436,7 @@ func (s *Service) ClockIn(ctx context.Context, p auth.Principal, ip *netip.Addr,
 			EmployeeID: p.EmployeeID, WorkDate: pgconv.Date(workDate), ShiftID: uuid.NullUUID{UUID: shift.ID, Valid: true},
 			ClockInAt:   pgconv.Time(now),
 			InAccuracyM: decimal.NullDecimal{Decimal: decimal.NewFromFloat(parsed.accuracyM).Round(2), Valid: true},
-			RiskFlags:   accepted.RiskFlags, Status: status, LateMinutes: int32(late),
+			RiskScore:   accepted.RiskScore, RiskFlags: accepted.RiskFlags, Status: status, LateMinutes: int32(late),
 			WorkMode: where.workMode, FlexibleHours: where.flexible, LocationID: where.locationID(),
 			InLatitude: coordinate(parsed.point.Latitude), InLongitude: coordinate(parsed.point.Longitude),
 		})
@@ -409,16 +463,17 @@ func (s *Service) ClockIn(ctx context.Context, p auth.Principal, ip *netip.Addr,
 	return ClockInResult{
 		AttendanceID: row.ID.String(), WorkDate: workDate.Format("2006-01-02"), Status: string(row.Status),
 		ClockInAt: row.ClockInAt.Time.UTC().Format(time.RFC3339), LateMinutes: late, WorkMode: row.WorkMode,
-		OfficeLocation: where.locationRef(), RequiresReview: false,
+		OfficeLocation: where.locationRef(), RequiresReview: row.Status == store.AttStatusReview,
 	}, nil
 }
 
 // ClockOutResult adalah jawaban absen pulang.
 type ClockOutResult struct {
-	AttendanceID  string `json:"attendance_id"`
-	WorkDate      string `json:"work_date"`
-	ClockOutAt    string `json:"clock_out_at"`
-	WorkedMinutes int    `json:"worked_minutes"`
+	AttendanceID   string `json:"attendance_id"`
+	WorkDate       string `json:"work_date"`
+	ClockOutAt     string `json:"clock_out_at"`
+	WorkedMinutes  int    `json:"worked_minutes"`
+	RequiresReview bool   `json:"requires_review"`
 }
 
 func (s *Service) deadlineOf(ctx context.Context, row store.Attendance) (time.Time, error) {
@@ -489,8 +544,20 @@ func (s *Service) ClockOut(ctx context.Context, p auth.Principal, ip *netip.Addr
 	if workMode == WorkModeOnsite {
 		workMode = where.workMode
 	}
+	if err := s.assess(ctx, &a, parsed, now); err != nil {
+		return ClockOutResult{}, err
+	}
+	// Sinyal saat pulang digabung dengan saat masuk; skor tertinggi yang disimpan.
+	status := open.Status
+	if a.score >= riskReviewMin {
+		status = store.AttStatusReview
+	}
+	flags, err := mergeFlags(open.RiskFlags, a.flags)
+	if err != nil {
+		return ClockOutResult{}, err
+	}
 
-	accepted, err := a.params("accepted", "ok")
+	accepted, err := a.recorded()
 	if err != nil {
 		return ClockOutResult{}, err
 	}
@@ -502,7 +569,7 @@ func (s *Service) ClockOut(ctx context.Context, p auth.Principal, ip *netip.Addr
 		row, err = q.ClockOut(ctx, store.ClockOutParams{
 			ID: open.ID, ClockOutAt: pgconv.Time(now), WorkedMinutes: pgtype.Int4{Int32: int32(worked), Valid: true},
 			OutLatitude: coordinate(parsed.point.Latitude), OutLongitude: coordinate(parsed.point.Longitude),
-			WorkMode: workMode,
+			WorkMode: workMode, Status: status, RiskScore: max(open.RiskScore, int32(a.score)), RiskFlags: flags,
 		})
 		if pgconv.IsNoRows(err) {
 			closedMeanwhile = true
@@ -527,7 +594,23 @@ func (s *Service) ClockOut(ctx context.Context, p auth.Principal, ip *netip.Addr
 	return ClockOutResult{
 		AttendanceID: row.ID.String(), WorkDate: row.WorkDate.Time.Format("2006-01-02"),
 		ClockOutAt: row.ClockOutAt.Time.UTC().Format(time.RFC3339), WorkedMinutes: worked,
+		RequiresReview: row.Status == store.AttStatusReview,
 	}, nil
+}
+
+func mergeFlags(raw []byte, more []string) ([]byte, error) {
+	var flags []string
+	if len(raw) > 0 {
+		if err := json.Unmarshal(raw, &flags); err != nil {
+			return nil, err
+		}
+	}
+	for _, f := range more {
+		if !slices.Contains(flags, f) {
+			flags = append(flags, f)
+		}
+	}
+	return json.Marshal(flags)
 }
 
 // Record adalah satu baris riwayat absen sendiri.

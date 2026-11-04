@@ -3,7 +3,7 @@
 import { Trash2 } from "lucide-react";
 import { useState } from "react";
 import { Button, IconButton } from "@/components/ui/button";
-import { Field, Input, Select, Textarea } from "@/components/ui/form";
+import { Field, Input, Select, Textarea, Toggle } from "@/components/ui/form";
 import { Badge, ErrorState, Loading } from "@/components/ui/layout";
 import { ConfirmDialog, Modal } from "@/components/ui/modal";
 import { api } from "@/lib/api-client";
@@ -102,8 +102,8 @@ export function EmployeeArrangementsModal({ employee, onClose }: { employee: Emp
               <li key={a.id} className="flex items-start justify-between gap-3 px-3 py-2.5">
                 <div className="min-w-0">
                   <div className="flex flex-wrap items-center gap-1.5">
-                    <Badge tone="blue">{MODE[a.mode].label}</Badge>
-                    {a.flexible_hours && <Badge tone="blue">Jam fleksibel</Badge>}
+                    <Badge>{MODE[a.mode].label}</Badge>
+                    {a.flexible_hours && <Badge>Jam fleksibel</Badge>}
                     {statusOf(a, today)}
                   </div>
                   <p className="mt-1 text-sm text-slate-700">{periodLabel(a)}</p>
@@ -121,7 +121,7 @@ export function EmployeeArrangementsModal({ employee, onClose }: { employee: Emp
         {isSelf ? (
           <p className="mt-4 text-sm text-slate-500">Izin kerja untuk akun sendiri harus diberikan peninjau lain.</p>
         ) : (
-          <form id="arrangement-form" onSubmit={submit} noValidate className="mt-5 grid gap-4 border-t border-slate-100 pt-4 sm:grid-cols-2">
+          <form id="arrangement-form" onSubmit={submit} noValidate className="mt-5 grid grid-cols-1 gap-4 border-t border-slate-100 pt-4 sm:grid-cols-2">
             <h3 className="text-sm font-medium text-slate-900 sm:col-span-2">Tambah izin</h3>
             {!employee.default_shift_name && (
               <p className="rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-800 sm:col-span-2">
@@ -142,21 +142,19 @@ export function EmployeeArrangementsModal({ employee, onClose }: { employee: Emp
             </Field>
             <fieldset className="sm:col-span-2">
               <legend className="mb-1 text-sm font-medium text-slate-700">Hari berlaku</legend>
-              <div className="flex flex-wrap gap-3">
+              <div className="flex flex-wrap gap-x-4 gap-y-2">
                 {DAYS.map((label, i) => (
-                  <label key={label} className="flex items-center gap-1.5 text-sm text-slate-700">
-                    <input type="checkbox" checked={form.weekdays.includes(i + 1)} onChange={() => toggleDay(i + 1)} className="size-4 rounded border-slate-300" />
+                  <Toggle key={label} checked={form.weekdays.includes(i + 1)} onChange={() => toggleDay(i + 1)}>
                     {label}
-                  </label>
+                  </Toggle>
                 ))}
               </div>
               {errors.weekdays ? <p className="mt-1 text-xs text-red-600">{errors.weekdays}</p> : <p className="mt-1 text-xs text-slate-500">Kosongkan bila berlaku setiap hari.</p>}
             </fieldset>
             <div className="sm:col-span-2">
-              <label className="flex items-center gap-2 text-sm font-medium text-slate-700">
-                <input type="checkbox" checked={form.flexible_hours} onChange={(e) => set("flexible_hours", e.target.checked)} className="size-4 rounded border-slate-300" />
+              <Toggle checked={form.flexible_hours} onChange={(v) => set("flexible_hours", v)} className="font-medium">
                 Jam fleksibel
-              </label>
+              </Toggle>
               <p className="mt-1 text-xs text-slate-500">Absen di luar jam shift tetap sah dan tidak dihitung telat.</p>
             </div>
             <Field label="Alasan" htmlFor="arrangement_reason" error={errors.reason} required className="sm:col-span-2">

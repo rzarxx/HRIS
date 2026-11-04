@@ -3,7 +3,7 @@
 import { Pencil, Plus, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { Button, IconButton } from "@/components/ui/button";
-import { Field, Input, Select } from "@/components/ui/form";
+import { Field, Input, Select, Toggle } from "@/components/ui/form";
 import { Card, EmptyState, ErrorState, Loading, PageHeader } from "@/components/ui/layout";
 import { ConfirmDialog, Modal } from "@/components/ui/modal";
 import { Table, Td, Th } from "@/components/ui/table";
@@ -130,7 +130,7 @@ function ShiftsCard() {
           </>
         }
       >
-        <form id="shift-form" onSubmit={submit} noValidate className="grid gap-4 sm:grid-cols-3">
+        <form id="shift-form" onSubmit={submit} noValidate className="grid grid-cols-1 gap-4 sm:grid-cols-3">
           <Field label="Nama shift" htmlFor="shift-name" error={errors.name} required className="sm:col-span-3">
             <Input id="shift-name" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} invalid={!!errors.name} placeholder="Reguler" />
           </Field>
@@ -147,12 +147,11 @@ function ShiftsCard() {
             <legend className="mb-1 block text-sm font-medium text-slate-700">
               Hari kerja <span className="text-red-600">*</span>
             </legend>
-            <div className="flex flex-wrap gap-3">
+            <div className="flex flex-wrap gap-x-4 gap-y-2">
               {DAYS.map((label, i) => (
-                <label key={label} className="flex items-center gap-1.5 text-sm text-slate-700">
-                  <input type="checkbox" checked={form.work_days.includes(i + 1)} onChange={() => toggleDay(i + 1)} className="size-4 rounded border-slate-300" />
+                <Toggle key={label} checked={form.work_days.includes(i + 1)} onChange={() => toggleDay(i + 1)}>
                   {label}
-                </label>
+                </Toggle>
               ))}
             </div>
             {errors.work_days && <p className="mt-1 text-xs text-red-600">{errors.work_days}</p>}
@@ -278,7 +277,7 @@ function HolidaysCard() {
           </>
         }
       >
-        <form id="holiday-form" onSubmit={submit} noValidate className="grid gap-4">
+        <form id="holiday-form" onSubmit={submit} noValidate className="grid grid-cols-1 gap-4">
           <Field label="Tanggal" htmlFor="holiday-date" error={errors.date} required>
             <Input id="holiday-date" type="date" value={form.date} onChange={(e) => setForm({ ...form, date: e.target.value })} invalid={!!errors.date} />
           </Field>
@@ -308,7 +307,7 @@ export default function ShiftPage() {
   return (
     <>
       <PageHeader title="Shift" description="Jam kerja, toleransi telat, dan hari libur yang dipakai untuk menghitung presensi." />
-      <div className="grid gap-6">
+      <div className="grid grid-cols-1 gap-6">
         <ShiftsCard />
         <HolidaysCard />
       </div>

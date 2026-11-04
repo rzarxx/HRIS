@@ -202,8 +202,8 @@ export default function OfficeLocationsPage() {
           </>
         }
       >
-        <form id="location-form" onSubmit={submit} noValidate className="grid gap-4 sm:grid-cols-2">
-          <div className="grid gap-3 sm:col-span-2">
+        <form id="location-form" onSubmit={submit} noValidate className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <div className="grid grid-cols-1 gap-3 sm:col-span-2">
             <PlaceSearch onSelect={setCenter} />
             <div role="group" aria-label="Bentuk area absen" className="flex gap-2">
               <Button type="button" variant={areaMode === "radius" ? "primary" : "secondary"} aria-pressed={areaMode === "radius"} onClick={() => changeAreaMode("radius")}>

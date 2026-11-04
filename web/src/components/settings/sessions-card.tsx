@@ -31,7 +31,7 @@ export function SessionsCard() {
               </p>
             </div>
             {s.is_current ? (
-              <Badge tone="blue">Sesi ini</Badge>
+              <Badge tone="accent">Sesi ini</Badge>
             ) : (
               <Button variant="secondary" size="sm" loading={revoke.isPending && revoke.variables === s.id} onClick={() => revoke.mutate(s.id)}>
                 Cabut

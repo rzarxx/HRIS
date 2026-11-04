@@ -1,6 +1,7 @@
 package attendance
 
 import (
+	"slices"
 	"testing"
 	"time"
 
@@ -150,5 +151,47 @@ func TestArrangementOverlaps(t *testing.T) {
 		if got := c.b.Overlaps(c.a); got != c.want {
 			t.Errorf("%s (dibalik): got %v, want %v", c.name, got, c.want)
 		}
+	}
+}
+
+func TestSoftFlags(t *testing.T) {
+	now := wib(2, 9, 0)
+	office := Point{Latitude: -6.2001, Longitude: 106.8166}
+	far := Point{Latitude: -7.7956, Longitude: 110.3695}  // sekitar 430 km
+	near := Point{Latitude: -6.2006, Longitude: 106.8166} // sekitar 55 m
+	base := RiskInput{Now: now, Point: office, AccuracyM: 10, CapturedAt: now}
+	approved := func(d time.Duration) *time.Time { v := now.Add(-d); return &v }
+	cases := []struct {
+		name  string
+		edit  func(*RiskInput)
+		want  []string
+		score int
+	}{
+		{"bersih", func(*RiskInput) {}, nil, 0},
+		{"akurasi tepat batas", func(in *RiskInput) { in.AccuracyM = 50 }, nil, 0},
+		{"akurasi rendah", func(in *RiskInput) { in.AccuracyM = 50.5 }, []string{flagAccuracyLow}, 15},
+		{"jam tepat batas", func(in *RiskInput) { in.CapturedAt = now.Add(-5 * time.Minute) }, nil, 0},
+		{"jam HP terlambat", func(in *RiskInput) { in.CapturedAt = now.Add(-6 * time.Minute) }, []string{flagClockSkew}, 20},
+		{"jam HP mendahului", func(in *RiskInput) { in.CapturedAt = now.Add(6 * time.Minute) }, []string{flagClockSkew}, 20},
+		{"perangkat baru", func(in *RiskInput) { in.DeviceApprovedAt = approved(23 * time.Hour) }, []string{flagNewDevice}, 10},
+		{"perangkat lama", func(in *RiskInput) { in.DeviceApprovedAt = approved(24 * time.Hour) }, nil, 0},
+		{"melompat", func(in *RiskInput) { in.Previous = &PointAt{Point: far, At: now.Add(-time.Hour)} }, []string{flagLocationJump}, 40},
+		{"perjalanan wajar", func(in *RiskInput) { in.Previous = &PointAt{Point: far, At: now.Add(-8 * time.Hour)} }, nil, 0},
+		{"waktu sama tetapi jauh", func(in *RiskInput) { in.Previous = &PointAt{Point: far, At: now} }, []string{flagLocationJump}, 40},
+		{"gangguan GPS", func(in *RiskInput) { in.Previous = &PointAt{Point: near, At: now.Add(-time.Second)} }, nil, 0},
+	}
+	for _, c := range cases {
+		in := base
+		c.edit(&in)
+		got := SoftFlags(in)
+		if !slices.Equal(got, c.want) {
+			t.Errorf("%s: got %v, want %v", c.name, got, c.want)
+		}
+		if score := RiskScore(got); score != c.score {
+			t.Errorf("%s: skor %d, want %d", c.name, score, c.score)
+		}
+	}
+	if score := RiskScore([]string{flagUnverified, flagOffSchedule}); score != 0 {
+		t.Errorf("penanda catatan bernilai %d", score)
 	}
 }

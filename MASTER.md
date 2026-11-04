@@ -353,14 +353,14 @@ Level `MEETS_STRONG_INTEGRITY` tidak diwajibkan karena menolak banyak HP Android
 | `integrity_manual` (perangkat jalur D) | lunak | +30 |
 | `integrity_unavailable` (layanan verifikasi tidak terjangkau) | lunak | +30 |
 | `accuracy_low` (`accuracy_m` > 50) | lunak | +15 |
-| `location_jump` (kecepatan implisit > 120 km/jam dari titik sebelumnya) | lunak | +40 |
+| `location_jump` (kecepatan implisit > 120 km/jam dari absen terakhir yang tercatat, dengan jarak minimal 1 km agar gangguan GPS tidak terhitung) | lunak | +40 |
 | `face_borderline` | lunak | +20 |
 | `liveness_retry` (≥ 2 kali ulang) | lunak | +25 |
 | `clock_skew` (jam HP vs server > 5 menit) | lunak | +20 |
 | `new_device_recent` (perangkat disetujui < 24 jam) | lunak | +10 |
 | `embedding_replay` (embedding identik dengan absen sebelumnya) | keras | Tolak |
 
-**Keputusan skor:** `< 30` → diterima (`present`/`late`); `30-59` → `review`; `≥ 60` → ditolak. Semua upaya (termasuk ditolak) dicatat di `attendance_attempts`.
+**Keputusan skor:** `< 30` → diterima (`present`/`late`); `30-59` → `review`; `≥ 60` → ditolak. Semua upaya (termasuk ditolak) dicatat di `attendance_attempts`. Skor dihitung juga saat absen pulang: skor 30-59 mengubah absen menjadi `review`, penanda digabung, dan skor tertinggi yang disimpan.
 
 **Kebijakan keluaran ke klien:** respons **tidak** memuat `risk_score`, `risk_flags`, atau alasan deteksi keras. Klien hanya menerima `ATTENDANCE_BLOCKED` generik untuk sinyal keamanan, dan kode spesifik untuk hal yang bisa diperbaiki pengguna (`GEOFENCE_OUT`, `FACE_MISMATCH`, `LIVENESS_FAILED`, `CHALLENGE_EXPIRED`). Alasan rinci hanya terlihat oleh SDM.
 
@@ -506,7 +506,7 @@ DDL dasar ada di `QUERY.sql`; perubahan di **Lampiran A** (yang berlaku). Beriku
 | `holidays` | `date`, `name` | |
 | `attendance_challenges` | `id`, `employee_id`, `device_id`, `nonce`, `purpose`, `expires_at`, `used_at` | |
 | `attendance_attempts` | `id`, `employee_id`, `device_id`, `purpose`, `outcome`, `reason_code`, `risk_score`, `risk_flags`, `created_at` | Semua upaya |
-| `attendances` | `id`, `employee_id`, `work_date`, `clock_in_at`, `clock_out_at`, `work_mode`, `flexible_hours`, `location_id`, `worked_minutes`, `in_latitude`, `in_longitude`, `out_latitude`, `out_longitude`, `in_accuracy_m`, `face_score`, `risk_score`, `risk_flags`, `status`, `late_minutes`, `selfie_url`, `selfie_sha256` | Unik `(employee_id, work_date)` |
+| `attendances` | `id`, `employee_id`, `work_date`, `clock_in_at`, `clock_out_at`, `work_mode`, `flexible_hours`, `location_id`, `worked_minutes`, `in_latitude`, `in_longitude`, `out_latitude`, `out_longitude`, `in_accuracy_m`, `face_score`, `risk_score`, `risk_flags`, `status`, `late_minutes`, `review_by`, `reviewed_at`, `review_note`, `selfie_url`, `selfie_sha256` | Unik `(employee_id, work_date)` |
 | `leave_types`, `leave_requests` | `leave_type_id`, `start_date`, `end_date`, `reason`, `attachment_upload_id`, `status` | |
 | `cash_advances`, `cash_advance_installments` | `amount`, `installments`, `status`; cicilan: `period_year`, `period_month`, `amount`, `status` | |
 | `transfer_requests` | `from_subdivision_id`, `to_subdivision_id`, `effective_date`, `status` | |
@@ -703,7 +703,8 @@ Setiap `code` baru wajib ditambahkan di tabel ini.
 | DELETE | `/v1/admin/employees/{id}/work-arrangements/{arrangement_id}` | `employee:write` |
 | GET, PUT | `/v1/admin/settings/mail` | `settings:manage` |
 | POST | `/v1/admin/settings/mail/test` | `settings:manage` |
-| GET | `/v1/admin/attendance`, `/v1/admin/attendance/review`, `/v1/admin/attendance/attempts` | `attendance:review` / `attendance:report` |
+| GET | `/v1/admin/attendance/review?work_mode=` | `attendance:review` |
+| GET | `/v1/admin/attendance`, `/v1/admin/attendance/attempts` | `attendance:review` / `attendance:report` |
 | POST | `/v1/admin/attendance/{id}/resolve` | `attendance:review` |
 | GET | `/v1/admin/reports/attendance`, `/v1/admin/reports/payroll-preview` | `attendance:report` |
 | GET, POST | `/v1/admin/payroll/periods` | `payroll:manage` |
@@ -1049,6 +1050,7 @@ flowchart TD
     E --> H["Audit attendance.review_resolved, notifikasi ke Pejuang"]
     F --> H
 ```
+`present` menghapus keterlambatan. `late` hanya untuk absen yang memang terlambat. Peninjau tidak bisa memutuskan absennya sendiri (`CONFLICT_SELF_ACTION`). Absen yang diputuskan `absent` tidak bisa diberi absen pulang lagi.
 
 ### F12. Mesin Approval Generik
 ```mermaid
@@ -1321,7 +1323,7 @@ web/
 
 **Halaman prioritas:** Login (+MFA), Dashboard, Master Data (Divisi, Subdiv, Pejuang, Lokasi, Shift), Presensi (Rekap, Review), Payroll, Pengajuan, Surat Peringatan, Pengumuman, Pengaturan.
 
-**Gaya UI:** bersih dan padat informasi, satu warna aksen (biru `#2563EB`), font Inter, sidebar kiri, kartu sudut 8 px, mode terang dulu.
+**Gaya UI:** bersih dan padat informasi, satu warna aksen (hijau `#15803D`), font Inter, sidebar kiri, kartu sudut 8 px, mode terang dulu.
 
 ### 10.2 Mobile (Android)
 **Stack:** Kotlin, Jetpack Compose, MVVM, Hilt, Retrofit/OkHttp (klien hasil generate), CameraX, ML Kit Face Detection, TFLite MobileFaceNet, Play Integrity, FusedLocationProvider, FCM. `minSdk 26`.
@@ -1503,7 +1505,7 @@ Estimasi untuk tim kecil; sesuaikan setelah kapasitas tim jelas.
 - [ ] Penetapan izin massal, saring rekap per `work_mode`, dan pendaftaran wajah jarak jauh
 - [x] Challenge, clock-in, clock-out, cutoff harian, dan `worked_minutes` (D31), masih tanpa verifikasi perangkat dan wajah (D36)
 - [ ] Enroll + cocok wajah (enkripsi aplikasi)
-- [ ] Skor risiko + `attendance_attempts`
+- [x] Skor risiko dari sinyal yang sudah tersedia + `attendance_attempts`; sinyal integritas dan wajah menyusul bersama verifikasinya
 - [ ] Halaman Review Absen
 - [ ] Uji serangan: fake GPS, foto, emulator, root, replay
 - [ ] Kalibrasi ambang wajah dan risiko dengan data uji

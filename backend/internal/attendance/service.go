@@ -250,16 +250,15 @@ func (s *Service) reject(ctx context.Context, a attempt, reason string, out erro
 	return out
 }
 
-// verify menjalankan pemeriksaan yang sama untuk absen masuk dan pulang (F9), lalu mengembalikan
-// lokasi kantor yang cocok.
-func (s *Service) verify(ctx context.Context, a *attempt, deviceHeader string, in ClockInput, parsed parsedClock) (store.ListEmployeeLocationsRow, error) {
-	var none store.ListEmployeeLocationsRow
+// verify menjalankan pemeriksaan yang sama untuk absen masuk dan pulang (F9). Geofence diperiksa
+// sesudahnya oleh place, karena izin kerja bergantung pada work_date.
+func (s *Service) verify(ctx context.Context, a *attempt, deviceHeader string, in ClockInput, parsed parsedClock) error {
 	device, err := s.deviceOf(ctx, a.p, deviceHeader)
 	if err != nil {
 		if device.ID != uuid.Nil {
 			a.device = uuid.NullUUID{UUID: device.ID, Valid: true}
 		}
-		return none, s.reject(ctx, *a, "device_not_approved", err)
+		return s.reject(ctx, *a, "device_not_approved", err)
 	}
 	a.device = uuid.NullUUID{UUID: device.ID, Valid: true}
 
@@ -267,30 +266,22 @@ func (s *Service) verify(ctx context.Context, a *attempt, deviceHeader string, i
 		Now: pgconv.Time(s.opt.Now()), ID: parsed.challengeID, EmployeeID: a.p.EmployeeID, DeviceID: device.ID, Purpose: a.purpose,
 	}); err != nil {
 		if pgconv.IsNoRows(err) {
-			return none, s.reject(ctx, *a, "challenge_expired", httpx.NewError(http.StatusUnprocessableEntity, "CHALLENGE_EXPIRED", "Waktu absen habis, silakan ulangi."))
+			return s.reject(ctx, *a, "challenge_expired", httpx.NewError(http.StatusUnprocessableEntity, "CHALLENGE_EXPIRED", "Waktu absen habis, silakan ulangi."))
 		}
-		return none, err
+		return err
 	}
 	a.challenge = uuid.NullUUID{UUID: parsed.challengeID, Valid: true}
 
 	if !s.opt.AllowUnverified {
-		return none, s.reject(ctx, *a, "integrity_failed", errBlocked())
+		return s.reject(ctx, *a, "integrity_failed", errBlocked())
 	}
 	a.flags = append(a.flags, flagUnverified)
 
 	if hard := in.Signals.hardFlags(); len(hard) > 0 {
 		a.flags = append(a.flags, hard...)
-		return none, s.reject(ctx, *a, "hard_signal", errBlocked())
+		return s.reject(ctx, *a, "hard_signal", errBlocked())
 	}
-
-	location, ok, err := s.matchLocation(ctx, a.p.EmployeeID, parsed.point)
-	if err != nil {
-		return none, err
-	}
-	if !ok {
-		return none, s.reject(ctx, *a, "geofence_out", httpx.NewError(http.StatusUnprocessableEntity, "GEOFENCE_OUT", "Anda berada di luar area kantor."))
-	}
-	return location, nil
+	return nil
 }
 
 func (s *Service) matchLocation(ctx context.Context, employeeID uuid.UUID, p Point) (store.ListEmployeeLocationsRow, bool, error) {
@@ -326,13 +317,14 @@ type LocationRef struct {
 
 // ClockInResult adalah jawaban absen masuk. Skor dan alasan risiko tidak pernah dikirim ke klien.
 type ClockInResult struct {
-	AttendanceID   string      `json:"attendance_id"`
-	WorkDate       string      `json:"work_date"`
-	Status         string      `json:"status"`
-	ClockInAt      string      `json:"clock_in_at"`
-	LateMinutes    int         `json:"late_minutes"`
-	OfficeLocation LocationRef `json:"office_location"`
-	RequiresReview bool        `json:"requires_review"`
+	AttendanceID   string       `json:"attendance_id"`
+	WorkDate       string       `json:"work_date"`
+	Status         string       `json:"status"`
+	ClockInAt      string       `json:"clock_in_at"`
+	LateMinutes    int          `json:"late_minutes"`
+	WorkMode       string       `json:"work_mode"`
+	OfficeLocation *LocationRef `json:"office_location"` // kosong saat WFA dan field
+	RequiresReview bool         `json:"requires_review"`
 }
 
 // ClockIn mencatat absen masuk.
@@ -342,8 +334,7 @@ func (s *Service) ClockIn(ctx context.Context, p auth.Principal, ip *netip.Addr,
 		return ClockInResult{}, err
 	}
 	a := attempt{p: p, ip: ip, purpose: PurposeClockIn, point: parsed.point}
-	location, err := s.verify(ctx, &a, deviceHeader, in, parsed)
-	if err != nil {
+	if err := s.verify(ctx, &a, deviceHeader, in, parsed); err != nil {
 		return ClockInResult{}, err
 	}
 
@@ -358,16 +349,25 @@ func (s *Service) ClockIn(ctx context.Context, p auth.Principal, ip *netip.Addr,
 	now := s.opt.Now()
 	schedule := scheduleOf(shift)
 	workDate := WorkDate(now, schedule)
+	where, err := s.place(ctx, a, workDate, parsed.point)
+	if err != nil {
+		return ClockInResult{}, err
+	}
 	holiday, err := s.q.IsHoliday(ctx, pgconv.Date(workDate))
 	if err != nil {
 		return ClockInResult{}, err
 	}
 	status := store.AttStatusPresent
 	late := 0
-	if holiday || !IsWorkDay(workDate, schedule) {
+	switch {
+	case where.flexible:
+		// Jam fleksibel: absen di luar jam shift sah dan tidak dihitung telat (D26).
+	case holiday || !IsWorkDay(workDate, schedule):
 		a.flags = append(a.flags, flagOffSchedule)
-	} else if late = LateMinutes(now, workDate, schedule); late > 0 {
-		status = store.AttStatusLate
+	default:
+		if late = LateMinutes(now, workDate, schedule); late > 0 {
+			status = store.AttStatusLate
+		}
 	}
 
 	accepted, err := a.params("accepted", "ok")
@@ -383,7 +383,7 @@ func (s *Service) ClockIn(ctx context.Context, p auth.Principal, ip *netip.Addr,
 			ClockInAt:   pgconv.Time(now),
 			InAccuracyM: decimal.NullDecimal{Decimal: decimal.NewFromFloat(parsed.accuracyM).Round(2), Valid: true},
 			RiskFlags:   accepted.RiskFlags, Status: status, LateMinutes: int32(late),
-			LocationID: uuid.NullUUID{UUID: location.ID, Valid: true},
+			WorkMode: where.workMode, FlexibleHours: where.flexible, LocationID: where.locationID(),
 			InLatitude: coordinate(parsed.point.Latitude), InLongitude: coordinate(parsed.point.Longitude),
 		})
 		if pgconv.IsNoRows(err) {
@@ -408,8 +408,8 @@ func (s *Service) ClockIn(ctx context.Context, p auth.Principal, ip *netip.Addr,
 	}
 	return ClockInResult{
 		AttendanceID: row.ID.String(), WorkDate: workDate.Format("2006-01-02"), Status: string(row.Status),
-		ClockInAt: row.ClockInAt.Time.UTC().Format(time.RFC3339), LateMinutes: late,
-		OfficeLocation: LocationRef{ID: location.ID.String(), Name: location.Name}, RequiresReview: false,
+		ClockInAt: row.ClockInAt.Time.UTC().Format(time.RFC3339), LateMinutes: late, WorkMode: row.WorkMode,
+		OfficeLocation: where.locationRef(), RequiresReview: false,
 	}, nil
 }
 
@@ -443,7 +443,7 @@ func (s *Service) ClockOut(ctx context.Context, p auth.Principal, ip *netip.Addr
 		return ClockOutResult{}, err
 	}
 	a := attempt{p: p, ip: ip, purpose: PurposeClockOut, point: parsed.point}
-	if _, err := s.verify(ctx, &a, deviceHeader, in, parsed); err != nil {
+	if err := s.verify(ctx, &a, deviceHeader, in, parsed); err != nil {
 		return ClockOutResult{}, err
 	}
 
@@ -479,6 +479,16 @@ func (s *Service) ClockOut(ctx context.Context, p auth.Principal, ip *netip.Addr
 	if !now.Before(deadline) {
 		return ClockOutResult{}, notClockedIn()
 	}
+	// Izin dibaca dari work_date absen masuknya, jadi absen pulang lewat tengah malam tetap ikut hari itu.
+	where, err := s.place(ctx, a, open.WorkDate.Time, parsed.point)
+	if err != nil {
+		return ClockOutResult{}, err
+	}
+	// Masuk dari kantor lalu pulang dari luar berarti hari itu tidak terbukti penuh di kantor.
+	workMode := open.WorkMode
+	if workMode == WorkModeOnsite {
+		workMode = where.workMode
+	}
 
 	accepted, err := a.params("accepted", "ok")
 	if err != nil {
@@ -492,6 +502,7 @@ func (s *Service) ClockOut(ctx context.Context, p auth.Principal, ip *netip.Addr
 		row, err = q.ClockOut(ctx, store.ClockOutParams{
 			ID: open.ID, ClockOutAt: pgconv.Time(now), WorkedMinutes: pgtype.Int4{Int32: int32(worked), Valid: true},
 			OutLatitude: coordinate(parsed.point.Latitude), OutLongitude: coordinate(parsed.point.Longitude),
+			WorkMode: workMode,
 		})
 		if pgconv.IsNoRows(err) {
 			closedMeanwhile = true

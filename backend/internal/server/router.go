@@ -101,6 +101,10 @@ func routes(d Deps) []Route {
 		guarded(http.MethodGet, "/v1/admin/employees/{id}/locations", d.Location.ForEmployee, permission.EmployeeWrite),
 		guarded(http.MethodPut, "/v1/admin/employees/{id}/locations", d.Location.SetForEmployee, permission.EmployeeWrite),
 
+		guarded(http.MethodGet, "/v1/admin/employees/{id}/work-arrangements", d.Attendance.ListArrangements, permission.EmployeeWrite),
+		guarded(http.MethodPost, "/v1/admin/employees/{id}/work-arrangements", d.Attendance.CreateArrangement, permission.EmployeeWrite),
+		guarded(http.MethodDelete, "/v1/admin/employees/{id}/work-arrangements/{arrangement_id}", d.Attendance.DeleteArrangement, permission.EmployeeWrite),
+
 		guarded(http.MethodPost, "/v1/attendance/challenge", d.Attendance.Challenge, permission.AttendanceClock),
 		guarded(http.MethodPost, "/v1/attendance/clock-in", d.Attendance.ClockIn, permission.AttendanceClock),
 		guarded(http.MethodPost, "/v1/attendance/clock-out", d.Attendance.ClockOut, permission.AttendanceClock),

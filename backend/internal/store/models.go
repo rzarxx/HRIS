@@ -224,6 +224,7 @@ type Attendance struct {
 	InLongitude   decimal.NullDecimal
 	OutLatitude   decimal.NullDecimal
 	OutLongitude  decimal.NullDecimal
+	FlexibleHours bool
 }
 
 type AttendanceAttempt struct {
@@ -310,6 +311,19 @@ type Employee struct {
 type EmployeeLocation struct {
 	EmployeeID uuid.UUID
 	LocationID uuid.UUID
+}
+
+type EmployeeWorkArrangement struct {
+	ID            uuid.UUID
+	EmployeeID    uuid.UUID
+	Mode          string
+	FlexibleHours bool
+	StartsOn      pgtype.Date
+	EndsOn        pgtype.Date
+	Weekdays      []int16
+	Reason        string
+	CreatedBy     uuid.UUID
+	CreatedAt     pgtype.Timestamptz
 }
 
 type Holiday struct {

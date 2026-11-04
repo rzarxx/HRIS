@@ -24,8 +24,8 @@ SELECT sh.* FROM employees e JOIN shifts sh ON sh.id = e.default_shift_id WHERE 
 SELECT EXISTS (SELECT 1 FROM holidays WHERE date = $1);
 
 -- name: ClockIn :one
-INSERT INTO attendances (employee_id, work_date, shift_id, clock_in_at, in_accuracy_m, risk_flags, status, late_minutes, work_mode, location_id, in_latitude, in_longitude)
-VALUES (@employee_id, @work_date, @shift_id, @clock_in_at, @in_accuracy_m, @risk_flags, @status, @late_minutes, 'onsite', @location_id, @in_latitude, @in_longitude)
+INSERT INTO attendances (employee_id, work_date, shift_id, clock_in_at, in_accuracy_m, risk_flags, status, late_minutes, work_mode, flexible_hours, location_id, in_latitude, in_longitude)
+VALUES (@employee_id, @work_date, @shift_id, @clock_in_at, @in_accuracy_m, @risk_flags, @status, @late_minutes, @work_mode, @flexible_hours, @location_id, @in_latitude, @in_longitude)
 ON CONFLICT (employee_id, work_date) DO NOTHING
 RETURNING *;
 
@@ -41,7 +41,7 @@ ORDER BY work_date DESC LIMIT 1;
 
 -- name: ClockOut :one
 UPDATE attendances
-SET clock_out_at = @clock_out_at, worked_minutes = @worked_minutes, out_latitude = @out_latitude, out_longitude = @out_longitude
+SET clock_out_at = @clock_out_at, worked_minutes = @worked_minutes, out_latitude = @out_latitude, out_longitude = @out_longitude, work_mode = @work_mode
 WHERE id = @id AND clock_out_at IS NULL
 RETURNING *;
 
@@ -51,3 +51,14 @@ FROM attendances a
 LEFT JOIN office_locations l ON l.id = a.location_id
 WHERE a.employee_id = @employee_id AND a.work_date >= @from_date AND a.work_date <= @to_date
 ORDER BY a.work_date DESC;
+
+-- name: ListWorkArrangements :many
+SELECT * FROM employee_work_arrangements WHERE employee_id = $1 ORDER BY starts_on DESC, id;
+
+-- name: InsertWorkArrangement :one
+INSERT INTO employee_work_arrangements (employee_id, mode, flexible_hours, starts_on, ends_on, weekdays, reason, created_by)
+VALUES (@employee_id, @mode, @flexible_hours, @starts_on, @ends_on, @weekdays, @reason, @created_by)
+RETURNING *;
+
+-- name: DeleteWorkArrangement :one
+DELETE FROM employee_work_arrangements WHERE id = @id AND employee_id = @employee_id RETURNING *;

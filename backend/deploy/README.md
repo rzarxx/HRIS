@@ -116,6 +116,13 @@ Mengembalikan data dummy ke kondisi awal:
 cd /opt/hris && runuser -u hris -- ./hris-seed --reset
 ```
 
+Menyiapkan data demo: lima absen di Review Absen, tiga izin kerja, dan dua permintaan perangkat. Perintah
+ini aman diulang, dan mengembalikan data demo ke kondisi awal setelah latihan:
+
+```bash
+cd /opt/hris && runuser -u hris -- ./hris-seed --demo
+```
+
 ## PostgreSQL aaPanel
 Build PostgreSQL dari aaPanel tidak menyertakan ekstensi contrib seperti `pgcrypto`, dan PostGIS belum tentu tersedia.
 PostGIS dibutuhkan mulai Fase 2, jadi cek dulu sebelum fase itu dimulai.

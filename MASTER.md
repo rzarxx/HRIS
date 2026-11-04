@@ -174,7 +174,8 @@ Scope dihitung dari struktur organisasi di DB (`subdivisions.head_employee_id`, 
 Role `superadmin` (D34) adalah role tertinggi dan tidak ditulis sebagai kolom di matriks ini: **semua izin SDM kecuali keuangan**.
 - Tidak punya `payroll:manage`, `payroll:finalize`, dan `cash_advance:read` milik orang lain. `base_salary` orang lain tidak tampil dan tidak bisa diubah; Pejuang yang dibuatnya bergaji 0 sampai diisi SDM.
 - Bisa mengelola semua akun, kecuali menerbitkan tautan sandi untuk akun SDM (D33).
-- SDM tidak bisa mengunci, mereset, mengubah, atau menonaktifkan super admin. Bila lupa kata sandi: `hris-superadmin reset`.
+- SDM tidak bisa mengunci, mereset, mengubah, menonaktifkan, mengatur lokasi absen, atau mencabut perangkat super admin. Bila lupa kata sandi: `hris-superadmin reset`.
+- SDM tetap bisa menyetujui perangkat baru super admin, karena perangkat sendiri harus disetujui peninjau lain. Bila HP super admin hilang, super admin sendiri yang mencabutnya; SDM tidak bisa menggantikan.
 - MFA wajib. Role diberikan lewat `hris-superadmin grant --email ...` di server, pada akun Pejuang biasa. Bila akun belum aktif, tautan aktivasi tampil di terminal, karena SMTP baru bisa diatur setelah akun itu ada.
 - Penampil audit yang dibuat nanti wajib menyembunyikan nilai `employee.salary_changed` dari super admin.
 

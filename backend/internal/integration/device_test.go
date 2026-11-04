@@ -19,6 +19,8 @@ type deviceRow struct {
 	EmployeeName   string  `json:"employee_name"`
 	ApprovedByName *string `json:"approved_by_name"`
 	RevokedReason  *string `json:"revoked_reason"`
+
+	OwnerIsSuperadmin bool `json:"owner_is_superadmin"`
 }
 
 func deviceHash(name string) string {
@@ -193,6 +195,47 @@ func TestCannotApproveOwnDevice(t *testing.T) {
 	sdm.do(http.MethodPost, "/v1/admin/devices/"+second.ID+"/revoke", nil).want(t, http.StatusOK)
 }
 
+// SDM boleh menyetujui perangkat super admin sebagai peninjau lain, tetapi tidak boleh mencabutnya (D34).
+func TestSDMCannotRevokeSuperadminDevice(t *testing.T) {
+	srv := fresh(t, options{})
+	sdm := loginSDM(t, srv)
+	admin, _ := superadminClient(t, srv, "IT-INF")
+	hp, _ := pejuangClient(t, srv, "OPS-GDG")
+
+	first := data[deviceRow](t, register(admin, "admin-1").want(t, http.StatusCreated))
+	sdm.do(http.MethodPost, "/v1/admin/devices/"+first.ID+"/revoke", nil).wantError(t, http.StatusForbidden, "FORBIDDEN_ROLE")
+
+	second := data[deviceRow](t, register(admin, "admin-2").want(t, http.StatusCreated))
+	sdm.do(http.MethodPost, "/v1/admin/devices/"+second.ID+"/approve", nil).want(t, http.StatusOK)
+	sdm.do(http.MethodPost, "/v1/admin/devices/"+second.ID+"/revoke", nil).wantError(t, http.StatusForbidden, "FORBIDDEN_ROLE")
+	var status string
+	if err := ownerPool.QueryRow(context.Background(), `SELECT status::text FROM devices WHERE id = $1`, second.ID).Scan(&status); err != nil {
+		t.Fatal(err)
+	}
+	if status != "approved" {
+		t.Errorf("perangkat super admin berubah: %s", status)
+	}
+
+	// Penanda untuk web hanya menyala pada perangkat super admin.
+	owned := func(id string) bool {
+		for _, d := range data[[]deviceRow](t, sdm.do(http.MethodGet, "/v1/admin/devices?per_page=100", nil).want(t, http.StatusOK)) {
+			if d.ID == id {
+				return d.OwnerIsSuperadmin
+			}
+		}
+		t.Fatalf("perangkat %s tidak ada di daftar", id)
+		return false
+	}
+	other := data[deviceRow](t, register(hp, "biasa").want(t, http.StatusCreated))
+	if !owned(second.ID) || owned(other.ID) {
+		t.Errorf("penanda salah: admin %v, biasa %v", owned(second.ID), owned(other.ID))
+	}
+
+	// Perangkat Pejuang biasa tetap bisa dicabut SDM, dan super admin bisa mencabut miliknya.
+	sdm.do(http.MethodPost, "/v1/admin/devices/"+other.ID+"/revoke", nil).want(t, http.StatusOK)
+	admin.do(http.MethodPost, "/v1/admin/devices/"+second.ID+"/revoke", nil).want(t, http.StatusOK)
+}
+
 func TestOffboardingRevokesDevices(t *testing.T) {
 	srv := fresh(t, options{})
 	sdm := loginSDM(t, srv)
@@ -290,6 +333,19 @@ func TestSuperadminAllExceptFinance(t *testing.T) {
 	sdm.do(http.MethodPatch, "/v1/admin/employees/"+acc.employeeID, map[string]any{"full_name": "Diubah SDM"}).wantError(t, http.StatusForbidden, "FORBIDDEN_ROLE")
 	sdm.do(http.MethodPost, "/v1/admin/employees/"+acc.employeeID+"/deactivate", nil).wantError(t, http.StatusForbidden, "FORBIDDEN_ROLE")
 	admin.do(http.MethodGet, "/v1/me", nil).want(t, http.StatusOK)
+
+	// Lokasi absen super admin hanya diubah super admin; daftarnya tetap utuh setelah SDM ditolak.
+	loc := data[officeLocation](t, admin.do(http.MethodPost, "/v1/admin/office-locations", map[string]any{
+		"name": "Kantor Admin", "latitude": -6.2, "longitude": 106.8, "radius_m": 100,
+	}).want(t, http.StatusCreated))
+	locationsPath := "/v1/admin/employees/" + acc.employeeID + "/locations"
+	admin.do(http.MethodPut, locationsPath, map[string]any{"location_ids": []string{loc.ID}}).want(t, http.StatusOK)
+	sdm.do(http.MethodPut, locationsPath, map[string]any{"location_ids": []string{}}).wantError(t, http.StatusForbidden, "FORBIDDEN_ROLE")
+	if got := data[[]officeLocation](t, sdm.do(http.MethodGet, locationsPath, nil).want(t, http.StatusOK)); len(got) != 1 || got[0].ID != loc.ID {
+		t.Errorf("lokasi super admin berubah: %+v", got)
+	}
+	// Pejuang biasa tetap bisa diatur SDM.
+	sdm.do(http.MethodPut, "/v1/admin/employees/"+target.employeeID+"/locations", map[string]any{"location_ids": []string{loc.ID}}).want(t, http.StatusOK)
 
 	// Role lain tetap tertutup, dan SDM tetap memegang gaji.
 	login(t, srv, activeAccount(t, "pejuang", "OPS-LAP").email, seedPassword).do(http.MethodGet, "/v1/admin/devices", nil).wantError(t, http.StatusForbidden, "FORBIDDEN_ROLE")

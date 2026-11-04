@@ -53,8 +53,8 @@ func run() error {
 		if err != nil {
 			return err
 		}
-		fmt.Printf("Data demo siap untuk tanggal kerja %s: %d absen di Review Absen, %d izin kerja, %d perangkat.\n",
-			summary.WorkDate.Format("2006-01-02"), summary.Reviews, summary.Arrangements, summary.Devices)
+		fmt.Printf("Data demo siap untuk tanggal kerja %s: %d absen di Review Absen, %d absen hari ini, %d izin kerja, %d perangkat.\n",
+			summary.WorkDate.Format("2006-01-02"), summary.Reviews, summary.Today, summary.Arrangements, summary.Devices)
 		return nil
 	}
 	if *reset {

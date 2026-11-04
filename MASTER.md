@@ -704,6 +704,7 @@ Setiap `code` baru wajib ditambahkan di tabel ini.
 | GET, PUT | `/v1/admin/settings/mail` | `settings:manage` |
 | POST | `/v1/admin/settings/mail/test` | `settings:manage` |
 | GET | `/v1/admin/attendance/review?work_mode=` | `attendance:review` |
+| GET | `/v1/admin/attendance/monitor?date=&division_id=` | `attendance:review` |
 | GET | `/v1/admin/attendance`, `/v1/admin/attendance/attempts` | `attendance:review` / `attendance:report` |
 | POST | `/v1/admin/attendance/{id}/resolve` | `attendance:review` |
 | GET | `/v1/admin/reports/attendance`, `/v1/admin/reports/payroll-preview` | `attendance:report` |
@@ -1507,6 +1508,7 @@ Estimasi untuk tim kecil; sesuaikan setelah kapasitas tim jelas.
 - [ ] Enroll + cocok wajah (enkripsi aplikasi)
 - [x] Skor risiko dari sinyal yang sudah tersedia + `attendance_attempts`; sinyal integritas dan wajah menyusul bersama verifikasinya
 - [x] Halaman Review Absen
+- [x] Halaman Monitor Absen: semua Pejuang per tanggal kerja dan peta titik absen, diperbarui tiap 60 detik. Ini titik saat absen, bukan pelacakan lokasi terus-menerus
 - [ ] Uji serangan: fake GPS, foto, emulator, root, replay
 - [ ] Kalibrasi ambang wajah dan risiko dengan data uji
 

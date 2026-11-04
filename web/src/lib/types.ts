@@ -29,6 +29,7 @@ export type Shift = Schemas["Shift"];
 export type Holiday = Schemas["Holiday"];
 export type WorkArrangement = Schemas["WorkArrangement"];
 export type AttendanceReviewItem = Schemas["AttendanceReviewItem"];
+export type AttendanceMonitorItem = Schemas["AttendanceMonitorItem"];
 export type AttendanceResolveInput = Schemas["AttendanceResolveInput"];
 export type WorkArrangementInput = Schemas["WorkArrangementInput"];
 export type AdminDevice = Schemas["AdminDevice"];

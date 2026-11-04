@@ -964,6 +964,31 @@ paths:
         "403": { $ref: "#/components/responses/Error" }
         "404": { $ref: "#/components/responses/Error" }
 
+  /v1/admin/attendance/monitor:
+    get:
+      tags: [Presensi]
+      summary: Monitor absen semua Pejuang pada satu tanggal kerja
+      description: "Permission `attendance:review`. Memuat semua Pejuang aktif, termasuk yang belum absen. Tanggal kosong berarti tanggal kerja saat ini."
+      parameters:
+        - name: date
+          in: query
+          schema: { type: string, format: date }
+        - name: division_id
+          in: query
+          schema: { type: string, format: uuid }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: "#/components/schemas/AttendanceMonitorItem" }
+        "400": { $ref: "#/components/responses/ValidationFailed" }
   /v1/admin/attendance/review:
     get:
       tags: [Presensi]
@@ -1864,6 +1889,28 @@ components:
           items: { $ref: "#/components/schemas/GeoPoint" }
         is_active: { type: boolean }
         employee_count: { type: integer }
+    AttendanceMonitorItem:
+      type: object
+      required: [employee_id, employee_name, nip, subdivision_name, division_id, division_name, shift_name, scheduled, status, clock_in_at, clock_out_at, late_minutes, work_mode, location_name, in_latitude, in_longitude, out_latitude, out_longitude]
+      properties:
+        employee_id: { type: string, format: uuid }
+        employee_name: { type: string }
+        nip: { type: string }
+        subdivision_name: { type: string }
+        division_id: { type: string, format: uuid }
+        division_name: { type: string }
+        shift_name: { type: string, nullable: true }
+        scheduled: { type: boolean, description: "false bila hari libur, di luar hari kerja shift, atau shift belum ditentukan" }
+        status: { type: string, nullable: true, enum: [present, late, absent, leave, review], description: Kosong berarti belum ada absen }
+        clock_in_at: { type: string, format: date-time, nullable: true }
+        clock_out_at: { type: string, format: date-time, nullable: true }
+        late_minutes: { type: integer }
+        work_mode: { type: string, nullable: true, enum: [onsite, wfa, field] }
+        location_name: { type: string, nullable: true }
+        in_latitude: { type: number, nullable: true }
+        in_longitude: { type: number, nullable: true }
+        out_latitude: { type: number, nullable: true }
+        out_longitude: { type: number, nullable: true }
     AttendanceReviewItem:
       type: object
       description: Skor dan alasan risiko hanya untuk peninjau (D8).

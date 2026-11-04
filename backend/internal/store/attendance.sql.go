@@ -532,6 +532,87 @@ func (q *Queries) IsHoliday(ctx context.Context, date pgtype.Date) (bool, error)
 	return exists, err
 }
 
+const listAttendanceMonitor = `-- name: ListAttendanceMonitor :many
+SELECT e.id, e.nip, e.full_name, s.name AS subdivision_name, d.id AS division_id, d.name AS division_name,
+       sh.name AS shift_name, sh.work_days, a.status, a.clock_in_at, a.clock_out_at, a.late_minutes, a.work_mode,
+       l.name AS location_name, a.in_latitude, a.in_longitude, a.out_latitude, a.out_longitude
+FROM employees e
+JOIN subdivisions s ON s.id = e.subdivision_id
+JOIN divisions d ON d.id = s.division_id
+LEFT JOIN shifts sh ON sh.id = e.default_shift_id
+LEFT JOIN attendances a ON a.employee_id = e.id AND a.work_date = $1
+LEFT JOIN office_locations l ON l.id = a.location_id
+WHERE e.deleted_at IS NULL AND e.status = 'active'
+  AND (e.join_date IS NULL OR e.join_date <= $1)
+  AND ($2::uuid IS NULL OR d.id = $2)
+ORDER BY d.name, e.full_name
+`
+
+type ListAttendanceMonitorParams struct {
+	WorkDate   pgtype.Date
+	DivisionID uuid.NullUUID
+}
+
+type ListAttendanceMonitorRow struct {
+	ID              uuid.UUID
+	Nip             string
+	FullName        string
+	SubdivisionName string
+	DivisionID      uuid.UUID
+	DivisionName    string
+	ShiftName       pgtype.Text
+	WorkDays        []int16
+	Status          NullAttStatus
+	ClockInAt       pgtype.Timestamptz
+	ClockOutAt      pgtype.Timestamptz
+	LateMinutes     pgtype.Int4
+	WorkMode        pgtype.Text
+	LocationName    pgtype.Text
+	InLatitude      decimal.NullDecimal
+	InLongitude     decimal.NullDecimal
+	OutLatitude     decimal.NullDecimal
+	OutLongitude    decimal.NullDecimal
+}
+
+func (q *Queries) ListAttendanceMonitor(ctx context.Context, arg ListAttendanceMonitorParams) ([]ListAttendanceMonitorRow, error) {
+	rows, err := q.db.Query(ctx, listAttendanceMonitor, arg.WorkDate, arg.DivisionID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListAttendanceMonitorRow{}
+	for rows.Next() {
+		var i ListAttendanceMonitorRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Nip,
+			&i.FullName,
+			&i.SubdivisionName,
+			&i.DivisionID,
+			&i.DivisionName,
+			&i.ShiftName,
+			&i.WorkDays,
+			&i.Status,
+			&i.ClockInAt,
+			&i.ClockOutAt,
+			&i.LateMinutes,
+			&i.WorkMode,
+			&i.LocationName,
+			&i.InLatitude,
+			&i.InLongitude,
+			&i.OutLatitude,
+			&i.OutLongitude,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listAttendanceReview = `-- name: ListAttendanceReview :many
 SELECT a.id, a.employee_id, a.work_date, a.clock_in_at, a.clock_out_at, a.late_minutes, a.work_mode, a.flexible_hours,
        a.in_latitude, a.in_longitude, a.out_latitude, a.out_longitude, a.in_accuracy_m, a.risk_score, a.risk_flags,

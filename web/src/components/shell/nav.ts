@@ -46,6 +46,7 @@ export const NAV: NavItem[] = [
     icon: CalendarCheck,
     children: [
       { label: "Rekap", href: "/presensi/rekap", permission: "attendance:report" },
+      { label: "Monitor Absen", href: "/presensi/monitor", permission: "attendance:review" },
       { label: "Review Absen", href: "/presensi/review", permission: "attendance:review" },
     ],
   },

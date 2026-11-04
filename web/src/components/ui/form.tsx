@@ -74,3 +74,29 @@ export function Textarea({ invalid, className = "", ...props }: TextareaHTMLAttr
     />
   );
 }
+
+// Sakelar untuk mengaktifkan pilihan. Tetap checkbox bawaan agar Spasi, label, dan pembaca layar berfungsi.
+export function Toggle({
+  checked,
+  onChange,
+  disabled,
+  children,
+  className = "",
+}: {
+  checked: boolean;
+  onChange: (checked: boolean) => void;
+  disabled?: boolean;
+  children: ReactNode;
+  className?: string;
+}) {
+  return (
+    <label className={`inline-flex items-center gap-2 text-sm text-slate-700 ${disabled ? "cursor-not-allowed opacity-60" : "cursor-pointer"} ${className}`}>
+      <input type="checkbox" role="switch" checked={checked} disabled={disabled} onChange={(e) => onChange(e.target.checked)} className="peer sr-only" />
+      <span
+        aria-hidden
+        className="relative h-5 w-9 shrink-0 rounded-full bg-slate-400 transition-colors peer-checked:bg-primary-600 peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-primary-600 after:absolute after:top-0.5 after:left-0.5 after:size-4 after:rounded-full after:bg-white after:shadow-sm after:transition-transform peer-checked:after:translate-x-4"
+      />
+      <span>{children}</span>
+    </label>
+  );
+}

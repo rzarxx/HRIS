@@ -9,6 +9,8 @@ import type { OrgChartData } from "@/lib/types";
 
 // Slot kategori dataviz (urutan tetap). Warna mengikuti divisi, bukan peringkat.
 const SERIES = ["#2a78d6", "#eb6834", "#1baf7a", "#eda100", "#e87ba4", "#008300", "#6250d6", "#e34948"];
+// Warna aksen untuk grafik satu seri. Grafik per divisi tetap memakai SERIES karena warnanya menandai divisi.
+const ACCENT = "#15803d";
 const AXIS = { fontSize: 12, fill: "#64748b" };
 
 function divisionColors(divisions: { division: string }[]) {
@@ -168,7 +170,7 @@ export function SubdivsPerDivisionChart({ data }: { data: OrgChartData }) {
               />
               <Bar
                 dataKey="subdivision_count"
-                fill={SERIES[0]}
+                fill={ACCENT}
                 radius={[4, 4, 0, 0]}
                 maxBarSize={40}
                 isAnimationActive={false}

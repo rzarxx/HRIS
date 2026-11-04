@@ -10,7 +10,7 @@ export interface LatLng {
 }
 
 // Warna garis area, sama dengan primary-600.
-const AREA_COLOR = "#2563eb";
+const AREA_COLOR = "#15803d";
 const DEFAULT_VIEW: L.LatLngTuple = [-6.2, 106.8166];
 const DEFAULT_ZOOM = 11;
 const PIN_ZOOM = 16;

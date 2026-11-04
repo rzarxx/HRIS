@@ -1321,7 +1321,7 @@ web/
 
 **Halaman prioritas:** Login (+MFA), Dashboard, Master Data (Divisi, Subdiv, Pejuang, Lokasi, Shift), Presensi (Rekap, Review), Payroll, Pengajuan, Surat Peringatan, Pengumuman, Pengaturan.
 
-**Gaya UI:** bersih dan padat informasi, satu warna aksen (biru `#2563EB`), font Inter, sidebar kiri, kartu sudut 8 px, mode terang dulu.
+**Gaya UI:** bersih dan padat informasi, satu warna aksen (hijau `#15803D`), font Inter, sidebar kiri, kartu sudut 8 px, mode terang dulu.
 
 ### 10.2 Mobile (Android)
 **Stack:** Kotlin, Jetpack Compose, MVVM, Hilt, Retrofit/OkHttp (klien hasil generate), CameraX, ML Kit Face Detection, TFLite MobileFaceNet, Play Integrity, FusedLocationProvider, FCM. `minSdk 26`.

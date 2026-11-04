@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
+import { Toggle } from "@/components/ui/form";
 import { EmptyState, ErrorState, Loading } from "@/components/ui/layout";
 import { Modal } from "@/components/ui/modal";
 import { api } from "@/lib/api-client";
@@ -55,11 +56,10 @@ export function EmployeeLocationsModal({ employee, onClose }: { employee: Employ
           <ul className="grid gap-2">
             {locations.data.map((l) => (
               <li key={l.id}>
-                <label className="flex items-center gap-2 text-sm text-slate-700">
-                  <input type="checkbox" checked={selected.includes(l.id)} onChange={() => toggle(l.id)} className="size-4 rounded border-slate-300" />
+                <Toggle checked={selected.includes(l.id)} onChange={() => toggle(l.id)}>
                   {l.name}
-                  {!l.is_active && <span className="text-xs text-slate-400">(nonaktif)</span>}
-                </label>
+                  {!l.is_active && <span className="ml-1 text-xs text-slate-500">(nonaktif)</span>}
+                </Toggle>
               </li>
             ))}
           </ul>

@@ -195,7 +195,7 @@ func TestManageAccounts(t *testing.T) {
 		Token string `json:"token"`
 	}](t, sdm.do(http.MethodPost, "/v1/admin/users/"+target.userID+"/reset-password", nil).want(t, http.StatusOK))
 	newClient(t, srv).do(http.MethodPost, "/v1/auth/activate", map[string]any{"token": first.Token, "password": newPassword}).
-		wantError(t, http.StatusUnprocessableEntity, "ACTIVATION_INVALID")
+		wantError(t, http.StatusUnprocessableEntity, "ACTIVATION_USED")
 	newClient(t, srv).do(http.MethodPost, "/v1/auth/activate", map[string]any{"token": second.Token, "password": newPassword}).
 		want(t, http.StatusNoContent)
 

@@ -126,6 +126,29 @@ paths:
         "400": { $ref: "#/components/responses/ValidationFailed" }
         "422": { $ref: "#/components/responses/Error" }
         "429": { $ref: "#/components/responses/Error" }
+  /v1/auth/activate/check:
+    post:
+      tags: [Auth]
+      summary: Periksa tautan aktivasi sebelum form ditampilkan
+      description: Tidak memakai tautan. Menjawab ACTIVATION_USED, ACTIVATION_EXPIRED, atau ACTIVATION_INVALID bila tautan tidak berlaku.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ActivationCheckRequest" }
+      responses:
+        "200":
+          description: Tautan masih berlaku
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data: { $ref: "#/components/schemas/ActivationCheck" }
+        "422": { $ref: "#/components/responses/Error" }
+        "429": { $ref: "#/components/responses/Error" }
   /v1/auth/password/change:
     post:
       tags: [Auth]
@@ -1376,6 +1399,8 @@ components:
         - CHALLENGE_EXPIRED
         - ATTENDANCE_BLOCKED
         - ACTIVATION_INVALID
+        - ACTIVATION_USED
+        - ACTIVATION_EXPIRED
         - AUTH_ACCOUNT_LOCKED
         - APP_UPDATE_REQUIRED
         - RATE_LIMITED
@@ -1606,6 +1631,16 @@ components:
       properties:
         token: { type: string }
         password: { type: string, minLength: 10, maxLength: 256 }
+    ActivationCheckRequest:
+      type: object
+      required: [token]
+      properties:
+        token: { type: string }
+    ActivationCheck:
+      type: object
+      required: [expires_at]
+      properties:
+        expires_at: { type: string, format: date-time }
     PasswordChangeRequest:
       type: object
       required: [current_password, new_password]

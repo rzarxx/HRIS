@@ -598,7 +598,7 @@ Daftar memakai `?page=&per_page=&q=&sort=` (contoh `sort=-created_at`) dan filte
 | 403 | `PASSWORD_CHANGE_REQUIRED` | Wajib ganti sandi dulu |
 | 403 | `MFA_SETUP_REQUIRED` | Role `sdm` wajib mengaktifkan MFA dulu |
 | 403 | `API_ACCESS_DENIED` | Akses langsung ke API, bukan dari web admin atau aplikasi (D37) |
-| 403 | `DEVICE_NOT_REGISTERED` | `X-Device-Id` tidak dikenal |
+| 403 | `DEVICE_NOT_REGISTERED` | `X-Device-Id` tidak dikenal, tidak sama dengan klaim `did`, atau absen dikirim dari sesi web (D39) |
 | 403 | `DEVICE_PENDING_APPROVAL` | Perangkat menunggu persetujuan SDM |
 | 403 | `DEVICE_REVOKED` | Perangkat dicabut |
 | 403 | `APPROVAL_NOT_YOUR_TURN` | Bukan giliran/bukan approver langkah ini |
@@ -1599,6 +1599,7 @@ Estimasi untuk tim kecil; sesuaikan setelah kapasitas tim jelas.
 | D36 | Selama verifikasi perangkat dan wajah belum dibuat, semua absen ditolak, kecuali di development dengan `DEV_ALLOW_UNVERIFIED_ATTENDANCE` | Absen tanpa verifikasi tidak boleh bisa terpakai di produksi. API menolak menyala bila izin ini dipakai di luar development, dan absennya diberi penanda `unverified_integrity` |
 | D37 | API menolak akses langsung dari luar web admin dan aplikasi | Keputusan pemilik proyek. Header bisa dipalsukan, jadi ini menutup akses langsung dan pemindaian biasa, bukan pengganti autentikasi. Konsekuensi: alat seperti Postman ke server harus mengirim header `Origin`. API tetap terjangkau internet karena aplikasi Android di lapangan membutuhkannya |
 | D38 | Istilah tampilan: Ahad (bukan Minggu), Pejuang (bukan Employe), Al Bahjah tanpa strip sesuai akta, NIPY (bukan NIP). Warna memakai kombinasi hijau dan kuning | Permintaan pemilik proyek lewat kartu daftar istilah. Nama teknis `nip`, `employees`, dan `employee_id` tidak diganti agar kontrak API dan database tetap stabil. Kuning hanya untuk unsur merek karena kontrasnya rendah di atas putih, dan status peringatan tetap amber |
+| D39 | Absen hanya diterima dari sesi aplikasi yang terikat perangkat, kecuali di development dengan `DEV_ALLOW_UNVERIFIED_ATTENDANCE` | Sesi web tidak punya ikatan `did`, sehingga orang yang tahu kata sandi bisa mengirim `X-Device-Id` perangkat akun itu. Konsekuensi: absen di produksi baru bisa setelah login mobile tersedia |
 | D15 | `/v1/admin/reports/payroll-preview` mewajibkan `attendance:report` dan `payroll:manage` | Respons memuat gaji, sedangkan §7.6 membatasi `base_salary` untuk `sdm` dan pemilik data |
 
 ### 14.2 Pertanyaan yang Harus Dijawab (blokir pekerjaan terkait)

@@ -11,9 +11,9 @@ import { useAnnouncements, useDashboardSummary, useMe, useOrgChart } from "@/lib
 function Stat({ label, value, sub, icon: Icon }: { label: string; value: string; sub?: string; icon: typeof Users }) {
   return (
     <div className="rounded-[var(--radius-card)] border border-slate-200 bg-white p-4">
-      <div className="flex items-center justify-between">
-        <p className="text-sm text-slate-500">{label}</p>
-        <Icon className="size-4 text-slate-400" aria-hidden />
+      <div className="flex items-start justify-between gap-2">
+        <p className="min-w-0 text-sm text-slate-500">{label}</p>
+        <Icon className="mt-0.5 size-4 shrink-0 text-slate-400" aria-hidden />
       </div>
       <p className="mt-2 text-2xl font-semibold text-slate-900 tabular-nums">{value}</p>
       {sub && <p className="mt-0.5 text-xs text-slate-500">{sub}</p>}

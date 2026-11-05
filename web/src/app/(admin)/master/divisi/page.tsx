@@ -78,7 +78,7 @@ export default function DivisionsPage() {
         ) : rows.length === 0 ? (
           <EmptyState title="Divisi tidak ditemukan" description={q ? "Coba kata kunci lain." : "Tambahkan divisi pertama."} />
         ) : (
-          <Table>
+          <Table actions="always">
             <thead>
               <tr>
                 <Th>Kode</Th>

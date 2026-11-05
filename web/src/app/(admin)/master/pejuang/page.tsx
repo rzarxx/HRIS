@@ -129,7 +129,7 @@ function EmployeesView() {
                   setSubdivisionId("");
                 }}
                 aria-label="Filter divisi"
-                className="w-auto min-w-44"
+                className="w-full sm:w-auto sm:min-w-44"
               >
                 <option value="">Semua divisi</option>
                 {divisions.data?.map((d) => (
@@ -138,7 +138,7 @@ function EmployeesView() {
                   </option>
                 ))}
               </Select>
-              <Select value={subdivisionId} onChange={(e) => setSubdivisionId(e.target.value)} aria-label="Filter subdiv" className="w-auto min-w-44">
+              <Select value={subdivisionId} onChange={(e) => setSubdivisionId(e.target.value)} aria-label="Filter subdiv" className="w-full sm:w-auto sm:min-w-44">
                 <option value="">Semua subdiv</option>
                 {subOptions.map((s) => (
                   <option key={s.id} value={s.id}>
@@ -148,7 +148,7 @@ function EmployeesView() {
               </Select>
             </>
           )}
-          <Select value={status} onChange={(e) => setStatus(e.target.value)} aria-label="Filter status" className="w-auto">
+          <Select value={status} onChange={(e) => setStatus(e.target.value)} aria-label="Filter status" className="w-full sm:w-auto">
             <option value="">Semua status</option>
             <option value="active">Aktif</option>
             <option value="inactive">Nonaktif</option>
@@ -163,7 +163,7 @@ function EmployeesView() {
           <EmptyState title="Pejuang tidak ditemukan" description="Ubah kata kunci atau filter pencarian." />
         ) : (
           <>
-            <Table>
+            <Table actions="sm">
               <thead>
                 <tr>
                   <Th>NIPY</Th>

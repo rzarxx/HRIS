@@ -24,11 +24,31 @@
 
 html {
   color-scheme: light;
+  /* Lebar konten tidak melompat saat scrollbar muncul atau modal mengunci gulir. */
+  scrollbar-gutter: stable;
+}
+
+html:has(dialog[open]) {
+  overflow: hidden;
+}
+
+/* Tailwind 4 memakai kursor bawaan pada tombol, sehingga tombol terasa tidak bisa diklik. */
+@layer base {
+  button:not(:disabled),
+  select:not(:disabled),
+  summary {
+    cursor: pointer;
+  }
 }
 
 body {
   background: #f8fafc;
   color: #0f172a;
+}
+
+/* Panel Leaflet memakai z-index sampai 1000. Tanpa ini peta menembus header saat halaman digulir. */
+.leaflet-container {
+  isolation: isolate;
 }
 
 @media print {

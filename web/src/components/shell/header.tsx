@@ -23,8 +23,15 @@ export function Header({ onMenu }: { onMenu: () => void }) {
     const close = (e: MouseEvent) => {
       if (!menuRef.current?.contains(e.target as Node)) setOpen(false);
     };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setOpen(false);
+    };
     document.addEventListener("mousedown", close);
-    return () => document.removeEventListener("mousedown", close);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", close);
+      document.removeEventListener("keydown", onKey);
+    };
   }, [open]);
 
   async function logout() {
@@ -51,14 +58,14 @@ export function Header({ onMenu }: { onMenu: () => void }) {
           type="search"
           value={q}
           onChange={(e) => setQ(e.target.value)}
-          placeholder="Cari Pejuang (nama / NIPY)..."
+          placeholder="Cari nama / NIPY..."
           aria-label="Cari Pejuang"
           className="h-9 w-full rounded-md border border-slate-200 bg-slate-50 pr-3 pl-9 text-sm focus:border-primary-600 focus:bg-white focus:ring-2 focus:ring-primary-100 focus:outline-none"
         />
       </form>
 
       <div className="ml-auto flex items-center gap-2">
-        <IconButton label="Notifikasi (segera)">
+        <IconButton label="Notifikasi (segera hadir)" disabled>
           <Bell className="size-5" />
         </IconButton>
         <div className="relative" ref={menuRef}>

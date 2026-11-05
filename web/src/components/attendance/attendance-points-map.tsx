@@ -3,6 +3,7 @@
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import { useEffect, useRef } from "react";
+import { zoomWheelAfterClick } from "@/lib/map";
 
 export interface MapPoint {
   label: string;
@@ -22,7 +23,8 @@ export default function AttendancePointsMap({ points }: { points: MapPoint[] }) 
 
   useEffect(() => {
     if (!box.current || points.length === 0) return;
-    const m = L.map(box.current, { inertia: false });
+    const m = L.map(box.current, { inertia: false, scrollWheelZoom: false, dragging: !L.Browser.mobile });
+    zoomWheelAfterClick(m);
     L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
       maxZoom: 19,
       // Nginx memasang no-referrer untuk seluruh web, padahal OpenStreetMap memblokir tile tanpa Referer.

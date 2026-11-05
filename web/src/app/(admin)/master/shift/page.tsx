@@ -78,7 +78,7 @@ function ShiftsCard() {
         ) : list.data.length === 0 ? (
           <EmptyState title="Belum ada shift" description="Tambahkan shift pertama." />
         ) : (
-          <Table>
+          <Table actions="always">
             <thead>
               <tr>
                 <Th>Nama shift</Th>
@@ -234,7 +234,7 @@ function HolidaysCard() {
         ) : list.data.length === 0 ? (
           <EmptyState title={`Belum ada hari libur ${year}`} description="Tambahkan hari libur nasional atau cuti bersama." />
         ) : (
-          <Table>
+          <Table actions="always">
             <thead>
               <tr>
                 <Th>Tanggal</Th>

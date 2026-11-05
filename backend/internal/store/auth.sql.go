@@ -248,10 +248,13 @@ const getSessionAuthState = `-- name: GetSessionAuthState :one
 SELECT (s.revoked_at IS NULL AND s.absolute_expires_at > now() AND u.is_active)::boolean AS is_active,
        u.must_change_password,
        u.role,
+       s.user_id, u.employee_id, s.client, s.device_id,
+       (d.status IS NOT NULL AND d.status <> 'revoked')::boolean AS device_active,
        (m.enabled_at IS NOT NULL)::boolean AS mfa_enabled
 FROM sessions s
 JOIN users u ON u.id = s.user_id
 LEFT JOIN user_mfa m ON m.user_id = u.id
+LEFT JOIN devices d ON d.id = s.device_id AND d.employee_id = u.employee_id
 WHERE s.id = $1
 `
 
@@ -259,6 +262,11 @@ type GetSessionAuthStateRow struct {
 	IsActive           bool
 	MustChangePassword bool
 	Role               UserRole
+	UserID             uuid.UUID
+	EmployeeID         uuid.UUID
+	Client             string
+	DeviceID           uuid.NullUUID
+	DeviceActive       bool
 	MfaEnabled         bool
 }
 
@@ -270,22 +278,32 @@ func (q *Queries) GetSessionAuthState(ctx context.Context, id uuid.UUID) (GetSes
 		&i.IsActive,
 		&i.MustChangePassword,
 		&i.Role,
+		&i.UserID,
+		&i.EmployeeID,
+		&i.Client,
+		&i.DeviceID,
+		&i.DeviceActive,
 		&i.MfaEnabled,
 	)
 	return i, err
 }
 
 const getSessionByPrevRefreshHash = `-- name: GetSessionByPrevRefreshHash :one
-SELECT id, user_id FROM sessions WHERE prev_refresh_hash = $1 AND revoked_at IS NULL
+SELECT id, user_id FROM sessions WHERE prev_refresh_hash = $1 AND client = $2 AND revoked_at IS NULL
 `
+
+type GetSessionByPrevRefreshHashParams struct {
+	PrevRefreshHash pgtype.Text
+	Client          string
+}
 
 type GetSessionByPrevRefreshHashRow struct {
 	ID     uuid.UUID
 	UserID uuid.UUID
 }
 
-func (q *Queries) GetSessionByPrevRefreshHash(ctx context.Context, prevRefreshHash pgtype.Text) (GetSessionByPrevRefreshHashRow, error) {
-	row := q.db.QueryRow(ctx, getSessionByPrevRefreshHash, prevRefreshHash)
+func (q *Queries) GetSessionByPrevRefreshHash(ctx context.Context, arg GetSessionByPrevRefreshHashParams) (GetSessionByPrevRefreshHashRow, error) {
+	row := q.db.QueryRow(ctx, getSessionByPrevRefreshHash, arg.PrevRefreshHash, arg.Client)
 	var i GetSessionByPrevRefreshHashRow
 	err := row.Scan(&i.ID, &i.UserID)
 	return i, err

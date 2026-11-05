@@ -145,6 +145,35 @@ func TestRefreshRotationAndReuseDetection(t *testing.T) {
 	}
 }
 
+func TestWebRefreshRejectsMobileSession(t *testing.T) {
+	srv := fresh(t, options{})
+	hp, acc := pejuangClient(t, srv, "OPS-GDG")
+	d := data[deviceRow](t, register(hp, "refresh-mobile").want(t, http.StatusCreated))
+	const refresh = "token-mobile-khusus-tes"
+	const previous = "token-mobile-lama-khusus-tes"
+	var sessionID string
+	err := ownerPool.QueryRow(context.Background(), `
+		INSERT INTO sessions (user_id, client, device_id, refresh_hash, prev_refresh_hash, idle_expires_at, absolute_expires_at)
+		VALUES ($1, 'mobile', $2, $3, $4, now() + interval '1 hour', now() + interval '1 day') RETURNING id::text`,
+		acc.userID, d.ID, auth.HashToken(refresh), auth.HashToken(previous)).Scan(&sessionID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	old := hp.clone()
+	hp.cookies[auth.CookieRefresh] = refresh
+	hp.do(http.MethodPost, "/v1/auth/web/refresh", nil).wantError(t, http.StatusUnauthorized, "AUTH_TOKEN_INVALID")
+	old.cookies[auth.CookieRefresh] = previous
+	old.do(http.MethodPost, "/v1/auth/web/refresh", nil).wantError(t, http.StatusUnauthorized, "AUTH_TOKEN_INVALID")
+	var hash string
+	var revoked bool
+	if err := ownerPool.QueryRow(context.Background(), `SELECT refresh_hash, revoked_at IS NOT NULL FROM sessions WHERE id = $1`, sessionID).Scan(&hash, &revoked); err != nil {
+		t.Fatal(err)
+	}
+	if hash != auth.HashToken(refresh) || revoked {
+		t.Error("refresh web tidak boleh mengubah sesi mobile")
+	}
+}
+
 func TestRefreshRejections(t *testing.T) {
 	srv := fresh(t, options{})
 

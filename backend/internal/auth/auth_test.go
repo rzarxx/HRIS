@@ -1,6 +1,7 @@
 package auth
 
 import (
+	"context"
 	"crypto/ed25519"
 	"crypto/rand"
 	"net/http"
@@ -67,6 +68,103 @@ func TestTokenClaims(t *testing.T) {
 	}
 	if c.Issuer != Issuer {
 		t.Errorf("iss = %s", c.Issuer)
+	}
+}
+
+func TestMobileAccessTokenIsBoundToDeviceAndAudience(t *testing.T) {
+	s := newSigner(t)
+	user, employee, session, device := uuid.New(), uuid.New(), uuid.New(), uuid.New()
+	now := time.Now()
+	mobile, err := s.SignMobile(user, employee, session, device, "pejuang", now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	claims, err := s.VerifyMobile(mobile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if claims.Subject != user.String() || claims.EID != employee.String() || claims.SID != session.String() || claims.DID != device.String() {
+		t.Fatalf("klaim mobile salah: %+v", claims)
+	}
+	if _, err := s.Verify(mobile); err == nil {
+		t.Error("token mobile diterima sebagai web")
+	}
+	web, err := s.Sign(user, employee, session, "pejuang", now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.VerifyMobile(web); err == nil {
+		t.Error("token web diterima sebagai mobile")
+	}
+	if _, err := s.SignMobile(user, employee, session, uuid.Nil, "pejuang", now); err == nil {
+		t.Error("device kosong diterima")
+	}
+	for _, did := range []string{"", "bukan-uuid", uuid.Nil.String()} {
+		invalid := Claims{DID: did, RegisteredClaims: jwt.RegisteredClaims{Issuer: Issuer, Audience: jwt.ClaimStrings{AudienceMobile}, ExpiresAt: jwt.NewNumericDate(now.Add(time.Minute))}}
+		raw, err := jwt.NewWithClaims(jwt.SigningMethodEdDSA, invalid).SignedString(s.private)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := s.VerifyMobile(raw); err == nil {
+			t.Errorf("device %q diterima", did)
+		}
+	}
+	expired, err := s.SignMobile(user, employee, session, device, "pejuang", now.Add(-AccessTTL-time.Minute))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.VerifyMobile(expired); err == nil {
+		t.Error("token kedaluwarsa diterima")
+	}
+}
+
+func TestAuthenticateMobileChecksSessionAndDevice(t *testing.T) {
+	s := newSigner(t)
+	user, employee, session, device := uuid.New(), uuid.New(), uuid.New(), uuid.New()
+	token, err := s.SignMobile(user, employee, session, device, "pejuang", time.Now())
+	if err != nil {
+		t.Fatal(err)
+	}
+	valid := SessionState{Active: true, Client: "mobile", UserID: user, EmployeeID: employee, Role: "pejuang", DeviceID: uuid.NullUUID{UUID: device, Valid: true}, DeviceActive: true}
+	tests := []struct {
+		name   string
+		change func(*SessionState)
+		want   int
+	}{
+		{"valid", func(*SessionState) {}, http.StatusNoContent},
+		{"revoked session", func(s *SessionState) { s.Active = false }, http.StatusUnauthorized},
+		{"web session", func(s *SessionState) { s.Client = "web" }, http.StatusUnauthorized},
+		{"revoked device", func(s *SessionState) { s.DeviceActive = false }, http.StatusUnauthorized},
+		{"other device", func(s *SessionState) { s.DeviceID.UUID = uuid.New() }, http.StatusUnauthorized},
+		{"other user", func(s *SessionState) { s.UserID = uuid.New() }, http.StatusUnauthorized},
+		{"other employee", func(s *SessionState) { s.EmployeeID = uuid.New() }, http.StatusUnauthorized},
+		{"changed role", func(s *SessionState) { s.Role = "sdm" }, http.StatusUnauthorized},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			state := valid
+			tc.change(&state)
+			check := func(_ context.Context, id uuid.UUID) (SessionState, error) {
+				if id != session {
+					t.Error("sesi salah")
+				}
+				return state, nil
+			}
+			h := AuthenticateMobile(s, check)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				p, ok := PrincipalFrom(r.Context())
+				if !ok || p.DeviceID != device {
+					t.Error("principal salah")
+				}
+				w.WriteHeader(http.StatusNoContent)
+			}))
+			req := httptest.NewRequest(http.MethodPost, "/v1/attendance/challenge", nil)
+			req.Header.Set("Authorization", "Bearer "+token)
+			res := httptest.NewRecorder()
+			h.ServeHTTP(res, req)
+			if res.Code != tc.want {
+				t.Errorf("status = %d, ingin %d", res.Code, tc.want)
+			}
+		})
 	}
 }
 

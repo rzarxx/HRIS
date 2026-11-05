@@ -2,6 +2,8 @@ package integration
 
 import (
 	"context"
+	"crypto/ed25519"
+	"crypto/rand"
 	"crypto/sha256"
 	"encoding/hex"
 	"net/http"
@@ -9,6 +11,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/google/uuid"
 
 	"github.com/rzarxx/HRIS/backend/internal/auth"
 )
@@ -128,6 +132,28 @@ func TestDeviceLifecycle(t *testing.T) {
 	const unknown = "00000000-0000-4000-8000-000000000004"
 	sdm.do(http.MethodPost, "/v1/admin/devices/"+unknown+"/approve", nil).wantError(t, http.StatusNotFound, "NOT_FOUND")
 	sdm.do(http.MethodPost, "/v1/admin/devices/"+unknown+"/revoke", nil).wantError(t, http.StatusNotFound, "NOT_FOUND")
+}
+
+func TestMobileBearerUsesBoundDeviceSession(t *testing.T) {
+	_, private, err := ed25519.GenerateKey(rand.Reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	signer := auth.NewTokenSigner(private, "test")
+	srv := fresh(t, options{signer: signer})
+	sdm := loginSDM(t, srv)
+	hp, acc := pejuangClient(t, srv, "OPS-GDG")
+	d := data[deviceRow](t, register(hp, "bearer").want(t, http.StatusCreated))
+	session := insertDeviceSession(t, d.ID, acc.userID)
+	token, err := signer.SignMobile(uuid.MustParse(acc.userID), uuid.MustParse(acc.employeeID), uuid.MustParse(session), uuid.MustParse(d.ID), "pejuang", time.Now())
+	if err != nil {
+		t.Fatal(err)
+	}
+	mobile := newClient(t, srv).withHeaders(map[string]string{"Authorization": "Bearer " + token})
+	mobile.do(http.MethodGet, "/v1/me", nil).want(t, http.StatusOK)
+	mobile.do(http.MethodGet, "/v1/admin/employees", nil).wantError(t, http.StatusForbidden, "FORBIDDEN_ROLE")
+	sdm.do(http.MethodPost, "/v1/admin/devices/"+d.ID+"/revoke", nil).want(t, http.StatusOK)
+	mobile.do(http.MethodGet, "/v1/me", nil).wantError(t, http.StatusUnauthorized, "AUTH_TOKEN_INVALID")
 }
 
 // hpUserID mencari user pemilik perangkat untuk menyiapkan sesi mobile.

@@ -24,7 +24,7 @@ FROM sessions s JOIN users u ON u.id = s.user_id
 WHERE s.refresh_hash = $1;
 
 -- name: GetSessionByPrevRefreshHash :one
-SELECT id, user_id FROM sessions WHERE prev_refresh_hash = $1 AND revoked_at IS NULL;
+SELECT id, user_id FROM sessions WHERE prev_refresh_hash = $1 AND client = @client AND revoked_at IS NULL;
 
 -- name: RotateSession :exec
 UPDATE sessions

@@ -84,6 +84,7 @@ type Period struct {
 	Year       int
 	Month      time.Month
 	DivisionID uuid.NullUUID
+	WorkMode   string
 }
 
 func (s *Service) rows(ctx context.Context, p auth.Principal, period Period) ([]store.AttendanceReportRow, error) {
@@ -106,6 +107,7 @@ func (s *Service) rows(ctx context.Context, p auth.Principal, period Period) ([]
 		ScopeSubdivisionIds: subs,
 		ScopeDivisionIds:    divs,
 		DivisionID:          period.DivisionID,
+		WorkMode:            period.WorkMode,
 	})
 }
 
@@ -186,6 +188,10 @@ func (h *Handler) Attendance(w http.ResponseWriter, r *http.Request) error {
 	period, err := readPeriod(r)
 	if err != nil {
 		return err
+	}
+	period.WorkMode = r.URL.Query().Get("work_mode")
+	if period.WorkMode != "" && period.WorkMode != "onsite" && period.WorkMode != "wfa" && period.WorkMode != "field" {
+		return httpx.Validation(map[string]string{"work_mode": "Mode kerja tidak valid."})
 	}
 	p, _ := auth.PrincipalFrom(r.Context())
 	rows, err := h.svc.Attendance(r.Context(), p, period)

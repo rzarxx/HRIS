@@ -35,11 +35,12 @@ FROM employees e
 JOIN subdivisions s ON s.id = e.subdivision_id
 JOIN divisions d ON d.id = s.division_id
 LEFT JOIN attendances a ON a.employee_id = e.id AND a.work_date >= @from_date AND a.work_date < @to_date
+  AND (sqlc.arg(work_mode)::text = '' OR (a.work_mode = sqlc.arg(work_mode)::text AND a.clock_in_at IS NOT NULL))
 WHERE e.deleted_at IS NULL
   AND (@scope_all::boolean OR s.id = ANY(@scope_subdivision_ids::uuid[]) OR d.id = ANY(@scope_division_ids::uuid[]))
   AND (sqlc.narg(division_id)::uuid IS NULL OR d.id = sqlc.narg(division_id))
 GROUP BY e.id, e.nip, e.full_name, d.name, s.name, e.base_salary, e.status, e.join_date
-HAVING count(a.id) > 0 OR (e.status = 'active' AND (e.join_date IS NULL OR e.join_date < @to_date))
+HAVING count(a.id) > 0 OR (sqlc.arg(work_mode)::text = '' AND e.status = 'active' AND (e.join_date IS NULL OR e.join_date < @to_date))
 ORDER BY e.full_name, e.id;
 
 -- name: ListActiveEmployeesForAttendance :many

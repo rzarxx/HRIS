@@ -289,16 +289,21 @@ func (q *Queries) GetSessionAuthState(ctx context.Context, id uuid.UUID) (GetSes
 }
 
 const getSessionByPrevRefreshHash = `-- name: GetSessionByPrevRefreshHash :one
-SELECT id, user_id FROM sessions WHERE prev_refresh_hash = $1 AND revoked_at IS NULL
+SELECT id, user_id FROM sessions WHERE prev_refresh_hash = $1 AND client = $2 AND revoked_at IS NULL
 `
+
+type GetSessionByPrevRefreshHashParams struct {
+	PrevRefreshHash pgtype.Text
+	Client          string
+}
 
 type GetSessionByPrevRefreshHashRow struct {
 	ID     uuid.UUID
 	UserID uuid.UUID
 }
 
-func (q *Queries) GetSessionByPrevRefreshHash(ctx context.Context, prevRefreshHash pgtype.Text) (GetSessionByPrevRefreshHashRow, error) {
-	row := q.db.QueryRow(ctx, getSessionByPrevRefreshHash, prevRefreshHash)
+func (q *Queries) GetSessionByPrevRefreshHash(ctx context.Context, arg GetSessionByPrevRefreshHashParams) (GetSessionByPrevRefreshHashRow, error) {
+	row := q.db.QueryRow(ctx, getSessionByPrevRefreshHash, arg.PrevRefreshHash, arg.Client)
 	var i GetSessionByPrevRefreshHashRow
 	err := row.Scan(&i.ID, &i.UserID)
 	return i, err

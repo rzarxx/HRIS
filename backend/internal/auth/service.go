@@ -213,7 +213,7 @@ func (s *Service) Refresh(ctx context.Context, refresh string, ip *netip.Addr, n
 	if err != nil {
 		return Tokens{}, err
 	}
-	if sess.RevokedAt.Valid || !sess.IsActive ||
+	if sess.Client != "web" || sess.RevokedAt.Valid || !sess.IsActive ||
 		now.After(sess.IdleExpiresAt.Time) || now.After(sess.AbsoluteExpiresAt.Time) {
 		return Tokens{}, httpx.ErrUnauthenticated()
 	}
@@ -235,7 +235,7 @@ func (s *Service) Refresh(ctx context.Context, refresh string, ip *netip.Addr, n
 }
 
 func (s *Service) handleReuse(ctx context.Context, hash string, ip *netip.Addr) error {
-	prev, err := s.q.GetSessionByPrevRefreshHash(ctx, pgtype.Text{String: hash, Valid: true})
+	prev, err := s.q.GetSessionByPrevRefreshHash(ctx, store.GetSessionByPrevRefreshHashParams{PrevRefreshHash: pgtype.Text{String: hash, Valid: true}, Client: "web"})
 	if pgconv.IsNoRows(err) {
 		return httpx.ErrUnauthenticated()
 	}

@@ -19,11 +19,12 @@ import (
 )
 
 const (
-	Issuer      = "hris-api"
-	AudienceWeb = "hris-web"
-	AudienceMFA = "hris-mfa"
-	AccessTTL   = 15 * time.Minute
-	MFATokenTTL = 5 * time.Minute
+	Issuer         = "hris-api"
+	AudienceWeb    = "hris-web"
+	AudienceMobile = "hris-mobile"
+	AudienceMFA    = "hris-mfa"
+	AccessTTL      = 15 * time.Minute
+	MFATokenTTL    = 5 * time.Minute
 )
 
 // Claims mengikuti MASTER.md §5.2.
@@ -31,6 +32,7 @@ type Claims struct {
 	EID  string `json:"eid"`
 	Role string `json:"role"`
 	SID  string `json:"sid"`
+	DID  string `json:"did,omitempty"`
 	jwt.RegisteredClaims
 }
 
@@ -90,18 +92,33 @@ func createKey(path string) (ed25519.PrivateKey, error) {
 }
 
 func (s *TokenSigner) Sign(userID, employeeID, sessionID uuid.UUID, role string, now time.Time) (string, error) {
+	return s.signAccess(userID, employeeID, sessionID, uuid.Nil, role, AudienceWeb, now)
+}
+
+// SignMobile mengikat access token ke perangkat dan audience khusus mobile.
+func (s *TokenSigner) SignMobile(userID, employeeID, sessionID, deviceID uuid.UUID, role string, now time.Time) (string, error) {
+	if deviceID == uuid.Nil {
+		return "", errors.New("device ID wajib untuk token mobile")
+	}
+	return s.signAccess(userID, employeeID, sessionID, deviceID, role, AudienceMobile, now)
+}
+
+func (s *TokenSigner) signAccess(userID, employeeID, sessionID, deviceID uuid.UUID, role, audience string, now time.Time) (string, error) {
 	claims := Claims{
 		EID:  employeeID.String(),
 		Role: role,
 		SID:  sessionID.String(),
 		RegisteredClaims: jwt.RegisteredClaims{
 			Issuer:    Issuer,
-			Audience:  jwt.ClaimStrings{AudienceWeb},
+			Audience:  jwt.ClaimStrings{audience},
 			Subject:   userID.String(),
 			IssuedAt:  jwt.NewNumericDate(now),
 			ExpiresAt: jwt.NewNumericDate(now.Add(AccessTTL)),
 			ID:        uuid.NewString(),
 		},
+	}
+	if deviceID != uuid.Nil {
+		claims.DID = deviceID.String()
 	}
 	token := jwt.NewWithClaims(jwt.SigningMethodEdDSA, claims)
 	token.Header["kid"] = s.keyID
@@ -110,12 +127,29 @@ func (s *TokenSigner) Sign(userID, employeeID, sessionID uuid.UUID, role string,
 
 // Verify mengunci algoritma ke EdDSA sehingga token alg lain ditolak.
 func (s *TokenSigner) Verify(raw string) (*Claims, error) {
+	return s.verifyAccess(raw, AudienceWeb)
+}
+
+// VerifyMobile tidak menerima token web atau token tanpa identitas perangkat yang valid.
+func (s *TokenSigner) VerifyMobile(raw string) (*Claims, error) {
+	claims, err := s.verifyAccess(raw, AudienceMobile)
+	if err != nil {
+		return nil, err
+	}
+	deviceID, err := uuid.Parse(claims.DID)
+	if err != nil || deviceID == uuid.Nil {
+		return nil, errors.New("device ID token mobile tidak valid")
+	}
+	return claims, nil
+}
+
+func (s *TokenSigner) verifyAccess(raw, audience string) (*Claims, error) {
 	claims := &Claims{}
 	_, err := jwt.ParseWithClaims(raw, claims,
 		func(*jwt.Token) (any, error) { return s.public, nil },
 		jwt.WithValidMethods([]string{jwt.SigningMethodEdDSA.Alg()}),
 		jwt.WithIssuer(Issuer),
-		jwt.WithAudience(AudienceWeb),
+		jwt.WithAudience(audience),
 		jwt.WithExpirationRequired(),
 	)
 	if err != nil {

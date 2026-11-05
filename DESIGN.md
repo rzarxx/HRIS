@@ -130,7 +130,7 @@ Ambang: 0-29 lolos, 30-59 `review`, ≥ 60 ditolak. Angka ini titik awal; setel 
 
 ## 7. Desain UI Web Admin
 
-**Gaya:** bersih, padat informasi, dominan putih/abu, satu warna aksen (hijau `#15803D`). Font Inter. Mode terang dulu.
+**Gaya:** bersih, padat informasi, dominan putih/abu, aksen hijau `#15803D` dipadu kuning `#FACC15`. Kuning hanya untuk unsur merek (logo, penanda menu aktif, avatar, garis kartu masuk): jangan dipakai untuk teks di atas putih atau untuk status, karena peringatan memakai amber. Teks di atas kuning memakai `#14532D`. Font Inter. Mode terang dulu.
 
 **Layout:** sidebar kiri (ikon + label), header atas (cari, notifikasi, profil), konten kartu dengan sudut 8px.
 

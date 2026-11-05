@@ -34,7 +34,7 @@ function SettingsView() {
             <dl className="grid grid-cols-3 gap-y-2 text-sm">
               <dt className="text-slate-500">Nama</dt>
               <dd className="col-span-2 text-slate-800">{me?.full_name ?? "-"}</dd>
-              <dt className="text-slate-500">NIP</dt>
+              <dt className="text-slate-500">NIPY</dt>
               <dd className="col-span-2 font-mono text-xs text-slate-800">{me?.nip ?? "-"}</dd>
               <dt className="text-slate-500">Email</dt>
               <dd className="col-span-2 break-words text-slate-800">{me?.email ?? "-"}</dd>

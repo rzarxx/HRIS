@@ -29,7 +29,7 @@ export const subdivisionSchema = z.object({
 const blankOr = (test: (v: string) => boolean) => (v: string | null | undefined) => !v || test(v);
 
 export const employeeSchema = z.object({
-  nip: optionalText.refine(blankOr((v) => /^[A-Za-z0-9-]{4,20}$/.test(v)), "NIP 4-20 karakter huruf/angka."),
+  nip: optionalText.refine(blankOr((v) => /^[A-Za-z0-9-]{4,20}$/.test(v)), "NIPY 4-20 karakter huruf/angka."),
   full_name: required("Nama lengkap").min(3, "Nama minimal 3 karakter.").max(100, "Nama maksimal 100 karakter."),
   email: required("Email").email("Format email tidak valid."),
   phone: optionalText.refine(blankOr((v) => /^(\+62|0)8[0-9]{7,12}$/.test(v)), "Nomor HP tidak valid (contoh 081234567890)."),

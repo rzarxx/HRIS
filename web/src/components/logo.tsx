@@ -3,7 +3,7 @@ import { ShieldCheck } from "lucide-react";
 export function Logo({ compact = false }: { compact?: boolean }) {
   return (
     <div className="flex items-center gap-2.5">
-      <div className="flex size-8 items-center justify-center rounded-lg bg-primary-600 text-white">
+      <div className="flex size-8 items-center justify-center rounded-lg bg-primary-600 text-secondary-400">
         <ShieldCheck className="size-5" aria-hidden />
       </div>
       {!compact && (

@@ -28,7 +28,7 @@ func wibTime(date time.Time, minutes int) time.Time {
 	return time.Date(date.Year(), date.Month(), date.Day(), minutes/60, minutes%60, 0, 0, pgconv.WIB)
 }
 
-// isWorkDay memakai konvensi shifts.work_days: 1=Senin..7=Minggu.
+// isWorkDay memakai konvensi shifts.work_days: 1=Senin..7=Ahad.
 func isWorkDay(date time.Time, workDays []int16) bool {
 	day := int16(date.Weekday())
 	if day == 0 {

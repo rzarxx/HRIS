@@ -18,8 +18,8 @@ export function sumMoney(values: string[]) {
 export const number = (n: number) => numberFmt.format(n);
 export const percent = (r: number) => `${(r * 100).toLocaleString("id-ID", { maximumFractionDigits: 1 })}%`;
 
-// Urutan mengikuti nilai hari di API: 1=Senin sampai 7=Minggu.
-export const DAYS = ["Sen", "Sel", "Rab", "Kam", "Jum", "Sab", "Min"];
+// Urutan mengikuti nilai hari di API: 1=Senin sampai 7=Ahad.
+export const DAYS = ["Sen", "Sel", "Rab", "Kam", "Jum", "Sab", "Ahd"];
 
 export function dateLong(iso: string | null | undefined) {
   if (!iso) return "-";

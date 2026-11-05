@@ -83,9 +83,13 @@ cd /opt/hris && runuser -u hris -- ./hris-seed
 ```bash
 curl -i http://127.0.0.1:8080/readyz
 ```
+API menolak akses langsung dari luar (D37), jadi perintah ini seharusnya menjawab `403 API_ACCESS_DENIED`:
+
 ```bash
 curl -i https://api.domain.id/healthz
 ```
+
+Postman ke server harus mengirim header `Origin` berisi alamat web admin. Pemeriksaan dari server lewat `127.0.0.1:8080` tidak terpengaruh.
 
 Buka `https://admin.domain.id`, masuk dengan `sdm@pejuang.id`. Kata sandinya ada di server:
 
@@ -116,7 +120,7 @@ Mengembalikan data dummy ke kondisi awal:
 cd /opt/hris && runuser -u hris -- ./hris-seed --reset
 ```
 
-Menyiapkan data demo: lima absen di Review Absen, tiga izin kerja, dan dua permintaan perangkat. Perintah
+Menyiapkan data demo: lima absen di Review Absen, enam absen hari ini di Monitor Absen, tiga izin kerja, dan dua permintaan perangkat. Perintah
 ini aman diulang, dan mengembalikan data demo ke kondisi awal setelah latihan:
 
 ```bash

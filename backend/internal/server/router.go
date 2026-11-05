@@ -109,6 +109,7 @@ func routes(d Deps) []Route {
 		guarded(http.MethodPost, "/v1/attendance/clock-in", d.Attendance.ClockIn, permission.AttendanceClock),
 		guarded(http.MethodPost, "/v1/attendance/clock-out", d.Attendance.ClockOut, permission.AttendanceClock),
 		guarded(http.MethodGet, "/v1/attendance", d.Attendance.Mine, permission.AttendanceRead),
+		guarded(http.MethodGet, "/v1/admin/attendance/monitor", d.Attendance.Monitor, permission.AttendanceReview),
 		guarded(http.MethodGet, "/v1/admin/attendance/review", d.Attendance.ReviewQueue, permission.AttendanceReview),
 		guarded(http.MethodPost, "/v1/admin/attendance/{id}/resolve", d.Attendance.Resolve, permission.AttendanceReview),
 
@@ -153,7 +154,7 @@ func New(d Deps) http.Handler {
 
 func build(d Deps, table []Route) http.Handler {
 	r := chi.NewRouter()
-	r.Use(realIP(d.Options.TrustProxy), requestID, recoverer, requestLogger, limitBody, withTimeout, cors(d.Options.AllowedOrigins), securityHeaders(d.Options.Secure), limitByIP(d.Limiter))
+	r.Use(realIP(d.Options.TrustProxy), requestID, recoverer, requestLogger, securityHeaders(d.Options.Secure), blockDirectAccess(d.Options.AllowedOrigins), limitBody, withTimeout, cors(d.Options.AllowedOrigins), limitByIP(d.Limiter))
 
 	r.NotFound(func(w http.ResponseWriter, req *http.Request) { httpx.WriteError(w, req, httpx.ErrNotFound()) })
 	r.MethodNotAllowed(func(w http.ResponseWriter, req *http.Request) {

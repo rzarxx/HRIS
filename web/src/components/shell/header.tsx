@@ -51,7 +51,7 @@ export function Header({ onMenu }: { onMenu: () => void }) {
           type="search"
           value={q}
           onChange={(e) => setQ(e.target.value)}
-          placeholder="Cari Pejuang (nama / NIP)..."
+          placeholder="Cari Pejuang (nama / NIPY)..."
           aria-label="Cari Pejuang"
           className="h-9 w-full rounded-md border border-slate-200 bg-slate-50 pr-3 pl-9 text-sm focus:border-primary-600 focus:bg-white focus:ring-2 focus:ring-primary-100 focus:outline-none"
         />
@@ -69,7 +69,7 @@ export function Header({ onMenu }: { onMenu: () => void }) {
             aria-haspopup="menu"
             className="flex items-center gap-2.5 rounded-md py-1 pr-2 pl-1 hover:bg-slate-100"
           >
-            <span className="flex size-8 items-center justify-center rounded-full bg-primary-100 text-xs font-semibold text-primary-700">
+            <span className="flex size-8 items-center justify-center rounded-full bg-secondary-400 text-xs font-semibold text-primary-900">
               {me ? initials(me.full_name) : "…"}
             </span>
             <span className="hidden text-left leading-tight sm:block">

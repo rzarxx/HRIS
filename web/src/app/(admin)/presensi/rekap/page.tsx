@@ -37,7 +37,7 @@ export default function AttendanceReportPage() {
   function exportCsv() {
     downloadCsv(
       `rekap-presensi-${period.year}-${String(period.month).padStart(2, "0")}.csv`,
-      ["NIP", "Nama", "Divisi", "Subdiv", "Hari kerja", "Hadir", "Telat", "Cuti/Izin", "Alpha", "Total menit telat", "Kehadiran (%)"],
+      ["NIPY", "Nama", "Divisi", "Subdiv", "Hari kerja", "Hadir", "Telat", "Cuti/Izin", "Alpha", "Total menit telat", "Kehadiran (%)"],
       rows.map((r) => [r.nip, r.full_name, r.division, r.subdivision, r.work_days, r.present, r.late, r.leave, r.absent, r.late_minutes, (r.work_days ? (r.present / r.work_days) * 100 : 0).toFixed(1).replace(".", ",")]),
     );
   }
@@ -78,7 +78,7 @@ export default function AttendanceReportPage() {
           <Table>
             <thead>
               <tr>
-                <Th>NIP</Th>
+                <Th>NIPY</Th>
                 <Th>Nama</Th>
                 <Th>Subdiv</Th>
                 <Th align="right">Hari kerja</Th>

@@ -114,7 +114,7 @@ export function EmployeeForm({
         <Field label="Nama lengkap" htmlFor="full_name" error={errors.full_name} required className="sm:col-span-2">
           <Input id="full_name" value={form.full_name} onChange={(e) => set("full_name", e.target.value)} invalid={!!errors.full_name} autoFocus />
         </Field>
-        <Field label="NIP" htmlFor="nip" error={errors.nip} hint={employee ? undefined : "Kosongkan untuk NIP otomatis."}>
+        <Field label="NIPY" htmlFor="nip" error={errors.nip} hint={employee ? undefined : "Kosongkan untuk NIPY otomatis."}>
           <Input
             id="nip"
             value={form.nip ?? ""}

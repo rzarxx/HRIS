@@ -90,6 +90,9 @@ Defense in depth, least privilege, zero trust ke klien, secure by default, priva
 | Kadiv | role `kadiv` | Kepala divisi | head, manager |
 | Divisi | `division` | Divisi | department |
 | Presensi | `attendance` | Catatan kehadiran harian | absensi (di kode) |
+| NIPY | `nip` | Nomor induk Pejuang | NIP |
+| Ahad | hari ke-7 pada `work_days` | Hari ketujuh | Minggu |
+| Al Bahjah | - | Penulisan sesuai akta, tanpa strip | Al-Bahjah |
 | Absen masuk / pulang | `clock_in` / `clock_out` (field), `clock-in` / `clock-out` (path) | Aksi presensi | checkin, punch |
 | Lokasi kantor (geofence) | `office_location` | Area absen yang sah | site, branch |
 | Shift | `shift` | Jam kerja + toleransi | jadwal |
@@ -256,7 +259,7 @@ Domain terpisah: `admin.<domain>` (web statis) dan `api.<domain>` (API), keduany
 | T5 | Embedding palsu dikirim dari klien | Nonce + attestation, deteksi embedding identik berulang, sampling verifikasi selfie di server |
 | T6 | Token dicuri | Access pendek, cookie HttpOnly (web), Keystore (mobile), rotasi refresh + deteksi reuse |
 | T7 | Brute force / credential stuffing | Lockout, rate limit, MFA wajib untuk SDM |
-| T8 | IDOR (akses data karyawan lain) | Cek scope di service, objek di luar scope = 404, tes otomatis |
+| T8 | IDOR (akses data Pejuang lain) | Cek scope di service, objek di luar scope = 404, tes otomatis |
 | T9 | Eskalasi hak (Pejuang memanggil `/admin`) | Permission middleware, deny by default |
 | T10 | SQL injection | Hanya sqlc / query berparameter |
 | T11 | XSS (isi pengumuman) | Teks murni atau sanitasi, CSP, tanpa `dangerouslySetInnerHTML` |
@@ -265,7 +268,7 @@ Domain terpisah: `admin.<domain>` (web statis) dan `api.<domain>` (API), keduany
 | T14 | Kebocoran data (backup, log, file) | Enkripsi, tanpa PII di log, bucket privat + signed URL |
 | T15 | Lonjakan jam masuk / DDoS | Rate limit, Redis, uji beban |
 | T16 | Dependensi rentan | `govulncheck`, `npm audit`, Dependabot, scan image |
-| T17 | HP hilang / karyawan keluar | Cabut sesi + perangkat, nonaktifkan akun |
+| T17 | HP hilang / Pejuang keluar | Cabut sesi + perangkat, nonaktifkan akun |
 | T18 | Manipulasi jam HP | Waktu server yang berlaku |
 
 ### 5.2 Autentikasi & Sesi
@@ -384,7 +387,7 @@ Semua HP Android didukung lewat jalur berjenjang. Jalur ditetapkan **server** da
 | B `attestation` | HP tanpa Google Play yang mendukung Key Attestation, atau app di luar Play | Rantai sertifikat ke root Google, status CRL, keamanan `TrustedEnvironment`/`StrongBox`, `verifiedBootState` = `Verified`, `deviceLocked`, paket dan sidik jari tanda tangan app, `attestationChallenge` = `request_hash` | Normal |
 | C `hms` | HP Huawei dengan HMS | Huawei Safety Detect SysIntegrity dengan nonce dari `request_hash`. Dibangun bila data menunjukkan ada penggunanya | Normal |
 | D `manual` | HP Android tanpa bukti di atas | Persetujuan SDM per perangkat setelah diperiksa, berlaku `device.manual_approval_days` (default 90) | **Selalu `review`** (`integrity_manual`) |
-| E kiosk | Pejuang tanpa HP yang bisa dipakai, termasuk iPhone dan HP non-Android | Tablet kantor jalur A/B milik perusahaan; Pejuang memasukkan NIP lalu verifikasi wajah | Normal, geofence mengikuti lokasi kiosk |
+| E kiosk | Pejuang tanpa HP yang bisa dipakai, termasuk iPhone dan HP non-Android | Tablet kantor jalur A/B milik perusahaan; Pejuang memasukkan NIPY lalu verifikasi wajah | Normal, geofence mengikuti lokasi kiosk |
 
 **Aturan anti-turun-jalur:**
 - Klien tidak bisa memilih jalur. Jalur lebih rendah hanya berlaku setelah disetujui SDM dan tercatat di audit (`device.integrity_tier_changed`).
@@ -437,6 +440,7 @@ Data biometrik tergolong data pribadi bersifat spesifik dalam UU PDP (UU 27/2022
 
 ### 5.7 Kontrol API
 - TLS 1.2+ dengan HSTS; HTTP hanya redirect.
+- Akses langsung ditutup (D37): hanya request dari origin web admin, request dengan `Authorization`, atau koneksi langsung dari mesin itu sendiri yang diteruskan. Membuka alamat API dari browser dialihkan ke web admin, selain itu dijawab `API_ACCESS_DENIED`.
 - Batas ukuran body (JSON 1 MB, upload 5 MB) dan timeout per request.
 - **Rate limit awal** (per akun + IP):
   | Endpoint | Batas |
@@ -593,6 +597,7 @@ Daftar memakai `?page=&per_page=&q=&sort=` (contoh `sort=-created_at`) dan filte
 | 403 | `CSRF_INVALID` | Token CSRF salah (web) |
 | 403 | `PASSWORD_CHANGE_REQUIRED` | Wajib ganti sandi dulu |
 | 403 | `MFA_SETUP_REQUIRED` | Role `sdm` wajib mengaktifkan MFA dulu |
+| 403 | `API_ACCESS_DENIED` | Akses langsung ke API, bukan dari web admin atau aplikasi (D37) |
 | 403 | `DEVICE_NOT_REGISTERED` | `X-Device-Id` tidak dikenal |
 | 403 | `DEVICE_PENDING_APPROVAL` | Perangkat menunggu persetujuan SDM |
 | 403 | `DEVICE_REVOKED` | Perangkat dicabut |
@@ -607,7 +612,7 @@ Daftar memakai `?page=&per_page=&q=&sort=` (contoh `sort=-created_at`) dan filte
 | 409 | `REQUEST_NOT_PENDING` | Status sudah bukan `pending` |
 | 409 | `PERIOD_LOCKED` | Periode payroll terkunci |
 | 409 | `DUPLICATE_REQUEST` | Pengajuan bentrok (mis. tanggal cuti tumpang tindih) |
-| 409 | `CONFLICT_DUPLICATE` | Nilai unik sudah dipakai, mis. kode, NIP, email (`details.fields`) |
+| 409 | `CONFLICT_DUPLICATE` | Nilai unik sudah dipakai, mis. kode, NIPY, email (`details.fields`) |
 | 409 | `CONFLICT_HAS_DEPENDENTS` | Data masih dirujuk data lain, mis. divisi yang masih punya subdiv |
 | 409 | `CONFLICT_SELF_ACTION` | Aksi tidak boleh dilakukan pada akun sendiri, mis. menonaktifkan diri |
 | 409 | `MFA_ALREADY_ENABLED` | MFA sudah aktif untuk akun ini |
@@ -704,6 +709,7 @@ Setiap `code` baru wajib ditambahkan di tabel ini.
 | GET, PUT | `/v1/admin/settings/mail` | `settings:manage` |
 | POST | `/v1/admin/settings/mail/test` | `settings:manage` |
 | GET | `/v1/admin/attendance/review?work_mode=` | `attendance:review` |
+| GET | `/v1/admin/attendance/monitor?date=&division_id=` | `attendance:review` |
 | GET | `/v1/admin/attendance`, `/v1/admin/attendance/attempts` | `attendance:review` / `attendance:report` |
 | POST | `/v1/admin/attendance/{id}/resolve` | `attendance:review` |
 | GET | `/v1/admin/reports/attendance`, `/v1/admin/reports/payroll-preview` | `attendance:report` |
@@ -1167,7 +1173,7 @@ flowchart TD
     D --> E["Pejuang menekan acknowledge: acknowledged_at terisi"]
 ```
 
-### F20. Karyawan Keluar (Offboarding)
+### F20. Pejuang Keluar (Offboarding)
 ```mermaid
 flowchart TD
     A["SDM: deactivate employee dengan exit_date"] --> B["users.is_active = false, semua sesi dicabut, semua perangkat revoked"]
@@ -1507,6 +1513,7 @@ Estimasi untuk tim kecil; sesuaikan setelah kapasitas tim jelas.
 - [ ] Enroll + cocok wajah (enkripsi aplikasi)
 - [x] Skor risiko dari sinyal yang sudah tersedia + `attendance_attempts`; sinyal integritas dan wajah menyusul bersama verifikasinya
 - [x] Halaman Review Absen
+- [x] Halaman Monitor Absen: semua Pejuang per tanggal kerja dan peta titik absen, diperbarui tiap 60 detik. Ini titik saat absen, bukan pelacakan lokasi terus-menerus
 - [ ] Uji serangan: fake GPS, foto, emulator, root, replay
 - [ ] Kalibrasi ambang wajah dan risiko dengan data uji
 
@@ -1587,6 +1594,8 @@ Estimasi untuk tim kecil; sesuaikan setelah kapasitas tim jelas.
 | D34 | Super admin adalah role tertinggi: semua akses kecuali keuangan, dan SDM tidak bisa mengubah akunnya | Keputusan pemilik proyek. Keuangan = payroll, pratinjau upah, gaji orang lain, dan kasbon orang lain. Konsekuensi: bila satu-satunya super admin lupa kata sandi, pemulihannya lewat perintah di server |
 | D35 | Aplikasi Android minimal dibuat sebelum Play Integrity dan wajah | Keduanya hanya bisa dibuktikan di HP sungguhan, jadi masalahnya harus ketahuan lebih awal. Konsekuensi: sebagian Fase 3 dikerjakan sebelum Fase 2 selesai |
 | D36 | Selama verifikasi perangkat dan wajah belum dibuat, semua absen ditolak, kecuali di development dengan `DEV_ALLOW_UNVERIFIED_ATTENDANCE` | Absen tanpa verifikasi tidak boleh bisa terpakai di produksi. API menolak menyala bila izin ini dipakai di luar development, dan absennya diberi penanda `unverified_integrity` |
+| D37 | API menolak akses langsung dari luar web admin dan aplikasi | Keputusan pemilik proyek. Header bisa dipalsukan, jadi ini menutup akses langsung dan pemindaian biasa, bukan pengganti autentikasi. Konsekuensi: alat seperti Postman ke server harus mengirim header `Origin`. API tetap terjangkau internet karena aplikasi Android di lapangan membutuhkannya |
+| D38 | Istilah tampilan: Ahad (bukan Minggu), Pejuang (bukan Employe), Al Bahjah tanpa strip sesuai akta, NIPY (bukan NIP). Warna memakai kombinasi hijau dan kuning | Permintaan pemilik proyek lewat kartu daftar istilah. Nama teknis `nip`, `employees`, dan `employee_id` tidak diganti agar kontrak API dan database tetap stabil. Kuning hanya untuk unsur merek karena kontrasnya rendah di atas putih, dan status peringatan tetap amber |
 | D15 | `/v1/admin/reports/payroll-preview` mewajibkan `attendance:report` dan `payroll:manage` | Respons memuat gaji, sedangkan §7.6 membatasi `base_salary` untuk `sdm` dan pemilik data |
 
 ### 14.2 Pertanyaan yang Harus Dijawab (blokir pekerjaan terkait)
@@ -1639,7 +1648,7 @@ ALTER TABLE payroll_periods
   ADD COLUMN finalized_at TIMESTAMPTZ;
 
 ALTER TABLE shifts RENAME COLUMN late_tolerance_min TO late_tolerance_minutes;
-ALTER TABLE shifts ADD COLUMN work_days SMALLINT[] NOT NULL DEFAULT '{1,2,3,4,5}'; -- 1=Senin..7=Minggu
+ALTER TABLE shifts ADD COLUMN work_days SMALLINT[] NOT NULL DEFAULT '{1,2,3,4,5}'; -- 1=Senin..7=Ahad
 
 ALTER TABLE employees
   ADD COLUMN default_shift_id UUID REFERENCES shifts(id),

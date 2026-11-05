@@ -94,3 +94,18 @@ UPDATE attendances
 SET status = @status, late_minutes = @late_minutes, review_by = @review_by, reviewed_at = @reviewed_at, review_note = @review_note
 WHERE id = @id
 RETURNING *;
+
+-- name: ListAttendanceMonitor :many
+SELECT e.id, e.nip, e.full_name, s.name AS subdivision_name, d.id AS division_id, d.name AS division_name,
+       sh.name AS shift_name, sh.work_days, a.status, a.clock_in_at, a.clock_out_at, a.late_minutes, a.work_mode,
+       l.name AS location_name, a.in_latitude, a.in_longitude, a.out_latitude, a.out_longitude
+FROM employees e
+JOIN subdivisions s ON s.id = e.subdivision_id
+JOIN divisions d ON d.id = s.division_id
+LEFT JOIN shifts sh ON sh.id = e.default_shift_id
+LEFT JOIN attendances a ON a.employee_id = e.id AND a.work_date = @work_date
+LEFT JOIN office_locations l ON l.id = a.location_id
+WHERE e.deleted_at IS NULL AND e.status = 'active'
+  AND (e.join_date IS NULL OR e.join_date <= @work_date)
+  AND (sqlc.narg(division_id)::uuid IS NULL OR d.id = sqlc.narg(division_id))
+ORDER BY d.name, e.full_name;

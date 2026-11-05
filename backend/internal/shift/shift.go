@@ -107,7 +107,7 @@ func (in Input) validate() (validated, error) {
 	days = slices.Compact(days)
 	for _, d := range days {
 		if d < 1 || d > 7 {
-			fields["work_days"] = "Hari kerja harus 1 (Senin) sampai 7 (Minggu)."
+			fields["work_days"] = "Hari kerja harus 1 (Senin) sampai 7 (Ahad)."
 			break
 		}
 	}

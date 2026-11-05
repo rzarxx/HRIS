@@ -18,13 +18,14 @@ import (
 const (
 	demoLocationName = "Kantor Pusat (Demo)"
 	demoReasonPrefix = "[Demo] "
-	demoEmployees    = 8
+	demoEmployees    = 12
 )
 
 // DemoSummary adalah jumlah data yang disiapkan SeedDemo.
 type DemoSummary struct {
 	WorkDate     time.Time
 	Reviews      int
+	Today        int
 	Arrangements int
 	Devices      int
 }
@@ -59,6 +60,16 @@ var demoReviews = []demoReview{
 	{employee: 2, mode: "onsite", inMinute: 8*60 + 25, late: 25, in: demoOffice, accuracy: 72, score: 35, flags: []string{"accuracy_low", "clock_skew"}},
 	{employee: 3, mode: "onsite", inMinute: 8 * 60, in: demoOffice, outMinute: 8*60 + 30, out: demoBandung, accuracy: 9, score: 50, flags: []string{"location_jump", "new_device_recent"}},
 	{employee: 4, mode: "onsite", inMinute: 7*60 + 55, in: demoOffice, outMinute: 17*60 + 2, out: demoOffice, accuracy: 15, score: 30, flags: []string{"clock_skew", "new_device_recent"}},
+}
+
+// Absen hari ini untuk Monitor Absen. Titiknya sedikit berbeda agar tidak bertumpuk di peta.
+var demoToday = []demoReview{
+	{employee: 0, mode: "wfa", inMinute: 7*60 + 50, in: demoHome, accuracy: 12},
+	{employee: 1, mode: "field", flexible: true, inMinute: 9*60 + 10, in: demoBandung, accuracy: 18},
+	{employee: 8, mode: "onsite", inMinute: 7*60 + 45, in: geoPoint{-6.2003, 106.8164}, accuracy: 8},
+	{employee: 9, mode: "onsite", inMinute: 7*60 + 58, in: geoPoint{-6.1999, 106.8168}, accuracy: 10},
+	{employee: 10, mode: "onsite", inMinute: 8*60 + 22, late: 22, in: geoPoint{-6.2004, 106.8169}, accuracy: 9},
+	{employee: 11, mode: "onsite", inMinute: 8*60 + 41, late: 41, in: geoPoint{-6.1998, 106.8163}, accuracy: 14},
 }
 
 type demoArrangement struct {
@@ -133,7 +144,10 @@ func SeedDemo(ctx context.Context, pool *pgxpool.Pool, now time.Time) (DemoSumma
 		if summary.Devices, err = seedDemoDevices(ctx, tx, employees, sdmUser, now); err != nil {
 			return err
 		}
-		summary.Reviews, err = seedDemoReviews(ctx, tx, employees, shiftID, locationID, summary.WorkDate)
+		if summary.Reviews, err = seedDemoReviews(ctx, tx, employees, shiftID, locationID, summary.WorkDate); err != nil {
+			return err
+		}
+		summary.Today, err = seedDemoToday(ctx, tx, employees, shiftID, locationID, now)
 		return err
 	})
 	return summary, err
@@ -152,7 +166,7 @@ func demoEmployeeIDs(ctx context.Context, tx pgx.Tx) ([]uuid.UUID, error) {
 		return nil, err
 	}
 	if len(ids) < demoEmployees {
-		return nil, errors.New("Pejuang aktif kurang dari 8, jalankan seed dulu")
+		return nil, errors.New("Pejuang aktif kurang dari 12, jalankan seed dulu")
 	}
 	return ids, nil
 }
@@ -229,41 +243,67 @@ func seedDemoDevices(ctx context.Context, tx pgx.Tx, employees []uuid.UUID, sdmU
 
 func seedDemoReviews(ctx context.Context, tx pgx.Tx, employees []uuid.UUID, shiftID, locationID uuid.UUID, date time.Time) (int, error) {
 	for _, r := range demoReviews {
-		flags, err := json.Marshal(r.flags)
-		if err != nil {
+		if err := upsertDemoAttendance(ctx, tx, employees, shiftID, locationID, date, "review", r); err != nil {
 			return 0, err
 		}
-		var location *uuid.UUID
-		if r.mode == "onsite" {
-			location = &locationID
+	}
+	return len(demoReviews), nil
+}
+
+// seedDemoToday mengisi absen hari ini. Jam masuk tidak melewati waktu sekarang, karena absen
+// yang belum terjadi akan terlihat aneh saat demo dimulai pagi.
+func seedDemoToday(ctx context.Context, tx pgx.Tx, employees []uuid.UUID, shiftID, locationID uuid.UUID, now time.Time) (int, error) {
+	date := pgconv.WorkDate(now)
+	wib := now.In(pgconv.WIB)
+	current := wib.Hour()*60 + wib.Minute()
+	for _, r := range demoToday {
+		status := "present"
+		if r.late > 0 {
+			status = "late"
 		}
-		var outAt *time.Time
-		var outLat, outLon *float64
-		var worked *int
-		if r.outMinute > 0 {
-			at := wibTime(date, r.outMinute)
-			minutes := r.outMinute - r.inMinute
-			outAt, outLat, outLon, worked = &at, &r.out.lat, &r.out.lon, &minutes
+		r.inMinute = min(r.inMinute, current)
+		if err := upsertDemoAttendance(ctx, tx, employees, shiftID, locationID, date, status, r); err != nil {
+			return 0, err
 		}
-		_, err = tx.Exec(ctx, `
+	}
+	return len(demoToday), nil
+}
+
+func upsertDemoAttendance(ctx context.Context, tx pgx.Tx, employees []uuid.UUID, shiftID, locationID uuid.UUID, date time.Time, status string, r demoReview) error {
+	if r.flags == nil {
+		r.flags = []string{}
+	}
+	flags, err := json.Marshal(r.flags)
+	if err != nil {
+		return err
+	}
+	var location *uuid.UUID
+	if r.mode == "onsite" {
+		location = &locationID
+	}
+	var outAt *time.Time
+	var outLat, outLon *float64
+	var worked *int
+	if r.outMinute > 0 {
+		at := wibTime(date, r.outMinute)
+		minutes := r.outMinute - r.inMinute
+		outAt, outLat, outLon, worked = &at, &r.out.lat, &r.out.lon, &minutes
+	}
+	_, err = tx.Exec(ctx, `
 			INSERT INTO attendances (employee_id, work_date, shift_id, clock_in_at, clock_out_at, status, late_minutes, risk_score, risk_flags,
 			                         work_mode, flexible_hours, location_id, worked_minutes, in_accuracy_m,
 			                         in_latitude, in_longitude, out_latitude, out_longitude)
-			VALUES ($1, $2, $3, $4, $5, 'review', $6, $7, $8::jsonb, $9, $10, $11::uuid, $12::int, $13::float8::numeric,
+			VALUES ($1, $2, $3, $4, $5, $18::att_status, $6, $7, $8::jsonb, $9, $10, $11::uuid, $12::int, $13::float8::numeric,
 			        $14::float8::numeric, $15::float8::numeric, $16::float8::numeric, $17::float8::numeric)
 			ON CONFLICT (employee_id, work_date) DO UPDATE SET
-			  shift_id = EXCLUDED.shift_id, clock_in_at = EXCLUDED.clock_in_at, clock_out_at = EXCLUDED.clock_out_at, status = 'review',
+			  shift_id = EXCLUDED.shift_id, clock_in_at = EXCLUDED.clock_in_at, clock_out_at = EXCLUDED.clock_out_at, status = EXCLUDED.status,
 			  late_minutes = EXCLUDED.late_minutes, risk_score = EXCLUDED.risk_score, risk_flags = EXCLUDED.risk_flags,
 			  work_mode = EXCLUDED.work_mode, flexible_hours = EXCLUDED.flexible_hours, location_id = EXCLUDED.location_id,
 			  worked_minutes = EXCLUDED.worked_minutes, in_accuracy_m = EXCLUDED.in_accuracy_m,
 			  in_latitude = EXCLUDED.in_latitude, in_longitude = EXCLUDED.in_longitude,
 			  out_latitude = EXCLUDED.out_latitude, out_longitude = EXCLUDED.out_longitude,
 			  review_by = NULL, reviewed_at = NULL, review_note = NULL`,
-			employees[r.employee], pgconv.Date(date), shiftID, wibTime(date, r.inMinute), outAt, r.late, r.score, string(flags),
-			r.mode, r.flexible, location, worked, r.accuracy, r.in.lat, r.in.lon, outLat, outLon)
-		if err != nil {
-			return 0, err
-		}
-	}
-	return len(demoReviews), nil
+		employees[r.employee], pgconv.Date(date), shiftID, wibTime(date, r.inMinute), outAt, r.late, r.score, string(flags),
+		r.mode, r.flexible, location, worked, r.accuracy, r.in.lat, r.in.lon, outLat, outLon, status)
+	return err
 }

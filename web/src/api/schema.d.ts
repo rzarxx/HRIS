@@ -851,7 +851,7 @@ export interface paths {
                 query?: {
                     page?: components["parameters"]["Page"];
                     per_page?: components["parameters"]["PerPage"];
-                    /** @description Cari nama, NIP, email, jabatan */
+                    /** @description Cari nama, NIPY, email, jabatan */
                     q?: string;
                     division_id?: string;
                     subdivision_id?: string;
@@ -2138,6 +2138,51 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/admin/attendance/monitor": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Monitor absen semua Pejuang pada satu tanggal kerja
+         * @description Permission `attendance:review`. Memuat semua Pejuang aktif, termasuk yang belum absen. Tanggal kosong berarti tanggal kerja saat ini.
+         */
+        get: {
+            parameters: {
+                query?: {
+                    date?: string;
+                    division_id?: string;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data: components["schemas"]["AttendanceMonitorItem"][];
+                        };
+                    };
+                };
+                400: components["responses"]["ValidationFailed"];
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/admin/attendance/review": {
         parameters: {
             query?: never;
@@ -2726,7 +2771,7 @@ export interface components {
          * @description Registry MASTER.md §7.4
          * @enum {string}
          */
-        ErrorCode: "VALIDATION_FAILED" | "AUTH_INVALID_CREDENTIALS" | "AUTH_TOKEN_INVALID" | "AUTH_MFA_REQUIRED" | "AUTH_MFA_INVALID" | "FORBIDDEN_ROLE" | "CSRF_INVALID" | "PASSWORD_CHANGE_REQUIRED" | "MFA_SETUP_REQUIRED" | "DEVICE_NOT_REGISTERED" | "DEVICE_PENDING_APPROVAL" | "DEVICE_REVOKED" | "APPROVAL_NOT_YOUR_TURN" | "APPROVAL_SELF_FORBIDDEN" | "MAKER_CHECKER_VIOLATION" | "NOT_FOUND" | "METHOD_NOT_ALLOWED" | "ALREADY_CLOCKED_IN" | "ALREADY_CLOCKED_OUT" | "SHIFT_NOT_ASSIGNED" | "NOT_CLOCKED_IN" | "REQUEST_NOT_PENDING" | "PERIOD_LOCKED" | "DUPLICATE_REQUEST" | "CONFLICT_DUPLICATE" | "CONFLICT_HAS_DEPENDENTS" | "CONFLICT_SELF_ACTION" | "MFA_ALREADY_ENABLED" | "PAYLOAD_TOO_LARGE" | "UNSUPPORTED_MEDIA_TYPE" | "GEOFENCE_OUT" | "FACE_NOT_ENROLLED" | "FACE_MISMATCH" | "LIVENESS_FAILED" | "CHALLENGE_EXPIRED" | "ATTENDANCE_BLOCKED" | "ACTIVATION_INVALID" | "AUTH_ACCOUNT_LOCKED" | "APP_UPDATE_REQUIRED" | "RATE_LIMITED" | "INTERNAL_ERROR";
+        ErrorCode: "VALIDATION_FAILED" | "AUTH_INVALID_CREDENTIALS" | "AUTH_TOKEN_INVALID" | "AUTH_MFA_REQUIRED" | "AUTH_MFA_INVALID" | "FORBIDDEN_ROLE" | "CSRF_INVALID" | "PASSWORD_CHANGE_REQUIRED" | "MFA_SETUP_REQUIRED" | "DEVICE_NOT_REGISTERED" | "DEVICE_PENDING_APPROVAL" | "DEVICE_REVOKED" | "APPROVAL_NOT_YOUR_TURN" | "APPROVAL_SELF_FORBIDDEN" | "MAKER_CHECKER_VIOLATION" | "NOT_FOUND" | "METHOD_NOT_ALLOWED" | "ALREADY_CLOCKED_IN" | "ALREADY_CLOCKED_OUT" | "SHIFT_NOT_ASSIGNED" | "NOT_CLOCKED_IN" | "REQUEST_NOT_PENDING" | "PERIOD_LOCKED" | "DUPLICATE_REQUEST" | "CONFLICT_DUPLICATE" | "CONFLICT_HAS_DEPENDENTS" | "CONFLICT_SELF_ACTION" | "MFA_ALREADY_ENABLED" | "PAYLOAD_TOO_LARGE" | "UNSUPPORTED_MEDIA_TYPE" | "GEOFENCE_OUT" | "FACE_NOT_ENROLLED" | "FACE_MISMATCH" | "LIVENESS_FAILED" | "CHALLENGE_EXPIRED" | "ATTENDANCE_BLOCKED" | "ACTIVATION_INVALID" | "AUTH_ACCOUNT_LOCKED" | "APP_UPDATE_REQUIRED" | "RATE_LIMITED" | "API_ACCESS_DENIED" | "INTERNAL_ERROR";
         /**
          * @description Matriks MASTER.md §3.2
          * @enum {string}
@@ -3164,6 +3209,36 @@ export interface components {
             is_active: boolean;
             employee_count: number;
         };
+        AttendanceMonitorItem: {
+            /** Format: uuid */
+            employee_id: string;
+            employee_name: string;
+            nip: string;
+            subdivision_name: string;
+            /** Format: uuid */
+            division_id: string;
+            division_name: string;
+            shift_name: string | null;
+            /** @description false bila hari libur, di luar hari kerja shift, atau shift belum ditentukan */
+            scheduled: boolean;
+            /**
+             * @description Kosong berarti belum ada absen
+             * @enum {string|null}
+             */
+            status: "present" | "late" | "absent" | "leave" | "review" | null;
+            /** Format: date-time */
+            clock_in_at: string | null;
+            /** Format: date-time */
+            clock_out_at: string | null;
+            late_minutes: number;
+            /** @enum {string|null} */
+            work_mode: "onsite" | "wfa" | "field" | null;
+            location_name: string | null;
+            in_latitude: number | null;
+            in_longitude: number | null;
+            out_latitude: number | null;
+            out_longitude: number | null;
+        };
         /** @description Skor dan alasan risiko hanya untuk peninjau (D8). */
         AttendanceReviewItem: {
             /** Format: uuid */
@@ -3223,7 +3298,7 @@ export interface components {
              * @description Kosong berarti tanpa akhir
              */
             ends_on?: string | null;
-            /** @description 1=Senin sampai 7=Minggu. Kosong berarti setiap hari. */
+            /** @description 1=Senin sampai 7=Ahad. Kosong berarti setiap hari. */
             weekdays?: number[];
             reason: string;
         };
@@ -3261,7 +3336,7 @@ export interface components {
              */
             end_time?: string;
             late_tolerance_minutes?: number;
-            /** @description 1=Senin sampai 7=Minggu */
+            /** @description 1=Senin sampai 7=Ahad */
             work_days?: number[];
         };
         ShiftInput: components["schemas"]["ShiftPatch"] & Record<string, never>;

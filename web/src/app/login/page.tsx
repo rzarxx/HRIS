@@ -12,7 +12,7 @@ export default function LoginPage() {
         <div className="mb-6 flex justify-center">
           <Logo />
         </div>
-        <div className="rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
+        <div className="rounded-lg border border-t-4 border-slate-200 border-t-secondary-400 bg-white p-6 shadow-sm">
           <h1 className="text-lg font-semibold text-slate-900">Masuk ke akun Anda</h1>
           <p className="mt-1 mb-5 text-sm text-slate-500">Gunakan email dan password yang terdaftar di SDM.</p>
           <Suspense>

@@ -30,6 +30,7 @@ tags:
 security:
   - csrfToken: []
     cookieAuth: []
+  - bearerAuth: []
 paths:
   /healthz:
     get:
@@ -1309,6 +1310,11 @@ components:
       type: apiKey
       in: cookie
       name: hris_at
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Access token aplikasi mobile, terikat perangkat lewat klaim `did`. Tidak butuh CSRF. Bila header `Authorization` dikirim, cookie diabaikan.
   parameters:
     Id:
       name: id

@@ -161,6 +161,11 @@ func (s *Service) deviceOf(ctx context.Context, p auth.Principal, header string)
 	if err != nil {
 		return store.Device{}, httpx.NewError(http.StatusForbidden, "DEVICE_NOT_REGISTERED", "Perangkat belum terdaftar.")
 	}
+	// Absen hanya sah dari sesi aplikasi yang terikat perangkat. Sesi web tidak punya ikatan itu,
+	// sehingga X-Device-Id bisa diisi siapa saja yang tahu kata sandinya (D39).
+	if p.DeviceID == uuid.Nil && !s.opt.AllowUnverified {
+		return store.Device{}, httpx.NewError(http.StatusForbidden, "DEVICE_NOT_REGISTERED", "Perangkat belum terdaftar.")
+	}
 	if p.DeviceID != uuid.Nil && p.DeviceID != id {
 		return store.Device{}, httpx.NewError(http.StatusForbidden, "DEVICE_NOT_REGISTERED", "Perangkat belum terdaftar.")
 	}

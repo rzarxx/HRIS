@@ -2,6 +2,8 @@ package integration
 
 import (
 	"context"
+	"crypto/ed25519"
+	"crypto/rand"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -10,6 +12,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/rzarxx/HRIS/backend/internal/auth"
 	"github.com/rzarxx/HRIS/backend/internal/devsim"
 	"github.com/rzarxx/HRIS/backend/internal/platform/pgconv"
@@ -48,6 +51,7 @@ type clockFixture struct {
 	clock    *fakeClock
 	sdm      *client
 	hp       *client
+	web      *client
 	account  account
 	deviceID string
 	shiftID  string
@@ -60,6 +64,14 @@ func newClockFixture(t *testing.T, opt options, startTime, endTime string) clock
 	clock := &fakeClock{now: wibTime(2, 8, 0)} // Senin
 	opt.clock = clock.Now
 	opt.allowUnverified = !opt.strictIntegrity
+	if opt.strictIntegrity {
+		// Di luar development absen hanya diterima dari sesi aplikasi (D39).
+		_, private, err := ed25519.GenerateKey(rand.Reader)
+		if err != nil {
+			t.Fatal(err)
+		}
+		opt.signer = auth.NewTokenSigner(private, "test")
+	}
 	srv := fresh(t, opt)
 	sdm := loginSDM(t, srv)
 	hp, acc := pejuangClient(t, srv, "OPS-GDG")
@@ -76,7 +88,16 @@ func newClockFixture(t *testing.T, opt options, startTime, endTime string) clock
 		"name": "Uji", "start_time": startTime, "end_time": endTime, "late_tolerance_minutes": 10, "work_days": []int{1, 2, 3, 4, 5},
 	}).want(t, http.StatusCreated))
 	sdm.do(http.MethodPatch, "/v1/admin/employees/"+acc.employeeID, map[string]any{"default_shift_id": shift.ID}).want(t, http.StatusOK)
-	return clockFixture{srv: srv, clock: clock, sdm: sdm, hp: hp, account: acc, deviceID: d.ID, shiftID: shift.ID, location: loc.ID}
+	web := hp
+	if opt.strictIntegrity {
+		session := insertDeviceSession(t, d.ID, acc.userID)
+		token, err := opt.signer.SignMobile(uuid.MustParse(acc.userID), uuid.MustParse(acc.employeeID), uuid.MustParse(session), uuid.MustParse(d.ID), "pejuang", time.Now())
+		if err != nil {
+			t.Fatal(err)
+		}
+		hp = newClient(t, srv).withHeaders(map[string]string{"Authorization": "Bearer " + token})
+	}
+	return clockFixture{srv: srv, clock: clock, sdm: sdm, hp: hp, web: web, account: acc, deviceID: d.ID, shiftID: shift.ID, location: loc.ID}
 }
 
 type challengeResp struct {
@@ -86,7 +107,10 @@ type challengeResp struct {
 
 func (f clockFixture) challenge(t *testing.T, purpose string) string {
 	t.Helper()
-	f.hp.headers = map[string]string{"X-Device-Id": f.deviceID}
+	if f.hp.headers == nil {
+		f.hp.headers = map[string]string{}
+	}
+	f.hp.headers["X-Device-Id"] = f.deviceID
 	return data[challengeResp](t, f.hp.do(http.MethodPost, "/v1/attendance/challenge", map[string]any{"purpose": purpose}).want(t, http.StatusCreated)).ChallengeID
 }
 
@@ -373,6 +397,24 @@ func TestHardSignalsAreGeneric(t *testing.T) {
 	if got := countAudit(t, "attendance.rejected"); got != 4 {
 		t.Errorf("audit rejected = %d", got)
 	}
+}
+
+// Di luar development, sesi web tidak bisa absen walau mengirim perangkat miliknya sendiri (D39).
+func TestWebSessionCannotClockOutsideDevelopment(t *testing.T) {
+	f := newClockFixture(t, options{strictIntegrity: true}, "08:00", "17:00")
+	web := f.web.withHeaders(map[string]string{"X-Device-Id": f.deviceID})
+
+	web.do(http.MethodPost, "/v1/attendance/challenge", map[string]any{"purpose": "clock_in"}).
+		wantError(t, http.StatusForbidden, "DEVICE_NOT_REGISTERED")
+
+	challenge := f.challenge(t, "clock_in")
+	web.do(http.MethodPost, "/v1/attendance/clock-in", f.clockBody(challenge, officeLat, officeLon)).
+		wantError(t, http.StatusForbidden, "DEVICE_NOT_REGISTERED")
+	if outcome, reason, _ := lastAttempt(t, f.account.employeeID); outcome != "rejected" || reason != "device_not_approved" {
+		t.Errorf("upaya: %s %s", outcome, reason)
+	}
+	// Sesi aplikasi dengan perangkat yang sama tetap sampai ke pemeriksaan berikutnya (D36).
+	f.clockIn(t).wantError(t, http.StatusUnprocessableEntity, "ATTENDANCE_BLOCKED")
 }
 
 // Bawaannya semua absen ditolak selama verifikasi perangkat dan wajah belum ada (D36).

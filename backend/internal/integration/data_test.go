@@ -368,6 +368,49 @@ func TestPayrollPreviewUsesAttendance(t *testing.T) {
 	sdm.do(http.MethodGet, "/v1/admin/reports/attendance", nil).wantError(t, http.StatusBadRequest, "VALIDATION_FAILED")
 }
 
+func TestAttendanceReportWorkMode(t *testing.T) {
+	srv := fresh(t, options{})
+	sdm := loginSDM(t, srv)
+	id := employeeInSubdivision(t, "OPS-GDG")
+	for _, row := range []struct{ date, mode, status string }{
+		{"2020-02-03", "onsite", "present"},
+		{"2020-02-04", "wfa", "late"},
+		{"2020-02-05", "field", "present"},
+	} {
+		exec(t, `INSERT INTO attendances (employee_id, work_date, status, work_mode, late_minutes, clock_in_at) VALUES ($1, $2::date, $3::att_status, $4, 10, $2::date::timestamptz)`, id, row.date, row.status, row.mode)
+	}
+	exec(t, `INSERT INTO attendances (employee_id, work_date, status, work_mode) VALUES ($1, '2020-02-06', 'absent', 'onsite')`, id)
+	type row struct {
+		EmployeeID  string `json:"employee_id"`
+		Present     int    `json:"present"`
+		Late        int    `json:"late"`
+		LateMinutes int    `json:"late_minutes"`
+	}
+	for _, tc := range []struct {
+		mode                   string
+		present, late, minutes int
+	}{
+		{"", 3, 1, 30}, {"onsite", 1, 0, 10}, {"wfa", 1, 1, 10}, {"field", 1, 0, 10},
+	} {
+		rows := data[[]row](t, sdm.do(http.MethodGet, "/v1/admin/reports/attendance?year=2020&month=2&work_mode="+tc.mode, nil).want(t, http.StatusOK))
+		found := false
+		for _, r := range rows {
+			if r.EmployeeID == id {
+				found = true
+				if r.Present != tc.present || r.Late != tc.late || r.LateMinutes != tc.minutes {
+					t.Errorf("mode %q: %+v", tc.mode, r)
+				}
+			} else if tc.mode != "" {
+				t.Errorf("mode %q memuat Pejuang tanpa catatan: %+v", tc.mode, r)
+			}
+		}
+		if !found {
+			t.Errorf("mode %q: Pejuang tidak ditemukan", tc.mode)
+		}
+	}
+	sdm.do(http.MethodGet, "/v1/admin/reports/attendance?year=2020&month=2&work_mode=invalid", nil).wantError(t, http.StatusBadRequest, "VALIDATION_FAILED")
+}
+
 // Pejuang baru tidak muncul di laporan bulan sebelum bergabung, dan yang nonaktif tanpa
 // presensi tidak muncul dengan gaji penuh.
 func TestReportMembership(t *testing.T) {

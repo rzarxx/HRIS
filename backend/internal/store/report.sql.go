@@ -24,17 +24,19 @@ FROM employees e
 JOIN subdivisions s ON s.id = e.subdivision_id
 JOIN divisions d ON d.id = s.division_id
 LEFT JOIN attendances a ON a.employee_id = e.id AND a.work_date >= $1 AND a.work_date < $2
+  AND ($3::text = '' OR (a.work_mode = $3::text AND a.clock_in_at IS NOT NULL))
 WHERE e.deleted_at IS NULL
-  AND ($3::boolean OR s.id = ANY($4::uuid[]) OR d.id = ANY($5::uuid[]))
-  AND ($6::uuid IS NULL OR d.id = $6)
+  AND ($4::boolean OR s.id = ANY($5::uuid[]) OR d.id = ANY($6::uuid[]))
+  AND ($7::uuid IS NULL OR d.id = $7)
 GROUP BY e.id, e.nip, e.full_name, d.name, s.name, e.base_salary, e.status, e.join_date
-HAVING count(a.id) > 0 OR (e.status = 'active' AND (e.join_date IS NULL OR e.join_date < $2))
+HAVING count(a.id) > 0 OR ($3::text = '' AND e.status = 'active' AND (e.join_date IS NULL OR e.join_date < $2))
 ORDER BY e.full_name, e.id
 `
 
 type AttendanceReportParams struct {
 	FromDate            pgtype.Date
 	ToDate              pgtype.Date
+	WorkMode            string
 	ScopeAll            bool
 	ScopeSubdivisionIds []uuid.UUID
 	ScopeDivisionIds    []uuid.UUID
@@ -60,6 +62,7 @@ func (q *Queries) AttendanceReport(ctx context.Context, arg AttendanceReportPara
 	rows, err := q.db.Query(ctx, attendanceReport,
 		arg.FromDate,
 		arg.ToDate,
+		arg.WorkMode,
 		arg.ScopeAll,
 		arg.ScopeSubdivisionIds,
 		arg.ScopeDivisionIds,

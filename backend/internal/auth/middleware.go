@@ -119,7 +119,7 @@ func Authenticate(signer *TokenSigner, active SessionChecker) func(http.Handler)
 				httpx.WriteError(w, r, err)
 				return
 			}
-			if !state.Active {
+			if !state.Active || state.Client != "web" {
 				httpx.WriteError(w, r, httpx.ErrUnauthenticated())
 				return
 			}

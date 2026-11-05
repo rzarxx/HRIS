@@ -29,6 +29,9 @@ func testRouter(t *testing.T, sessionActive bool) (http.Handler, *auth.TokenSign
 
 func testRouterState(t *testing.T, state auth.SessionState) (http.Handler, *auth.TokenSigner, []Route) {
 	t.Helper()
+	if state.Client == "" {
+		state.Client = "web"
+	}
 	_, private, err := ed25519.GenerateKey(rand.Reader)
 	if err != nil {
 		t.Fatal(err)
@@ -77,6 +80,51 @@ func tokenFor(t *testing.T, s *auth.TokenSigner, role string) string {
 		t.Fatal(err)
 	}
 	return token
+}
+
+func TestRouterAcceptsOnlyBoundMobileBearer(t *testing.T) {
+	user, employee, session, device := uuid.New(), uuid.New(), uuid.New(), uuid.New()
+	state := auth.SessionState{Active: true, Client: "mobile", UserID: user, EmployeeID: employee, Role: permission.RolePejuang, DeviceID: uuid.NullUUID{UUID: device, Valid: true}, DeviceActive: true}
+	h, signer, _ := testRouterState(t, state)
+	mobile, err := signer.SignMobile(user, employee, session, device, permission.RolePejuang, time.Now())
+	if err != nil {
+		t.Fatal(err)
+	}
+	web, err := signer.Sign(user, employee, session, permission.RolePejuang, time.Now())
+	if err != nil {
+		t.Fatal(err)
+	}
+	callBearer := func(method, path, bearer, cookie string) *httptest.ResponseRecorder {
+		req := httptest.NewRequest(method, path, nil)
+		req.Header.Set("Origin", testWebOrigin)
+		if bearer != "" {
+			req.Header.Set("Authorization", bearer)
+		}
+		if cookie != "" {
+			req.AddCookie(&http.Cookie{Name: auth.CookieAccess, Value: cookie})
+		}
+		rec := httptest.NewRecorder()
+		h.ServeHTTP(rec, req)
+		return rec
+	}
+	if got := callBearer(http.MethodGet, "/v1/me", "Bearer "+mobile, "").Code; got != http.StatusTeapot {
+		t.Errorf("mobile = %d", got)
+	}
+	if got := callBearer(http.MethodPost, "/v1/attendance/challenge", "Bearer "+mobile, "").Code; got != http.StatusTeapot {
+		t.Errorf("mobile POST = %d", got)
+	}
+	if got := callBearer(http.MethodGet, "/v1/admin/employees", "Bearer "+mobile, "").Code; got != http.StatusForbidden {
+		t.Errorf("permission mobile = %d", got)
+	}
+	if got := callBearer(http.MethodGet, "/v1/me", "Bearer "+web, "").Code; got != http.StatusUnauthorized {
+		t.Errorf("web bearer = %d", got)
+	}
+	if got := callBearer(http.MethodGet, "/v1/me", "Bearer salah", web).Code; got != http.StatusUnauthorized {
+		t.Errorf("fallback cookie = %d", got)
+	}
+	if got := callBearer(http.MethodGet, "/v1/me", "", web).Code; got != http.StatusUnauthorized {
+		t.Errorf("cookie dengan sesi mobile = %d", got)
+	}
 }
 
 func errorCode(t *testing.T, rec *httptest.ResponseRecorder) string {

@@ -146,7 +146,9 @@ export interface PeriodFilter {
   division_id?: string;
 }
 
-export const useAttendanceReport = (f: PeriodFilter) =>
+export type AttendanceReportFilter = PeriodFilter & { work_mode?: "onsite" | "wfa" | "field" };
+
+export const useAttendanceReport = (f: AttendanceReportFilter) =>
   useQuery({
     queryKey: ["report-attendance", f],
     queryFn: () => api.get<ListResponse<AttendanceReportRow>>("/admin/reports/attendance", { ...f }).then((r) => r.data),

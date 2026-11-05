@@ -1251,11 +1251,12 @@ paths:
     get:
       tags: [Laporan]
       summary: Rekap presensi bulanan
-      description: "Permission `attendance:report`, dibatasi scope."
+      description: "Permission `attendance:report`, dibatasi scope. Filter mode hanya menghitung catatan absen masuk dengan mode tersebut; cuti dan alpha tidak disertakan."
       parameters:
         - $ref: "#/components/parameters/Year"
         - $ref: "#/components/parameters/Month"
         - { name: division_id, in: query, schema: { type: string, format: uuid } }
+        - { name: work_mode, in: query, schema: { type: string, enum: [onsite, wfa, field] }, description: Hanya hitung presensi dengan mode ini }
       responses:
         "200":
           description: OK

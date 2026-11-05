@@ -2717,7 +2717,7 @@ export interface paths {
         };
         /**
          * Rekap presensi bulanan
-         * @description Permission `attendance:report`, dibatasi scope.
+         * @description Permission `attendance:report`, dibatasi scope. Filter mode hanya menghitung catatan absen masuk dengan mode tersebut; cuti dan alpha tidak disertakan.
          */
         get: {
             parameters: {
@@ -2725,6 +2725,8 @@ export interface paths {
                     year: components["parameters"]["Year"];
                     month: components["parameters"]["Month"];
                     division_id?: string;
+                    /** @description Hanya hitung presensi dengan mode ini */
+                    work_mode?: "onsite" | "wfa" | "field";
                 };
                 header?: never;
                 path?: never;

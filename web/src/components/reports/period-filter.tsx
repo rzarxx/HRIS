@@ -16,14 +16,14 @@ export function PeriodFilterBar({ value, onChange }: { value: PeriodFilter; onCh
   const years = [thisYear - 1, thisYear];
   return (
     <div className="flex flex-wrap gap-3">
-      <Select value={value.month} onChange={(e) => onChange({ ...value, month: Number(e.target.value) })} aria-label="Bulan" className="w-auto">
+      <Select value={value.month} onChange={(e) => onChange({ ...value, month: Number(e.target.value) })} aria-label="Bulan" className="min-w-0 flex-1 sm:w-auto sm:flex-none">
         {MONTHS.map((m, i) => (
           <option key={m} value={i + 1}>
             {m}
           </option>
         ))}
       </Select>
-      <Select value={value.year} onChange={(e) => onChange({ ...value, year: Number(e.target.value) })} aria-label="Tahun" className="w-auto">
+      <Select value={value.year} onChange={(e) => onChange({ ...value, year: Number(e.target.value) })} aria-label="Tahun" className="w-28 sm:w-auto">
         {years.map((y) => (
           <option key={y} value={y}>
             {y}
@@ -34,7 +34,7 @@ export function PeriodFilterBar({ value, onChange }: { value: PeriodFilter; onCh
         value={value.division_id ?? ""}
         onChange={(e) => onChange({ ...value, division_id: e.target.value || undefined })}
         aria-label="Divisi"
-        className="w-auto min-w-44"
+        className="w-full sm:w-auto sm:min-w-44"
       >
         <option value="">Semua divisi</option>
         {divisions.data?.map((d) => (

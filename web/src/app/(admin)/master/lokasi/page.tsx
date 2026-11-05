@@ -148,7 +148,7 @@ export default function OfficeLocationsPage() {
         ) : rows.length === 0 ? (
           <EmptyState title="Lokasi tidak ditemukan" description="Tambahkan lokasi kantor pertama atau ubah pencarian." />
         ) : (
-          <Table>
+          <Table actions="always">
             <thead>
               <tr>
                 <Th>Nama lokasi</Th>
@@ -225,8 +225,8 @@ export default function OfficeLocationsPage() {
             )}
             <p className="text-xs text-slate-500">
               {areaMode === "radius"
-                ? "Klik peta atau seret penanda untuk menentukan titik pusat. Lingkaran biru adalah area absen."
-                : "Klik peta untuk menambah titik sudut. Area biru adalah area absen."}
+                ? "Klik peta atau seret penanda untuk menentukan titik pusat. Lingkaran hijau adalah area absen."
+                : "Klik peta untuk menambah titik sudut. Area hijau adalah area absen."}
             </p>
           </div>
           <Field label="Nama lokasi" htmlFor="name" error={errors.name} required className="sm:col-span-2">

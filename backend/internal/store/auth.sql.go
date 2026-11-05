@@ -179,6 +179,24 @@ func (q *Queries) GetEmployeeAccount(ctx context.Context, employeeID uuid.UUID) 
 	return i, err
 }
 
+const getInviteState = `-- name: GetInviteState :one
+SELECT (used_at IS NOT NULL)::bool AS used, (expires_at <= now())::bool AS expired, expires_at
+FROM user_invites WHERE token_hash = $1
+`
+
+type GetInviteStateRow struct {
+	Used      bool
+	Expired   bool
+	ExpiresAt pgtype.Timestamptz
+}
+
+func (q *Queries) GetInviteState(ctx context.Context, tokenHash string) (GetInviteStateRow, error) {
+	row := q.db.QueryRow(ctx, getInviteState, tokenHash)
+	var i GetInviteStateRow
+	err := row.Scan(&i.Used, &i.Expired, &i.ExpiresAt)
+	return i, err
+}
+
 const getMe = `-- name: GetMe :one
 SELECT u.id AS user_id, u.employee_id, u.role, u.email, u.must_change_password,
        e.full_name, e.nip, e.position,

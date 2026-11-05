@@ -15,9 +15,10 @@ import (
 )
 
 const (
-	loginAttemptLimit  = 5
-	loginAttemptWindow = 15 * time.Minute
-	activateLimit      = 10
+	loginAttemptLimit    = 5
+	loginAttemptWindow   = 15 * time.Minute
+	activateLimit        = 10
+	activationCheckLimit = 60
 )
 
 // Handler melayani /v1/auth/* dan /v1/me.
@@ -154,6 +155,30 @@ func (h *Handler) Activate(w http.ResponseWriter, r *http.Request) error {
 		return err
 	}
 	return httpx.NoContent(w)
+}
+
+type activationCheckRequest struct {
+	Token string `json:"token"`
+}
+
+type activationCheckResponse struct {
+	ExpiresAt string `json:"expires_at"`
+}
+
+// CheckActivation tidak mengubah apa pun. Batasnya lebih longgar dari aktivasi karena dipanggil setiap halaman dibuka.
+func (h *Handler) CheckActivation(w http.ResponseWriter, r *http.Request) error {
+	var req activationCheckRequest
+	if err := httpx.Decode(r, &req); err != nil {
+		return err
+	}
+	if err := h.checkLimit(w, r, "activate-check", activationCheckLimit, loginAttemptWindow); err != nil {
+		return err
+	}
+	expires, err := h.svc.CheckActivation(r.Context(), req.Token)
+	if err != nil {
+		return err
+	}
+	return httpx.Data(w, http.StatusOK, activationCheckResponse{ExpiresAt: expires.UTC().Format(time.RFC3339)})
 }
 
 type passwordChangeRequest struct {

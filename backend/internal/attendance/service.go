@@ -161,6 +161,9 @@ func (s *Service) deviceOf(ctx context.Context, p auth.Principal, header string)
 	if err != nil {
 		return store.Device{}, httpx.NewError(http.StatusForbidden, "DEVICE_NOT_REGISTERED", "Perangkat belum terdaftar.")
 	}
+	if p.DeviceID != uuid.Nil && p.DeviceID != id {
+		return store.Device{}, httpx.NewError(http.StatusForbidden, "DEVICE_NOT_REGISTERED", "Perangkat belum terdaftar.")
+	}
 	device, err := s.q.GetOwnDevice(ctx, store.GetOwnDeviceParams{ID: id, EmployeeID: p.EmployeeID})
 	if pgconv.IsNoRows(err) {
 		return device, httpx.NewError(http.StatusForbidden, "DEVICE_NOT_REGISTERED", "Perangkat belum terdaftar.")

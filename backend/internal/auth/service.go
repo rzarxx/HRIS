@@ -285,6 +285,12 @@ func (s *Service) SessionState(ctx context.Context, sessionID uuid.UUID) (Sessio
 		Active:             row.IsActive,
 		MustChangePassword: row.MustChangePassword,
 		MFASetupRequired:   s.mfaSetupRequired(string(row.Role), row.MfaEnabled),
+		UserID:             row.UserID,
+		EmployeeID:         row.EmployeeID,
+		Role:               string(row.Role),
+		Client:             row.Client,
+		DeviceID:           row.DeviceID,
+		DeviceActive:       row.DeviceActive,
 	}, nil
 }
 

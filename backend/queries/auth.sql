@@ -65,10 +65,13 @@ RETURNING id;
 SELECT (s.revoked_at IS NULL AND s.absolute_expires_at > now() AND u.is_active)::boolean AS is_active,
        u.must_change_password,
        u.role,
+       s.user_id, u.employee_id, s.client, s.device_id,
+       (d.status IS NOT NULL AND d.status <> 'revoked')::boolean AS device_active,
        (m.enabled_at IS NOT NULL)::boolean AS mfa_enabled
 FROM sessions s
 JOIN users u ON u.id = s.user_id
 LEFT JOIN user_mfa m ON m.user_id = u.id
+LEFT JOIN devices d ON d.id = s.device_id AND d.employee_id = u.employee_id
 WHERE s.id = $1;
 
 -- name: GetUserByID :one

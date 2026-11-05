@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/subtle"
 	"net/http"
+	"strings"
 
 	"github.com/google/uuid"
 
@@ -24,6 +25,7 @@ type Principal struct {
 	EmployeeID uuid.UUID
 	SessionID  uuid.UUID
 	Role       string
+	DeviceID   uuid.UUID
 	// Syarat yang belum dipenuhi; fitur selain akun sendiri ditolak sampai dipenuhi.
 	MustChangePassword bool
 	MFASetupRequired   bool
@@ -46,10 +48,52 @@ type SessionState struct {
 	Active             bool
 	MustChangePassword bool
 	MFASetupRequired   bool
+	UserID             uuid.UUID
+	EmployeeID         uuid.UUID
+	Role               string
+	Client             string
+	DeviceID           uuid.NullUUID
+	DeviceActive       bool
 }
 
 // SessionChecker memeriksa sesi; sesi dicabut = token langsung mati.
 type SessionChecker func(ctx context.Context, sessionID uuid.UUID) (SessionState, error)
+
+// AuthenticateMobile memverifikasi bearer, sesi, dan perangkat sebelum menerima request.
+func AuthenticateMobile(signer *TokenSigner, active SessionChecker) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			header := strings.Fields(r.Header.Get("Authorization"))
+			if len(header) != 2 || !strings.EqualFold(header[0], "Bearer") {
+				httpx.WriteError(w, r, httpx.ErrUnauthenticated())
+				return
+			}
+			claims, err := signer.VerifyMobile(header[1])
+			if err != nil {
+				httpx.WriteError(w, r, httpx.ErrUnauthenticated())
+				return
+			}
+			p, ok := principalFromClaims(claims)
+			deviceID, deviceErr := uuid.Parse(claims.DID)
+			if !ok || deviceErr != nil {
+				httpx.WriteError(w, r, httpx.ErrUnauthenticated())
+				return
+			}
+			state, err := active(r.Context(), p.SessionID)
+			if err != nil {
+				httpx.WriteError(w, r, err)
+				return
+			}
+			if !state.Active || state.Client != "mobile" || !state.DeviceActive || !state.DeviceID.Valid || state.DeviceID.UUID != deviceID || state.UserID != p.UserID || state.EmployeeID != p.EmployeeID || state.Role != p.Role {
+				httpx.WriteError(w, r, httpx.ErrUnauthenticated())
+				return
+			}
+			p.DeviceID = deviceID
+			p.MustChangePassword, p.MFASetupRequired = state.MustChangePassword, state.MFASetupRequired
+			next.ServeHTTP(w, r.WithContext(WithPrincipal(r.Context(), p)))
+		})
+	}
+}
 
 // Authenticate memverifikasi cookie hris_at lalu mengecek sesi dan CSRF (urutan F2).
 func Authenticate(signer *TokenSigner, active SessionChecker) func(http.Handler) http.Handler {

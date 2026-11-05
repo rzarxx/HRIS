@@ -235,8 +235,10 @@ func TestActivationFlow(t *testing.T) {
 	activate("token-ngawur", newPassword).wantError(t, http.StatusUnprocessableEntity, "ACTIVATION_INVALID")
 
 	activate(created.Activation.Token, newPassword).want(t, http.StatusNoContent)
-	// Sekali pakai.
-	activate(created.Activation.Token, "sandi-lain-yang-kuat-9").wantError(t, http.StatusUnprocessableEntity, "ACTIVATION_INVALID")
+	// Sekali pakai, dan sandi dari pemakaian pertama tetap berlaku.
+	activate(created.Activation.Token, "sandi-lain-yang-kuat-9").wantError(t, http.StatusUnprocessableEntity, "ACTIVATION_USED")
+	anon.do(http.MethodPost, "/v1/auth/web/login", map[string]any{"email": email, "password": "sandi-lain-yang-kuat-9"}).
+		wantError(t, http.StatusUnauthorized, "AUTH_INVALID_CREDENTIALS")
 
 	c := login(t, srv, email, newPassword)
 	me := data[struct {
@@ -255,7 +257,37 @@ func TestActivationExpired(t *testing.T) {
 	created := createEmployee(t, loginSDM(t, srv), "kedaluwarsa@pejuang.id")
 	exec(t, `UPDATE user_invites SET expires_at = now() - interval '1 second'`)
 	newClient(t, srv).do(http.MethodPost, "/v1/auth/activate", map[string]any{"token": created.Activation.Token, "password": newPassword}).
-		wantError(t, http.StatusUnprocessableEntity, "ACTIVATION_INVALID")
+		wantError(t, http.StatusUnprocessableEntity, "ACTIVATION_EXPIRED")
+}
+
+// Halaman aktivasi memeriksa tautan lebih dulu, dan pemeriksaan tidak boleh memakai tautannya.
+func TestActivationCheck(t *testing.T) {
+	srv := fresh(t, options{})
+	created := createEmployee(t, loginSDM(t, srv), "periksa.tautan@pejuang.id")
+	anon := newClient(t, srv)
+	check := func(token string) response {
+		return anon.do(http.MethodPost, "/v1/auth/activate/check", map[string]any{"token": token})
+	}
+
+	check("").wantError(t, http.StatusUnprocessableEntity, "ACTIVATION_INVALID")
+	check("token-ngawur").wantError(t, http.StatusUnprocessableEntity, "ACTIVATION_INVALID")
+
+	for range 2 {
+		got := data[struct {
+			ExpiresAt string `json:"expires_at"`
+		}](t, check(created.Activation.Token).want(t, http.StatusOK))
+		if got.ExpiresAt != created.Activation.ExpiresAt {
+			t.Errorf("expires_at = %s, mau %s", got.ExpiresAt, created.Activation.ExpiresAt)
+		}
+	}
+
+	anon.do(http.MethodPost, "/v1/auth/activate", map[string]any{"token": created.Activation.Token, "password": newPassword}).
+		want(t, http.StatusNoContent)
+	check(created.Activation.Token).wantError(t, http.StatusUnprocessableEntity, "ACTIVATION_USED")
+
+	expiring := createEmployee(t, loginSDM(t, srv), "tautan.lewat@pejuang.id")
+	exec(t, `UPDATE user_invites SET expires_at = now() - interval '1 second' WHERE used_at IS NULL`)
+	check(expiring.Activation.Token).wantError(t, http.StatusUnprocessableEntity, "ACTIVATION_EXPIRED")
 }
 
 // Dua permintaan bersamaan dengan token sama: hanya satu yang boleh berhasil.

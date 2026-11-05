@@ -128,6 +128,10 @@ UPDATE user_invites SET used_at = now()
 WHERE token_hash = @token_hash AND used_at IS NULL AND expires_at > now()
 RETURNING user_id;
 
+-- name: GetInviteState :one
+SELECT (used_at IS NOT NULL)::bool AS used, (expires_at <= now())::bool AS expired, expires_at
+FROM user_invites WHERE token_hash = @token_hash;
+
 -- name: ActivateUser :exec
 UPDATE users SET is_active = true WHERE id = $1;
 

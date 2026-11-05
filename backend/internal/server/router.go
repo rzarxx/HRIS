@@ -68,6 +68,7 @@ func routes(d Deps) []Route {
 		{http.MethodPost, "/v1/auth/web/refresh", Public, nil, d.Auth.Refresh},
 		{http.MethodPost, "/v1/auth/web/mfa/verify", Public, nil, d.Auth.MFAVerify},
 		{http.MethodPost, "/v1/auth/activate", Public, nil, d.Auth.Activate},
+		{http.MethodPost, "/v1/auth/activate/check", Public, nil, d.Auth.CheckActivation},
 		{http.MethodPost, "/v1/auth/logout", AnyUser, nil, d.Auth.Logout},
 		{http.MethodPost, "/v1/auth/password/change", AnyUser, nil, d.Auth.ChangePassword},
 		{http.MethodGet, "/v1/auth/sessions", AnyUser, nil, d.Auth.ListSessions},

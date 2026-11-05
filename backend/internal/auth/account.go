@@ -89,7 +89,35 @@ func UnusablePasswordHash() (string, error) {
 }
 
 func errActivationInvalid() error {
-	return httpx.NewError(http.StatusUnprocessableEntity, "ACTIVATION_INVALID", "Tautan aktivasi tidak valid atau sudah kedaluwarsa. Minta tautan baru ke SDM.")
+	return httpx.NewError(http.StatusUnprocessableEntity, "ACTIVATION_INVALID", "Tautan aktivasi tidak valid. Periksa kembali tautannya atau minta tautan baru ke SDM.")
+}
+
+// checkInvite mengembalikan masa berlaku undangan, atau error yang menjelaskan kenapa tidak bisa dipakai.
+// Token acak dan panjang, jadi status ini hanya terbaca oleh yang memegang tautannya.
+func checkInvite(ctx context.Context, q *store.Queries, tokenHash string) (time.Time, error) {
+	state, err := q.GetInviteState(ctx, tokenHash)
+	if pgconv.IsNoRows(err) {
+		return time.Time{}, errActivationInvalid()
+	}
+	if err != nil {
+		return time.Time{}, err
+	}
+	if state.Used {
+		// Undangan yang diganti tautan baru juga ditandai terpakai (IssueInvite).
+		return time.Time{}, httpx.NewError(http.StatusUnprocessableEntity, "ACTIVATION_USED", "Tautan ini sudah dipakai atau sudah diganti tautan baru. Silakan masuk dengan kata sandi Anda, atau minta tautan baru ke SDM.")
+	}
+	if state.Expired {
+		return time.Time{}, httpx.NewError(http.StatusUnprocessableEntity, "ACTIVATION_EXPIRED", "Tautan ini sudah kedaluwarsa. Minta tautan baru ke SDM.")
+	}
+	return state.ExpiresAt.Time, nil
+}
+
+// CheckActivation dipakai halaman aktivasi agar tautan yang tidak berlaku tidak menampilkan form.
+func (s *Service) CheckActivation(ctx context.Context, token string) (time.Time, error) {
+	if token == "" {
+		return time.Time{}, errActivationInvalid()
+	}
+	return checkInvite(ctx, s.q, HashToken(token))
 }
 
 // Activate menetapkan sandi dari undangan dan mengaktifkan akun (F3).
@@ -108,6 +136,9 @@ func (s *Service) Activate(ctx context.Context, token, password string, ip *neti
 	return database.InTx(ctx, s.pool, func(q *store.Queries) error {
 		userID, err := q.ConsumeInvite(ctx, HashToken(token))
 		if pgconv.IsNoRows(err) {
+			if _, problem := checkInvite(ctx, q, HashToken(token)); problem != nil {
+				return problem
+			}
 			return errActivationInvalid()
 		}
 		if err != nil {

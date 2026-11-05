@@ -298,7 +298,7 @@ Domain terpisah: `admin.<domain>` (web statis) dan `api.<domain>` (API), keduany
 
 **Lockout:** 5 kegagalan berturut-turut mengunci akun 15 menit (naik bertahap), plus rate limit per IP. Pesan gagal selalu generik ("Email atau kata sandi salah").
 
-**Aktivasi akun:** SDM membuat Pejuang → sistem membuat undangan sekali pakai (hash di DB, berlaku 24 jam) → Pejuang menetapkan kata sandi sendiri. SDM tidak pernah mengetahui kata sandi siapa pun.
+**Aktivasi akun:** SDM membuat Pejuang → sistem membuat undangan sekali pakai (hash di DB, berlaku 24 jam) → Pejuang menetapkan kata sandi sendiri. SDM tidak pernah mengetahui kata sandi siapa pun. Tautan yang sudah dipakai, diganti, atau kedaluwarsa tidak menampilkan form; halaman menjelaskan keadaannya.
 
 ### 5.2.1 Akses Akun Lewat Email Terdaftar (D30)
 
@@ -626,7 +626,9 @@ Daftar memakai `?page=&per_page=&q=&sort=` (contoh `sort=-created_at`) dan filte
 | 422 | `LIVENESS_FAILED` | Liveness gagal |
 | 422 | `CHALLENGE_EXPIRED` | Tantangan kedaluwarsa/terpakai; minta baru |
 | 422 | `ATTENDANCE_BLOCKED` | Presensi ditolak (alasan keamanan; detail hanya untuk SDM) |
-| 422 | `ACTIVATION_INVALID` | Token undangan salah, kedaluwarsa, atau sudah dipakai |
+| 422 | `ACTIVATION_INVALID` | Token undangan tidak dikenal |
+| 422 | `ACTIVATION_USED` | Token undangan sudah dipakai atau sudah diganti tautan baru |
+| 422 | `ACTIVATION_EXPIRED` | Token undangan sudah kedaluwarsa |
 | 423 | `AUTH_ACCOUNT_LOCKED` | Akun terkunci sementara (`details.retry_after_seconds`) |
 | 426 | `APP_UPDATE_REQUIRED` | Versi aplikasi terlalu lama |
 | 429 | `RATE_LIMITED` | Terlalu banyak permintaan (`Retry-After`) |
@@ -646,6 +648,7 @@ Setiap `code` baru wajib ditambahkan di tabel ini.
 | POST | `/v1/auth/mobile/refresh` | |
 | POST | `/v1/auth/logout` | Cabut sesi saat ini |
 | POST | `/v1/auth/activate` | Aktivasi dari undangan, set sandi |
+| POST | `/v1/auth/activate/check` | Periksa tautan tanpa memakainya, agar tautan yang tidak berlaku tidak menampilkan form |
 | POST | `/v1/auth/password/forgot` | Minta tautan reset ke email terdaftar, selalu `202` (D30) |
 | POST | `/v1/auth/password/reset` | Set sandi baru dari tautan reset (D30) |
 | POST | `/v1/auth/password/change` | |

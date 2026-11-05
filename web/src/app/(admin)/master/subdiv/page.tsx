@@ -82,7 +82,7 @@ export default function SubdivisionsPage() {
             <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-slate-400" aria-hidden />
             <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Cari kode atau nama..." aria-label="Cari subdiv" className="pl-9" />
           </div>
-          <Select value={divisionFilter} onChange={(e) => setDivisionFilter(e.target.value)} aria-label="Filter divisi" className="w-auto min-w-48">
+          <Select value={divisionFilter} onChange={(e) => setDivisionFilter(e.target.value)} aria-label="Filter divisi" className="w-full sm:w-auto min-w-48">
             <option value="">Semua divisi</option>
             {divisions.data?.map((d) => (
               <option key={d.id} value={d.id}>
@@ -98,7 +98,7 @@ export default function SubdivisionsPage() {
         ) : rows.length === 0 ? (
           <EmptyState title="Subdiv tidak ditemukan" description="Ubah filter atau tambahkan subdiv baru." />
         ) : (
-          <Table>
+          <Table actions="always">
             <thead>
               <tr>
                 <Th>Kode</Th>

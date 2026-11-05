@@ -170,7 +170,7 @@ export function ReviewQueue() {
               setPage(1);
             }}
             aria-label="Filter mode kerja"
-            className="w-auto min-w-48"
+            className="w-full sm:w-auto sm:min-w-48"
           >
             <option value="">Semua mode</option>
             <option value="onsite">{WORK_MODE.onsite}</option>
@@ -186,7 +186,7 @@ export function ReviewQueue() {
           <EmptyState title="Tidak ada absen yang perlu ditinjau" description="Absen berisiko akan muncul di sini." />
         ) : (
           <>
-            <Table>
+            <Table actions="always">
               <thead>
                 <tr>
                   <Th>Pejuang</Th>

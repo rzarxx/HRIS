@@ -84,8 +84,8 @@ export function AttendanceMonitor() {
       />
       <Card bodyClassName="">
         <div className="flex flex-wrap items-center gap-3 border-b border-slate-100 p-4">
-          <Input type="date" value={date} max={today} onChange={(e) => setDate(e.target.value || today)} aria-label="Tanggal kerja" className="w-auto" />
-          <Select value={divisionId} onChange={(e) => setDivisionId(e.target.value)} aria-label="Filter divisi" className="w-auto min-w-44">
+          <Input type="date" value={date} max={today} onChange={(e) => setDate(e.target.value || today)} aria-label="Tanggal kerja" className="w-full sm:w-auto" />
+          <Select value={divisionId} onChange={(e) => setDivisionId(e.target.value)} aria-label="Filter divisi" className="w-full sm:w-auto sm:min-w-44">
             <option value="">Semua divisi</option>
             {divisions.data?.map((d) => (
               <option key={d.id} value={d.id}>
@@ -93,7 +93,7 @@ export function AttendanceMonitor() {
               </option>
             ))}
           </Select>
-          <Select value={state} onChange={(e) => setState(e.target.value)} aria-label="Filter status" className="w-auto min-w-44">
+          <Select value={state} onChange={(e) => setState(e.target.value)} aria-label="Filter status" className="w-full sm:w-auto sm:min-w-44">
             <option value="">Semua status</option>
             {(Object.keys(STATE) as State[]).map((s) => (
               <option key={s} value={s}>
@@ -135,6 +135,7 @@ export function AttendanceMonitor() {
                   </span>
                 ))}
                 <span>Lingkaran putus-putus adalah area kantor.</span>
+                <span className="sm:hidden">Geser peta dengan dua jari.</span>
               </div>
               <p className="mt-1 text-xs text-slate-500">
                 Titik adalah lokasi saat absen terakhir, bukan posisi terkini.

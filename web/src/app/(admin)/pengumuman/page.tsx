@@ -112,7 +112,7 @@ export default function AnnouncementsPage() {
         ) : list.data.length === 0 ? (
           <EmptyState title="Belum ada pengumuman" action={<Button onClick={() => open("new")}>Buat pengumuman</Button>} />
         ) : (
-          <Table>
+          <Table actions="always">
             <thead>
               <tr>
                 <Th>Judul</Th>

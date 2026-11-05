@@ -85,7 +85,7 @@ export function Sidebar({ permissions, onNavigate }: { permissions: string[]; on
           })}
         </ul>
       </nav>
-      <div className="border-t border-slate-200 px-4 py-3 text-[11px] text-slate-400">Versi 0.1 · Fase 0</div>
+      <div className="border-t border-slate-200 px-4 py-3 text-[11px] text-slate-400">Versi 0.1</div>
     </div>
   );
 }

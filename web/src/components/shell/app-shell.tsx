@@ -38,6 +38,19 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const me = useMe();
   useIdleLogout();
 
+  useEffect(() => {
+    if (!mobileOpen) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setMobileOpen(false);
+    };
+    document.addEventListener("keydown", onKey);
+    document.documentElement.style.overflow = "hidden";
+    return () => {
+      document.removeEventListener("keydown", onKey);
+      document.documentElement.style.overflow = "";
+    };
+  }, [mobileOpen]);
+
   // Karena web statis, penjagaan ini hanya kenyamanan; penegakan akses ada di API.
   // Bila sesi tidak valid, api-client mengarahkan ke halaman login.
   if (me.isPending || me.isError) {

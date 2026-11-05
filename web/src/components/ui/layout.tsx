@@ -1,7 +1,13 @@
+"use client";
+
 import { Construction, Inbox, Loader2 } from "lucide-react";
-import type { ReactNode } from "react";
+import { useEffect, type ReactNode } from "react";
 
 export function PageHeader({ title, description, actions }: { title: string; description?: string; actions?: ReactNode }) {
+  useEffect(() => {
+    document.title = `${title} · HRIS Pejuang`;
+  }, [title]);
+
   return (
     <div className="mb-5 flex flex-wrap items-end justify-between gap-3">
       <div>

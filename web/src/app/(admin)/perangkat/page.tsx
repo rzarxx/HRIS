@@ -61,7 +61,7 @@ export default function DevicesPage() {
               setPage(1);
             }}
             aria-label="Filter status"
-            className="w-auto min-w-48"
+            className="w-full sm:w-auto sm:min-w-48"
           >
             <option value="pending">Menunggu persetujuan</option>
             <option value="approved">Aktif</option>
@@ -77,7 +77,7 @@ export default function DevicesPage() {
           <EmptyState title="Tidak ada perangkat" description="Perangkat baru dari aplikasi Android akan muncul di sini." />
         ) : (
           <>
-            <Table>
+            <Table actions="always">
               <thead>
                 <tr>
                   <Th>Pejuang</Th>

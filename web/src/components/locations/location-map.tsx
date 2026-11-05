@@ -3,6 +3,7 @@
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import { useEffect, useRef } from "react";
+import { zoomWheelAfterClick } from "@/lib/map";
 
 export interface LatLng {
   latitude: number;
@@ -53,7 +54,8 @@ export default function LocationMap({
     if (!box.current) return;
     // Inersia dijalankan di frame berikutnya, padahal peta bisa sudah dihapus karena modal ditutup.
     // Klik ganda juga mematikan zoom karena klik di peta berarti memilih titik.
-    const m = L.map(box.current, { inertia: false, doubleClickZoom: false });
+    const m = L.map(box.current, { inertia: false, doubleClickZoom: false, scrollWheelZoom: false });
+    zoomWheelAfterClick(m);
     L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
       maxZoom: 19,
       // Nginx memasang no-referrer untuk seluruh web, padahal OpenStreetMap memblokir tile tanpa Referer.

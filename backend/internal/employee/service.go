@@ -118,7 +118,7 @@ func (in Input) validate() (validated, error) {
 	if in.Nip != nil {
 		v.Nip = strings.ToUpper(strings.TrimSpace(*in.Nip))
 		if v.Nip != "" && !nipPattern.MatchString(v.Nip) {
-			fields["nip"] = "NIP 4-20 karakter huruf, angka, atau tanda minus."
+			fields["nip"] = "NIPY 4-20 karakter huruf, angka, atau tanda minus."
 		}
 	}
 	switch n := len(v.FullName); {
@@ -199,7 +199,7 @@ func mapUnique(err error) error {
 	if strings.Contains(constraint, "email") {
 		return httpx.Duplicate("email", "Email sudah dipakai Pejuang lain.")
 	}
-	return httpx.Duplicate("nip", "NIP sudah dipakai Pejuang lain.")
+	return httpx.Duplicate("nip", "NIPY sudah dipakai Pejuang lain.")
 }
 
 // ListParams adalah filter resmi daftar Pejuang.

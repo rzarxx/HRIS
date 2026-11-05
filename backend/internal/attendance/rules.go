@@ -22,7 +22,7 @@ type Schedule struct {
 	Start            time.Duration
 	End              time.Duration
 	ToleranceMinutes int
-	WorkDays         []int16 // 1=Senin sampai 7=Minggu
+	WorkDays         []int16 // 1=Senin sampai 7=Ahad
 }
 
 func at(date time.Time, offset time.Duration) time.Time {

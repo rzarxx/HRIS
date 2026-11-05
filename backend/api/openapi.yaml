@@ -371,7 +371,7 @@ paths:
       parameters:
         - $ref: "#/components/parameters/Page"
         - $ref: "#/components/parameters/PerPage"
-        - { name: q, in: query, description: "Cari nama, NIP, email, jabatan", schema: { type: string } }
+        - { name: q, in: query, description: "Cari nama, NIPY, email, jabatan", schema: { type: string } }
         - { name: division_id, in: query, schema: { type: string, format: uuid } }
         - { name: subdivision_id, in: query, schema: { type: string, format: uuid } }
         - { name: status, in: query, schema: { $ref: "#/components/schemas/EmployeeStatus" } }
@@ -1965,7 +1965,7 @@ components:
         ends_on: { type: string, format: date, nullable: true, description: Kosong berarti tanpa akhir }
         weekdays:
           type: array
-          description: 1=Senin sampai 7=Minggu. Kosong berarti setiap hari.
+          description: 1=Senin sampai 7=Ahad. Kosong berarti setiap hari.
           items: { type: integer, minimum: 1, maximum: 7 }
         reason: { type: string, maxLength: 500 }
     WorkArrangement:
@@ -2001,7 +2001,7 @@ components:
         work_days:
           type: array
           minItems: 1
-          description: 1=Senin sampai 7=Minggu
+          description: 1=Senin sampai 7=Ahad
           items: { type: integer, minimum: 1, maximum: 7 }
     ShiftInput:
       allOf:

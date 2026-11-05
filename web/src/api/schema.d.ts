@@ -851,7 +851,7 @@ export interface paths {
                 query?: {
                     page?: components["parameters"]["Page"];
                     per_page?: components["parameters"]["PerPage"];
-                    /** @description Cari nama, NIP, email, jabatan */
+                    /** @description Cari nama, NIPY, email, jabatan */
                     q?: string;
                     division_id?: string;
                     subdivision_id?: string;
@@ -3298,7 +3298,7 @@ export interface components {
              * @description Kosong berarti tanpa akhir
              */
             ends_on?: string | null;
-            /** @description 1=Senin sampai 7=Minggu. Kosong berarti setiap hari. */
+            /** @description 1=Senin sampai 7=Ahad. Kosong berarti setiap hari. */
             weekdays?: number[];
             reason: string;
         };
@@ -3336,7 +3336,7 @@ export interface components {
              */
             end_time?: string;
             late_tolerance_minutes?: number;
-            /** @description 1=Senin sampai 7=Minggu */
+            /** @description 1=Senin sampai 7=Ahad */
             work_days?: number[];
         };
         ShiftInput: components["schemas"]["ShiftPatch"] & Record<string, never>;

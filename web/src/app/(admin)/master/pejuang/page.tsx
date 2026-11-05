@@ -98,7 +98,7 @@ function EmployeesView() {
     <>
       <PageHeader
         title="Pejuang"
-        description="Data karyawan aktif dan nonaktif."
+        description="Data Pejuang aktif dan nonaktif."
         actions={
           canWrite && (
             <Button onClick={() => setEditing("new")}>
@@ -115,7 +115,7 @@ function EmployeesView() {
               type="search"
               value={q}
               onChange={(e) => setQ(e.target.value)}
-              placeholder="Cari nama, NIP, email, jabatan..."
+              placeholder="Cari nama, NIPY, email, jabatan..."
               aria-label="Cari Pejuang"
               className="pl-9"
             />
@@ -166,7 +166,7 @@ function EmployeesView() {
             <Table>
               <thead>
                 <tr>
-                  <Th>NIP</Th>
+                  <Th>NIPY</Th>
                   <Th>Nama</Th>
                   <Th>Jabatan / Shift</Th>
                   <Th>Subdiv / Divisi</Th>

@@ -32,7 +32,7 @@ export default function PayrollReportPage() {
   function exportCsv() {
     downloadCsv(
       `laporan-upah-${period.year}-${String(period.month).padStart(2, "0")}.csv`,
-      ["NIP", "Nama", "Divisi", "Subdiv", "Gaji pokok", "Alpha (hari)", "Telat (kali)", "Potongan alpha", "Potongan telat", "Upah bersih"],
+      ["NIPY", "Nama", "Divisi", "Subdiv", "Gaji pokok", "Alpha (hari)", "Telat (kali)", "Potongan alpha", "Potongan telat", "Upah bersih"],
       rows.map((r) => [r.nip, r.full_name, r.division, r.subdivision, r.base_salary, r.absent, r.late, r.absent_deduction, r.late_deduction, r.net]),
     );
   }
@@ -81,7 +81,7 @@ export default function PayrollReportPage() {
           <Table>
             <thead>
               <tr>
-                <Th>NIP</Th>
+                <Th>NIPY</Th>
                 <Th>Nama</Th>
                 <Th>Subdiv</Th>
                 <Th align="right">Gaji pokok</Th>

@@ -50,11 +50,11 @@ func TestIsWorkDay(t *testing.T) {
 	if !IsWorkDay(date(2), regular) { // Senin
 		t.Error("Senin harus hari kerja")
 	}
-	if IsWorkDay(date(1), regular) { // Minggu = 7
-		t.Error("Minggu bukan hari kerja")
+	if IsWorkDay(date(1), regular) { // Ahad = 7
+		t.Error("Ahad bukan hari kerja")
 	}
 	if !IsWorkDay(date(1), Schedule{WorkDays: []int16{7}}) {
-		t.Error("Minggu harus dikenali sebagai 7")
+		t.Error("Ahad harus dikenali sebagai 7")
 	}
 }
 
@@ -118,7 +118,7 @@ func TestArrangementActiveOn(t *testing.T) {
 		{"bukan Jumat", day(5), friday, false},
 		{"hari terakhir", day(13), friday, true},
 		{"lewat akhir", day(20), friday, false},
-		{"Minggu bernilai 7", day(8), Arrangement{StartsOn: day(2), Weekdays: []int16{7}}, true},
+		{"Ahad bernilai 7", day(8), Arrangement{StartsOn: day(2), Weekdays: []int16{7}}, true},
 		// Zona WIB malam hari tetap dibaca sebagai tanggalnya sendiri.
 		{"tanggal WIB", time.Date(2026, 11, 6, 23, 0, 0, 0, pgconv.WIB), friday, true},
 	}

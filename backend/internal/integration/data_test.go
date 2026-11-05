@@ -93,7 +93,7 @@ func TestEmployeeCRUD(t *testing.T) {
 		t.Errorf("uang harus string 2 digit: %q", created.BaseSalary)
 	}
 
-	// Email dan NIP unik, termasuk beda huruf besar-kecil.
+	// Email dan NIPY unik, termasuk beda huruf besar-kecil.
 	dup := sdm.do(http.MethodPost, "/v1/admin/employees", map[string]any{
 		"full_name": "Rudi Lain", "email": "CRUD.Satu@pejuang.id", "subdivision_id": subdivisionID(t, "OPS-LAP"), "base_salary": "1.00",
 	}).wantError(t, http.StatusConflict, "CONFLICT_DUPLICATE")
@@ -104,7 +104,7 @@ func TestEmployeeCRUD(t *testing.T) {
 		"full_name": "Rudi Lain", "email": "crud.dua@pejuang.id", "nip": created.Nip, "subdivision_id": subdivisionID(t, "OPS-LAP"), "base_salary": "1.00",
 	}).wantError(t, http.StatusConflict, "CONFLICT_DUPLICATE")
 	if dup.fields()["nip"] == nil {
-		t.Errorf("duplikat NIP: %s", dup.body)
+		t.Errorf("duplikat NIPY: %s", dup.body)
 	}
 	// Transaksi gagal tidak meninggalkan data setengah jadi.
 	var orphan int

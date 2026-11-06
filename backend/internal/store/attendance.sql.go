@@ -153,7 +153,7 @@ const consumeAttendanceChallenge = `-- name: ConsumeAttendanceChallenge :one
 UPDATE attendance_challenges SET used_at = $1
 WHERE id = $2 AND employee_id = $3 AND device_id = $4 AND purpose = $5
   AND used_at IS NULL AND expires_at > $1
-RETURNING id
+RETURNING id, liveness_action
 `
 
 type ConsumeAttendanceChallengeParams struct {
@@ -164,8 +164,13 @@ type ConsumeAttendanceChallengeParams struct {
 	Purpose    string
 }
 
+type ConsumeAttendanceChallengeRow struct {
+	ID             uuid.UUID
+	LivenessAction pgtype.Text
+}
+
 // Pemakaian atomik: hanya satu permintaan yang bisa memakai satu tantangan.
-func (q *Queries) ConsumeAttendanceChallenge(ctx context.Context, arg ConsumeAttendanceChallengeParams) (uuid.UUID, error) {
+func (q *Queries) ConsumeAttendanceChallenge(ctx context.Context, arg ConsumeAttendanceChallengeParams) (ConsumeAttendanceChallengeRow, error) {
 	row := q.db.QueryRow(ctx, consumeAttendanceChallenge,
 		arg.Now,
 		arg.ID,
@@ -173,9 +178,9 @@ func (q *Queries) ConsumeAttendanceChallenge(ctx context.Context, arg ConsumeAtt
 		arg.DeviceID,
 		arg.Purpose,
 	)
-	var id uuid.UUID
-	err := row.Scan(&id)
-	return id, err
+	var i ConsumeAttendanceChallengeRow
+	err := row.Scan(&i.ID, &i.LivenessAction)
+	return i, err
 }
 
 const countAttendanceAttempts = `-- name: CountAttendanceAttempts :one
@@ -210,17 +215,18 @@ func (q *Queries) CountAttendanceReview(ctx context.Context, workMode pgtype.Tex
 }
 
 const createAttendanceChallenge = `-- name: CreateAttendanceChallenge :one
-INSERT INTO attendance_challenges (employee_id, device_id, nonce, purpose, expires_at)
-VALUES ($1, $2, $3, $4, $5)
-RETURNING id, employee_id, device_id, nonce, purpose, expires_at, used_at, created_at
+INSERT INTO attendance_challenges (employee_id, device_id, nonce, purpose, expires_at, liveness_action)
+VALUES ($1, $2, $3, $4, $5, $6)
+RETURNING id, employee_id, device_id, nonce, purpose, expires_at, used_at, created_at, liveness_action
 `
 
 type CreateAttendanceChallengeParams struct {
-	EmployeeID uuid.UUID
-	DeviceID   uuid.UUID
-	Nonce      string
-	Purpose    string
-	ExpiresAt  pgtype.Timestamptz
+	EmployeeID     uuid.UUID
+	DeviceID       uuid.UUID
+	Nonce          string
+	Purpose        string
+	ExpiresAt      pgtype.Timestamptz
+	LivenessAction pgtype.Text
 }
 
 func (q *Queries) CreateAttendanceChallenge(ctx context.Context, arg CreateAttendanceChallengeParams) (AttendanceChallenge, error) {
@@ -230,6 +236,7 @@ func (q *Queries) CreateAttendanceChallenge(ctx context.Context, arg CreateAtten
 		arg.Nonce,
 		arg.Purpose,
 		arg.ExpiresAt,
+		arg.LivenessAction,
 	)
 	var i AttendanceChallenge
 	err := row.Scan(
@@ -241,6 +248,7 @@ func (q *Queries) CreateAttendanceChallenge(ctx context.Context, arg CreateAtten
 		&i.ExpiresAt,
 		&i.UsedAt,
 		&i.CreatedAt,
+		&i.LivenessAction,
 	)
 	return i, err
 }
@@ -560,6 +568,35 @@ func (q *Queries) InsertConsent(ctx context.Context, arg InsertConsentParams) er
 	return err
 }
 
+const insertFaceCapture = `-- name: InsertFaceCapture :one
+INSERT INTO face_captures (employee_id, challenge_id, purpose, sha256, storage_key)
+VALUES ($1, $2, $3, $4, $5)
+ON CONFLICT (employee_id, sha256) DO NOTHING
+RETURNING id
+`
+
+type InsertFaceCaptureParams struct {
+	EmployeeID  uuid.UUID
+	ChallengeID uuid.NullUUID
+	Purpose     string
+	Sha256      string
+	StorageKey  string
+}
+
+// Selfie yang sama tidak boleh dipakai dua kali oleh Pejuang yang sama (embedding_replay).
+func (q *Queries) InsertFaceCapture(ctx context.Context, arg InsertFaceCaptureParams) (uuid.UUID, error) {
+	row := q.db.QueryRow(ctx, insertFaceCapture,
+		arg.EmployeeID,
+		arg.ChallengeID,
+		arg.Purpose,
+		arg.Sha256,
+		arg.StorageKey,
+	)
+	var id uuid.UUID
+	err := row.Scan(&id)
+	return id, err
+}
+
 const insertFaceTemplate = `-- name: InsertFaceTemplate :one
 INSERT INTO face_templates (employee_id, device_id, embedding_enc, key_id, model_version, dimension)
 VALUES ($1, $2, $3, $4, $5, $6)
@@ -654,6 +691,20 @@ func (q *Queries) IsHoliday(ctx context.Context, date pgtype.Date) (bool, error)
 	var exists bool
 	err := row.Scan(&exists)
 	return exists, err
+}
+
+const linkFaceCapture = `-- name: LinkFaceCapture :exec
+UPDATE face_captures SET attendance_id = $1 WHERE id = $2
+`
+
+type LinkFaceCaptureParams struct {
+	AttendanceID uuid.NullUUID
+	ID           uuid.UUID
+}
+
+func (q *Queries) LinkFaceCapture(ctx context.Context, arg LinkFaceCaptureParams) error {
+	_, err := q.db.Exec(ctx, linkFaceCapture, arg.AttendanceID, arg.ID)
+	return err
 }
 
 const listArrangementTargets = `-- name: ListArrangementTargets :many
@@ -1083,4 +1134,18 @@ func (q *Queries) ResolveAttendanceReview(ctx context.Context, arg ResolveAttend
 		&i.ReviewNote,
 	)
 	return i, err
+}
+
+const setFaceCaptureScore = `-- name: SetFaceCaptureScore :exec
+UPDATE face_captures SET face_score = $1 WHERE id = $2
+`
+
+type SetFaceCaptureScoreParams struct {
+	FaceScore decimal.NullDecimal
+	ID        uuid.UUID
+}
+
+func (q *Queries) SetFaceCaptureScore(ctx context.Context, arg SetFaceCaptureScoreParams) error {
+	_, err := q.db.Exec(ctx, setFaceCaptureScore, arg.FaceScore, arg.ID)
+	return err
 }

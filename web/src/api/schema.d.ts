@@ -1432,7 +1432,7 @@ export interface paths {
         put?: never;
         /**
          * Absen masuk
-         * @description Selama verifikasi perangkat dan wajah belum dibuat, semua absen ditolak `ATTENDANCE_BLOCKED` kecuali di development dengan izin khusus (D36). Alasan keamanan tidak dikirim ke klien.
+         * @description Kirim multipart: bagian `payload` (JSON `ClockInput`) dan berkas `selfie`. Server menghitung wajah dari selfie dan mencocokkannya dengan template (D42). JSON tanpa selfie hanya diterima di development (D36). Selama verifikasi perangkat belum dibuat, semua absen ditolak `ATTENDANCE_BLOCKED` kecuali di development dengan izin khusus. Alasan keamanan tidak dikirim ke klien.
          */
         post: {
             parameters: {
@@ -1446,6 +1446,15 @@ export interface paths {
             };
             requestBody: {
                 content: {
+                    "multipart/form-data": {
+                        /** @description JSON `ClockInput` */
+                        payload: string;
+                        /**
+                         * Format: binary
+                         * @description Selfie JPEG, maksimal 1 MB
+                         */
+                        selfie: string;
+                    };
                     "application/json": components["schemas"]["ClockInput"];
                 };
             };
@@ -1464,7 +1473,10 @@ export interface paths {
                 400: components["responses"]["ValidationFailed"];
                 403: components["responses"]["Error"];
                 409: components["responses"]["Error"];
+                413: components["responses"]["Error"];
+                415: components["responses"]["Error"];
                 422: components["responses"]["Error"];
+                503: components["responses"]["Error"];
             };
         };
         delete?: never;
@@ -1498,6 +1510,15 @@ export interface paths {
             };
             requestBody: {
                 content: {
+                    "multipart/form-data": {
+                        /** @description JSON `ClockInput` */
+                        payload: string;
+                        /**
+                         * Format: binary
+                         * @description Selfie JPEG, maksimal 1 MB
+                         */
+                        selfie: string;
+                    };
                     "application/json": components["schemas"]["ClockInput"];
                 };
             };
@@ -1516,7 +1537,10 @@ export interface paths {
                 400: components["responses"]["ValidationFailed"];
                 403: components["responses"]["Error"];
                 409: components["responses"]["Error"];
+                413: components["responses"]["Error"];
+                415: components["responses"]["Error"];
                 422: components["responses"]["Error"];
+                503: components["responses"]["Error"];
             };
         };
         delete?: never;
@@ -1622,7 +1646,7 @@ export interface paths {
         put?: never;
         /**
          * Daftarkan wajah (F7)
-         * @description Permission `face:enroll`. Butuh perangkat approved, challenge `face_enroll`, persetujuan biometrik, liveness, dan lokasi di dalam geofence kantor (`face.enroll_requires_geofence`). Template lama dinonaktifkan. Sama seperti absen, ditolak `ATTENDANCE_BLOCKED` sampai verifikasi perangkat dibuat, kecuali di development (D36).
+         * @description Permission `face:enroll`. Butuh perangkat approved, challenge `face_enroll`, persetujuan biometrik, liveness, dan lokasi di dalam geofence kantor (`face.enroll_requires_geofence`). Server menghitung wajah dari setiap selfie dengan model dlib; selfie yang tidak saling mirip ditolak. Template lama dinonaktifkan. Sama seperti absen, ditolak `ATTENDANCE_BLOCKED` sampai verifikasi perangkat dibuat, kecuali di development (D36).
          */
         post: {
             parameters: {
@@ -1636,7 +1660,12 @@ export interface paths {
             };
             requestBody: {
                 content: {
-                    "application/json": components["schemas"]["FaceEnrollInput"];
+                    "multipart/form-data": {
+                        /** @description JSON `FaceEnrollInput` */
+                        payload: string;
+                        /** @description 3 sampai 5 selfie JPEG berbeda, masing-masing maksimal 1 MB, berurutan sesuai `sample_sha256` */
+                        samples: string[];
+                    };
                 };
             };
             responses: {
@@ -1653,7 +1682,10 @@ export interface paths {
                 };
                 400: components["responses"]["ValidationFailed"];
                 403: components["responses"]["Error"];
+                413: components["responses"]["Error"];
+                415: components["responses"]["Error"];
                 422: components["responses"]["Error"];
+                503: components["responses"]["Error"];
             };
         };
         delete?: never;
@@ -3195,7 +3227,7 @@ export interface components {
          * @description Registry MASTER.md §7.4
          * @enum {string}
          */
-        ErrorCode: "VALIDATION_FAILED" | "AUTH_INVALID_CREDENTIALS" | "AUTH_TOKEN_INVALID" | "AUTH_MFA_REQUIRED" | "AUTH_MFA_INVALID" | "FORBIDDEN_ROLE" | "CSRF_INVALID" | "PASSWORD_CHANGE_REQUIRED" | "MFA_SETUP_REQUIRED" | "DEVICE_NOT_REGISTERED" | "DEVICE_PENDING_APPROVAL" | "DEVICE_REVOKED" | "APPROVAL_NOT_YOUR_TURN" | "APPROVAL_SELF_FORBIDDEN" | "MAKER_CHECKER_VIOLATION" | "NOT_FOUND" | "METHOD_NOT_ALLOWED" | "ALREADY_CLOCKED_IN" | "ALREADY_CLOCKED_OUT" | "SHIFT_NOT_ASSIGNED" | "NOT_CLOCKED_IN" | "REQUEST_NOT_PENDING" | "PERIOD_LOCKED" | "DUPLICATE_REQUEST" | "CONFLICT_DUPLICATE" | "CONFLICT_HAS_DEPENDENTS" | "CONFLICT_SELF_ACTION" | "MFA_ALREADY_ENABLED" | "PAYLOAD_TOO_LARGE" | "UNSUPPORTED_MEDIA_TYPE" | "GEOFENCE_OUT" | "FACE_NOT_ENROLLED" | "FACE_MISMATCH" | "LIVENESS_FAILED" | "CHALLENGE_EXPIRED" | "ATTENDANCE_BLOCKED" | "ACTIVATION_INVALID" | "ACTIVATION_USED" | "ACTIVATION_EXPIRED" | "AUTH_ACCOUNT_LOCKED" | "APP_UPDATE_REQUIRED" | "RATE_LIMITED" | "API_ACCESS_DENIED" | "INTERNAL_ERROR";
+        ErrorCode: "VALIDATION_FAILED" | "AUTH_INVALID_CREDENTIALS" | "AUTH_TOKEN_INVALID" | "AUTH_MFA_REQUIRED" | "AUTH_MFA_INVALID" | "FORBIDDEN_ROLE" | "CSRF_INVALID" | "PASSWORD_CHANGE_REQUIRED" | "MFA_SETUP_REQUIRED" | "DEVICE_NOT_REGISTERED" | "DEVICE_PENDING_APPROVAL" | "DEVICE_REVOKED" | "APPROVAL_NOT_YOUR_TURN" | "APPROVAL_SELF_FORBIDDEN" | "MAKER_CHECKER_VIOLATION" | "NOT_FOUND" | "METHOD_NOT_ALLOWED" | "ALREADY_CLOCKED_IN" | "ALREADY_CLOCKED_OUT" | "SHIFT_NOT_ASSIGNED" | "NOT_CLOCKED_IN" | "REQUEST_NOT_PENDING" | "PERIOD_LOCKED" | "DUPLICATE_REQUEST" | "CONFLICT_DUPLICATE" | "CONFLICT_HAS_DEPENDENTS" | "CONFLICT_SELF_ACTION" | "MFA_ALREADY_ENABLED" | "PAYLOAD_TOO_LARGE" | "UNSUPPORTED_MEDIA_TYPE" | "GEOFENCE_OUT" | "FACE_NOT_ENROLLED" | "FACE_MISMATCH" | "LIVENESS_FAILED" | "FACE_NOT_DETECTED" | "FACE_SERVICE_UNAVAILABLE" | "CHALLENGE_EXPIRED" | "ATTENDANCE_BLOCKED" | "ACTIVATION_INVALID" | "ACTIVATION_USED" | "ACTIVATION_EXPIRED" | "AUTH_ACCOUNT_LOCKED" | "APP_UPDATE_REQUIRED" | "RATE_LIMITED" | "API_ACCESS_DENIED" | "INTERNAL_ERROR";
         /**
          * @description Matriks MASTER.md §3.2
          * @enum {string}
@@ -3535,8 +3567,13 @@ export interface components {
             nonce: string;
             /** Format: date-time */
             expires_at: string;
+            /**
+             * @description Gerakan liveness yang diminta, dipilih acak oleh server (D42)
+             * @enum {string}
+             */
+            liveness_action: "blink" | "turn_left" | "turn_right" | "smile";
         };
-        /** @description Bagian wajah dicocokkan 1:1 dengan template aktif: di bawah 0.60 ditolak `FACE_MISMATCH`, 0.60 sampai 0.70 diterima dengan sinyal `face_borderline` (+20). Absen development boleh tanpa bagian wajah (D36). Selfie dan token integritas ditambahkan bersama verifikasinya. */
+        /** @description Payload absen. Skor wajah adalah 1 dikurangi jarak dlib: di bawah 0.40 ditolak `FACE_MISMATCH`, 0.40 sampai 0.50 diterima dengan sinyal `face_borderline` (+20). Selfie yang pernah dikirim ditolak `ATTENDANCE_BLOCKED`. Token integritas ditambahkan bersama verifikasinya. */
         ClockInput: {
             /** Format: uuid */
             challenge_id: string;
@@ -3549,11 +3586,11 @@ export interface components {
             /** Format: date-time */
             captured_at: string;
             signals?: components["schemas"]["AttendanceSignals"];
-            /** @description Embedding dari model di HP */
-            face_embedding?: number[];
-            /** @example mobilefacenet-v1 */
-            face_model_version?: string;
+            /** @description SHA-256 berkas selfie; wajib bila selfie dikirim */
+            selfie_sha256?: string;
             liveness_passed?: boolean;
+            /** @description Gerakan yang dilakukan, harus sama dengan liveness_action challenge */
+            liveness_action?: string;
         };
         FaceEnrollInput: {
             /**
@@ -3561,11 +3598,11 @@ export interface components {
              * @description Challenge `face_enroll`
              */
             challenge_id: string;
-            /** @description Sampel embedding berdimensi sama dan saling mirip. Server menggabungkannya menjadi satu template terenkripsi. */
-            samples: number[][];
-            /** @example mobilefacenet-v1 */
-            face_model_version: string;
+            /** @description SHA-256 setiap berkas sampel, berurutan */
+            sample_sha256: string[];
             liveness_passed: boolean;
+            /** @description Harus sama dengan liveness_action challenge */
+            liveness_action: string;
             /** @description Versi teks persetujuan biometrik yang diterima */
             consent_version: string;
             latitude: number;

@@ -28,7 +28,11 @@ type Config struct {
 	// ChallengeTTL adalah umur tantangan absen. Nol berarti memakai bawaan modul presensi.
 	ChallengeTTL           time.Duration
 	FieldEncryptionKeyPath string
-	MFARequired            bool
+	// FaceModelsDir berisi model dlib untuk menghitung wajah dari selfie (D42). Kosong berarti
+	// verifikasi wajah tidak tersedia. SelfieDir adalah folder selfie terenkripsi.
+	FaceModelsDir string
+	SelfieDir     string
+	MFARequired   bool
 	// CookieSecure menandai cookie hanya untuk HTTPS. Bawaan: aktif di luar development.
 	CookieSecure bool
 	// TrustProxy memercayai X-Real-IP dari reverse proxy di mesin yang sama.
@@ -80,6 +84,8 @@ func Load() (Config, error) {
 		LogLevel:               env("LOG_LEVEL", "info"),
 		SeedSDMPassword:        os.Getenv("SEED_SDM_PASSWORD"),
 		FieldEncryptionKeyPath: os.Getenv("FIELD_ENCRYPTION_KEY_PATH"),
+		FaceModelsDir:          os.Getenv("FACE_MODELS_DIR"),
+		SelfieDir:              os.Getenv("SELFIE_DIR"),
 		MFARequired:            true,
 	}
 	for _, origin := range strings.Split(os.Getenv("CORS_ALLOWED_ORIGINS"), ",") {
@@ -138,6 +144,9 @@ func Load() (Config, error) {
 	}
 	if cfg.FieldEncryptionKeyPath == "" {
 		return cfg, errors.New("FIELD_ENCRYPTION_KEY_PATH wajib diisi")
+	}
+	if cfg.FaceModelsDir != "" && cfg.SelfieDir == "" {
+		return cfg, errors.New("SELFIE_DIR wajib diisi bila FACE_MODELS_DIR diisi")
 	}
 	if cfg.DatabaseURL == "" {
 		return cfg, errors.New("DATABASE_URL wajib diisi")

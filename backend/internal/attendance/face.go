@@ -2,9 +2,14 @@ package attendance
 
 import (
 	"context"
+	"crypto/rand"
+	"crypto/sha256"
 	"encoding/binary"
+	"encoding/hex"
 	"errors"
+	"fmt"
 	"math"
+	"math/big"
 	"net/http"
 	"net/netip"
 	"strings"
@@ -14,14 +19,15 @@ import (
 
 	"github.com/rzarxx/HRIS/backend/internal/audit"
 	"github.com/rzarxx/HRIS/backend/internal/auth"
+	"github.com/rzarxx/HRIS/backend/internal/face"
 	"github.com/rzarxx/HRIS/backend/internal/platform/database"
 	"github.com/rzarxx/HRIS/backend/internal/platform/httpx"
 	"github.com/rzarxx/HRIS/backend/internal/platform/pgconv"
 	"github.com/rzarxx/HRIS/backend/internal/store"
 )
 
-// Pencocokan wajah 1:1 di server (D3, MASTER.md §5.5). HP hanya mengirim embedding; template tidak
-// pernah dikirim balik ke klien.
+// Pencocokan wajah 1:1 di server (D3, D42, MASTER.md §5.5). HP mengirim selfie; embedding dihitung
+// server, dan template tidak pernah dikirim ke klien.
 const (
 	PurposeFaceEnroll = "face_enroll"
 
@@ -30,23 +36,26 @@ const (
 
 	minFaceSamples   = 3
 	maxFaceSamples   = 5
-	minFaceDimension = 64
-	maxFaceDimension = 1024
-	maxModelVersion  = 64
 	maxConsentLength = 32
 
-	// FaceThresholdPass dan FaceThresholdReview mengikuti face.threshold_pass dan face.threshold_review
-	// (§5.4). Keduanya nilai awal dan dikalibrasi dengan data uji di HP sungguhan.
-	FaceThresholdPass   = 0.70
-	FaceThresholdReview = 0.60
-	// faceSampleAgreement adalah kemiripan minimal antarsampel saat pendaftaran, agar satu sampel yang
+	// Ambang memakai jarak Euclid model dlib, yang divalidasi pembuatnya pada jarak 0.6 (D42).
+	// Skor yang disimpan adalah 1 - jarak, jadi FaceThresholdPass dan FaceThresholdReview mengikuti
+	// face.threshold_pass dan face.threshold_review (§5.4). Semuanya nilai awal untuk dikalibrasi.
+	FaceThresholdPass   = 0.50
+	FaceThresholdReview = 0.40
+	// faceSampleAgreement adalah jarak terjauh antarsampel saat pendaftaran, agar satu sampel yang
 	// buram atau milik orang lain tidak ikut membentuk template.
-	faceSampleAgreement = 0.80
+	faceSampleAgreement = 0.50
 
 	faceKeyID = "field-v1"
 
 	flagFaceBorderline = "face_borderline"
+	flagSelfieReplay   = "embedding_replay"
 )
+
+// LivenessActions adalah gerakan yang diminta server lewat challenge, dipilih acak agar rekaman
+// video lama tidak cocok dengan permintaan.
+var LivenessActions = []string{"blink", "turn_left", "turn_right", "smile"}
 
 func errFaceNotEnrolled() error {
 	return httpx.NewError(http.StatusUnprocessableEntity, "FACE_NOT_ENROLLED", "Wajah belum terdaftar.")
@@ -56,93 +65,57 @@ func errLiveness() error {
 	return httpx.NewError(http.StatusUnprocessableEntity, "LIVENESS_FAILED", "Verifikasi wajah hidup gagal, silakan ulangi.")
 }
 
-// Cipher mengenkripsi template wajah. Dipenuhi oleh fieldcrypt.Cipher.
+func errFaceNotDetected(detail string) error {
+	return httpx.NewError(http.StatusUnprocessableEntity, "FACE_NOT_DETECTED", detail)
+}
+
+func errFaceUnavailable() error {
+	return httpx.NewError(http.StatusServiceUnavailable, "FACE_SERVICE_UNAVAILABLE", "Verifikasi wajah sedang tidak tersedia. Coba lagi nanti.")
+}
+
+// Cipher mengenkripsi template wajah dan selfie. Dipenuhi oleh fieldcrypt.Cipher.
 type Cipher interface {
 	Encrypt(plaintext []byte) ([]byte, error)
 	Decrypt(data []byte) ([]byte, error)
 }
 
-// normalize mengembalikan vektor satuan, atau false bila vektornya tidak bisa dipakai.
-func normalize(v []float64) ([]float64, bool) {
-	var sum float64
-	for _, x := range v {
-		if math.IsNaN(x) || math.IsInf(x, 0) {
-			return nil, false
-		}
-		sum += x * x
+func randomLivenessAction() (string, error) {
+	n, err := rand.Int(rand.Reader, big.NewInt(int64(len(LivenessActions))))
+	if err != nil {
+		return "", err
 	}
-	norm := math.Sqrt(sum)
-	if norm == 0 || math.IsInf(norm, 0) {
-		return nil, false
-	}
-	out := make([]float64, len(v))
-	for i, x := range v {
-		out[i] = x / norm
-	}
-	return out, true
+	return LivenessActions[n.Int64()], nil
 }
 
-// Cosine menghitung kemiripan dua vektor. Hasilnya 0 bila panjangnya berbeda atau salah satunya nol.
-func Cosine(a, b []float64) float64 {
-	if len(a) != len(b) || len(a) == 0 {
-		return 0
-	}
-	na, okA := normalize(a)
-	nb, okB := normalize(b)
-	if !okA || !okB {
-		return 0
-	}
-	var dot float64
-	for i := range na {
-		dot += na[i] * nb[i]
-	}
-	return dot
+// scoreOf mengubah jarak menjadi skor 0 sampai 1 untuk attendances.face_score.
+func scoreOf(distance float64) decimal.NullDecimal {
+	score := math.Max(0, math.Min(1, 1-distance))
+	return decimal.NullDecimal{Decimal: decimal.NewFromFloat(score).Round(4), Valid: true}
 }
 
-// BuildTemplate menggabungkan sampel menjadi satu template: rata-rata vektor satuan, lalu dinormalkan.
-// Sampel harus berdimensi sama dan saling mirip.
-func BuildTemplate(samples [][]float64) ([]float64, error) {
-	out, problem := buildTemplate(samples)
-	if problem != "" {
-		return nil, httpx.Validation(map[string]string{"samples": problem})
+// faceProblem menerjemahkan kegagalan mesin wajah menjadi pesan untuk Pejuang.
+func faceProblem(err error) (string, bool) {
+	switch {
+	case errors.Is(err, face.ErrNoFace):
+		return "Wajah tidak terdeteksi. Pastikan wajah terlihat jelas dan cahaya cukup.", true
+	case errors.Is(err, face.ErrManyFaces):
+		return "Terdeteksi lebih dari satu wajah. Pastikan hanya wajah Anda yang terlihat.", true
+	case errors.Is(err, face.ErrBadImage):
+		return "Foto tidak bisa dibaca. Silakan ambil ulang.", true
 	}
-	return out, nil
+	return "", false
 }
 
-func buildTemplate(samples [][]float64) ([]float64, string) {
-	if len(samples) < minFaceSamples || len(samples) > maxFaceSamples {
-		return nil, "Kirim 3 sampai 5 sampel wajah."
-	}
-	dim := len(samples[0])
-	if dim < minFaceDimension || dim > maxFaceDimension {
-		return nil, "Ukuran sampel wajah tidak valid."
-	}
-	units := make([][]float64, 0, len(samples))
-	for _, s := range samples {
-		if len(s) != dim {
-			return nil, "Ukuran sampel wajah tidak sama."
-		}
-		u, ok := normalize(s)
-		if !ok {
-			return nil, "Sampel wajah tidak valid."
-		}
-		units = append(units, u)
-	}
-	for i := range units {
-		for j := i + 1; j < len(units); j++ {
-			if Cosine(units[i], units[j]) < faceSampleAgreement {
-				return nil, "Sampel wajah tidak konsisten, silakan ulangi."
+// checkAgreement memastikan semua sampel pendaftaran saling dekat.
+func checkAgreement(samples [][]float64) bool {
+	for i := range samples {
+		for j := i + 1; j < len(samples); j++ {
+			if face.Distance(samples[i], samples[j]) > faceSampleAgreement {
+				return false
 			}
 		}
 	}
-	mean := make([]float64, dim)
-	for _, u := range units {
-		for i, x := range u {
-			mean[i] += x
-		}
-	}
-	out, _ := normalize(mean)
-	return out, ""
+	return true
 }
 
 // encodeEmbedding menyimpan vektor sebagai float32 little-endian sebelum dienkripsi.
@@ -165,49 +138,94 @@ func decodeEmbedding(raw []byte) ([]float64, error) {
 	return out, nil
 }
 
-func validModelVersion(v string) bool {
-	v = strings.TrimSpace(v)
-	return v != "" && len(v) <= maxModelVersion
+func sha256Hex(data []byte) string {
+	sum := sha256.Sum256(data)
+	return hex.EncodeToString(sum[:])
 }
 
-// FaceInput adalah bagian wajah pada absen masuk dan pulang.
-type FaceInput struct {
-	Embedding      []float64 `json:"face_embedding"`
-	ModelVersion   string    `json:"face_model_version"`
-	LivenessPassed *bool     `json:"liveness_passed"`
+func (s *Service) faceReady() bool {
+	return s.opt.Faces != nil && s.opt.Selfies != nil && s.opt.Cipher != nil
 }
 
-func (f FaceInput) present() bool {
-	return len(f.Embedding) > 0 || f.ModelVersion != "" || f.LivenessPassed != nil
-}
+var errReplay = errors.New("selfie dipakai ulang")
 
-// checkFace mencocokkan wajah dengan template aktif (F9). Selama verifikasi perangkat belum dibuat,
-// absen development boleh tanpa wajah (D36); begitu bagian wajah dikirim, semuanya diperiksa.
-func (s *Service) checkFace(ctx context.Context, a *attempt, in FaceInput) (decimal.NullDecimal, error) {
-	if !in.present() {
-		if s.opt.AllowUnverified {
-			return decimal.NullDecimal{}, nil
-		}
-		return decimal.NullDecimal{}, s.reject(ctx, *a, "face_not_enrolled", errFaceNotEnrolled())
+// capture menyimpan selfie lalu mencatatnya. Selfie yang sama dari Pejuang yang sama ditolak
+// sebagai embedding_replay, termasuk bila upaya sebelumnya ditolak.
+func (s *Service) capture(ctx context.Context, employeeID uuid.UUID, challenge uuid.NullUUID, purpose string, data []byte) (uuid.UUID, error) {
+	key := fmt.Sprintf("%s/%s/%s.jpg.enc", purpose, s.opt.Now().UTC().Format("2006/01"), uuid.New())
+	if err := s.opt.Selfies.Put(ctx, key, data); err != nil {
+		return uuid.Nil, err
 	}
-	tpl, err := s.activeTemplate(ctx, a.p.EmployeeID)
-	if errors.Is(err, errNoTemplate) || (err == nil && tpl.modelVersion != strings.TrimSpace(in.ModelVersion)) {
-		return decimal.NullDecimal{}, s.reject(ctx, *a, "face_not_enrolled", errFaceNotEnrolled())
+	id, err := s.q.InsertFaceCapture(ctx, store.InsertFaceCaptureParams{
+		EmployeeID: employeeID, ChallengeID: challenge, Purpose: purpose, Sha256: sha256Hex(data), StorageKey: key,
+	})
+	if pgconv.IsNoRows(err) {
+		if err := s.opt.Selfies.Delete(ctx, key); err != nil {
+			return uuid.Nil, err
+		}
+		return uuid.Nil, errReplay
 	}
 	if err != nil {
-		return decimal.NullDecimal{}, err
+		return uuid.Nil, err
 	}
-	if in.LivenessPassed == nil || !*in.LivenessPassed {
-		return decimal.NullDecimal{}, s.reject(ctx, *a, "liveness_failed", errLiveness())
+	return id, nil
+}
+
+// faceResult adalah hasil pencocokan wajah pada absen.
+type faceResult struct {
+	capture uuid.NullUUID
+	score   decimal.NullDecimal
+}
+
+// checkFace mencocokkan selfie dengan template aktif (F9). Selama verifikasi perangkat belum dibuat,
+// absen development boleh tanpa selfie (D36); begitu selfie dikirim, semuanya diperiksa.
+func (s *Service) checkFace(ctx context.Context, a *attempt, in ClockInput) (faceResult, error) {
+	if len(in.selfie) == 0 {
+		if s.opt.AllowUnverified {
+			return faceResult{}, nil
+		}
+		return faceResult{}, s.reject(ctx, *a, "face_not_detected", errFaceNotDetected("Selfie wajib dikirim."))
 	}
-	score := Cosine(in.Embedding, tpl.vector)
-	if score < FaceThresholdReview {
-		return decimal.NullDecimal{}, s.reject(ctx, *a, "face_mismatch", httpx.NewError(http.StatusUnprocessableEntity, "FACE_MISMATCH", "Wajah tidak cocok, silakan ulangi."))
+	if !s.faceReady() {
+		return faceResult{}, errFaceUnavailable()
 	}
-	if score < FaceThresholdPass {
+	tpl, err := s.activeTemplate(ctx, a.p.EmployeeID)
+	if errors.Is(err, errNoTemplate) || (err == nil && tpl.modelVersion != s.opt.Faces.Model()) {
+		return faceResult{}, s.reject(ctx, *a, "face_not_enrolled", errFaceNotEnrolled())
+	}
+	if err != nil {
+		return faceResult{}, err
+	}
+	if in.LivenessPassed == nil || !*in.LivenessPassed || in.LivenessAction == "" || in.LivenessAction != a.livenessAction {
+		return faceResult{}, s.reject(ctx, *a, "liveness_failed", errLiveness())
+	}
+	captureID, err := s.capture(ctx, a.p.EmployeeID, a.challenge, a.purpose, in.selfie)
+	if errors.Is(err, errReplay) {
+		a.flags = append(a.flags, flagSelfieReplay)
+		return faceResult{}, s.reject(ctx, *a, "embedding_replay", errBlocked())
+	}
+	if err != nil {
+		return faceResult{}, err
+	}
+	vector, err := s.opt.Faces.Embed(ctx, in.selfie)
+	if err != nil {
+		if msg, ok := faceProblem(err); ok {
+			return faceResult{}, s.reject(ctx, *a, "face_not_detected", errFaceNotDetected(msg))
+		}
+		return faceResult{}, err
+	}
+	distance := face.Distance(vector, tpl.vector)
+	out := faceResult{capture: uuid.NullUUID{UUID: captureID, Valid: true}, score: scoreOf(distance)}
+	if err := s.q.SetFaceCaptureScore(ctx, store.SetFaceCaptureScoreParams{ID: captureID, FaceScore: out.score}); err != nil {
+		return faceResult{}, err
+	}
+	switch {
+	case out.score.Decimal.InexactFloat64() < FaceThresholdReview:
+		return faceResult{}, s.reject(ctx, *a, "face_mismatch", httpx.NewError(http.StatusUnprocessableEntity, "FACE_MISMATCH", "Wajah tidak cocok, silakan ulangi."))
+	case out.score.Decimal.InexactFloat64() < FaceThresholdPass:
 		a.flags = append(a.flags, flagFaceBorderline)
 	}
-	return decimal.NullDecimal{Decimal: decimal.NewFromFloat(max(score, 0)).Round(4), Valid: true}, nil
+	return out, nil
 }
 
 var errNoTemplate = errors.New("template wajah tidak ada")
@@ -239,17 +257,20 @@ func (s *Service) activeTemplate(ctx context.Context, employeeID uuid.UUID) (fac
 	return faceTemplate{modelVersion: row.ModelVersion, vector: vector}, nil
 }
 
-// EnrollInput adalah isi pendaftaran wajah (F7).
+// EnrollInput adalah bagian payload pendaftaran wajah (F7). Foto sampel dikirim sebagai berkas
+// `samples` dan hash-nya, berurutan, di sample_sha256.
 type EnrollInput struct {
-	ChallengeID    string      `json:"challenge_id"`
-	Samples        [][]float64 `json:"samples"`
-	ModelVersion   string      `json:"face_model_version"`
-	LivenessPassed *bool       `json:"liveness_passed"`
-	ConsentVersion string      `json:"consent_version"`
-	Latitude       *float64    `json:"latitude"`
-	Longitude      *float64    `json:"longitude"`
-	AccuracyM      *float64    `json:"accuracy_m"`
-	Signals        Signals     `json:"signals"`
+	ChallengeID    string   `json:"challenge_id"`
+	SampleSHA256   []string `json:"sample_sha256"`
+	LivenessPassed *bool    `json:"liveness_passed"`
+	LivenessAction string   `json:"liveness_action"`
+	ConsentVersion string   `json:"consent_version"`
+	Latitude       *float64 `json:"latitude"`
+	Longitude      *float64 `json:"longitude"`
+	AccuracyM      *float64 `json:"accuracy_m"`
+	Signals        Signals  `json:"signals"`
+
+	samples [][]byte
 }
 
 // FaceStatus adalah status wajah sendiri. Template tidak pernah dikirim.
@@ -270,16 +291,11 @@ func (s *Service) FaceStatus(ctx context.Context, p auth.Principal) (FaceStatus,
 	return FaceStatus{Enrolled: true, ModelVersion: &row.ModelVersion, EnrolledAt: pgconv.TimeString(row.CreatedAt)}, nil
 }
 
-// Enroll mendaftarkan wajah dari perangkat approved, di lokasi kantor (face.enroll_requires_geofence),
-// lalu menggantikan template lama dalam satu transaksi.
-func (s *Service) Enroll(ctx context.Context, p auth.Principal, ip *netip.Addr, deviceHeader string, in EnrollInput) (FaceStatus, error) {
+func (in EnrollInput) validate() (uuid.UUID, Point, error) {
 	fields := map[string]string{}
 	challengeID, err := uuid.Parse(in.ChallengeID)
 	if err != nil {
 		fields["challenge_id"] = "Tantangan tidak valid."
-	}
-	if !validModelVersion(in.ModelVersion) {
-		fields["face_model_version"] = "Versi model wajah wajib diisi."
 	}
 	if v := strings.TrimSpace(in.ConsentVersion); v == "" || len(v) > maxConsentLength {
 		fields["consent_version"] = "Persetujuan biometrik wajib diterima."
@@ -293,24 +309,50 @@ func (s *Service) Enroll(ctx context.Context, p auth.Principal, ip *netip.Addr, 
 	if in.AccuracyM == nil || math.IsNaN(*in.AccuracyM) || *in.AccuracyM < 0 || *in.AccuracyM > maxAccuracyM {
 		fields["accuracy_m"] = "Akurasi lokasi tidak valid."
 	}
-	template, problem := buildTemplate(in.Samples)
-	if problem != "" {
-		fields["samples"] = problem
+	if n := len(in.samples); n < minFaceSamples || n > maxFaceSamples {
+		fields["samples"] = "Kirim 3 sampai 5 foto wajah."
+	} else if len(in.SampleSHA256) != n {
+		fields["sample_sha256"] = "Hash foto harus sama jumlahnya dengan foto."
+	} else {
+		seen := map[string]bool{}
+		for i, data := range in.samples {
+			sum := sha256Hex(data)
+			if !strings.EqualFold(in.SampleSHA256[i], sum) {
+				fields["sample_sha256"] = "Hash foto tidak sesuai."
+				break
+			}
+			if seen[sum] {
+				fields["samples"] = "Setiap foto harus berbeda."
+				break
+			}
+			seen[sum] = true
+		}
 	}
 	if len(fields) > 0 {
-		return FaceStatus{}, httpx.Validation(fields)
+		return challengeID, point, httpx.Validation(fields)
 	}
-	if s.opt.Cipher == nil {
-		return FaceStatus{}, errors.New("cipher wajah belum dipasang")
+	return challengeID, point, nil
+}
+
+// Enroll mendaftarkan wajah dari perangkat approved, di lokasi kantor (face.enroll_requires_geofence),
+// lalu menggantikan template lama dalam satu transaksi.
+func (s *Service) Enroll(ctx context.Context, p auth.Principal, ip *netip.Addr, deviceHeader string, in EnrollInput) (FaceStatus, error) {
+	challengeID, point, err := in.validate()
+	if err != nil {
+		return FaceStatus{}, err
+	}
+	if !s.faceReady() {
+		return FaceStatus{}, errFaceUnavailable()
 	}
 
 	device, err := s.deviceOf(ctx, p, deviceHeader)
 	if err != nil {
 		return FaceStatus{}, err
 	}
-	if _, err := s.q.ConsumeAttendanceChallenge(ctx, store.ConsumeAttendanceChallengeParams{
+	challenge, err := s.q.ConsumeAttendanceChallenge(ctx, store.ConsumeAttendanceChallengeParams{
 		Now: pgconv.Time(s.opt.Now()), ID: challengeID, EmployeeID: p.EmployeeID, DeviceID: device.ID, Purpose: PurposeFaceEnroll,
-	}); err != nil {
+	})
+	if err != nil {
 		if pgconv.IsNoRows(err) {
 			return FaceStatus{}, httpx.NewError(http.StatusUnprocessableEntity, "CHALLENGE_EXPIRED", "Waktu pendaftaran habis, silakan ulangi.")
 		}
@@ -319,7 +361,7 @@ func (s *Service) Enroll(ctx context.Context, p auth.Principal, ip *netip.Addr, 
 	if !s.opt.AllowUnverified || len(in.Signals.hardFlags()) > 0 {
 		return FaceStatus{}, errBlocked()
 	}
-	if in.LivenessPassed == nil || !*in.LivenessPassed {
+	if in.LivenessPassed == nil || !*in.LivenessPassed || in.LivenessAction == "" || in.LivenessAction != challenge.LivenessAction.String {
 		return FaceStatus{}, errLiveness()
 	}
 	if _, ok, err := s.matchLocation(ctx, p.EmployeeID, point); err != nil {
@@ -328,11 +370,35 @@ func (s *Service) Enroll(ctx context.Context, p auth.Principal, ip *netip.Addr, 
 		return FaceStatus{}, httpx.NewError(http.StatusUnprocessableEntity, "GEOFENCE_OUT", "Daftarkan wajah di lokasi kantor.")
 	}
 
+	vectors := make([][]float64, 0, len(in.samples))
+	captures := make([]uuid.UUID, 0, len(in.samples))
+	for i, data := range in.samples {
+		id, err := s.capture(ctx, p.EmployeeID, uuid.NullUUID{UUID: challengeID, Valid: true}, PurposeFaceEnroll, data)
+		if errors.Is(err, errReplay) {
+			return FaceStatus{}, errBlocked()
+		}
+		if err != nil {
+			return FaceStatus{}, err
+		}
+		captures = append(captures, id)
+		vector, err := s.opt.Faces.Embed(ctx, data)
+		if err != nil {
+			if msg, ok := faceProblem(err); ok {
+				return FaceStatus{}, errFaceNotDetected(fmt.Sprintf("Foto ke-%d: %s", i+1, msg))
+			}
+			return FaceStatus{}, err
+		}
+		vectors = append(vectors, vector)
+	}
+	if !checkAgreement(vectors) {
+		return FaceStatus{}, httpx.Validation(map[string]string{"samples": "Foto wajah tidak konsisten, silakan ulangi."})
+	}
+	template := face.Mean(vectors)
 	enc, err := s.opt.Cipher.Encrypt(encodeEmbedding(template))
 	if err != nil {
 		return FaceStatus{}, err
 	}
-	model := strings.TrimSpace(in.ModelVersion)
+	model := s.opt.Faces.Model()
 	var row store.FaceTemplate
 	err = database.InTx(ctx, s.pool, func(q *store.Queries) error {
 		replaced, err := q.DeactivateFaceTemplates(ctx, store.DeactivateFaceTemplatesParams{Actor: audit.Actor(p.UserID), EmployeeID: p.EmployeeID})
@@ -351,7 +417,7 @@ func (s *Service) Enroll(ctx context.Context, p auth.Principal, ip *netip.Addr, 
 		}
 		return audit.Write(ctx, q, audit.Entry{
 			UserID: audit.Actor(p.UserID), Action: audit.FaceEnrolled, Entity: "employee", EntityID: p.EmployeeID, IP: ip,
-			Detail: map[string]any{"model_version": model, "samples": len(in.Samples), "replaced": replaced > 0, "device_id": device.ID.String()},
+			Detail: map[string]any{"model_version": model, "samples": len(captures), "replaced": replaced > 0, "device_id": device.ID.String()},
 		})
 	})
 	if err != nil {
@@ -425,9 +491,11 @@ func (h *Handler) FaceStatus(w http.ResponseWriter, r *http.Request) error {
 
 func (h *Handler) Enroll(w http.ResponseWriter, r *http.Request) error {
 	var in EnrollInput
-	if err := httpx.Decode(r, &in); err != nil {
+	samples, err := readUpload(r, &in, "samples", maxFaceSamples)
+	if err != nil {
 		return err
 	}
+	in.samples = samples
 	p, _ := auth.PrincipalFrom(r.Context())
 	out, err := h.svc.Enroll(r.Context(), p, audit.ClientIP(r), r.Header.Get(headerDeviceID), in)
 	if err != nil {

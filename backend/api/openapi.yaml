@@ -631,12 +631,22 @@ paths:
     post:
       tags: [Presensi]
       summary: Absen masuk
-      description: "Selama verifikasi perangkat dan wajah belum dibuat, semua absen ditolak `ATTENDANCE_BLOCKED` kecuali di development dengan izin khusus (D36). Alasan keamanan tidak dikirim ke klien."
+      description: "Kirim multipart: bagian `payload` (JSON `ClockInput`) dan berkas `selfie`. Server menghitung wajah dari selfie dan mencocokkannya dengan template (D42). JSON tanpa selfie hanya diterima di development (D36). Selama verifikasi perangkat belum dibuat, semua absen ditolak `ATTENDANCE_BLOCKED` kecuali di development dengan izin khusus. Alasan keamanan tidak dikirim ke klien."
       parameters:
         - { name: X-Device-Id, in: header, required: true, description: "ID perangkat dari hasil registrasi", schema: { type: string, format: uuid } }
       requestBody:
         required: true
         content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [payload, selfie]
+              properties:
+                payload: { type: string, description: "JSON `ClockInput`" }
+                selfie: { type: string, format: binary, description: "Selfie JPEG, maksimal 1 MB" }
+            encoding:
+              payload: { contentType: application/json }
+              selfie: { contentType: image/jpeg }
           application/json:
             schema: { $ref: "#/components/schemas/ClockInput" }
       responses:
@@ -652,7 +662,10 @@ paths:
         "400": { $ref: "#/components/responses/ValidationFailed" }
         "403": { $ref: "#/components/responses/Error" }
         "409": { $ref: "#/components/responses/Error" }
+        "413": { $ref: "#/components/responses/Error" }
+        "415": { $ref: "#/components/responses/Error" }
         "422": { $ref: "#/components/responses/Error" }
+        "503": { $ref: "#/components/responses/Error" }
   /v1/attendance/clock-out:
     post:
       tags: [Presensi]
@@ -663,6 +676,16 @@ paths:
       requestBody:
         required: true
         content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [payload, selfie]
+              properties:
+                payload: { type: string, description: "JSON `ClockInput`" }
+                selfie: { type: string, format: binary, description: "Selfie JPEG, maksimal 1 MB" }
+            encoding:
+              payload: { contentType: application/json }
+              selfie: { contentType: image/jpeg }
           application/json:
             schema: { $ref: "#/components/schemas/ClockInput" }
       responses:
@@ -678,7 +701,10 @@ paths:
         "400": { $ref: "#/components/responses/ValidationFailed" }
         "403": { $ref: "#/components/responses/Error" }
         "409": { $ref: "#/components/responses/Error" }
+        "413": { $ref: "#/components/responses/Error" }
+        "415": { $ref: "#/components/responses/Error" }
         "422": { $ref: "#/components/responses/Error" }
+        "503": { $ref: "#/components/responses/Error" }
   /v1/attendance:
     get:
       tags: [Presensi]
@@ -719,14 +745,27 @@ paths:
     post:
       tags: [Wajah]
       summary: Daftarkan wajah (F7)
-      description: "Permission `face:enroll`. Butuh perangkat approved, challenge `face_enroll`, persetujuan biometrik, liveness, dan lokasi di dalam geofence kantor (`face.enroll_requires_geofence`). Template lama dinonaktifkan. Sama seperti absen, ditolak `ATTENDANCE_BLOCKED` sampai verifikasi perangkat dibuat, kecuali di development (D36)."
+      description: "Permission `face:enroll`. Butuh perangkat approved, challenge `face_enroll`, persetujuan biometrik, liveness, dan lokasi di dalam geofence kantor (`face.enroll_requires_geofence`). Server menghitung wajah dari setiap selfie dengan model dlib; selfie yang tidak saling mirip ditolak. Template lama dinonaktifkan. Sama seperti absen, ditolak `ATTENDANCE_BLOCKED` sampai verifikasi perangkat dibuat, kecuali di development (D36)."
       parameters:
         - { name: X-Device-Id, in: header, required: true, description: "ID perangkat dari hasil registrasi", schema: { type: string, format: uuid } }
       requestBody:
         required: true
         content:
-          application/json:
-            schema: { $ref: "#/components/schemas/FaceEnrollInput" }
+          multipart/form-data:
+            schema:
+              type: object
+              required: [payload, samples]
+              properties:
+                payload: { type: string, description: "JSON `FaceEnrollInput`" }
+                samples:
+                  type: array
+                  minItems: 3
+                  maxItems: 5
+                  description: "3 sampai 5 selfie JPEG berbeda, masing-masing maksimal 1 MB, berurutan sesuai `sample_sha256`"
+                  items: { type: string, format: binary }
+            encoding:
+              payload: { contentType: application/json }
+              samples: { contentType: image/jpeg }
       responses:
         "201":
           description: Wajah terdaftar
@@ -739,7 +778,10 @@ paths:
                   data: { $ref: "#/components/schemas/FaceStatus" }
         "400": { $ref: "#/components/responses/ValidationFailed" }
         "403": { $ref: "#/components/responses/Error" }
+        "413": { $ref: "#/components/responses/Error" }
+        "415": { $ref: "#/components/responses/Error" }
         "422": { $ref: "#/components/responses/Error" }
+        "503": { $ref: "#/components/responses/Error" }
   /v1/consents:
     post:
       tags: [Wajah]
@@ -1575,6 +1617,8 @@ components:
         - FACE_NOT_ENROLLED
         - FACE_MISMATCH
         - LIVENESS_FAILED
+        - FACE_NOT_DETECTED
+        - FACE_SERVICE_UNAVAILABLE
         - CHALLENGE_EXPIRED
         - ATTENDANCE_BLOCKED
         - ACTIVATION_INVALID
@@ -1987,15 +2031,16 @@ components:
         purpose: { type: string, enum: [clock_in, clock_out, face_enroll] }
     AttendanceChallenge:
       type: object
-      required: [challenge_id, nonce, expires_at]
+      required: [challenge_id, nonce, expires_at, liveness_action]
       properties:
         challenge_id: { type: string, format: uuid }
         nonce: { type: string }
         expires_at: { type: string, format: date-time }
+        liveness_action: { type: string, enum: [blink, turn_left, turn_right, smile], description: "Gerakan liveness yang diminta, dipilih acak oleh server (D42)" }
     ClockInput:
       type: object
       required: [challenge_id, latitude, longitude, accuracy_m, captured_at]
-      description: "Bagian wajah dicocokkan 1:1 dengan template aktif: di bawah 0.60 ditolak `FACE_MISMATCH`, 0.60 sampai 0.70 diterima dengan sinyal `face_borderline` (+20). Absen development boleh tanpa bagian wajah (D36). Selfie dan token integritas ditambahkan bersama verifikasinya."
+      description: "Payload absen. Skor wajah adalah 1 dikurangi jarak dlib: di bawah 0.40 ditolak `FACE_MISMATCH`, 0.40 sampai 0.50 diterima dengan sinyal `face_borderline` (+20). Selfie yang pernah dikirim ditolak `ATTENDANCE_BLOCKED`. Token integritas ditambahkan bersama verifikasinya."
       properties:
         challenge_id: { type: string, format: uuid }
         latitude: { type: number, minimum: -90, maximum: 90, example: -6.2001 }
@@ -2003,22 +2048,22 @@ components:
         accuracy_m: { type: number, minimum: 0, example: 12.5 }
         captured_at: { type: string, format: date-time }
         signals: { $ref: "#/components/schemas/AttendanceSignals" }
-        face_embedding: { type: array, items: { type: number }, minItems: 64, maxItems: 1024, description: Embedding dari model di HP }
-        face_model_version: { type: string, maxLength: 64, example: mobilefacenet-v1 }
+        selfie_sha256: { type: string, pattern: '^[0-9a-f]{64}$', description: "SHA-256 berkas selfie; wajib bila selfie dikirim" }
         liveness_passed: { type: boolean }
+        liveness_action: { type: string, description: "Gerakan yang dilakukan, harus sama dengan liveness_action challenge" }
     FaceEnrollInput:
       type: object
-      required: [challenge_id, samples, face_model_version, liveness_passed, consent_version, latitude, longitude, accuracy_m]
+      required: [challenge_id, sample_sha256, liveness_passed, liveness_action, consent_version, latitude, longitude, accuracy_m]
       properties:
         challenge_id: { type: string, format: uuid, description: "Challenge `face_enroll`" }
-        samples:
+        sample_sha256:
           type: array
           minItems: 3
           maxItems: 5
-          description: Sampel embedding berdimensi sama dan saling mirip. Server menggabungkannya menjadi satu template terenkripsi.
-          items: { type: array, items: { type: number }, minItems: 64, maxItems: 1024 }
-        face_model_version: { type: string, maxLength: 64, example: mobilefacenet-v1 }
+          description: SHA-256 setiap berkas sampel, berurutan
+          items: { type: string, pattern: '^[0-9a-f]{64}$' }
         liveness_passed: { type: boolean }
+        liveness_action: { type: string, description: "Harus sama dengan liveness_action challenge" }
         consent_version: { type: string, maxLength: 32, description: Versi teks persetujuan biometrik yang diterima }
         latitude: { type: number, minimum: -90, maximum: 90 }
         longitude: { type: number, minimum: -180, maximum: 180 }

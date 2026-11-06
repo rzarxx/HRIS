@@ -109,3 +109,28 @@ WHERE e.deleted_at IS NULL AND e.status = 'active'
   AND (e.join_date IS NULL OR e.join_date <= @work_date)
   AND (sqlc.narg(division_id)::uuid IS NULL OR d.id = sqlc.narg(division_id))
 ORDER BY d.name, e.full_name;
+
+-- name: ListArrangementTargets :many
+SELECT e.id, e.full_name
+FROM employees e JOIN subdivisions s ON s.id = e.subdivision_id
+WHERE e.deleted_at IS NULL AND e.status = 'active'
+  AND (sqlc.narg(division_id)::uuid IS NULL OR s.division_id = sqlc.narg(division_id))
+  AND (sqlc.narg(subdivision_id)::uuid IS NULL OR s.id = sqlc.narg(subdivision_id))
+ORDER BY e.id;
+
+-- name: CountAttendanceAttempts :one
+SELECT count(*) FROM attendance_attempts
+WHERE created_at >= @from_at AND created_at < @to_at
+  AND (sqlc.narg(outcome)::text IS NULL OR outcome = sqlc.narg(outcome));
+
+-- name: ListAttendanceAttempts :many
+SELECT a.id, a.employee_id, e.full_name AS employee_name, e.nip, s.name AS subdivision_name, d.name AS division_name,
+       a.purpose, a.outcome, a.reason_code, a.risk_score, a.risk_flags, a.latitude, a.longitude, a.created_at
+FROM attendance_attempts a
+JOIN employees e ON e.id = a.employee_id
+JOIN subdivisions s ON s.id = e.subdivision_id
+JOIN divisions d ON d.id = s.division_id
+WHERE a.created_at >= @from_at AND a.created_at < @to_at
+  AND (sqlc.narg(outcome)::text IS NULL OR a.outcome = sqlc.narg(outcome))
+ORDER BY a.created_at DESC, a.id DESC
+LIMIT @page_limit OFFSET @page_offset;

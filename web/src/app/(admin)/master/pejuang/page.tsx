@@ -1,9 +1,10 @@
 "use client";
 
-import { CalendarClock, KeyRound, Lock, LockOpen, MapPin, Pencil, Plus, Search, UserX } from "lucide-react";
+import { CalendarClock, CalendarRange, KeyRound, Lock, LockOpen, MapPin, Pencil, Plus, Search, UserX } from "lucide-react";
 import { useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useState } from "react";
 import { ActivationLinkModal } from "@/components/employees/activation-link-modal";
+import { BulkArrangementModal } from "@/components/employees/bulk-arrangement-modal";
 import { EmployeeArrangementsModal } from "@/components/employees/employee-arrangements-modal";
 import { EmployeeForm } from "@/components/employees/employee-form";
 import { EmployeeLocationsModal } from "@/components/employees/employee-locations-modal";
@@ -75,6 +76,7 @@ function EmployeesView() {
     onDone: () => setDeleting(null),
   });
 
+  const [bulkOpen, setBulkOpen] = useState(false);
   const [activation, setActivation] = useState<{ name: string; activation: Activation } | null>(null);
   const [resetting, setResetting] = useState<EmployeeListItem | null>(null);
   const resetPassword = useSave(
@@ -101,9 +103,14 @@ function EmployeesView() {
         description="Data Pejuang aktif dan nonaktif."
         actions={
           canWrite && (
-            <Button onClick={() => setEditing("new")}>
-              <Plus className="size-4" /> Tambah Pejuang
-            </Button>
+            <>
+              <Button variant="secondary" onClick={() => setBulkOpen(true)}>
+                <CalendarRange className="size-4" /> Izin massal
+              </Button>
+              <Button onClick={() => setEditing("new")}>
+                <Plus className="size-4" /> Tambah Pejuang
+              </Button>
+            </>
           )
         }
       />
@@ -265,6 +272,8 @@ function EmployeesView() {
       {assigning && <EmployeeLocationsModal employee={assigning} onClose={() => setAssigning(null)} />}
 
       {arranging && <EmployeeArrangementsModal employee={arranging} onClose={() => setArranging(null)} />}
+
+      {bulkOpen && <BulkArrangementModal onClose={() => setBulkOpen(false)} />}
 
       {activation && <ActivationLinkModal name={activation.name} activation={activation.activation} onClose={() => setActivation(null)} />}
 

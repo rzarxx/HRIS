@@ -176,6 +176,25 @@ func (q *Queries) ConsumeAttendanceChallenge(ctx context.Context, arg ConsumeAtt
 	return id, err
 }
 
+const countAttendanceAttempts = `-- name: CountAttendanceAttempts :one
+SELECT count(*) FROM attendance_attempts
+WHERE created_at >= $1 AND created_at < $2
+  AND ($3::text IS NULL OR outcome = $3)
+`
+
+type CountAttendanceAttemptsParams struct {
+	FromAt  pgtype.Timestamptz
+	ToAt    pgtype.Timestamptz
+	Outcome pgtype.Text
+}
+
+func (q *Queries) CountAttendanceAttempts(ctx context.Context, arg CountAttendanceAttemptsParams) (int64, error) {
+	row := q.db.QueryRow(ctx, countAttendanceAttempts, arg.FromAt, arg.ToAt, arg.Outcome)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const countAttendanceReview = `-- name: CountAttendanceReview :one
 SELECT count(*) FROM attendances a
 WHERE a.status = 'review' AND ($1::text IS NULL OR a.work_mode = $1)
@@ -530,6 +549,124 @@ func (q *Queries) IsHoliday(ctx context.Context, date pgtype.Date) (bool, error)
 	var exists bool
 	err := row.Scan(&exists)
 	return exists, err
+}
+
+const listArrangementTargets = `-- name: ListArrangementTargets :many
+SELECT e.id, e.full_name
+FROM employees e JOIN subdivisions s ON s.id = e.subdivision_id
+WHERE e.deleted_at IS NULL AND e.status = 'active'
+  AND ($1::uuid IS NULL OR s.division_id = $1)
+  AND ($2::uuid IS NULL OR s.id = $2)
+ORDER BY e.id
+`
+
+type ListArrangementTargetsParams struct {
+	DivisionID    uuid.NullUUID
+	SubdivisionID uuid.NullUUID
+}
+
+type ListArrangementTargetsRow struct {
+	ID       uuid.UUID
+	FullName string
+}
+
+func (q *Queries) ListArrangementTargets(ctx context.Context, arg ListArrangementTargetsParams) ([]ListArrangementTargetsRow, error) {
+	rows, err := q.db.Query(ctx, listArrangementTargets, arg.DivisionID, arg.SubdivisionID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListArrangementTargetsRow{}
+	for rows.Next() {
+		var i ListArrangementTargetsRow
+		if err := rows.Scan(&i.ID, &i.FullName); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listAttendanceAttempts = `-- name: ListAttendanceAttempts :many
+SELECT a.id, a.employee_id, e.full_name AS employee_name, e.nip, s.name AS subdivision_name, d.name AS division_name,
+       a.purpose, a.outcome, a.reason_code, a.risk_score, a.risk_flags, a.latitude, a.longitude, a.created_at
+FROM attendance_attempts a
+JOIN employees e ON e.id = a.employee_id
+JOIN subdivisions s ON s.id = e.subdivision_id
+JOIN divisions d ON d.id = s.division_id
+WHERE a.created_at >= $1 AND a.created_at < $2
+  AND ($3::text IS NULL OR a.outcome = $3)
+ORDER BY a.created_at DESC, a.id DESC
+LIMIT $5 OFFSET $4
+`
+
+type ListAttendanceAttemptsParams struct {
+	FromAt     pgtype.Timestamptz
+	ToAt       pgtype.Timestamptz
+	Outcome    pgtype.Text
+	PageOffset int32
+	PageLimit  int32
+}
+
+type ListAttendanceAttemptsRow struct {
+	ID              int64
+	EmployeeID      uuid.UUID
+	EmployeeName    string
+	Nip             string
+	SubdivisionName string
+	DivisionName    string
+	Purpose         string
+	Outcome         string
+	ReasonCode      string
+	RiskScore       int32
+	RiskFlags       []byte
+	Latitude        decimal.NullDecimal
+	Longitude       decimal.NullDecimal
+	CreatedAt       pgtype.Timestamptz
+}
+
+func (q *Queries) ListAttendanceAttempts(ctx context.Context, arg ListAttendanceAttemptsParams) ([]ListAttendanceAttemptsRow, error) {
+	rows, err := q.db.Query(ctx, listAttendanceAttempts,
+		arg.FromAt,
+		arg.ToAt,
+		arg.Outcome,
+		arg.PageOffset,
+		arg.PageLimit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListAttendanceAttemptsRow{}
+	for rows.Next() {
+		var i ListAttendanceAttemptsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.EmployeeID,
+			&i.EmployeeName,
+			&i.Nip,
+			&i.SubdivisionName,
+			&i.DivisionName,
+			&i.Purpose,
+			&i.Outcome,
+			&i.ReasonCode,
+			&i.RiskScore,
+			&i.RiskFlags,
+			&i.Latitude,
+			&i.Longitude,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const listAttendanceMonitor = `-- name: ListAttendanceMonitor :many

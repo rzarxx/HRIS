@@ -5,6 +5,7 @@ import { api, ApiError } from "./api-client";
 import type {
   AdminDevice,
   AnnouncementListItem,
+  AttendanceAttempt,
   AttendanceMonitorItem,
   AttendanceReportRow,
   AttendanceReviewItem,
@@ -89,6 +90,13 @@ export const useAttendanceReview = (f: { work_mode: string; page: number; per_pa
   useQuery({
     queryKey: ["attendance-review", f],
     queryFn: () => api.get<Paginated<AttendanceReviewItem>>("/admin/attendance/review", { ...f }),
+    placeholderData: keepPreviousData,
+  });
+
+export const useAttendanceAttempts = (f: { date: string; outcome: string; page: number; per_page: number }) =>
+  useQuery({
+    queryKey: ["attendance-attempts", f],
+    queryFn: () => api.get<Paginated<AttendanceAttempt>>("/admin/attendance/attempts", { ...f }),
     placeholderData: keepPreviousData,
   });
 

@@ -99,7 +99,8 @@ jobs:
       - name: Vet dan build API dengan dlib
         run: |
           go vet -tags dlib ./internal/face/ ./cmd/api/
-          go build -tags dlib -o /dev/null ./cmd/api
+          # Folder repo milik user lain di dalam container, jadi git menolak membaca info versi.
+          go build -buildvcs=false -tags dlib -o /dev/null ./cmd/api
       - name: Tes mesin wajah
         run: |
           FACE_TESTDATA_DIR="$RUNNER_TEMP/face" go test -tags dlib -count=1 -v ./internal/face/ | tee /dev/stderr | grep -q -- "--- PASS: TestDlibEngine"

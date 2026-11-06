@@ -15,8 +15,8 @@ import (
 )
 
 const clockIn = `-- name: ClockIn :one
-INSERT INTO attendances (employee_id, work_date, shift_id, clock_in_at, in_accuracy_m, risk_score, risk_flags, status, late_minutes, work_mode, flexible_hours, location_id, in_latitude, in_longitude)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+INSERT INTO attendances (employee_id, work_date, shift_id, clock_in_at, in_accuracy_m, risk_score, risk_flags, status, late_minutes, work_mode, flexible_hours, location_id, in_latitude, in_longitude, face_score)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
 ON CONFLICT (employee_id, work_date) DO NOTHING
 RETURNING id, employee_id, work_date, shift_id, clock_in_at, clock_out_at, in_accuracy_m, face_score, risk_score, risk_flags, status, late_minutes, created_at, work_mode, location_id, worked_minutes, in_latitude, in_longitude, out_latitude, out_longitude, flexible_hours, review_by, reviewed_at, review_note
 `
@@ -36,6 +36,7 @@ type ClockInParams struct {
 	LocationID    uuid.NullUUID
 	InLatitude    decimal.NullDecimal
 	InLongitude   decimal.NullDecimal
+	FaceScore     decimal.NullDecimal
 }
 
 func (q *Queries) ClockIn(ctx context.Context, arg ClockInParams) (Attendance, error) {
@@ -54,6 +55,7 @@ func (q *Queries) ClockIn(ctx context.Context, arg ClockInParams) (Attendance, e
 		arg.LocationID,
 		arg.InLatitude,
 		arg.InLongitude,
+		arg.FaceScore,
 	)
 	var i Attendance
 	err := row.Scan(
@@ -243,6 +245,24 @@ func (q *Queries) CreateAttendanceChallenge(ctx context.Context, arg CreateAtten
 	return i, err
 }
 
+const deactivateFaceTemplates = `-- name: DeactivateFaceTemplates :execrows
+UPDATE face_templates SET is_active = false, deactivated_at = now(), deactivated_by = $1
+WHERE employee_id = $2 AND is_active
+`
+
+type DeactivateFaceTemplatesParams struct {
+	Actor      uuid.NullUUID
+	EmployeeID uuid.UUID
+}
+
+func (q *Queries) DeactivateFaceTemplates(ctx context.Context, arg DeactivateFaceTemplatesParams) (int64, error) {
+	result, err := q.db.Exec(ctx, deactivateFaceTemplates, arg.Actor, arg.EmployeeID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const deleteWorkArrangement = `-- name: DeleteWorkArrangement :one
 DELETE FROM employee_work_arrangements WHERE id = $1 AND employee_id = $2 RETURNING id, employee_id, mode, flexible_hours, starts_on, ends_on, weekdays, reason, created_by, created_at
 `
@@ -266,6 +286,29 @@ func (q *Queries) DeleteWorkArrangement(ctx context.Context, arg DeleteWorkArran
 		&i.Reason,
 		&i.CreatedBy,
 		&i.CreatedAt,
+	)
+	return i, err
+}
+
+const getActiveFaceTemplate = `-- name: GetActiveFaceTemplate :one
+SELECT id, employee_id, device_id, embedding_enc, key_id, model_version, dimension, is_active, created_at, deactivated_at, deactivated_by FROM face_templates WHERE employee_id = $1 AND is_active
+`
+
+func (q *Queries) GetActiveFaceTemplate(ctx context.Context, employeeID uuid.UUID) (FaceTemplate, error) {
+	row := q.db.QueryRow(ctx, getActiveFaceTemplate, employeeID)
+	var i FaceTemplate
+	err := row.Scan(
+		&i.ID,
+		&i.EmployeeID,
+		&i.DeviceID,
+		&i.EmbeddingEnc,
+		&i.KeyID,
+		&i.ModelVersion,
+		&i.Dimension,
+		&i.IsActive,
+		&i.CreatedAt,
+		&i.DeactivatedAt,
+		&i.DeactivatedBy,
 	)
 	return i, err
 }
@@ -494,6 +537,68 @@ func (q *Queries) InsertAttendanceAttempt(ctx context.Context, arg InsertAttenda
 		arg.Ip,
 	)
 	return err
+}
+
+const insertConsent = `-- name: InsertConsent :exec
+INSERT INTO consents (employee_id, type, version, ip) VALUES ($1, $2, $3, $4)
+`
+
+type InsertConsentParams struct {
+	EmployeeID uuid.UUID
+	Type       string
+	Version    string
+	Ip         *netip.Addr
+}
+
+func (q *Queries) InsertConsent(ctx context.Context, arg InsertConsentParams) error {
+	_, err := q.db.Exec(ctx, insertConsent,
+		arg.EmployeeID,
+		arg.Type,
+		arg.Version,
+		arg.Ip,
+	)
+	return err
+}
+
+const insertFaceTemplate = `-- name: InsertFaceTemplate :one
+INSERT INTO face_templates (employee_id, device_id, embedding_enc, key_id, model_version, dimension)
+VALUES ($1, $2, $3, $4, $5, $6)
+RETURNING id, employee_id, device_id, embedding_enc, key_id, model_version, dimension, is_active, created_at, deactivated_at, deactivated_by
+`
+
+type InsertFaceTemplateParams struct {
+	EmployeeID   uuid.UUID
+	DeviceID     uuid.NullUUID
+	EmbeddingEnc []byte
+	KeyID        string
+	ModelVersion string
+	Dimension    int32
+}
+
+func (q *Queries) InsertFaceTemplate(ctx context.Context, arg InsertFaceTemplateParams) (FaceTemplate, error) {
+	row := q.db.QueryRow(ctx, insertFaceTemplate,
+		arg.EmployeeID,
+		arg.DeviceID,
+		arg.EmbeddingEnc,
+		arg.KeyID,
+		arg.ModelVersion,
+		arg.Dimension,
+	)
+	var i FaceTemplate
+	err := row.Scan(
+		&i.ID,
+		&i.EmployeeID,
+		&i.DeviceID,
+		&i.EmbeddingEnc,
+		&i.KeyID,
+		&i.ModelVersion,
+		&i.Dimension,
+		&i.IsActive,
+		&i.CreatedAt,
+		&i.DeactivatedAt,
+		&i.DeactivatedBy,
+	)
+	return i, err
 }
 
 const insertWorkArrangement = `-- name: InsertWorkArrangement :one

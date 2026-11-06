@@ -122,7 +122,8 @@ func (q *Queries) GetEmployeeBaseSalary(ctx context.Context, id uuid.UUID) (deci
 }
 
 const getEmployeeScoped = `-- name: GetEmployeeScoped :one
-SELECT e.id, e.nip, e.full_name, e.email, e.phone, e.subdivision_id, e.position, e.join_date, e.exit_date, e.base_salary, e.default_shift_id, e.status, e.created_at, e.updated_at, e.deleted_at, s.name AS subdivision_name, s.division_id, d.name AS division_name, sh.name AS default_shift_name
+SELECT e.id, e.nip, e.full_name, e.email, e.phone, e.subdivision_id, e.position, e.join_date, e.exit_date, e.base_salary, e.default_shift_id, e.status, e.created_at, e.updated_at, e.deleted_at, s.name AS subdivision_name, s.division_id, d.name AS division_name, sh.name AS default_shift_name,
+       EXISTS (SELECT 1 FROM face_templates f WHERE f.employee_id = e.id AND f.is_active) AS face_enrolled
 FROM employees e
 JOIN subdivisions s ON s.id = e.subdivision_id
 JOIN divisions d ON d.id = s.division_id
@@ -158,6 +159,7 @@ type GetEmployeeScopedRow struct {
 	DivisionID       uuid.UUID
 	DivisionName     string
 	DefaultShiftName pgtype.Text
+	FaceEnrolled     bool
 }
 
 func (q *Queries) GetEmployeeScoped(ctx context.Context, arg GetEmployeeScopedParams) (GetEmployeeScopedRow, error) {
@@ -188,13 +190,15 @@ func (q *Queries) GetEmployeeScoped(ctx context.Context, arg GetEmployeeScopedPa
 		&i.DivisionID,
 		&i.DivisionName,
 		&i.DefaultShiftName,
+		&i.FaceEnrolled,
 	)
 	return i, err
 }
 
 const listEmployees = `-- name: ListEmployees :many
 
-SELECT e.id, e.nip, e.full_name, e.email, e.phone, e.subdivision_id, e.position, e.join_date, e.exit_date, e.base_salary, e.default_shift_id, e.status, e.created_at, e.updated_at, e.deleted_at, s.name AS subdivision_name, s.division_id, d.name AS division_name, sh.name AS default_shift_name
+SELECT e.id, e.nip, e.full_name, e.email, e.phone, e.subdivision_id, e.position, e.join_date, e.exit_date, e.base_salary, e.default_shift_id, e.status, e.created_at, e.updated_at, e.deleted_at, s.name AS subdivision_name, s.division_id, d.name AS division_name, sh.name AS default_shift_name,
+       EXISTS (SELECT 1 FROM face_templates f WHERE f.employee_id = e.id AND f.is_active) AS face_enrolled
 FROM employees e
 JOIN subdivisions s ON s.id = e.subdivision_id
 JOIN divisions d ON d.id = s.division_id
@@ -245,6 +249,7 @@ type ListEmployeesRow struct {
 	DivisionID       uuid.UUID
 	DivisionName     string
 	DefaultShiftName pgtype.Text
+	FaceEnrolled     bool
 }
 
 // Filter scope: scope_all = true untuk SDM; selain itu dibatasi subdiv/divisi yang dipimpin.
@@ -287,6 +292,7 @@ func (q *Queries) ListEmployees(ctx context.Context, arg ListEmployeesParams) ([
 			&i.DivisionID,
 			&i.DivisionName,
 			&i.DefaultShiftName,
+			&i.FaceEnrolled,
 		); err != nil {
 			return nil, err
 		}

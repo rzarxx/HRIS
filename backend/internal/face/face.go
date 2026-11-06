@@ -16,6 +16,19 @@ import (
 // ModelDlib adalah versi model yang dicatat di face_templates.model_version.
 const ModelDlib = "dlib-resnet-v1"
 
+// Ambang jarak Euclid untuk ModelDlib (D42). Pembuat model memakai 0.6 untuk LFW, yang sebagian
+// besar wajah Barat; pada foto contoh wajah Asia, dua orang berbeda bisa berjarak di bawah 0.6, jadi
+// ambangnya diperketat. TestDlibEngine memeriksa ambang ini terhadap semua pasangan foto contoh.
+// Semuanya tetap nilai awal yang wajib dikalibrasi dengan Pejuang dan HP sungguhan.
+const (
+	// MaxDistancePass: lebih dekat dari ini diterima tanpa catatan.
+	MaxDistancePass = 0.40
+	// MaxDistanceReview: sampai jarak ini masih diterima dengan sinyal face_borderline; lebih jauh ditolak.
+	MaxDistanceReview = 0.48
+	// MaxEnrollSpread: jarak terjauh antarselfie saat pendaftaran.
+	MaxEnrollSpread = 0.45
+)
+
 var (
 	// ErrNoFace berarti tidak ada wajah yang terdeteksi.
 	ErrNoFace = errors.New("wajah tidak terdeteksi")

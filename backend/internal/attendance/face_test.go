@@ -24,8 +24,8 @@ func TestScoreOf(t *testing.T) {
 			t.Errorf("jarak %v: skor %s, harus %s", c.distance, got, c.want)
 		}
 	}
-	// Ambang skor sama dengan jarak dlib 0.5 dan 0.6.
-	if FaceThresholdPass != 1-0.5 || FaceThresholdReview != 1-0.6 {
+	// Ambang skor adalah padanan ambang jarak.
+	if FaceThresholdPass != 1-face.MaxDistancePass || FaceThresholdReview != 1-face.MaxDistanceReview || FaceThresholdPass <= FaceThresholdReview {
 		t.Error("ambang skor tidak sesuai jarak")
 	}
 }

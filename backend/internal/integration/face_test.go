@@ -198,8 +198,8 @@ func TestFaceEnrollAndMatch(t *testing.T) {
 		t.Errorf("alasan replay: %s", reason)
 	}
 
-	// Jarak 0.55 dari template: diterima dengan sinyal face_borderline.
-	in := data[clockInResp](t, f.faceClock(t, "clock_in", photo("1", 0.57), nil).want(t, http.StatusCreated))
+	// Jarak 0.44 dari template (antara MaxDistancePass dan MaxDistanceReview): diterima dengan sinyal face_borderline.
+	in := data[clockInResp](t, f.faceClock(t, "clock_in", photo("1", 0.46), nil).want(t, http.StatusCreated))
 	var score float64
 	var flags []string
 	var linked int
@@ -213,7 +213,7 @@ func TestFaceEnrollAndMatch(t *testing.T) {
 	for _, fl := range flags {
 		borderline = borderline || fl == "face_borderline"
 	}
-	if math.Abs(score-0.45) > 0.001 || !borderline || in.RequiresReview || linked != 1 {
+	if math.Abs(score-0.56) > 0.001 || !borderline || in.RequiresReview || linked != 1 {
 		t.Errorf("skor %v, sinyal %v, review %v, selfie terkait %d", score, flags, in.RequiresReview, linked)
 	}
 

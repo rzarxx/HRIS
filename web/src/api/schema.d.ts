@@ -3573,7 +3573,7 @@ export interface components {
              */
             liveness_action: "blink" | "turn_left" | "turn_right" | "smile";
         };
-        /** @description Payload absen. Skor wajah adalah 1 dikurangi jarak dlib: di bawah 0.40 ditolak `FACE_MISMATCH`, 0.40 sampai 0.50 diterima dengan sinyal `face_borderline` (+20). Selfie yang pernah dikirim ditolak `ATTENDANCE_BLOCKED`. Token integritas ditambahkan bersama verifikasinya. */
+        /** @description Payload absen. Skor wajah adalah 1 dikurangi jarak dlib: di bawah 0.52 (jarak di atas 0.48) ditolak `FACE_MISMATCH`, 0.52 sampai 0.60 diterima dengan sinyal `face_borderline` (+20). Selfie yang pernah dikirim ditolak `ATTENDANCE_BLOCKED`. Token integritas ditambahkan bersama verifikasinya. */
         ClockInput: {
             /** Format: uuid */
             challenge_id: string;

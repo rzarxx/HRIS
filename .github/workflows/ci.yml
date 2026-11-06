@@ -95,7 +95,13 @@ jobs:
           echo "c4b1e9804792707d3a405c2c16a80a20269e6675021f64a41d30fffafbc41888  models/shape_predictor_5_face_landmarks.dat" | sha256sum -c
           echo "55533b28a95800a551ba546ba62fe69625c7e95a7061c338adffead08719da30  models/dlib_face_recognition_resnet_model_v1.dat" | sha256sum -c
           echo "4cb19393e2fbaf2b1609a9319ad5386618c886a6234ec1b971f3e87c85d87fe6  models/mmod_human_face_detector.dat" | sha256sum -c
-          for i in bona bona2 jimin pristin; do curl -fsSL -o "images/$i.jpg" "$TESTDATA/images/$i.jpg"; done
+          mkdir -p group
+          curl -fsSL -o group/pristin.jpg "$TESTDATA/images/pristin.jpg"
+          for i in bona bona2 bona3 bona4 chaeyeon chaeyeon2 chaeyeon3 chaeyoung chaeyoung2 elkie eunseo eunseo2 eunseo3 \
+                   eunwoo jimin jimin2 jimin3 jimin4 jimin5 jimin6 jimin7 joy luda luda2 meiqi nana nayoung rena sejeong \
+                   seulgi tzuyu tzuyu2 yujin; do
+            curl -fsSL -o "images/$i.jpg" "$TESTDATA/images/$i.jpg"
+          done
       - name: Vet dan build API dengan dlib
         run: |
           go vet -tags dlib ./internal/face/ ./cmd/api/
@@ -103,7 +109,10 @@ jobs:
           go build -buildvcs=false -tags dlib -o /dev/null ./cmd/api
       - name: Tes mesin wajah
         run: |
-          FACE_TESTDATA_DIR="$RUNNER_TEMP/face" go test -tags dlib -count=1 -v ./internal/face/ | tee /dev/stderr | grep -q -- "--- PASS: TestDlibEngine"
+          FACE_TESTDATA_DIR="$RUNNER_TEMP/face" go test -tags dlib -count=1 -v ./internal/face/ 2>&1 | tee "$RUNNER_TEMP/face-test.log"
+          # Pastikan tes dlib benar-benar berjalan, bukan terlewati.
+          grep -q -- "--- PASS: TestDlibEngine " "$RUNNER_TEMP/face-test.log"
+          grep -q -- "--- PASS: TestDlibEngineErrors " "$RUNNER_TEMP/face-test.log"
 
   web:
     runs-on: ubuntu-latest

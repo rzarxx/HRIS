@@ -38,14 +38,11 @@ const (
 	maxFaceSamples   = 5
 	maxConsentLength = 32
 
-	// Ambang memakai jarak Euclid model dlib, yang divalidasi pembuatnya pada jarak 0.6 (D42).
-	// Skor yang disimpan adalah 1 - jarak, jadi FaceThresholdPass dan FaceThresholdReview mengikuti
-	// face.threshold_pass dan face.threshold_review (§5.4). Semuanya nilai awal untuk dikalibrasi.
-	FaceThresholdPass   = 0.50
-	FaceThresholdReview = 0.40
-	// faceSampleAgreement adalah jarak terjauh antarsampel saat pendaftaran, agar satu sampel yang
-	// buram atau milik orang lain tidak ikut membentuk template.
-	faceSampleAgreement = 0.50
+	// Ambang memakai jarak Euclid di face.MaxDistancePass dan face.MaxDistanceReview (D42). Skor yang
+	// disimpan adalah 1 - jarak, jadi FaceThresholdPass dan FaceThresholdReview adalah padanannya untuk
+	// face.threshold_pass dan face.threshold_review (§5.4).
+	FaceThresholdPass   = 1 - face.MaxDistancePass
+	FaceThresholdReview = 1 - face.MaxDistanceReview
 
 	faceKeyID = "field-v1"
 
@@ -110,7 +107,7 @@ func faceProblem(err error) (string, bool) {
 func checkAgreement(samples [][]float64) bool {
 	for i := range samples {
 		for j := i + 1; j < len(samples); j++ {
-			if face.Distance(samples[i], samples[j]) > faceSampleAgreement {
+			if face.Distance(samples[i], samples[j]) > face.MaxEnrollSpread {
 				return false
 			}
 		}
@@ -220,9 +217,9 @@ func (s *Service) checkFace(ctx context.Context, a *attempt, in ClockInput) (fac
 		return faceResult{}, err
 	}
 	switch {
-	case out.score.Decimal.InexactFloat64() < FaceThresholdReview:
+	case distance > face.MaxDistanceReview:
 		return faceResult{}, s.reject(ctx, *a, "face_mismatch", httpx.NewError(http.StatusUnprocessableEntity, "FACE_MISMATCH", "Wajah tidak cocok, silakan ulangi."))
-	case out.score.Decimal.InexactFloat64() < FaceThresholdPass:
+	case distance > face.MaxDistancePass:
 		a.flags = append(a.flags, flagFaceBorderline)
 	}
 	return out, nil

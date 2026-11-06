@@ -713,7 +713,8 @@ Setiap `code` baru wajib ditambahkan di tabel ini.
 | POST | `/v1/admin/settings/mail/test` | `settings:manage` |
 | GET | `/v1/admin/attendance/review?work_mode=` | `attendance:review` |
 | GET | `/v1/admin/attendance/monitor?date=&division_id=` | `attendance:review` |
-| GET | `/v1/admin/attendance`, `/v1/admin/attendance/attempts` | `attendance:review` / `attendance:report` |
+| GET | `/v1/admin/attendance`, `/v1/admin/attendance/attempts` | `attendance:review` / `attendance:report`. `attempts` sudah ada: per tanggal kalender WIB, saring `outcome` |
+| POST | `/v1/admin/work-arrangements/bulk` | `employee:write`. Izin untuk semua Pejuang aktif di satu divisi atau subdiv; yang dilewati dikembalikan dengan alasan `self`, `protected`, atau `overlap` |
 | POST | `/v1/admin/attendance/{id}/resolve` | `attendance:review` |
 | GET | `/v1/admin/reports/attendance`, `/v1/admin/reports/payroll-preview` | `attendance:report` |
 | GET, POST | `/v1/admin/payroll/periods` | `payroll:manage` |
@@ -739,6 +740,7 @@ Setiap `code` baru wajib ditambahkan di tabel ini.
   "face_enrolled": true, "device_status": "approved"
 } }
 ```
+`device_status` hanya terisi untuk sesi aplikasi dan bernilai `null` untuk sesi web. `face_enrolled` belum ada, menyusul bersama pendaftaran wajah.
 
 **Login mobile** — request: `{ "email", "password", "device": { "device_hash", "model", "os_version", "fcm_token" } }`
 respons: `{ "data": { "access_token", "refresh_token", "expires_in", "device_id", "device_status" } }`
@@ -1511,7 +1513,8 @@ Estimasi untuk tim kecil; sesuaikan setelah kapasitas tim jelas.
 - [ ] Challenge + verifikasi Play Integrity (jalur A)
 - [ ] Key Attestation (jalur B), perangkat manual (jalur D), kiosk (jalur E); Huawei (jalur C) bila ada penggunanya
 - [x] Izin WFA dan hybrid per Pejuang dan jam fleksibel, di API dan layar SDM
-- [ ] Penetapan izin massal, saring rekap per `work_mode`, dan pendaftaran wajah jarak jauh
+- [x] Penetapan izin massal per divisi atau subdiv, dan saring rekap per `work_mode`
+- [ ] Pendaftaran wajah jarak jauh
 - [x] Challenge, clock-in, clock-out, cutoff harian, dan `worked_minutes` (D31), masih tanpa verifikasi perangkat dan wajah (D36)
 - [ ] Enroll + cocok wajah (enkripsi aplikasi)
 - [x] Skor risiko dari sinyal yang sudah tersedia + `attendance_attempts`; sinyal integritas dan wajah menyusul bersama verifikasinya

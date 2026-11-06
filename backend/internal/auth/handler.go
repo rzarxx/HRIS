@@ -130,7 +130,7 @@ func (h *Handler) MobileRefresh(w http.ResponseWriter, r *http.Request) error {
 
 func (h *Handler) finishLogin(w http.ResponseWriter, r *http.Request, userID uuid.UUID, tokens Tokens) error {
 	h.setCookies(w, tokens)
-	me, err := h.svc.Me(r.Context(), userID)
+	me, err := h.svc.Me(r.Context(), userID, uuid.Nil)
 	if err != nil {
 		return err
 	}
@@ -415,7 +415,7 @@ func (h *Handler) GetMe(w http.ResponseWriter, r *http.Request) error {
 	if !ok {
 		return httpx.ErrUnauthenticated()
 	}
-	me, err := h.svc.Me(r.Context(), p.UserID)
+	me, err := h.svc.Me(r.Context(), p.UserID, p.DeviceID)
 	if err != nil {
 		return err
 	}

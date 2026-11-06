@@ -2281,6 +2281,52 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/admin/work-arrangements/bulk": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Tetapkan izin kerja untuk semua Pejuang aktif di satu divisi atau subdiv
+         * @description Isi salah satu dari division_id atau subdivision_id. Izin tetap disimpan per Pejuang. Yang dilewati dikembalikan di skipped: self (diri sendiri), protected (super admin, bila yang menetapkan SDM, D34), dan overlap (bertabrakan dengan izin lain).
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["BulkWorkArrangementInput"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data: components["schemas"]["BulkWorkArrangementResult"];
+                        };
+                    };
+                };
+                400: components["responses"]["ValidationFailed"];
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/admin/attendance/monitor": {
         parameters: {
             query?: never;
@@ -2358,6 +2404,54 @@ export interface paths {
                     content: {
                         "application/json": {
                             data: components["schemas"]["AttendanceReviewItem"][];
+                            meta: components["schemas"]["PageMeta"];
+                        };
+                    };
+                };
+                400: components["responses"]["ValidationFailed"];
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/attendance/attempts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Upaya absen pada satu tanggal, termasuk yang ditolak
+         * @description Permission `attendance:review`. Tanggal kalender WIB dari waktu upaya, terbaru dulu. Tanggal kosong berarti hari ini.
+         */
+        get: {
+            parameters: {
+                query?: {
+                    date?: string;
+                    outcome?: "accepted" | "review" | "rejected";
+                    page?: components["parameters"]["Page"];
+                    per_page?: components["parameters"]["PerPage"];
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data: components["schemas"]["AttendanceAttempt"][];
                             meta: components["schemas"]["PageMeta"];
                         };
                     };
@@ -2991,6 +3085,11 @@ export interface components {
             permissions: components["schemas"]["Permission"][];
             must_change_password: boolean;
             mfa_enabled: boolean;
+            /**
+             * @description Status perangkat sesi aplikasi. Null untuk sesi web.
+             * @enum {string|null}
+             */
+            device_status?: "pending" | "approved" | "revoked" | null;
         };
         DivisionInput: components["schemas"]["DivisionPatch"] & Record<string, never>;
         /** @description Pada PATCH, field yang tidak dikirim tetap nilai lamanya. */
@@ -3463,6 +3562,44 @@ export interface components {
             review_note: string | null;
             /** Format: date-time */
             reviewed_at: string;
+        };
+        BulkWorkArrangementInput: components["schemas"]["WorkArrangementInput"] & {
+            /** Format: uuid */
+            division_id?: string;
+            /** Format: uuid */
+            subdivision_id?: string;
+        };
+        BulkWorkArrangementResult: {
+            created: number;
+            skipped: {
+                /** Format: uuid */
+                employee_id: string;
+                employee_name: string;
+                /** @enum {string} */
+                reason: "self" | "protected" | "overlap";
+            }[];
+        };
+        AttendanceAttempt: {
+            /** Format: int64 */
+            id: number;
+            /** Format: uuid */
+            employee_id: string;
+            employee_name: string;
+            nip: string;
+            subdivision_name: string;
+            division_name: string;
+            /** @enum {string} */
+            purpose: "clock_in" | "clock_out";
+            /** @enum {string} */
+            outcome: "accepted" | "review" | "rejected";
+            /** @description Kode internal MASTER.md §6.3 */
+            reason_code: string;
+            risk_score: number;
+            risk_flags: string[];
+            latitude: number | null;
+            longitude: number | null;
+            /** Format: date-time */
+            created_at: string;
         };
         WorkArrangementInput: {
             /** @enum {string} */

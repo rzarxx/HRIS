@@ -1036,6 +1036,30 @@ paths:
         "403": { $ref: "#/components/responses/Error" }
         "404": { $ref: "#/components/responses/Error" }
 
+  /v1/admin/work-arrangements/bulk:
+    post:
+      tags: [Pejuang]
+      summary: Tetapkan izin kerja untuk semua Pejuang aktif di satu divisi atau subdiv
+      description: >-
+        Isi salah satu dari division_id atau subdivision_id. Izin tetap disimpan per Pejuang. Yang dilewati
+        dikembalikan di skipped: self (diri sendiri), protected (super admin, bila yang menetapkan SDM, D34),
+        dan overlap (bertabrakan dengan izin lain).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/BulkWorkArrangementInput" }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data: { $ref: "#/components/schemas/BulkWorkArrangementResult" }
+        "400": { $ref: "#/components/responses/ValidationFailed" }
   /v1/admin/attendance/monitor:
     get:
       tags: [Presensi]
@@ -1084,6 +1108,30 @@ paths:
                   data:
                     type: array
                     items: { $ref: "#/components/schemas/AttendanceReviewItem" }
+                  meta: { $ref: "#/components/schemas/PageMeta" }
+        "400": { $ref: "#/components/responses/ValidationFailed" }
+  /v1/admin/attendance/attempts:
+    get:
+      tags: [Presensi]
+      summary: Upaya absen pada satu tanggal, termasuk yang ditolak
+      description: "Permission `attendance:review`. Tanggal kalender WIB dari waktu upaya, terbaru dulu. Tanggal kosong berarti hari ini."
+      parameters:
+        - { name: date, in: query, schema: { type: string, format: date } }
+        - { name: outcome, in: query, schema: { type: string, enum: [accepted, review, rejected] } }
+        - $ref: "#/components/parameters/Page"
+        - $ref: "#/components/parameters/PerPage"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data, meta]
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: "#/components/schemas/AttendanceAttempt" }
                   meta: { $ref: "#/components/schemas/PageMeta" }
         "400": { $ref: "#/components/responses/ValidationFailed" }
   /v1/admin/attendance/{id}/resolve:
@@ -1578,6 +1626,11 @@ components:
           items: { $ref: "#/components/schemas/Permission" }
         must_change_password: { type: boolean }
         mfa_enabled: { type: boolean }
+        device_status:
+          type: string
+          nullable: true
+          enum: [pending, approved, revoked, null]
+          description: Status perangkat sesi aplikasi. Null untuk sesi web.
     DivisionInput:
       allOf:
         - $ref: "#/components/schemas/DivisionPatch"
@@ -2067,6 +2120,45 @@ components:
         late_minutes: { type: integer }
         review_note: { type: string, nullable: true }
         reviewed_at: { type: string, format: date-time }
+    BulkWorkArrangementInput:
+      allOf:
+        - $ref: "#/components/schemas/WorkArrangementInput"
+        - type: object
+          properties:
+            division_id: { type: string, format: uuid }
+            subdivision_id: { type: string, format: uuid }
+    BulkWorkArrangementResult:
+      type: object
+      required: [created, skipped]
+      properties:
+        created: { type: integer }
+        skipped:
+          type: array
+          items:
+            type: object
+            required: [employee_id, employee_name, reason]
+            properties:
+              employee_id: { type: string, format: uuid }
+              employee_name: { type: string }
+              reason: { type: string, enum: [self, protected, overlap] }
+    AttendanceAttempt:
+      type: object
+      required: [id, employee_id, employee_name, nip, subdivision_name, division_name, purpose, outcome, reason_code, risk_score, risk_flags, latitude, longitude, created_at]
+      properties:
+        id: { type: integer, format: int64 }
+        employee_id: { type: string, format: uuid }
+        employee_name: { type: string }
+        nip: { type: string }
+        subdivision_name: { type: string }
+        division_name: { type: string }
+        purpose: { type: string, enum: [clock_in, clock_out] }
+        outcome: { type: string, enum: [accepted, review, rejected] }
+        reason_code: { type: string, description: "Kode internal MASTER.md §6.3" }
+        risk_score: { type: integer }
+        risk_flags: { type: array, items: { type: string } }
+        latitude: { type: number, nullable: true }
+        longitude: { type: number, nullable: true }
+        created_at: { type: string, format: date-time }
     WorkArrangementInput:
       type: object
       required: [mode, starts_on, reason]

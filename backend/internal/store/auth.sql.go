@@ -152,6 +152,17 @@ func (q *Queries) EnableMfa(ctx context.Context, arg EnableMfaParams) error {
 	return err
 }
 
+const getDeviceStatus = `-- name: GetDeviceStatus :one
+SELECT status FROM devices WHERE id = $1
+`
+
+func (q *Queries) GetDeviceStatus(ctx context.Context, id uuid.UUID) (DeviceStatus, error) {
+	row := q.db.QueryRow(ctx, getDeviceStatus, id)
+	var status DeviceStatus
+	err := row.Scan(&status)
+	return status, err
+}
+
 const getEmployeeAccount = `-- name: GetEmployeeAccount :one
 SELECT u.id AS user_id, u.role, u.is_active, u.locked_until,
        (m.enabled_at IS NOT NULL)::boolean AS mfa_enabled

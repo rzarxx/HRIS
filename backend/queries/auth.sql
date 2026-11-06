@@ -169,3 +169,6 @@ WHERE u.employee_id = ANY(@employee_ids::uuid[]);
 
 -- name: UpdateUserEmail :exec
 UPDATE users SET email = @email WHERE employee_id = @employee_id;
+
+-- name: GetDeviceStatus :one
+SELECT status FROM devices WHERE id = $1;

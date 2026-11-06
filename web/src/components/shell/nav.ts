@@ -48,6 +48,7 @@ export const NAV: NavItem[] = [
       { label: "Rekap", href: "/presensi/rekap", permission: "attendance:report" },
       { label: "Monitor Absen", href: "/presensi/monitor", permission: "attendance:review" },
       { label: "Review Absen", href: "/presensi/review", permission: "attendance:review" },
+      { label: "Upaya Absen", href: "/presensi/upaya", permission: "attendance:review" },
     ],
   },
   { label: "Perangkat", href: "/perangkat", icon: Smartphone, permission: "device:review" },

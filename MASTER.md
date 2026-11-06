@@ -713,7 +713,8 @@ Setiap `code` baru wajib ditambahkan di tabel ini.
 | POST | `/v1/admin/settings/mail/test` | `settings:manage` |
 | GET | `/v1/admin/attendance/review?work_mode=` | `attendance:review` |
 | GET | `/v1/admin/attendance/monitor?date=&division_id=` | `attendance:review` |
-| GET | `/v1/admin/attendance`, `/v1/admin/attendance/attempts` | `attendance:review` / `attendance:report` |
+| GET | `/v1/admin/attendance`, `/v1/admin/attendance/attempts` | `attendance:review` / `attendance:report`. `attempts` sudah ada: per tanggal kalender WIB, saring `outcome` |
+| POST | `/v1/admin/work-arrangements/bulk` | `employee:write`. Izin untuk semua Pejuang aktif di satu divisi atau subdiv; yang dilewati dikembalikan dengan alasan `self`, `protected`, atau `overlap` |
 | POST | `/v1/admin/attendance/{id}/resolve` | `attendance:review` |
 | GET | `/v1/admin/reports/attendance`, `/v1/admin/reports/payroll-preview` | `attendance:report` |
 | GET, POST | `/v1/admin/payroll/periods` | `payroll:manage` |
@@ -739,6 +740,7 @@ Setiap `code` baru wajib ditambahkan di tabel ini.
   "face_enrolled": true, "device_status": "approved"
 } }
 ```
+`device_status` hanya terisi untuk sesi aplikasi dan bernilai `null` untuk sesi web. `face_enrolled` bernilai `true` bila Pejuang punya template wajah aktif; bila `false`, aplikasi membuka alur F7.
 
 **Login mobile** — request: `{ "email", "password", "device": { "device_hash", "model", "os_version", "fcm_token" } }`
 respons: `{ "data": { "access_token", "refresh_token", "expires_in", "device_id", "device_status" } }`
@@ -754,7 +756,7 @@ respons: `{ "data": { "access_token", "refresh_token", "expires_in", "device_id"
 **Challenge** — `POST /v1/attendance/challenge`
 request: `{ "purpose": "clock_in" }` → respons: `{ "data": { "challenge_id": "uuid", "nonce": "string", "expires_at": "2026-11-02T01:01:30Z" } }`
 
-**Clock-in** — `POST /v1/attendance/clock-in`. Target akhirnya `multipart/form-data` seperti di bawah. Sampai verifikasi wajah dan perangkat dibuat, API menerima JSON tanpa `selfie`, `face_*`, `liveness_passed`, dan `integrity_token` (D36).
+**Clock-in** — `POST /v1/attendance/clock-in`. Target akhirnya `multipart/form-data` seperti di bawah. Sampai verifikasi perangkat dibuat, API menerima JSON tanpa `selfie` dan `integrity_token` (D36). Bagian wajah (`face_embedding`, `face_model_version`, `liveness_passed`) sudah dicocokkan bila dikirim, dan di development boleh tidak dikirim (D41).
 - bagian `payload` (JSON):
 ```json
 { "challenge_id": "uuid",
@@ -1511,10 +1513,11 @@ Estimasi untuk tim kecil; sesuaikan setelah kapasitas tim jelas.
 - [ ] Challenge + verifikasi Play Integrity (jalur A)
 - [ ] Key Attestation (jalur B), perangkat manual (jalur D), kiosk (jalur E); Huawei (jalur C) bila ada penggunanya
 - [x] Izin WFA dan hybrid per Pejuang dan jam fleksibel, di API dan layar SDM
-- [ ] Penetapan izin massal, saring rekap per `work_mode`, dan pendaftaran wajah jarak jauh
+- [x] Penetapan izin massal per divisi atau subdiv, dan saring rekap per `work_mode`
+- [ ] Pendaftaran wajah jarak jauh
 - [x] Challenge, clock-in, clock-out, cutoff harian, dan `worked_minutes` (D31), masih tanpa verifikasi perangkat dan wajah (D36)
-- [ ] Enroll + cocok wajah (enkripsi aplikasi)
-- [x] Skor risiko dari sinyal yang sudah tersedia + `attendance_attempts`; sinyal integritas dan wajah menyusul bersama verifikasinya
+- [x] Enroll + cocok wajah (enkripsi aplikasi), reset oleh SDM, dan `consents` (D41). Masih bergantung pada verifikasi perangkat (D36)
+- [x] Skor risiko dari sinyal yang sudah tersedia + `attendance_attempts`, termasuk `face_borderline`; sinyal integritas menyusul bersama verifikasinya
 - [x] Halaman Review Absen
 - [x] Halaman Monitor Absen: semua Pejuang per tanggal kerja dan peta titik absen, diperbarui tiap 60 detik. Ini titik saat absen, bukan pelacakan lokasi terus-menerus
 - [ ] Uji serangan: fake GPS, foto, emulator, root, replay
@@ -1601,6 +1604,7 @@ Estimasi untuk tim kecil; sesuaikan setelah kapasitas tim jelas.
 | D38 | Istilah tampilan: Ahad (bukan Minggu), Pejuang (bukan Employe), Al Bahjah tanpa strip sesuai akta, NIPY (bukan NIP). Warna memakai kombinasi hijau dan kuning | Permintaan pemilik proyek lewat kartu daftar istilah. Nama teknis `nip`, `employees`, dan `employee_id` tidak diganti agar kontrak API dan database tetap stabil. Kuning hanya untuk unsur merek karena kontrasnya rendah di atas putih, dan status peringatan tetap amber |
 | D39 | Absen hanya diterima dari sesi aplikasi yang terikat perangkat, kecuali di development dengan `DEV_ALLOW_UNVERIFIED_ATTENDANCE` | Sesi web tidak punya ikatan `did`, sehingga orang yang tahu kata sandi bisa mengirim `X-Device-Id` perangkat akun itu. Konsekuensi: absen di produksi baru bisa setelah login mobile tersedia |
 | D40 | Login mobile mewajibkan kode MFA bagi akun yang memakainya, dan sesi mobile berakhir 30 hari setelah login tanpa diperpanjang refresh | Token mobile juga membuka route admin sesuai role, jadi MFA tidak boleh terlewati lewat aplikasi. Konsekuensi: Pejuang masuk ulang dengan kata sandi setiap 30 hari. Login dan refresh mobile dikecualikan dari D37 karena aplikasi belum punya token saat memanggilnya |
+| D41 | Template wajah adalah rata-rata 3 sampai 5 sampel yang saling mirip (cosine ≥ 0.80), disimpan float32 terenkripsi AES-GCM dengan `key_id`. Embedding dari versi model lain diperlakukan sebagai belum terdaftar. Absen development boleh tanpa bagian wajah, tetapi bila dikirim tetap dicocokkan. Pendaftaran yang gagal tidak dicatat di `attendance_attempts`, dan `face_score` hanya disimpan untuk absen masuk | Satu template rata-rata lebih stabil daripada satu foto, dan sampel yang tidak konsisten menandakan wajah orang lain atau gambar buruk. Embedding beda model tidak sebanding, jadi Pejuang mendaftar ulang saat model diganti. Konsekuensi: ambang 0.80, 0.70, dan 0.60 masih nilai awal yang dikalibrasi dengan HP sungguhan, dan `embedding_replay` belum diperiksa |
 | D15 | `/v1/admin/reports/payroll-preview` mewajibkan `attendance:report` dan `payroll:manage` | Respons memuat gaji, sedangkan §7.6 membatasi `base_salary` untuk `sdm` dan pemilik data |
 
 ### 14.2 Pertanyaan yang Harus Dijawab (blokir pekerjaan terkait)

@@ -136,6 +136,17 @@ func (q *Queries) CreateUserInvite(ctx context.Context, arg CreateUserInvitePara
 	return err
 }
 
+const employeeHasFace = `-- name: EmployeeHasFace :one
+SELECT EXISTS (SELECT 1 FROM face_templates WHERE employee_id = $1 AND is_active)
+`
+
+func (q *Queries) EmployeeHasFace(ctx context.Context, employeeID uuid.UUID) (bool, error) {
+	row := q.db.QueryRow(ctx, employeeHasFace, employeeID)
+	var exists bool
+	err := row.Scan(&exists)
+	return exists, err
+}
+
 const enableMfa = `-- name: EnableMfa :exec
 UPDATE user_mfa SET enabled_at = now(), recovery_hashes = $1, last_used_step = $2
 WHERE user_id = $3
@@ -150,6 +161,17 @@ type EnableMfaParams struct {
 func (q *Queries) EnableMfa(ctx context.Context, arg EnableMfaParams) error {
 	_, err := q.db.Exec(ctx, enableMfa, arg.RecoveryHashes, arg.LastUsedStep, arg.UserID)
 	return err
+}
+
+const getDeviceStatus = `-- name: GetDeviceStatus :one
+SELECT status FROM devices WHERE id = $1
+`
+
+func (q *Queries) GetDeviceStatus(ctx context.Context, id uuid.UUID) (DeviceStatus, error) {
+	row := q.db.QueryRow(ctx, getDeviceStatus, id)
+	var status DeviceStatus
+	err := row.Scan(&status)
+	return status, err
 }
 
 const getEmployeeAccount = `-- name: GetEmployeeAccount :one

@@ -18,6 +18,11 @@ type mobileTokens struct {
 	DeviceStatus string `json:"device_status"`
 }
 
+type meDevice struct {
+	EmployeeID   string  `json:"employee_id"`
+	DeviceStatus *string `json:"device_status"`
+}
+
 func mobileLogin(c *client, email, password, device string) response {
 	return c.do(http.MethodPost, "/v1/auth/mobile/login", map[string]any{
 		"email": email, "password": password,
@@ -43,10 +48,8 @@ func TestMobileLoginBindsDevice(t *testing.T) {
 		t.Errorf("login mobile tidak boleh menyetel cookie: %v", anon.cookies)
 	}
 	hp := bearer(t, srv, first)
-	me := data[struct {
-		EmployeeID string `json:"employee_id"`
-	}](t, hp.do(http.MethodGet, "/v1/me", nil).want(t, http.StatusOK))
-	if me.EmployeeID != acc.employeeID {
+	me := data[meDevice](t, hp.do(http.MethodGet, "/v1/me", nil).want(t, http.StatusOK))
+	if me.EmployeeID != acc.employeeID || me.DeviceStatus == nil || *me.DeviceStatus != "approved" {
 		t.Errorf("me = %+v", me)
 	}
 	hp.do(http.MethodPost, "/v1/attendance/challenge", map[string]any{"purpose": "clock_in"}).want(t, http.StatusCreated)
@@ -63,7 +66,13 @@ func TestMobileLoginBindsDevice(t *testing.T) {
 		t.Errorf("HP kedua: %+v", second)
 	}
 	pending := bearer(t, srv, second)
-	pending.do(http.MethodGet, "/v1/me", nil).want(t, http.StatusOK)
+	if got := data[meDevice](t, pending.do(http.MethodGet, "/v1/me", nil).want(t, http.StatusOK)); got.DeviceStatus == nil || *got.DeviceStatus != "pending" {
+		t.Errorf("me HP kedua: %+v", got)
+	}
+	// Sesi web tidak terikat perangkat.
+	if got := data[meDevice](t, login(t, srv, acc.email, seedPassword).do(http.MethodGet, "/v1/me", nil).want(t, http.StatusOK)); got.DeviceStatus != nil {
+		t.Errorf("me web: %+v", got)
+	}
 	pending.do(http.MethodPost, "/v1/attendance/challenge", map[string]any{"purpose": "clock_in"}).
 		wantError(t, http.StatusForbidden, "DEVICE_PENDING_APPROVAL")
 

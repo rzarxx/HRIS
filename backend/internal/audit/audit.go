@@ -45,6 +45,8 @@ const (
 	AttendanceRejected             = "attendance.rejected"
 	AttendanceReviewResolved       = "attendance.review_resolved"
 	EmployeeWorkArrangementChanged = "employee.work_arrangement_changed"
+	FaceEnrolled                   = "face.enrolled"
+	FaceReset                      = "face.reset"
 )
 
 // Entry adalah satu baris audit. Detail tidak boleh memuat kata sandi atau token.

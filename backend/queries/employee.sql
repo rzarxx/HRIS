@@ -1,7 +1,8 @@
 -- Filter scope: scope_all = true untuk SDM; selain itu dibatasi subdiv/divisi yang dipimpin.
 
 -- name: ListEmployees :many
-SELECT e.*, s.name AS subdivision_name, s.division_id, d.name AS division_name, sh.name AS default_shift_name
+SELECT e.*, s.name AS subdivision_name, s.division_id, d.name AS division_name, sh.name AS default_shift_name,
+       EXISTS (SELECT 1 FROM face_templates f WHERE f.employee_id = e.id AND f.is_active) AS face_enrolled
 FROM employees e
 JOIN subdivisions s ON s.id = e.subdivision_id
 JOIN divisions d ON d.id = s.division_id
@@ -36,7 +37,8 @@ WHERE e.deleted_at IS NULL
   AND (sqlc.narg(status)::text IS NULL OR e.status = sqlc.narg(status));
 
 -- name: GetEmployeeScoped :one
-SELECT e.*, s.name AS subdivision_name, s.division_id, d.name AS division_name, sh.name AS default_shift_name
+SELECT e.*, s.name AS subdivision_name, s.division_id, d.name AS division_name, sh.name AS default_shift_name,
+       EXISTS (SELECT 1 FROM face_templates f WHERE f.employee_id = e.id AND f.is_active) AS face_enrolled
 FROM employees e
 JOIN subdivisions s ON s.id = e.subdivision_id
 JOIN divisions d ON d.id = s.division_id

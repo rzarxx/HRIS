@@ -44,6 +44,8 @@ type Options struct {
 	AllowUnverified bool
 	ChallengeTTL    time.Duration
 	Now             func() time.Time
+	// Cipher mengenkripsi template wajah (§5.5). Tanpa cipher, pendaftaran wajah tidak tersedia.
+	Cipher Cipher
 }
 
 // Service memuat aturan presensi (MASTER.md §5.4, alur F8 sampai F10).
@@ -97,6 +99,7 @@ type ClockInput struct {
 	AccuracyM   *float64 `json:"accuracy_m"`
 	CapturedAt  string   `json:"captured_at"`
 	Signals     Signals  `json:"signals"`
+	FaceInput
 }
 
 type parsedClock struct {
@@ -195,7 +198,7 @@ type Challenge struct {
 
 // NewChallenge membuat tantangan sekali pakai yang terikat ke pengguna dan perangkat.
 func (s *Service) NewChallenge(ctx context.Context, p auth.Principal, deviceHeader, purpose string) (Challenge, error) {
-	if purpose != PurposeClockIn && purpose != PurposeClockOut {
+	if purpose != PurposeClockIn && purpose != PurposeClockOut && purpose != PurposeFaceEnroll {
 		return Challenge{}, httpx.Validation(map[string]string{"purpose": "Tujuan tidak valid."})
 	}
 	device, err := s.deviceOf(ctx, p, deviceHeader)
@@ -409,6 +412,10 @@ func (s *Service) ClockIn(ctx context.Context, p auth.Principal, ip *netip.Addr,
 	if err != nil {
 		return ClockInResult{}, err
 	}
+	faceScore, err := s.checkFace(ctx, &a, in.FaceInput)
+	if err != nil {
+		return ClockInResult{}, err
+	}
 	if err := s.assess(ctx, &a, parsed, now); err != nil {
 		return ClockInResult{}, err
 	}
@@ -447,6 +454,7 @@ func (s *Service) ClockIn(ctx context.Context, p auth.Principal, ip *netip.Addr,
 			RiskScore:   accepted.RiskScore, RiskFlags: accepted.RiskFlags, Status: status, LateMinutes: int32(late),
 			WorkMode: where.workMode, FlexibleHours: where.flexible, LocationID: where.locationID(),
 			InLatitude: coordinate(parsed.point.Latitude), InLongitude: coordinate(parsed.point.Longitude),
+			FaceScore: faceScore,
 		})
 		if pgconv.IsNoRows(err) {
 			conflict = true
@@ -551,6 +559,9 @@ func (s *Service) ClockOut(ctx context.Context, p auth.Principal, ip *netip.Addr
 	workMode := open.WorkMode
 	if workMode == WorkModeOnsite {
 		workMode = where.workMode
+	}
+	if _, err := s.checkFace(ctx, &a, in.FaceInput); err != nil {
+		return ClockOutResult{}, err
 	}
 	if err := s.assess(ctx, &a, parsed, now); err != nil {
 		return ClockOutResult{}, err

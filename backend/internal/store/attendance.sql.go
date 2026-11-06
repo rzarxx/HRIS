@@ -15,8 +15,8 @@ import (
 )
 
 const clockIn = `-- name: ClockIn :one
-INSERT INTO attendances (employee_id, work_date, shift_id, clock_in_at, in_accuracy_m, risk_score, risk_flags, status, late_minutes, work_mode, flexible_hours, location_id, in_latitude, in_longitude)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+INSERT INTO attendances (employee_id, work_date, shift_id, clock_in_at, in_accuracy_m, risk_score, risk_flags, status, late_minutes, work_mode, flexible_hours, location_id, in_latitude, in_longitude, face_score)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
 ON CONFLICT (employee_id, work_date) DO NOTHING
 RETURNING id, employee_id, work_date, shift_id, clock_in_at, clock_out_at, in_accuracy_m, face_score, risk_score, risk_flags, status, late_minutes, created_at, work_mode, location_id, worked_minutes, in_latitude, in_longitude, out_latitude, out_longitude, flexible_hours, review_by, reviewed_at, review_note
 `
@@ -36,6 +36,7 @@ type ClockInParams struct {
 	LocationID    uuid.NullUUID
 	InLatitude    decimal.NullDecimal
 	InLongitude   decimal.NullDecimal
+	FaceScore     decimal.NullDecimal
 }
 
 func (q *Queries) ClockIn(ctx context.Context, arg ClockInParams) (Attendance, error) {
@@ -54,6 +55,7 @@ func (q *Queries) ClockIn(ctx context.Context, arg ClockInParams) (Attendance, e
 		arg.LocationID,
 		arg.InLatitude,
 		arg.InLongitude,
+		arg.FaceScore,
 	)
 	var i Attendance
 	err := row.Scan(
@@ -176,6 +178,25 @@ func (q *Queries) ConsumeAttendanceChallenge(ctx context.Context, arg ConsumeAtt
 	return id, err
 }
 
+const countAttendanceAttempts = `-- name: CountAttendanceAttempts :one
+SELECT count(*) FROM attendance_attempts
+WHERE created_at >= $1 AND created_at < $2
+  AND ($3::text IS NULL OR outcome = $3)
+`
+
+type CountAttendanceAttemptsParams struct {
+	FromAt  pgtype.Timestamptz
+	ToAt    pgtype.Timestamptz
+	Outcome pgtype.Text
+}
+
+func (q *Queries) CountAttendanceAttempts(ctx context.Context, arg CountAttendanceAttemptsParams) (int64, error) {
+	row := q.db.QueryRow(ctx, countAttendanceAttempts, arg.FromAt, arg.ToAt, arg.Outcome)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const countAttendanceReview = `-- name: CountAttendanceReview :one
 SELECT count(*) FROM attendances a
 WHERE a.status = 'review' AND ($1::text IS NULL OR a.work_mode = $1)
@@ -224,6 +245,24 @@ func (q *Queries) CreateAttendanceChallenge(ctx context.Context, arg CreateAtten
 	return i, err
 }
 
+const deactivateFaceTemplates = `-- name: DeactivateFaceTemplates :execrows
+UPDATE face_templates SET is_active = false, deactivated_at = now(), deactivated_by = $1
+WHERE employee_id = $2 AND is_active
+`
+
+type DeactivateFaceTemplatesParams struct {
+	Actor      uuid.NullUUID
+	EmployeeID uuid.UUID
+}
+
+func (q *Queries) DeactivateFaceTemplates(ctx context.Context, arg DeactivateFaceTemplatesParams) (int64, error) {
+	result, err := q.db.Exec(ctx, deactivateFaceTemplates, arg.Actor, arg.EmployeeID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const deleteWorkArrangement = `-- name: DeleteWorkArrangement :one
 DELETE FROM employee_work_arrangements WHERE id = $1 AND employee_id = $2 RETURNING id, employee_id, mode, flexible_hours, starts_on, ends_on, weekdays, reason, created_by, created_at
 `
@@ -247,6 +286,29 @@ func (q *Queries) DeleteWorkArrangement(ctx context.Context, arg DeleteWorkArran
 		&i.Reason,
 		&i.CreatedBy,
 		&i.CreatedAt,
+	)
+	return i, err
+}
+
+const getActiveFaceTemplate = `-- name: GetActiveFaceTemplate :one
+SELECT id, employee_id, device_id, embedding_enc, key_id, model_version, dimension, is_active, created_at, deactivated_at, deactivated_by FROM face_templates WHERE employee_id = $1 AND is_active
+`
+
+func (q *Queries) GetActiveFaceTemplate(ctx context.Context, employeeID uuid.UUID) (FaceTemplate, error) {
+	row := q.db.QueryRow(ctx, getActiveFaceTemplate, employeeID)
+	var i FaceTemplate
+	err := row.Scan(
+		&i.ID,
+		&i.EmployeeID,
+		&i.DeviceID,
+		&i.EmbeddingEnc,
+		&i.KeyID,
+		&i.ModelVersion,
+		&i.Dimension,
+		&i.IsActive,
+		&i.CreatedAt,
+		&i.DeactivatedAt,
+		&i.DeactivatedBy,
 	)
 	return i, err
 }
@@ -477,6 +539,68 @@ func (q *Queries) InsertAttendanceAttempt(ctx context.Context, arg InsertAttenda
 	return err
 }
 
+const insertConsent = `-- name: InsertConsent :exec
+INSERT INTO consents (employee_id, type, version, ip) VALUES ($1, $2, $3, $4)
+`
+
+type InsertConsentParams struct {
+	EmployeeID uuid.UUID
+	Type       string
+	Version    string
+	Ip         *netip.Addr
+}
+
+func (q *Queries) InsertConsent(ctx context.Context, arg InsertConsentParams) error {
+	_, err := q.db.Exec(ctx, insertConsent,
+		arg.EmployeeID,
+		arg.Type,
+		arg.Version,
+		arg.Ip,
+	)
+	return err
+}
+
+const insertFaceTemplate = `-- name: InsertFaceTemplate :one
+INSERT INTO face_templates (employee_id, device_id, embedding_enc, key_id, model_version, dimension)
+VALUES ($1, $2, $3, $4, $5, $6)
+RETURNING id, employee_id, device_id, embedding_enc, key_id, model_version, dimension, is_active, created_at, deactivated_at, deactivated_by
+`
+
+type InsertFaceTemplateParams struct {
+	EmployeeID   uuid.UUID
+	DeviceID     uuid.NullUUID
+	EmbeddingEnc []byte
+	KeyID        string
+	ModelVersion string
+	Dimension    int32
+}
+
+func (q *Queries) InsertFaceTemplate(ctx context.Context, arg InsertFaceTemplateParams) (FaceTemplate, error) {
+	row := q.db.QueryRow(ctx, insertFaceTemplate,
+		arg.EmployeeID,
+		arg.DeviceID,
+		arg.EmbeddingEnc,
+		arg.KeyID,
+		arg.ModelVersion,
+		arg.Dimension,
+	)
+	var i FaceTemplate
+	err := row.Scan(
+		&i.ID,
+		&i.EmployeeID,
+		&i.DeviceID,
+		&i.EmbeddingEnc,
+		&i.KeyID,
+		&i.ModelVersion,
+		&i.Dimension,
+		&i.IsActive,
+		&i.CreatedAt,
+		&i.DeactivatedAt,
+		&i.DeactivatedBy,
+	)
+	return i, err
+}
+
 const insertWorkArrangement = `-- name: InsertWorkArrangement :one
 INSERT INTO employee_work_arrangements (employee_id, mode, flexible_hours, starts_on, ends_on, weekdays, reason, created_by)
 VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
@@ -530,6 +654,124 @@ func (q *Queries) IsHoliday(ctx context.Context, date pgtype.Date) (bool, error)
 	var exists bool
 	err := row.Scan(&exists)
 	return exists, err
+}
+
+const listArrangementTargets = `-- name: ListArrangementTargets :many
+SELECT e.id, e.full_name
+FROM employees e JOIN subdivisions s ON s.id = e.subdivision_id
+WHERE e.deleted_at IS NULL AND e.status = 'active'
+  AND ($1::uuid IS NULL OR s.division_id = $1)
+  AND ($2::uuid IS NULL OR s.id = $2)
+ORDER BY e.id
+`
+
+type ListArrangementTargetsParams struct {
+	DivisionID    uuid.NullUUID
+	SubdivisionID uuid.NullUUID
+}
+
+type ListArrangementTargetsRow struct {
+	ID       uuid.UUID
+	FullName string
+}
+
+func (q *Queries) ListArrangementTargets(ctx context.Context, arg ListArrangementTargetsParams) ([]ListArrangementTargetsRow, error) {
+	rows, err := q.db.Query(ctx, listArrangementTargets, arg.DivisionID, arg.SubdivisionID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListArrangementTargetsRow{}
+	for rows.Next() {
+		var i ListArrangementTargetsRow
+		if err := rows.Scan(&i.ID, &i.FullName); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listAttendanceAttempts = `-- name: ListAttendanceAttempts :many
+SELECT a.id, a.employee_id, e.full_name AS employee_name, e.nip, s.name AS subdivision_name, d.name AS division_name,
+       a.purpose, a.outcome, a.reason_code, a.risk_score, a.risk_flags, a.latitude, a.longitude, a.created_at
+FROM attendance_attempts a
+JOIN employees e ON e.id = a.employee_id
+JOIN subdivisions s ON s.id = e.subdivision_id
+JOIN divisions d ON d.id = s.division_id
+WHERE a.created_at >= $1 AND a.created_at < $2
+  AND ($3::text IS NULL OR a.outcome = $3)
+ORDER BY a.created_at DESC, a.id DESC
+LIMIT $5 OFFSET $4
+`
+
+type ListAttendanceAttemptsParams struct {
+	FromAt     pgtype.Timestamptz
+	ToAt       pgtype.Timestamptz
+	Outcome    pgtype.Text
+	PageOffset int32
+	PageLimit  int32
+}
+
+type ListAttendanceAttemptsRow struct {
+	ID              int64
+	EmployeeID      uuid.UUID
+	EmployeeName    string
+	Nip             string
+	SubdivisionName string
+	DivisionName    string
+	Purpose         string
+	Outcome         string
+	ReasonCode      string
+	RiskScore       int32
+	RiskFlags       []byte
+	Latitude        decimal.NullDecimal
+	Longitude       decimal.NullDecimal
+	CreatedAt       pgtype.Timestamptz
+}
+
+func (q *Queries) ListAttendanceAttempts(ctx context.Context, arg ListAttendanceAttemptsParams) ([]ListAttendanceAttemptsRow, error) {
+	rows, err := q.db.Query(ctx, listAttendanceAttempts,
+		arg.FromAt,
+		arg.ToAt,
+		arg.Outcome,
+		arg.PageOffset,
+		arg.PageLimit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListAttendanceAttemptsRow{}
+	for rows.Next() {
+		var i ListAttendanceAttemptsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.EmployeeID,
+			&i.EmployeeName,
+			&i.Nip,
+			&i.SubdivisionName,
+			&i.DivisionName,
+			&i.Purpose,
+			&i.Outcome,
+			&i.ReasonCode,
+			&i.RiskScore,
+			&i.RiskFlags,
+			&i.Latitude,
+			&i.Longitude,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const listAttendanceMonitor = `-- name: ListAttendanceMonitor :many

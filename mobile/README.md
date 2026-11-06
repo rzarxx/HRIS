@@ -53,6 +53,11 @@ otomatis oleh Gradle, tidak dipasang manual.
 - `device_status: pending` berarti HP menunggu persetujuan SDM. Login tetap boleh, tetapi absen ditolak
   `DEVICE_PENDING_APPROVAL`.
 - Tampilkan pesan dari kode error di `MASTER.md` §7.4, misalnya `DEVICE_REVOKED` dan `ATTENDANCE_BLOCKED`.
+- Wajah (F7): bila `GET /v1/me` mengembalikan `face_enrolled: false`, buka layar daftar wajah. Minta challenge
+  `face_enroll`, ambil 3 sampai 5 embedding yang saling mirip, lalu kirim ke `POST /v1/face/enroll` bersama
+  `face_model_version`, `liveness_passed`, `consent_version`, dan lokasi. Pendaftaran harus di dalam area kantor.
+- Absen masuk dan pulang mengirim `face_embedding`, `face_model_version` yang sama, dan `liveness_passed`.
+  Embedding tidak boleh disimpan di HP setelah terkirim.
 
 ## Server development
 
@@ -60,7 +65,7 @@ otomatis oleh Gradle, tidak dipasang manual.
   lewat *network security config*. Build rilis wajib HTTPS (`cleartextTrafficPermitted=false`).
 - HP biasanya tidak bisa memakai baris `hosts` seperti laptop, jadi `api.hris.local` tidak akan ditemukan.
   Pakai alamat IP server, atau minta pengelola jaringan menambahkan nama itu di DNS lokal.
-- Selama verifikasi perangkat dan wajah belum dibuat, absen hanya diterima bila server memasang
+- Selama verifikasi perangkat belum dibuat, absen dan daftar wajah hanya diterima bila server memasang
   `DEV_ALLOW_UNVERIFIED_ATTENDANCE=true` (D36).
 
 ## Versi yang dipakai

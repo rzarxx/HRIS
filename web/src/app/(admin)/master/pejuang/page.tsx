@@ -1,12 +1,14 @@
 "use client";
 
-import { CalendarClock, KeyRound, Lock, LockOpen, MapPin, Pencil, Plus, Search, UserX } from "lucide-react";
+import { CalendarClock, CalendarRange, KeyRound, Lock, LockOpen, MapPin, Pencil, Plus, ScanFace, Search, UserX } from "lucide-react";
 import { useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useState } from "react";
 import { ActivationLinkModal } from "@/components/employees/activation-link-modal";
+import { BulkArrangementModal } from "@/components/employees/bulk-arrangement-modal";
 import { EmployeeArrangementsModal } from "@/components/employees/employee-arrangements-modal";
 import { EmployeeForm } from "@/components/employees/employee-form";
 import { EmployeeLocationsModal } from "@/components/employees/employee-locations-modal";
+import { FaceResetModal } from "@/components/employees/face-reset-modal";
 import { Button, IconButton } from "@/components/ui/button";
 import { Input, Select } from "@/components/ui/form";
 import { Badge, Card, EmptyState, ErrorState, Loading, PageHeader } from "@/components/ui/layout";
@@ -37,6 +39,7 @@ function EmployeesView() {
   const canWrite = permissions.includes("employee:write");
   const canReset = permissions.includes("user:reset");
   const canFilterOrg = permissions.includes("org:write");
+  const canResetFace = permissions.includes("face:reset");
   const isSuperadmin = me.data?.role === "superadmin";
   // Akun super admin tidak bisa diubah SDM; server tetap menegakkan aturan ini (D34).
   const isProtected = (e: EmployeeListItem) => !isSuperadmin && e.account?.role === "superadmin";
@@ -44,6 +47,7 @@ function EmployeesView() {
   const isSelf = (e: EmployeeListItem) => e.id === me.data?.employee_id;
   const [assigning, setAssigning] = useState<EmployeeListItem | null>(null);
   const [arranging, setArranging] = useState<EmployeeListItem | null>(null);
+  const [resettingFace, setResettingFace] = useState<EmployeeListItem | null>(null);
 
   const [q, setQ] = useState(params.get("q") ?? "");
   const [divisionId, setDivisionId] = useState("");
@@ -75,6 +79,7 @@ function EmployeesView() {
     onDone: () => setDeleting(null),
   });
 
+  const [bulkOpen, setBulkOpen] = useState(false);
   const [activation, setActivation] = useState<{ name: string; activation: Activation } | null>(null);
   const [resetting, setResetting] = useState<EmployeeListItem | null>(null);
   const resetPassword = useSave(
@@ -101,9 +106,14 @@ function EmployeesView() {
         description="Data Pejuang aktif dan nonaktif."
         actions={
           canWrite && (
-            <Button onClick={() => setEditing("new")}>
-              <Plus className="size-4" /> Tambah Pejuang
-            </Button>
+            <>
+              <Button variant="secondary" onClick={() => setBulkOpen(true)}>
+                <CalendarRange className="size-4" /> Izin massal
+              </Button>
+              <Button onClick={() => setEditing("new")}>
+                <Plus className="size-4" /> Tambah Pejuang
+              </Button>
+            </>
           )
         }
       />
@@ -203,6 +213,7 @@ function EmployeesView() {
                         {e.status === "active" ? <Badge tone="green">Aktif</Badge> : <Badge>Nonaktif</Badge>}
                         {e.status === "active" && e.account && !e.account.is_active && <Badge tone="amber">Belum aktivasi</Badge>}
                         {e.account?.is_locked && <Badge tone="red">Terkunci</Badge>}
+                        {e.status === "active" && e.account?.is_active && !e.face_enrolled && <Badge tone="amber">Wajah belum terdaftar</Badge>}
                       </div>
                     </Td>
                     <Td align="right" className="whitespace-nowrap">
@@ -219,6 +230,11 @@ function EmployeesView() {
                       {canWrite && !isProtected(e) && e.status === "active" && (
                         <IconButton label={`Izin kerja ${e.full_name}`} onClick={() => setArranging(e)}>
                           <CalendarClock className="size-4" />
+                        </IconButton>
+                      )}
+                      {canResetFace && e.face_enrolled && !isProtected(e) && !isSelf(e) && (
+                        <IconButton label={`Reset wajah ${e.full_name}`} onClick={() => setResettingFace(e)}>
+                          <ScanFace className="size-4" />
                         </IconButton>
                       )}
                       {e.status === "active" && e.account && !isProtected(e) && !isSelf(e) && (
@@ -265,6 +281,10 @@ function EmployeesView() {
       {assigning && <EmployeeLocationsModal employee={assigning} onClose={() => setAssigning(null)} />}
 
       {arranging && <EmployeeArrangementsModal employee={arranging} onClose={() => setArranging(null)} />}
+
+      {resettingFace && <FaceResetModal employee={resettingFace} onClose={() => setResettingFace(null)} />}
+
+      {bulkOpen && <BulkArrangementModal onClose={() => setBulkOpen(false)} />}
 
       {activation && <ActivationLinkModal name={activation.name} activation={activation.activation} onClose={() => setActivation(null)} />}
 

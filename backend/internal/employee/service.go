@@ -60,6 +60,7 @@ type Employee struct {
 	Status           string   `json:"status"`
 	DefaultShiftID   *string  `json:"default_shift_id"`
 	DefaultShiftName *string  `json:"default_shift_name"`
+	FaceEnrolled     bool     `json:"face_enrolled"`
 	BaseSalary       *string  `json:"base_salary,omitempty"`
 	Account          *Account `json:"account,omitempty"`
 }
@@ -563,6 +564,7 @@ func present(p auth.Principal, r store.GetEmployeeScopedRow) Employee {
 		Position: pgconv.TextPtr(r.Position), JoinDate: pgconv.DateString(r.JoinDate),
 		Status:         r.Status,
 		DefaultShiftID: pgconv.UUIDPtr(r.DefaultShiftID), DefaultShiftName: pgconv.TextPtr(r.DefaultShiftName),
+		FaceEnrolled: r.FaceEnrolled,
 	}
 	if permission.ManagesSalary(p.Role) || r.ID == p.EmployeeID {
 		salary := r.BaseSalary.StringFixed(2)

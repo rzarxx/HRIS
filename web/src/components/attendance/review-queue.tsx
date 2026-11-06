@@ -33,6 +33,7 @@ const FLAG_LABEL: Record<string, string> = {
   clock_skew: "Jam HP berbeda dari server",
   new_device_recent: "Perangkat baru disetujui",
   off_schedule: "Di luar jadwal shift",
+  face_borderline: "Kemiripan wajah di batas bawah",
   unverified_integrity: "Tanpa verifikasi perangkat (development)",
 };
 

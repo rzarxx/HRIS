@@ -268,6 +268,15 @@ type AuditLog struct {
 	CreatedAt pgtype.Timestamptz
 }
 
+type Consent struct {
+	ID         uuid.UUID
+	EmployeeID uuid.UUID
+	Type       string
+	Version    string
+	Ip         *netip.Addr
+	AcceptedAt pgtype.Timestamptz
+}
+
 type Device struct {
 	ID            uuid.UUID
 	EmployeeID    uuid.UUID
@@ -327,6 +336,20 @@ type EmployeeWorkArrangement struct {
 	Reason        string
 	CreatedBy     uuid.UUID
 	CreatedAt     pgtype.Timestamptz
+}
+
+type FaceTemplate struct {
+	ID            uuid.UUID
+	EmployeeID    uuid.UUID
+	DeviceID      uuid.NullUUID
+	EmbeddingEnc  []byte
+	KeyID         string
+	ModelVersion  string
+	Dimension     int32
+	IsActive      bool
+	CreatedAt     pgtype.Timestamptz
+	DeactivatedAt pgtype.Timestamptz
+	DeactivatedBy uuid.NullUUID
 }
 
 type Holiday struct {

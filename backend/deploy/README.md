@@ -167,7 +167,7 @@ bash /opt/hris/src/backend/deploy/setup-face.sh
 bash /opt/hris/src/backend/deploy/deploy.sh
 ```
 
-Skrip memasang `libdlib-dev`, BLAS, LAPACK, dan libjpeg, mengunduh dua model dlib (sekitar 30 MB,
+Skrip memasang `libdlib-dev`, BLAS, LAPACK, dan libjpeg, mengunduh tiga model dlib (sekitar 32 MB,
 checksum dicocokkan) ke `/opt/hris/face-models`, membuat `/opt/hris/selfies`, lalu mengisi
 `FACE_MODELS_DIR` dan `SELFIE_DIR` di `/opt/hris/.env` serta `FACE_ENGINE=dlib` di `deploy.env`.
 Build API pertama dengan dlib bisa beberapa menit dan butuh RAM sekitar 2 GB.

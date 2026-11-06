@@ -19,6 +19,8 @@ MODELS_URL=https://github.com/Kagami/go-face-testdata/raw/96ccafa591055ef57286ff
 declare -A MODELS=(
   [shape_predictor_5_face_landmarks.dat]=c4b1e9804792707d3a405c2c16a80a20269e6675021f64a41d30fffafbc41888
   [dlib_face_recognition_resnet_model_v1.dat]=55533b28a95800a551ba546ba62fe69625c7e95a7061c338adffead08719da30
+  # go-face selalu memuat detektor CNN ini, meski deteksi yang dipakai adalah HOG.
+  [mmod_human_face_detector.dat]=4cb19393e2fbaf2b1609a9319ad5386618c886a6234ec1b971f3e87c85d87fe6
 )
 
 [ "$(id -u)" -eq 0 ] || { echo "Jalankan sebagai root."; exit 1; }

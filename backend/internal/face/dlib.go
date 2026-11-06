@@ -20,8 +20,9 @@ type dlibEngine struct {
 	slots chan struct{}
 }
 
-// NewDlib memuat model dari modelsDir: shape_predictor_5_face_landmarks.dat dan
-// dlib_face_recognition_resnet_model_v1.dat.
+// NewDlib memuat model dari modelsDir: shape_predictor_5_face_landmarks.dat,
+// dlib_face_recognition_resnet_model_v1.dat, dan mmod_human_face_detector.dat. Yang terakhir
+// selalu dimuat go-face walau Recognize memakai detektor HOG.
 func NewDlib(modelsDir string) (Engine, error) {
 	rec, err := goface.NewRecognizer(modelsDir)
 	if err != nil {

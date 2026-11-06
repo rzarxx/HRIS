@@ -20,6 +20,7 @@ import (
 
 const (
 	maxBodyBytes   = 1 << 20 // 1 MB, MASTER.md §5.7
+	maxUploadBytes = 5 << 20 // 5 MB untuk route yang menerima selfie
 	requestTimeout = 15 * time.Second
 
 	// Batas per akun 120/menit (MASTER.md §5.7). Batas per IP dibuat longgar karena satu
@@ -213,9 +214,20 @@ func requestLogger(next http.Handler) http.Handler {
 	})
 }
 
+// uploadRoutes menerima selfie, jadi batas body-nya lebih besar (MASTER.md §5.7).
+var uploadRoutes = map[string]bool{
+	"/v1/attendance/clock-in":  true,
+	"/v1/attendance/clock-out": true,
+	"/v1/face/enroll":          true,
+}
+
 func limitBody(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		r.Body = http.MaxBytesReader(w, r.Body, maxBodyBytes)
+		limit := int64(maxBodyBytes)
+		if r.Method == http.MethodPost && uploadRoutes[r.URL.Path] {
+			limit = maxUploadBytes
+		}
+		r.Body = http.MaxBytesReader(w, r.Body, limit)
 		next.ServeHTTP(w, r)
 	})
 }

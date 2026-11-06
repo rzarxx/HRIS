@@ -2,7 +2,8 @@
 
 Aplikasi untuk Pejuang: login, absen dengan lokasi dan wajah, riwayat, pengajuan, dan slip upah. Acuannya tetap
 `MASTER.md` (§10.2 Mobile, §5.9 Kontrol Mobile, F5 Login Mobile). Stack: Kotlin, Jetpack Compose, MVVM, Hilt,
-Retrofit/OkHttp, CameraX, ML Kit, TFLite MobileFaceNet, Play Integrity, FusedLocationProvider, FCM. `minSdk 26`.
+Retrofit/OkHttp, CameraX, ML Kit, Play Integrity, FusedLocationProvider, FCM. `minSdk 26`. Pencocokan wajah
+dihitung server dari selfie (D42), jadi aplikasi tidak memuat model pengenalan wajah.
 
 Folder ini masih kosong. Proyek Android dibuat dan dikerjakan di PC lain.
 
@@ -27,7 +28,7 @@ Lewat **SDK Manager** di Android Studio:
 | Android Emulator + system image | Opsional. Kamera, GPS, dan Play Integrity tetap harus diuji di HP sungguhan. |
 | NDK dan CMake | Nanti, saat modul deteksi native dibuat (§5.9) |
 
-Pustaka (Compose, Hilt, Retrofit, CameraX, ML Kit, TFLite, Play Integrity, lokasi, Firebase Messaging) diambil
+Pustaka (Compose, Hilt, Retrofit, CameraX, ML Kit, Play Integrity, lokasi, Firebase Messaging) diambil
 otomatis oleh Gradle, tidak dipasang manual.
 
 ## Akun dan layanan
@@ -53,11 +54,20 @@ otomatis oleh Gradle, tidak dipasang manual.
 - `device_status: pending` berarti HP menunggu persetujuan SDM. Login tetap boleh, tetapi absen ditolak
   `DEVICE_PENDING_APPROVAL`.
 - Tampilkan pesan dari kode error di `MASTER.md` §7.4, misalnya `DEVICE_REVOKED` dan `ATTENDANCE_BLOCKED`.
-- Wajah (F7): bila `GET /v1/me` mengembalikan `face_enrolled: false`, buka layar daftar wajah. Minta challenge
-  `face_enroll`, ambil 3 sampai 5 embedding yang saling mirip, lalu kirim ke `POST /v1/face/enroll` bersama
-  `face_model_version`, `liveness_passed`, `consent_version`, dan lokasi. Pendaftaran harus di dalam area kantor.
-- Absen masuk dan pulang mengirim `face_embedding`, `face_model_version` yang sama, dan `liveness_passed`.
-  Embedding tidak boleh disimpan di HP setelah terkirim.
+- Wajah dihitung server dari selfie (D42). HP tidak menghitung atau mengirim embedding; ML Kit dipakai untuk
+  mendeteksi wajah, memotong foto, dan liveness.
+- Setiap challenge berisi `liveness_action` (`blink`, `turn_left`, `turn_right`, atau `smile`). Minta Pejuang
+  melakukan gerakan itu, lalu kirim `liveness_passed` dan `liveness_action` yang sama.
+- Daftar wajah (F7): bila `GET /v1/me` mengembalikan `face_enrolled: false`, buka layar daftar wajah. Minta
+  challenge `face_enroll`, ambil 3 sampai 5 selfie berbeda, lalu kirim `multipart/form-data` ke
+  `POST /v1/face/enroll`: bagian `payload` (JSON berisi `sample_sha256`, `liveness_*`, `consent_version`, dan
+  lokasi) dan berkas `samples`. Pendaftaran harus di dalam area kantor.
+- Absen masuk dan pulang juga `multipart/form-data`: bagian `payload` (isi absen ditambah `selfie_sha256`) dan
+  berkas `selfie`.
+- Selfie: JPEG, satu wajah, sekitar 640 px, maksimal 1 MB. Selalu ambil foto baru untuk setiap upaya, karena
+  foto yang pernah dikirim ditolak `ATTENDANCE_BLOCKED`. Hapus foto dari HP setelah terkirim.
+- `FACE_NOT_DETECTED` berarti foto perlu diambil ulang (cahaya, wajah terhalang, atau lebih dari satu orang).
+  `FACE_SERVICE_UNAVAILABLE` (503) berarti mesin wajah server belum dipasang.
 
 ## Server development
 

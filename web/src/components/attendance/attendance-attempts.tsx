@@ -31,11 +31,12 @@ const REASON: Record<string, string> = {
   already_clocked_out: "Sudah absen pulang",
   not_clocked_in: "Belum absen masuk",
   face_not_enrolled: "Wajah belum terdaftar",
+  face_not_detected: "Wajah tidak terdeteksi di selfie",
   liveness_failed: "Liveness gagal",
   face_mismatch: "Wajah tidak cocok",
   risk_too_high: "Skor risiko terlalu tinggi",
   risk_review: "Skor risiko perlu ditinjau",
-  embedding_replay: "Data wajah dipakai ulang",
+  embedding_replay: "Selfie yang sama dikirim ulang",
 };
 
 const timeOf = (iso: string) => new Date(iso).toLocaleTimeString("id-ID", { timeZone: TZ, hour: "2-digit", minute: "2-digit", second: "2-digit" });

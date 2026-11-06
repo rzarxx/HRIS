@@ -11,6 +11,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -136,6 +137,8 @@ type options struct {
 	clock           func() time.Time
 	allowUnverified bool
 	strictIntegrity bool
+	// noFaceEngine mematikan mesin wajah, seperti server tanpa FACE_MODELS_DIR.
+	noFaceEngine bool
 }
 
 // fresh mengisi ulang data dummy dan menyalakan API baru.
@@ -176,6 +179,14 @@ func fresh(t *testing.T, opt options) *httptest.Server {
 	if err != nil {
 		t.Fatal(err)
 	}
+	attendanceOpt := attendance.Options{AllowUnverified: opt.allowUnverified, Now: opt.clock, Cipher: cipher}
+	if !opt.noFaceEngine {
+		selfies, err := attendance.NewDiskStore(t.TempDir(), cipher)
+		if err != nil {
+			t.Fatal(err)
+		}
+		attendanceOpt.Faces, attendanceOpt.Selfies = fakeFaces{}, selfies
+	}
 	authSvc.SetDeviceBinder(device.BindForLogin)
 	q := store.New(appPool)
 	srv := httptest.NewServer(server.New(server.Deps{
@@ -187,7 +198,7 @@ func fresh(t *testing.T, opt options) *httptest.Server {
 		Report:       report.NewHandler(report.NewService(q, authSvc.ResolveScope)),
 		Location:     location.NewHandler(location.NewService(appPool)),
 		Device:       device.NewHandler(device.NewService(appPool)),
-		Attendance:   attendance.NewHandler(attendance.NewService(appPool, attendance.Options{AllowUnverified: opt.allowUnverified, Now: opt.clock, Cipher: cipher})),
+		Attendance:   attendance.NewHandler(attendance.NewService(appPool, attendanceOpt)),
 		Shift:        shift.NewHandler(shift.NewService(appPool)),
 		Signer:       signer,
 		SessionCheck: authSvc.SessionState,
@@ -234,19 +245,53 @@ type response struct {
 func (c *client) do(method, path string, body any) response {
 	c.t.Helper()
 	var reader io.Reader
+	contentType := ""
 	if body != nil {
 		raw, err := json.Marshal(body)
 		if err != nil {
 			c.t.Fatal(err)
 		}
 		reader = bytes.NewReader(raw)
+		contentType = "application/json"
 	}
+	return c.send(method, path, reader, contentType)
+}
+
+// upload mengirim multipart: bagian payload berisi JSON dan berkas di field.
+func (c *client) upload(path string, payload any, field string, files ...[]byte) response {
+	c.t.Helper()
+	var buf bytes.Buffer
+	w := multipart.NewWriter(&buf)
+	raw, err := json.Marshal(payload)
+	if err != nil {
+		c.t.Fatal(err)
+	}
+	if err := w.WriteField("payload", string(raw)); err != nil {
+		c.t.Fatal(err)
+	}
+	for i, data := range files {
+		part, err := w.CreateFormFile(field, fmt.Sprintf("foto-%d.jpg", i+1))
+		if err != nil {
+			c.t.Fatal(err)
+		}
+		if _, err := part.Write(data); err != nil {
+			c.t.Fatal(err)
+		}
+	}
+	if err := w.Close(); err != nil {
+		c.t.Fatal(err)
+	}
+	return c.send(http.MethodPost, path, &buf, w.FormDataContentType())
+}
+
+func (c *client) send(method, path string, reader io.Reader, contentType string) response {
+	c.t.Helper()
 	req, err := http.NewRequest(method, c.srv.URL+path, reader)
 	if err != nil {
 		c.t.Fatal(err)
 	}
-	if body != nil {
-		req.Header.Set("Content-Type", "application/json")
+	if contentType != "" {
+		req.Header.Set("Content-Type", contentType)
 	}
 	if method != http.MethodGet {
 		req.Header.Set(auth.HeaderCSRF, c.cookies[auth.CookieCSRF])

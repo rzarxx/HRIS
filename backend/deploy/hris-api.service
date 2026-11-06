@@ -17,6 +17,8 @@ PrivateTmp=true
 ProtectSystem=strict
 ProtectHome=true
 ReadWritePaths=/opt/hris/.secrets
+# Folder selfie dari setup-face.sh. Tanda "-" agar layanan tetap jalan sebelum folder itu dibuat.
+ReadWritePaths=-/opt/hris/selfies
 
 [Install]
 WantedBy=multi-user.target

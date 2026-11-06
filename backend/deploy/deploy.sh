@@ -43,9 +43,17 @@ echo "    $COMMIT"
 echo "==> Build API"
 BUILD_DIR="$APP_DIR/build-home/dist"
 as_builder mkdir -p "$BUILD_DIR"
-for program in api migrate seed superadmin; do
+for program in migrate seed superadmin; do
   as_builder bash -c "cd '$SRC_DIR/backend' && go build -o '$BUILD_DIR/hris-$program' ./cmd/$program"
 done
+# Mesin wajah dlib butuh cgo dan pustaka dari setup-face.sh (D42). Tanpanya API tetap jalan, tetapi
+# daftar wajah dan absen dengan selfie dijawab FACE_SERVICE_UNAVAILABLE.
+if [ "${FACE_ENGINE:-}" = "dlib" ]; then
+  echo "    API dengan mesin wajah dlib (build pertama bisa beberapa menit)"
+  as_builder env CGO_ENABLED=1 bash -c "cd '$SRC_DIR/backend' && go build -tags dlib -o '$BUILD_DIR/hris-api' ./cmd/api"
+else
+  as_builder bash -c "cd '$SRC_DIR/backend' && go build -o '$BUILD_DIR/hris-api' ./cmd/api"
+fi
 
 echo "==> Build web"
 as_builder bash -c "cd '$SRC_DIR/web' && npm ci --ignore-scripts --no-audit --no-fund && npm run build"

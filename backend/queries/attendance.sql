@@ -2,8 +2,8 @@
 SELECT * FROM devices WHERE id = $1 AND employee_id = $2;
 
 -- name: CreateAttendanceChallenge :one
-INSERT INTO attendance_challenges (employee_id, device_id, nonce, purpose, expires_at)
-VALUES (@employee_id, @device_id, @nonce, @purpose, @expires_at)
+INSERT INTO attendance_challenges (employee_id, device_id, nonce, purpose, expires_at, liveness_action)
+VALUES (@employee_id, @device_id, @nonce, @purpose, @expires_at, @liveness_action)
 RETURNING *;
 
 -- Pemakaian atomik: hanya satu permintaan yang bisa memakai satu tantangan.
@@ -11,7 +11,7 @@ RETURNING *;
 UPDATE attendance_challenges SET used_at = @now
 WHERE id = @id AND employee_id = @employee_id AND device_id = @device_id AND purpose = @purpose
   AND used_at IS NULL AND expires_at > @now
-RETURNING id;
+RETURNING id, liveness_action;
 
 -- name: InsertAttendanceAttempt :exec
 INSERT INTO attendance_attempts (employee_id, device_id, challenge_id, purpose, outcome, reason_code, risk_score, risk_flags, latitude, longitude, ip)
@@ -149,3 +149,16 @@ RETURNING *;
 
 -- name: InsertConsent :exec
 INSERT INTO consents (employee_id, type, version, ip) VALUES (@employee_id, @type, @version, @ip);
+
+-- Selfie yang sama tidak boleh dipakai dua kali oleh Pejuang yang sama (embedding_replay).
+-- name: InsertFaceCapture :one
+INSERT INTO face_captures (employee_id, challenge_id, purpose, sha256, storage_key)
+VALUES (@employee_id, @challenge_id, @purpose, @sha256, @storage_key)
+ON CONFLICT (employee_id, sha256) DO NOTHING
+RETURNING id;
+
+-- name: SetFaceCaptureScore :exec
+UPDATE face_captures SET face_score = @face_score WHERE id = @id;
+
+-- name: LinkFaceCapture :exec
+UPDATE face_captures SET attendance_id = @attendance_id WHERE id = @id;

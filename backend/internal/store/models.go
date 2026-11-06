@@ -247,14 +247,15 @@ type AttendanceAttempt struct {
 }
 
 type AttendanceChallenge struct {
-	ID         uuid.UUID
-	EmployeeID uuid.UUID
-	DeviceID   uuid.UUID
-	Nonce      string
-	Purpose    string
-	ExpiresAt  pgtype.Timestamptz
-	UsedAt     pgtype.Timestamptz
-	CreatedAt  pgtype.Timestamptz
+	ID             uuid.UUID
+	EmployeeID     uuid.UUID
+	DeviceID       uuid.UUID
+	Nonce          string
+	Purpose        string
+	ExpiresAt      pgtype.Timestamptz
+	UsedAt         pgtype.Timestamptz
+	CreatedAt      pgtype.Timestamptz
+	LivenessAction pgtype.Text
 }
 
 type AuditLog struct {
@@ -336,6 +337,18 @@ type EmployeeWorkArrangement struct {
 	Reason        string
 	CreatedBy     uuid.UUID
 	CreatedAt     pgtype.Timestamptz
+}
+
+type FaceCapture struct {
+	ID           uuid.UUID
+	EmployeeID   uuid.UUID
+	ChallengeID  uuid.NullUUID
+	AttendanceID uuid.NullUUID
+	Purpose      string
+	Sha256       string
+	StorageKey   string
+	FaceScore    decimal.NullDecimal
+	CreatedAt    pgtype.Timestamptz
 }
 
 type FaceTemplate struct {

@@ -69,6 +69,7 @@ func run() error {
 	if err != nil {
 		return err
 	}
+	authSvc.SetDeviceBinder(device.BindForLogin)
 	q := store.New(pool)
 	secure := cfg.CookieSecure
 	limiter := auth.NewMemoryLimiter()

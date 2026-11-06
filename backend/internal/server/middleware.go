@@ -60,7 +60,7 @@ func realIP(trust bool) func(http.Handler) http.Handler {
 func blockDirectAccess(allowed []string) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			if slices.Contains(allowed, r.Header.Get("Origin")) || r.Header.Get("Authorization") != "" || isDirectLocal(r) {
+			if slices.Contains(allowed, r.Header.Get("Origin")) || r.Header.Get("Authorization") != "" || isDirectLocal(r) || isMobileAuth(r) {
 				next.ServeHTTP(w, r)
 				return
 			}
@@ -82,6 +82,12 @@ func isDirectLocal(r *http.Request) bool {
 	}
 	addr := audit.ClientIP(r)
 	return addr != nil && addr.IsLoopback()
+}
+
+// isMobileAuth membuka login dan refresh mobile, karena aplikasi belum punya token saat memanggilnya
+// dan tidak mengirim Origin. Keduanya tetap wajib kredensial (D37).
+func isMobileAuth(r *http.Request) bool {
+	return r.Method == http.MethodPost && strings.HasPrefix(r.URL.Path, "/v1/auth/mobile/")
 }
 
 func isBrowserNavigation(r *http.Request) bool {

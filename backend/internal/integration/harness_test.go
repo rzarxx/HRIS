@@ -131,6 +131,7 @@ func (noLimiter) Reset(string)                                                  
 type options struct {
 	requireMFA bool
 	limiter    auth.Limiter
+	signer     *auth.TokenSigner
 	// clock dan izin absen tanpa verifikasi untuk tes presensi.
 	clock           func() time.Time
 	allowUnverified bool
@@ -168,10 +169,14 @@ func fresh(t *testing.T, opt options) *httptest.Server {
 		limiter = noLimiter{}
 	}
 	signer := auth.NewTokenSigner(private, "test")
+	if opt.signer != nil {
+		signer = opt.signer
+	}
 	authSvc, err := auth.NewService(appPool, signer, cipher, opt.requireMFA)
 	if err != nil {
 		t.Fatal(err)
 	}
+	authSvc.SetDeviceBinder(device.BindForLogin)
 	q := store.New(appPool)
 	srv := httptest.NewServer(server.New(server.Deps{
 		Auth:         auth.NewHandler(authSvc, false, "", limiter),

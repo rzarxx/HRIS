@@ -39,6 +39,8 @@ type Service struct {
 	requireMFA bool
 	// dummyHash dipakai saat email tidak ada agar waktu respons tidak membocorkan keberadaan akun.
 	dummyHash string
+	// bindDevice mengikat perangkat saat login mobile (F5).
+	bindDevice DeviceBinder
 }
 
 func NewService(pool *pgxpool.Pool, signer *TokenSigner, fieldCipher *fieldcrypt.Cipher, requireMFA bool) (*Service, error) {
@@ -62,34 +64,9 @@ func errInvalidCredentials() error {
 
 // Login mengembalikan user ID dan token. Pesan gagal selalu generik.
 func (s *Service) Login(ctx context.Context, email, password string, ip *netip.Addr, userAgent string, now time.Time) (uuid.UUID, Tokens, error) {
-	user, err := s.q.GetUserByEmail(ctx, email)
-	if pgconv.IsNoRows(err) {
-		_, _ = VerifyPassword(password, s.dummyHash)
-		s.auditBestEffort(ctx, audit.Entry{Action: audit.AuthLoginFailed, IP: ip})
-		return uuid.Nil, Tokens{}, errInvalidCredentials()
-	}
+	user, err := s.checkPassword(ctx, email, password, ip, now)
 	if err != nil {
 		return uuid.Nil, Tokens{}, err
-	}
-
-	if user.LockedUntil.Valid && user.LockedUntil.Time.After(now) {
-		return uuid.Nil, Tokens{}, &httpx.Error{
-			Status:  http.StatusLocked,
-			Code:    "AUTH_ACCOUNT_LOCKED",
-			Message: "Akun terkunci sementara. Coba lagi nanti.",
-			Details: map[string]any{"retry_after_seconds": int(user.LockedUntil.Time.Sub(now).Seconds()) + 1},
-		}
-	}
-
-	ok, err := VerifyPassword(password, user.PasswordHash)
-	if err != nil {
-		return uuid.Nil, Tokens{}, err
-	}
-	if !ok || !user.IsActive {
-		if err := s.registerFailure(ctx, user.ID, ip, now); err != nil {
-			return uuid.Nil, Tokens{}, err
-		}
-		return uuid.Nil, Tokens{}, errInvalidCredentials()
 	}
 
 	// MFA aktif: sesi baru dibuat setelah kode TOTP benar.
@@ -117,6 +94,40 @@ func (s *Service) Login(ctx context.Context, email, password string, ip *netip.A
 }
 
 // VerifyMFA menyelesaikan login dari token sementara dan kode TOTP atau kode pemulihan.
+// checkPassword memeriksa email, sandi, kunci akun, dan status aktif, lalu mencatat kegagalan (F4).
+func (s *Service) checkPassword(ctx context.Context, email, password string, ip *netip.Addr, now time.Time) (store.GetUserByEmailRow, error) {
+	user, err := s.q.GetUserByEmail(ctx, email)
+	if pgconv.IsNoRows(err) {
+		_, _ = VerifyPassword(password, s.dummyHash)
+		s.auditBestEffort(ctx, audit.Entry{Action: audit.AuthLoginFailed, IP: ip})
+		return user, errInvalidCredentials()
+	}
+	if err != nil {
+		return user, err
+	}
+
+	if user.LockedUntil.Valid && user.LockedUntil.Time.After(now) {
+		return user, &httpx.Error{
+			Status:  http.StatusLocked,
+			Code:    "AUTH_ACCOUNT_LOCKED",
+			Message: "Akun terkunci sementara. Coba lagi nanti.",
+			Details: map[string]any{"retry_after_seconds": int(user.LockedUntil.Time.Sub(now).Seconds()) + 1},
+		}
+	}
+
+	ok, err := VerifyPassword(password, user.PasswordHash)
+	if err != nil {
+		return user, err
+	}
+	if !ok || !user.IsActive {
+		if err := s.registerFailure(ctx, user.ID, ip, now); err != nil {
+			return user, err
+		}
+		return user, errInvalidCredentials()
+	}
+	return user, nil
+}
+
 func (s *Service) VerifyMFA(ctx context.Context, mfaToken, code string, ip *netip.Addr, userAgent string, now time.Time) (uuid.UUID, Tokens, error) {
 	userID, err := s.signer.VerifyMFA(mfaToken)
 	if err != nil {
@@ -202,40 +213,54 @@ func (s *Service) registerFailure(ctx context.Context, userID uuid.UUID, ip *net
 
 // Refresh merotasi refresh token. Token lama yang dipakai ulang mencabut sesi (F6).
 func (s *Service) Refresh(ctx context.Context, refresh string, ip *netip.Addr, now time.Time) (Tokens, error) {
+	sess, next, err := s.rotate(ctx, refresh, "web", webIdleTTL, ip, now)
+	if err != nil {
+		return Tokens{}, err
+	}
+	return s.issue(sess.UserID, sess.EmployeeID, sess.ID, string(sess.Role), next, now)
+}
+
+// rotate memeriksa refresh token milik jenis klien itu saja, lalu menggantinya dengan yang baru.
+func (s *Service) rotate(ctx context.Context, refresh, client string, idleTTL time.Duration, ip *netip.Addr, now time.Time) (store.GetSessionByRefreshHashRow, string, error) {
+	var none store.GetSessionByRefreshHashRow
 	if refresh == "" {
-		return Tokens{}, httpx.ErrUnauthenticated()
+		return none, "", httpx.ErrUnauthenticated()
 	}
 	hash := HashToken(refresh)
 	sess, err := s.q.GetSessionByRefreshHash(ctx, hash)
 	if pgconv.IsNoRows(err) {
-		return Tokens{}, s.handleReuse(ctx, hash, ip)
+		return none, "", s.handleReuse(ctx, hash, client, ip)
 	}
 	if err != nil {
-		return Tokens{}, err
+		return none, "", err
 	}
-	if sess.Client != "web" || sess.RevokedAt.Valid || !sess.IsActive ||
+	if sess.Client != client || sess.RevokedAt.Valid || !sess.IsActive ||
 		now.After(sess.IdleExpiresAt.Time) || now.After(sess.AbsoluteExpiresAt.Time) {
-		return Tokens{}, httpx.ErrUnauthenticated()
+		return none, "", httpx.ErrUnauthenticated()
+	}
+	// Sesi mobile mati bersama perangkatnya, walau pencabutan sesi saat perangkat dicabut terlewat.
+	if client == "mobile" && (!sess.DeviceID.Valid || !sess.DeviceStatus.Valid || sess.DeviceStatus.DeviceStatus == store.DeviceStatusRevoked) {
+		return none, "", httpx.ErrUnauthenticated()
 	}
 
 	next, err := NewOpaqueToken()
 	if err != nil {
-		return Tokens{}, err
+		return none, "", err
 	}
-	idle := now.Add(webIdleTTL)
+	idle := now.Add(idleTTL)
 	if idle.After(sess.AbsoluteExpiresAt.Time) {
 		idle = sess.AbsoluteExpiresAt.Time
 	}
 	if err := s.q.RotateSession(ctx, store.RotateSessionParams{
 		ID: sess.ID, NewHash: HashToken(next), IdleExpiresAt: pgconv.Time(idle),
 	}); err != nil {
-		return Tokens{}, err
+		return none, "", err
 	}
-	return s.issue(sess.UserID, sess.EmployeeID, sess.ID, string(sess.Role), next, now)
+	return sess, next, nil
 }
 
-func (s *Service) handleReuse(ctx context.Context, hash string, ip *netip.Addr) error {
-	prev, err := s.q.GetSessionByPrevRefreshHash(ctx, store.GetSessionByPrevRefreshHashParams{PrevRefreshHash: pgtype.Text{String: hash, Valid: true}, Client: "web"})
+func (s *Service) handleReuse(ctx context.Context, hash, client string, ip *netip.Addr) error {
+	prev, err := s.q.GetSessionByPrevRefreshHash(ctx, store.GetSessionByPrevRefreshHashParams{PrevRefreshHash: pgtype.Text{String: hash, Valid: true}, Client: client})
 	if pgconv.IsNoRows(err) {
 		return httpx.ErrUnauthenticated()
 	}

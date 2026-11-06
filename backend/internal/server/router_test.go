@@ -29,6 +29,9 @@ func testRouter(t *testing.T, sessionActive bool) (http.Handler, *auth.TokenSign
 
 func testRouterState(t *testing.T, state auth.SessionState) (http.Handler, *auth.TokenSigner, []Route) {
 	t.Helper()
+	if state.Client == "" {
+		state.Client = "web"
+	}
 	_, private, err := ed25519.GenerateKey(rand.Reader)
 	if err != nil {
 		t.Fatal(err)
@@ -79,6 +82,51 @@ func tokenFor(t *testing.T, s *auth.TokenSigner, role string) string {
 	return token
 }
 
+func TestRouterAcceptsOnlyBoundMobileBearer(t *testing.T) {
+	user, employee, session, device := uuid.New(), uuid.New(), uuid.New(), uuid.New()
+	state := auth.SessionState{Active: true, Client: "mobile", UserID: user, EmployeeID: employee, Role: permission.RolePejuang, DeviceID: uuid.NullUUID{UUID: device, Valid: true}, DeviceActive: true}
+	h, signer, _ := testRouterState(t, state)
+	mobile, err := signer.SignMobile(user, employee, session, device, permission.RolePejuang, time.Now())
+	if err != nil {
+		t.Fatal(err)
+	}
+	web, err := signer.Sign(user, employee, session, permission.RolePejuang, time.Now())
+	if err != nil {
+		t.Fatal(err)
+	}
+	callBearer := func(method, path, bearer, cookie string) *httptest.ResponseRecorder {
+		req := httptest.NewRequest(method, path, nil)
+		req.Header.Set("Origin", testWebOrigin)
+		if bearer != "" {
+			req.Header.Set("Authorization", bearer)
+		}
+		if cookie != "" {
+			req.AddCookie(&http.Cookie{Name: auth.CookieAccess, Value: cookie})
+		}
+		rec := httptest.NewRecorder()
+		h.ServeHTTP(rec, req)
+		return rec
+	}
+	if got := callBearer(http.MethodGet, "/v1/me", "Bearer "+mobile, "").Code; got != http.StatusTeapot {
+		t.Errorf("mobile = %d", got)
+	}
+	if got := callBearer(http.MethodPost, "/v1/attendance/challenge", "Bearer "+mobile, "").Code; got != http.StatusTeapot {
+		t.Errorf("mobile POST = %d", got)
+	}
+	if got := callBearer(http.MethodGet, "/v1/admin/employees", "Bearer "+mobile, "").Code; got != http.StatusForbidden {
+		t.Errorf("permission mobile = %d", got)
+	}
+	if got := callBearer(http.MethodGet, "/v1/me", "Bearer "+web, "").Code; got != http.StatusUnauthorized {
+		t.Errorf("web bearer = %d", got)
+	}
+	if got := callBearer(http.MethodGet, "/v1/me", "Bearer salah", web).Code; got != http.StatusUnauthorized {
+		t.Errorf("fallback cookie = %d", got)
+	}
+	if got := callBearer(http.MethodGet, "/v1/me", "", web).Code; got != http.StatusUnauthorized {
+		t.Errorf("cookie dengan sesi mobile = %d", got)
+	}
+}
+
 func errorCode(t *testing.T, rec *httptest.ResponseRecorder) string {
 	t.Helper()
 	var body struct {
@@ -117,12 +165,16 @@ func TestPermissionMatrix(t *testing.T) {
 	}
 }
 
+var mobileAuthPaths = map[string]bool{"/v1/auth/mobile/login": true, "/v1/auth/mobile/refresh": true}
+
 var publicPaths = map[string]bool{
 	"/v1/auth/web/login":      true,
 	"/v1/auth/web/refresh":    true,
 	"/v1/auth/web/mfa/verify": true,
 	"/v1/auth/activate":       true,
 	"/v1/auth/activate/check": true,
+	"/v1/auth/mobile/login":   true,
+	"/v1/auth/mobile/refresh": true,
 }
 
 // Saat sandi atau MFA belum dipenuhi, hanya route akun sendiri yang terbuka.
@@ -314,6 +366,9 @@ func TestDirectAccessIsBlocked(t *testing.T) {
 	h, _, table := testRouter(t, true)
 	paths := []struct{ method, path string }{{http.MethodGet, "/"}, {http.MethodGet, "/healthz"}, {http.MethodGet, "/readyz"}, {http.MethodGet, "/tidak-ada"}, {http.MethodGet, "/.env"}}
 	for _, r := range table {
+		if mobileAuthPaths[r.Path] {
+			continue
+		}
 		paths = append(paths, struct{ method, path string }{r.Method, r.Path})
 	}
 	for _, p := range paths {
@@ -321,6 +376,20 @@ func TestDirectAccessIsBlocked(t *testing.T) {
 		h.ServeHTTP(rec, directRequest(p.method, p.path, nil))
 		if rec.Code != http.StatusForbidden || errorCode(t, rec) != "API_ACCESS_DENIED" {
 			t.Errorf("%s %s: %d %s", p.method, p.path, rec.Code, rec.Body.String())
+		}
+	}
+
+	// Aplikasi belum punya token saat login, jadi hanya POST ke route ini yang dibuka (D37).
+	for path := range mobileAuthPaths {
+		rec := httptest.NewRecorder()
+		h.ServeHTTP(rec, directRequest(http.MethodPost, path, nil))
+		if rec.Code != http.StatusTeapot {
+			t.Errorf("POST %s: %d %s", path, rec.Code, rec.Body.String())
+		}
+		rec = httptest.NewRecorder()
+		h.ServeHTTP(rec, directRequest(http.MethodGet, path, nil))
+		if rec.Code != http.StatusForbidden {
+			t.Errorf("GET %s: %d", path, rec.Code)
 		}
 	}
 

@@ -67,6 +67,8 @@ func routes(d Deps) []Route {
 		{http.MethodPost, "/v1/auth/web/login", Public, nil, d.Auth.Login},
 		{http.MethodPost, "/v1/auth/web/refresh", Public, nil, d.Auth.Refresh},
 		{http.MethodPost, "/v1/auth/web/mfa/verify", Public, nil, d.Auth.MFAVerify},
+		{http.MethodPost, "/v1/auth/mobile/login", Public, nil, d.Auth.MobileLogin},
+		{http.MethodPost, "/v1/auth/mobile/refresh", Public, nil, d.Auth.MobileRefresh},
 		{http.MethodPost, "/v1/auth/activate", Public, nil, d.Auth.Activate},
 		{http.MethodPost, "/v1/auth/activate/check", Public, nil, d.Auth.CheckActivation},
 		{http.MethodPost, "/v1/auth/logout", AnyUser, nil, d.Auth.Logout},
@@ -172,6 +174,7 @@ func build(d Deps, table []Route) http.Handler {
 	})
 
 	authenticate := auth.Authenticate(d.Signer, d.SessionCheck)
+	authenticateMobile := auth.AuthenticateMobile(d.Signer, d.SessionCheck)
 	for _, route := range table {
 		var chain http.Handler = httpx.H(route.Handler)
 		if route.Access == Guarded {
@@ -181,7 +184,16 @@ func build(d Deps, table []Route) http.Handler {
 			if clockPaths[route.Path] {
 				chain = limitClock(d.Limiter)(chain)
 			}
-			chain = authenticate(limitByUser(d.Limiter)(chain))
+			limited := limitByUser(d.Limiter)(chain)
+			web := authenticate(limited)
+			mobile := authenticateMobile(limited)
+			chain = http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+				if req.Header.Get("Authorization") != "" {
+					mobile.ServeHTTP(w, req)
+					return
+				}
+				web.ServeHTTP(w, req)
+			})
 		}
 		r.Method(route.Method, route.Path, chain)
 	}

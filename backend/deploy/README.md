@@ -145,7 +145,7 @@ dan cara membuat akun SDM pertama (seed ditolak di luar development, dan bootstr
 
 ## Mencoba absen sebelum verifikasi selesai
 
-Absen ditolak bawaan, karena verifikasi perangkat dan wajah belum dibuat. Hanya untuk uji di server
+Absen ditolak bawaan, karena verifikasi perangkat (Play Integrity) belum dibuat. Hanya untuk uji di server
 development, tambahkan baris ini ke `/opt/hris/.env` lalu jalankan `systemctl restart hris-api`:
 
 ```bash
@@ -156,6 +156,33 @@ API menolak menyala bila baris ini dipakai di luar `APP_ENV=development`.
 
 Simulasi presensi melewati Pejuang yang sudah punya perangkat. Daftarkan perangkat sebelum jam masuk,
 karena bila baris simulasi hari ini sudah terisi, absen baru bisa dicoba keesokan harinya.
+
+## Verifikasi wajah (D42)
+
+Wajah dihitung API dari selfie dengan model dlib. Model ini butuh cgo dan pustaka C, jadi disiapkan
+sekali dengan skrip berikut, sebagai root, di Ubuntu atau Debian:
+
+```bash
+bash /opt/hris/src/backend/deploy/setup-face.sh
+bash /opt/hris/src/backend/deploy/deploy.sh
+```
+
+Skrip memasang `libdlib-dev`, BLAS, LAPACK, dan libjpeg, mengunduh dua model dlib (sekitar 30 MB,
+checksum dicocokkan) ke `/opt/hris/face-models`, membuat `/opt/hris/selfies`, lalu mengisi
+`FACE_MODELS_DIR` dan `SELFIE_DIR` di `/opt/hris/.env` serta `FACE_ENGINE=dlib` di `deploy.env`.
+Build API pertama dengan dlib bisa beberapa menit dan butuh RAM sekitar 2 GB.
+
+Periksa setelah deploy:
+
+```bash
+journalctl -u hris-api -n 20 --no-pager | grep -i wajah
+```
+
+Baris `verifikasi wajah aktif` berarti siap. Tanpa langkah ini API tetap jalan, tetapi daftar wajah
+dan absen yang membawa selfie dijawab `FACE_SERVICE_UNAVAILABLE`.
+
+Selfie disimpan terenkripsi dengan kunci `FIELD_ENCRYPTION_KEY_PATH`. Folder selfie ikut dicadangkan
+bersama kunci itu; tanpa kunci, selfie tidak bisa dibuka.
 
 ## Super admin
 

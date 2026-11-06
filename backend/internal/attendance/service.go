@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/netip"
 	"slices"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -18,6 +19,7 @@ import (
 
 	"github.com/rzarxx/HRIS/backend/internal/audit"
 	"github.com/rzarxx/HRIS/backend/internal/auth"
+	"github.com/rzarxx/HRIS/backend/internal/face"
 	"github.com/rzarxx/HRIS/backend/internal/platform/database"
 	"github.com/rzarxx/HRIS/backend/internal/platform/httpx"
 	"github.com/rzarxx/HRIS/backend/internal/platform/pgconv"
@@ -44,8 +46,12 @@ type Options struct {
 	AllowUnverified bool
 	ChallengeTTL    time.Duration
 	Now             func() time.Time
-	// Cipher mengenkripsi template wajah (§5.5). Tanpa cipher, pendaftaran wajah tidak tersedia.
+	// Cipher mengenkripsi template wajah dan selfie (§5.5).
 	Cipher Cipher
+	// Faces menghitung embedding dari selfie (D42) dan Selfies menyimpan fotonya. Tanpa keduanya,
+	// pendaftaran dan absen yang membawa selfie dijawab FACE_SERVICE_UNAVAILABLE.
+	Faces   face.Engine
+	Selfies SelfieStore
 }
 
 // Service memuat aturan presensi (MASTER.md §5.4, alur F8 sampai F10).
@@ -99,7 +105,13 @@ type ClockInput struct {
 	AccuracyM   *float64 `json:"accuracy_m"`
 	CapturedAt  string   `json:"captured_at"`
 	Signals     Signals  `json:"signals"`
-	FaceInput
+	// Bagian wajah (D42). Selfie dikirim sebagai berkas multipart `selfie`; hash-nya di payload
+	// mengikat foto ke challenge.
+	SelfieSHA256   string `json:"selfie_sha256"`
+	LivenessPassed *bool  `json:"liveness_passed"`
+	LivenessAction string `json:"liveness_action"`
+
+	selfie []byte
 }
 
 type parsedClock struct {
@@ -135,6 +147,9 @@ func (in ClockInput) parse() (parsedClock, error) {
 		fields["captured_at"] = "Waktu pengambilan tidak valid."
 	}
 	p.capturedAt = captured
+	if len(in.selfie) > 0 && !strings.EqualFold(in.SelfieSHA256, sha256Hex(in.selfie)) {
+		fields["selfie_sha256"] = "Hash selfie tidak sesuai."
+	}
 	if len(fields) > 0 {
 		return p, httpx.Validation(fields)
 	}
@@ -194,6 +209,8 @@ type Challenge struct {
 	ChallengeID string `json:"challenge_id"`
 	Nonce       string `json:"nonce"`
 	ExpiresAt   string `json:"expires_at"`
+	// LivenessAction adalah gerakan yang harus dilakukan Pejuang saat liveness (D42).
+	LivenessAction string `json:"liveness_action"`
 }
 
 // NewChallenge membuat tantangan sekali pakai yang terikat ke pengguna dan perangkat.
@@ -209,14 +226,21 @@ func (s *Service) NewChallenge(ctx context.Context, p auth.Principal, deviceHead
 	if _, err := rand.Read(raw); err != nil {
 		return Challenge{}, err
 	}
+	action, err := randomLivenessAction()
+	if err != nil {
+		return Challenge{}, err
+	}
 	row, err := s.q.CreateAttendanceChallenge(ctx, store.CreateAttendanceChallengeParams{
 		EmployeeID: p.EmployeeID, DeviceID: device.ID, Nonce: hex.EncodeToString(raw), Purpose: purpose,
-		ExpiresAt: pgconv.Time(s.opt.Now().Add(s.opt.ChallengeTTL)),
+		ExpiresAt: pgconv.Time(s.opt.Now().Add(s.opt.ChallengeTTL)), LivenessAction: pgtype.Text{String: action, Valid: true},
 	})
 	if err != nil {
 		return Challenge{}, err
 	}
-	return Challenge{ChallengeID: row.ID.String(), Nonce: row.Nonce, ExpiresAt: row.ExpiresAt.Time.UTC().Format(time.RFC3339)}, nil
+	return Challenge{
+		ChallengeID: row.ID.String(), Nonce: row.Nonce, ExpiresAt: row.ExpiresAt.Time.UTC().Format(time.RFC3339),
+		LivenessAction: row.LivenessAction.String,
+	}, nil
 }
 
 // attempt mengumpulkan data satu upaya absen untuk attendance_attempts.
@@ -231,6 +255,8 @@ type attempt struct {
 	score     int
 	// approvedAt adalah waktu perangkat disetujui, untuk sinyal new_device_recent.
 	approvedAt pgtype.Timestamptz
+	// livenessAction adalah gerakan yang diminta challenge ini.
+	livenessAction string
 }
 
 func (a attempt) params(outcome, reason string) (store.InsertAttendanceAttemptParams, error) {
@@ -281,15 +307,17 @@ func (s *Service) verify(ctx context.Context, a *attempt, deviceHeader string, i
 	a.device = uuid.NullUUID{UUID: device.ID, Valid: true}
 	a.approvedAt = device.ApprovedAt
 
-	if _, err := s.q.ConsumeAttendanceChallenge(ctx, store.ConsumeAttendanceChallengeParams{
+	challenge, err := s.q.ConsumeAttendanceChallenge(ctx, store.ConsumeAttendanceChallengeParams{
 		Now: pgconv.Time(s.opt.Now()), ID: parsed.challengeID, EmployeeID: a.p.EmployeeID, DeviceID: device.ID, Purpose: a.purpose,
-	}); err != nil {
+	})
+	if err != nil {
 		if pgconv.IsNoRows(err) {
 			return s.reject(ctx, *a, "challenge_expired", httpx.NewError(http.StatusUnprocessableEntity, "CHALLENGE_EXPIRED", "Waktu absen habis, silakan ulangi."))
 		}
 		return err
 	}
 	a.challenge = uuid.NullUUID{UUID: parsed.challengeID, Valid: true}
+	a.livenessAction = challenge.LivenessAction.String
 
 	if !s.opt.AllowUnverified {
 		return s.reject(ctx, *a, "integrity_failed", errBlocked())
@@ -412,7 +440,7 @@ func (s *Service) ClockIn(ctx context.Context, p auth.Principal, ip *netip.Addr,
 	if err != nil {
 		return ClockInResult{}, err
 	}
-	faceScore, err := s.checkFace(ctx, &a, in.FaceInput)
+	faces, err := s.checkFace(ctx, &a, in)
 	if err != nil {
 		return ClockInResult{}, err
 	}
@@ -454,13 +482,16 @@ func (s *Service) ClockIn(ctx context.Context, p auth.Principal, ip *netip.Addr,
 			RiskScore:   accepted.RiskScore, RiskFlags: accepted.RiskFlags, Status: status, LateMinutes: int32(late),
 			WorkMode: where.workMode, FlexibleHours: where.flexible, LocationID: where.locationID(),
 			InLatitude: coordinate(parsed.point.Latitude), InLongitude: coordinate(parsed.point.Longitude),
-			FaceScore: faceScore,
+			FaceScore: faces.score,
 		})
 		if pgconv.IsNoRows(err) {
 			conflict = true
 			return nil
 		}
 		if err != nil {
+			return err
+		}
+		if err := linkCapture(ctx, q, faces, row.ID); err != nil {
 			return err
 		}
 		if err := q.InsertAttendanceAttempt(ctx, accepted); err != nil {
@@ -560,7 +591,8 @@ func (s *Service) ClockOut(ctx context.Context, p auth.Principal, ip *netip.Addr
 	if workMode == WorkModeOnsite {
 		workMode = where.workMode
 	}
-	if _, err := s.checkFace(ctx, &a, in.FaceInput); err != nil {
+	faces, err := s.checkFace(ctx, &a, in)
+	if err != nil {
 		return ClockOutResult{}, err
 	}
 	if err := s.assess(ctx, &a, parsed, now); err != nil {
@@ -597,6 +629,9 @@ func (s *Service) ClockOut(ctx context.Context, p auth.Principal, ip *netip.Addr
 		if err != nil {
 			return err
 		}
+		if err := linkCapture(ctx, q, faces, row.ID); err != nil {
+			return err
+		}
 		if err := q.InsertAttendanceAttempt(ctx, accepted); err != nil {
 			return err
 		}
@@ -615,6 +650,14 @@ func (s *Service) ClockOut(ctx context.Context, p auth.Principal, ip *netip.Addr
 		ClockOutAt: row.ClockOutAt.Time.UTC().Format(time.RFC3339), WorkedMinutes: worked,
 		RequiresReview: row.Status == store.AttStatusReview,
 	}, nil
+}
+
+// linkCapture mengaitkan selfie dengan absen yang tercatat, untuk ditampilkan saat ditinjau.
+func linkCapture(ctx context.Context, q *store.Queries, f faceResult, attendanceID uuid.UUID) error {
+	if !f.capture.Valid {
+		return nil
+	}
+	return q.LinkFaceCapture(ctx, store.LinkFaceCaptureParams{ID: f.capture.UUID, AttendanceID: uuid.NullUUID{UUID: attendanceID, Valid: true}})
 }
 
 func mergeFlags(raw []byte, more []string) ([]byte, error) {
@@ -713,9 +756,23 @@ func (h *Handler) Challenge(w http.ResponseWriter, r *http.Request) error {
 	return httpx.Data(w, http.StatusCreated, out)
 }
 
-func (h *Handler) ClockIn(w http.ResponseWriter, r *http.Request) error {
+// readClock membaca absen: multipart dengan bagian payload dan berkas selfie, atau JSON tanpa
+// selfie yang hanya diterima di development (D36).
+func readClock(r *http.Request) (ClockInput, error) {
 	var in ClockInput
-	if err := httpx.Decode(r, &in); err != nil {
+	files, err := readUpload(r, &in, "selfie", 1)
+	if err != nil {
+		return in, err
+	}
+	if len(files) == 1 {
+		in.selfie = files[0]
+	}
+	return in, nil
+}
+
+func (h *Handler) ClockIn(w http.ResponseWriter, r *http.Request) error {
+	in, err := readClock(r)
+	if err != nil {
 		return err
 	}
 	p, _ := auth.PrincipalFrom(r.Context())
@@ -727,8 +784,8 @@ func (h *Handler) ClockIn(w http.ResponseWriter, r *http.Request) error {
 }
 
 func (h *Handler) ClockOut(w http.ResponseWriter, r *http.Request) error {
-	var in ClockInput
-	if err := httpx.Decode(r, &in); err != nil {
+	in, err := readClock(r)
+	if err != nil {
 		return err
 	}
 	p, _ := auth.PrincipalFrom(r.Context())

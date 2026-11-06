@@ -1,89 +1,114 @@
 package attendance
 
 import (
-	"math"
+	"bytes"
+	"context"
+	"crypto/rand"
+	"errors"
+	"os"
+	"path/filepath"
 	"testing"
+
+	"github.com/rzarxx/HRIS/backend/internal/face"
+	"github.com/rzarxx/HRIS/backend/internal/platform/fieldcrypt"
 )
 
-// vec membuat embedding uji: basis yang sama ditambah sedikit derau per indeks.
-func vec(dim int, base, noise float64, seed int) []float64 {
-	out := make([]float64, dim)
-	for i := range out {
-		out[i] = base*math.Sin(float64(i+1)) + noise*math.Cos(float64((i+1)*(seed+3)))
-	}
-	return out
-}
-
-func TestCosine(t *testing.T) {
-	a := vec(128, 1, 0, 0)
-	if got := Cosine(a, a); math.Abs(got-1) > 1e-9 {
-		t.Errorf("vektor sama = %v", got)
-	}
-	neg := make([]float64, len(a))
-	for i, x := range a {
-		neg[i] = -x
-	}
-	if got := Cosine(a, neg); math.Abs(got+1) > 1e-9 {
-		t.Errorf("vektor berlawanan = %v", got)
-	}
-	if Cosine(a, a[:64]) != 0 || Cosine(nil, nil) != 0 || Cosine(a, make([]float64, 128)) != 0 {
-		t.Error("vektor tidak sebanding harus 0")
-	}
-	nan := append([]float64{math.NaN()}, a[1:]...)
-	if Cosine(a, nan) != 0 {
-		t.Error("NaN harus 0")
-	}
-}
-
-func TestBuildTemplate(t *testing.T) {
-	samples := [][]float64{vec(128, 1, 0.05, 1), vec(128, 1, 0.05, 2), vec(128, 1, 0.05, 3)}
-	tpl, err := BuildTemplate(samples)
-	if err != nil {
-		t.Fatal(err)
-	}
-	var norm float64
-	for _, x := range tpl {
-		norm += x * x
-	}
-	if math.Abs(norm-1) > 1e-9 {
-		t.Errorf("template tidak satuan: %v", norm)
-	}
-	for i, s := range samples {
-		if c := Cosine(tpl, s); c < 0.95 {
-			t.Errorf("sampel %d jauh dari template: %v", i, c)
-		}
-	}
-
-	for name, bad := range map[string][][]float64{
-		"terlalu sedikit": samples[:2],
-		"terlalu banyak":  append(samples, samples...),
-		"dimensi kecil":   {vec(32, 1, 0, 1), vec(32, 1, 0, 2), vec(32, 1, 0, 3)},
-		"dimensi beda":    {vec(128, 1, 0, 1), vec(128, 1, 0, 2), vec(129, 1, 0, 3)},
-		"vektor nol":      {vec(128, 1, 0, 1), vec(128, 1, 0, 2), make([]float64, 128)},
-		"tidak konsisten": {vec(128, 1, 0, 1), vec(128, 1, 0, 2), vec(128, 0, 1, 9)},
+func TestScoreOf(t *testing.T) {
+	for _, c := range []struct {
+		distance float64
+		want     string
+	}{
+		{0, "1"}, {0.35, "0.65"}, {0.5, "0.5"}, {0.6, "0.4"}, {1.3, "0"},
 	} {
-		if _, err := BuildTemplate(bad); err == nil {
-			t.Errorf("%s: harus ditolak", name)
+		if got := scoreOf(c.distance).Decimal.String(); got != c.want {
+			t.Errorf("jarak %v: skor %s, harus %s", c.distance, got, c.want)
 		}
+	}
+	// Ambang skor sama dengan jarak dlib 0.5 dan 0.6.
+	if FaceThresholdPass != 1-0.5 || FaceThresholdReview != 1-0.6 {
+		t.Error("ambang skor tidak sesuai jarak")
+	}
+}
+
+func TestCheckAgreement(t *testing.T) {
+	near := [][]float64{{0, 0}, {0.3, 0}, {0, 0.3}}
+	if !checkAgreement(near) {
+		t.Error("sampel dekat harus lolos")
+	}
+	if checkAgreement(append(near, []float64{0.6, 0})) {
+		t.Error("sampel jauh harus ditolak")
 	}
 }
 
 func TestEmbeddingRoundTrip(t *testing.T) {
-	v := vec(192, 1, 0.1, 4)
+	v := []float64{0.125, -0.5, 0.25, 1}
 	got, err := decodeEmbedding(encodeEmbedding(v))
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(got) != len(v) || Cosine(got, v) < 0.999999 {
-		t.Errorf("hasil decode berbeda")
+	if face.Distance(got, v) != 0 {
+		t.Errorf("hasil decode berbeda: %v", got)
 	}
 	if _, err := decodeEmbedding([]byte{1, 2, 3}); err == nil {
 		t.Error("data rusak harus ditolak")
 	}
 }
 
+func TestFaceProblem(t *testing.T) {
+	for _, err := range []error{face.ErrNoFace, face.ErrManyFaces, face.ErrBadImage} {
+		if msg, ok := faceProblem(err); !ok || msg == "" {
+			t.Errorf("%v harus punya pesan", err)
+		}
+	}
+	if _, ok := faceProblem(errors.New("lain")); ok {
+		t.Error("error lain bukan masalah foto")
+	}
+}
+
 func TestFaceBorderlineScore(t *testing.T) {
 	if RiskScore([]string{flagFaceBorderline}) != 20 {
 		t.Error("face_borderline bernilai 20 poin (§5.4)")
+	}
+}
+
+func TestDiskStoreEncrypts(t *testing.T) {
+	key := make([]byte, 32)
+	if _, err := rand.Read(key); err != nil {
+		t.Fatal(err)
+	}
+	cipher, err := fieldcrypt.New(key)
+	if err != nil {
+		t.Fatal(err)
+	}
+	dir := t.TempDir()
+	store, err := NewDiskStore(dir, cipher)
+	if err != nil {
+		t.Fatal(err)
+	}
+	photo := []byte{0xFF, 0xD8, 0xFF, 'f', 'o', 't', 'o'}
+	if err := store.Put(context.Background(), "clock_in/2026/11/a.jpg.enc", photo); err != nil {
+		t.Fatal(err)
+	}
+	raw, err := os.ReadFile(filepath.Join(dir, "clock_in", "2026", "11", "a.jpg.enc"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if bytes.Contains(raw, photo) {
+		t.Error("selfie tersimpan tanpa enkripsi")
+	}
+	plain, err := cipher.Decrypt(raw)
+	if err != nil || !bytes.Equal(plain, photo) {
+		t.Errorf("dekripsi: %v", err)
+	}
+	for _, bad := range []string{"../luar.jpg", "/abs.jpg", ""} {
+		if err := store.Put(context.Background(), bad, photo); err == nil {
+			t.Errorf("kunci %q harus ditolak", bad)
+		}
+	}
+	if err := store.Delete(context.Background(), "clock_in/2026/11/a.jpg.enc"); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.Delete(context.Background(), "clock_in/2026/11/a.jpg.enc"); err != nil {
+		t.Errorf("hapus berkas yang tidak ada: %v", err)
 	}
 }

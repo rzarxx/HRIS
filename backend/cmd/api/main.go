@@ -19,6 +19,7 @@ import (
 	"github.com/rzarxx/HRIS/backend/internal/device"
 	"github.com/rzarxx/HRIS/backend/internal/devsim"
 	"github.com/rzarxx/HRIS/backend/internal/employee"
+	"github.com/rzarxx/HRIS/backend/internal/face"
 	"github.com/rzarxx/HRIS/backend/internal/location"
 	"github.com/rzarxx/HRIS/backend/internal/org"
 	"github.com/rzarxx/HRIS/backend/internal/platform/config"
@@ -65,6 +66,21 @@ func run() error {
 	if err != nil {
 		return err
 	}
+	attendanceOpt := attendance.Options{AllowUnverified: cfg.DevAllowUnverifiedAttendance, ChallengeTTL: cfg.ChallengeTTL, Cipher: fieldCipher}
+	if cfg.FaceModelsDir != "" {
+		engine, err := face.NewDlib(cfg.FaceModelsDir)
+		if err != nil {
+			return err
+		}
+		selfies, err := attendance.NewDiskStore(cfg.SelfieDir, fieldCipher)
+		if err != nil {
+			return err
+		}
+		attendanceOpt.Faces, attendanceOpt.Selfies = engine, selfies
+		slog.Info("verifikasi wajah aktif", "model", engine.Model())
+	} else {
+		slog.Warn("FACE_MODELS_DIR kosong: daftar wajah dan absen dengan selfie dijawab FACE_SERVICE_UNAVAILABLE")
+	}
 	authSvc, err := auth.NewService(pool, signer, fieldCipher, cfg.MFARequired)
 	if err != nil {
 		return err
@@ -83,7 +99,7 @@ func run() error {
 		Report:       report.NewHandler(report.NewService(q, authSvc.ResolveScope)),
 		Location:     location.NewHandler(location.NewService(pool)),
 		Device:       device.NewHandler(device.NewService(pool)),
-		Attendance:   attendance.NewHandler(attendance.NewService(pool, attendance.Options{AllowUnverified: cfg.DevAllowUnverifiedAttendance, ChallengeTTL: cfg.ChallengeTTL, Cipher: fieldCipher})),
+		Attendance:   attendance.NewHandler(attendance.NewService(pool, attendanceOpt)),
 		Shift:        shift.NewHandler(shift.NewService(pool)),
 		Signer:       signer,
 		SessionCheck: authSvc.SessionState,

@@ -241,7 +241,7 @@ Web Admin (statis) ───┘                                           ├─
 | Aplikasi | API Go, scheduler | Tidak punya akses internet selain FCM, Google API, HMS (jalur C), dan SMTP |
 | Data (privat) | PostgreSQL, Redis, object storage | Tidak terbuka ke internet; hanya dapat dijangkau API |
 
-**Stack:** Go (chi, pgx, sqlc, golang-migrate) · PostgreSQL 16+ · Redis · Next.js (static export) + Refine · Kotlin Jetpack Compose · ML Kit + TFLite MobileFaceNet · FCM · Docker Compose · OpenAPI 3.
+**Stack:** Go (chi, pgx, sqlc, golang-migrate) · PostgreSQL 16+ · Redis · Next.js (static export) + Refine · Kotlin Jetpack Compose · ML Kit (deteksi dan liveness di HP) + dlib lewat go-face (embedding di server, D42) · FCM · Docker Compose · OpenAPI 3.
 
 Domain terpisah: `admin.<domain>` (web statis) dan `api.<domain>` (API), keduanya satu situs (same-site) sehingga cookie `SameSite=Strict` tetap terkirim.
 
@@ -361,17 +361,18 @@ Level `MEETS_STRONG_INTEGRITY` tidak diwajibkan karena menolak banyak HP Android
 | `liveness_retry` (≥ 2 kali ulang) | lunak | +25 |
 | `clock_skew` (jam HP vs server > 5 menit) | lunak | +20 |
 | `new_device_recent` (perangkat disetujui < 24 jam) | lunak | +10 |
-| `embedding_replay` (embedding identik dengan absen sebelumnya) | keras | Tolak |
+| `embedding_replay` (selfie yang sama pernah dikirim Pejuang itu, D42) | keras | Tolak |
 
 **Keputusan skor:** `< 30` → diterima (`present`/`late`); `30-59` → `review`; `≥ 60` → ditolak. Semua upaya (termasuk ditolak) dicatat di `attendance_attempts`. Skor dihitung juga saat absen pulang: skor 30-59 mengubah absen menjadi `review`, penanda digabung, dan skor tertinggi yang disimpan.
 
-**Kebijakan keluaran ke klien:** respons **tidak** memuat `risk_score`, `risk_flags`, atau alasan deteksi keras. Klien hanya menerima `ATTENDANCE_BLOCKED` generik untuk sinyal keamanan, dan kode spesifik untuk hal yang bisa diperbaiki pengguna (`GEOFENCE_OUT`, `FACE_MISMATCH`, `LIVENESS_FAILED`, `CHALLENGE_EXPIRED`). Alasan rinci hanya terlihat oleh SDM.
+**Kebijakan keluaran ke klien:** respons **tidak** memuat `risk_score`, `risk_flags`, atau alasan deteksi keras. Klien hanya menerima `ATTENDANCE_BLOCKED` generik untuk sinyal keamanan, dan kode spesifik untuk hal yang bisa diperbaiki pengguna (`GEOFENCE_OUT`, `FACE_MISMATCH`, `FACE_NOT_DETECTED`, `LIVENESS_FAILED`, `CHALLENGE_EXPIRED`). Alasan rinci hanya terlihat oleh SDM.
 
 **Konfigurasi ambang (nilai awal, wajib dikalibrasi dengan data uji nyata):**
 | Key | Default |
 |---|---|
-| `face.threshold_pass` | 0.70 |
-| `face.threshold_review` | 0.60 |
+| `face.threshold_pass` | 0.50 (skor = 1 - jarak Euclid dlib; jarak 0.50) |
+| `face.threshold_review` | 0.40 (jarak 0.60, batas yang divalidasi pembuat model) |
+| `face.enroll_max_distance` | 0.50 (jarak terjauh antarsampel pendaftaran) |
 | `risk.review_min` | 30 |
 | `risk.reject_min` | 60 |
 | `challenge.ttl_seconds` | 90 |
@@ -425,7 +426,8 @@ Semua HP Android didukung lewat jalur berjenjang. Jalur ditetapkan **server** da
 - Pencocokan bersifat **1:1** (akun sudah diketahui dari token), jadi tidak perlu pgvector. Cosine similarity dihitung di Go.
 - Template disimpan **terenkripsi di level aplikasi** (AES-256-GCM, kunci dari secret manager, `key_id` untuk rotasi) di kolom `embedding_enc`.
 - Pendaftaran wajah wajib: perangkat `approved`, persetujuan (*consent*) biometrik, liveness, challenge, dan dianjurkan dilakukan di lokasi kantor. Reset hanya oleh SDM dan tercatat.
-- Selfie disimpan di bucket privat; akses lewat signed URL 5 menit; dihapus setelah masa retensi.
+- Embedding dihitung server dari selfie dengan model dlib (D42); HP tidak mengirim angka wajah.
+- Selfie disimpan terenkripsi AES-GCM di folder privat server (`SELFIE_DIR`), dicatat di `face_captures`, dan dihapus setelah masa retensi. Akses SDM lewat endpoint ber-permission; signed URL dipakai bila nanti pindah ke bucket.
 
 ### 5.6 Klasifikasi & Retensi Data
 | Kelas | Contoh | Perlindungan | Retensi (usulan, konfirmasi legal/SDM) |
@@ -546,7 +548,7 @@ DDL dasar ada di `QUERY.sql`; perubahan di **Lampiran A** (yang berlaku). Beriku
 | `notification_type` | `approval_requested`, `approval_result`, `announcement_new`, `payslip_ready`, `warning_issued`, `device_decision`, `attendance_review_result` |
 
 ### 6.3 Reason Code Internal (`attendance_attempts.reason_code`)
-`ok`, `challenge_invalid`, `challenge_expired`, `device_not_approved`, `integrity_failed`, `integrity_nonce_mismatch`, `hard_signal`, `geofence_out`, `shift_not_assigned`, `already_clocked_in`, `already_clocked_out`, `not_clocked_in`, `face_not_enrolled`, `liveness_failed`, `face_mismatch`, `risk_too_high`, `risk_review`, `embedding_replay`.
+`ok`, `challenge_invalid`, `challenge_expired`, `device_not_approved`, `integrity_failed`, `integrity_nonce_mismatch`, `hard_signal`, `geofence_out`, `shift_not_assigned`, `already_clocked_in`, `already_clocked_out`, `not_clocked_in`, `face_not_enrolled`, `face_not_detected`, `liveness_failed`, `face_mismatch`, `risk_too_high`, `risk_review`, `embedding_replay`.
 
 ---
 
@@ -623,7 +625,8 @@ Daftar memakai `?page=&per_page=&q=&sort=` (contoh `sort=-created_at`) dan filte
 | 422 | `READ_TOO_SOON` | Tombol sudah baca ditekan sebelum timer baca habis (D27) |
 | 422 | `FACE_NOT_ENROLLED` | Wajah belum terdaftar |
 | 422 | `FACE_MISMATCH` | Wajah tidak cocok |
-| 422 | `LIVENESS_FAILED` | Liveness gagal |
+| 422 | `LIVENESS_FAILED` | Liveness gagal, atau gerakan tidak sama dengan `liveness_action` challenge |
+| 422 | `FACE_NOT_DETECTED` | Selfie tanpa wajah, lebih dari satu wajah, atau tidak bisa dibaca |
 | 422 | `CHALLENGE_EXPIRED` | Tantangan kedaluwarsa/terpakai; minta baru |
 | 422 | `ATTENDANCE_BLOCKED` | Presensi ditolak (alasan keamanan; detail hanya untuk SDM) |
 | 422 | `ACTIVATION_INVALID` | Token undangan tidak dikenal |
@@ -633,6 +636,7 @@ Daftar memakai `?page=&per_page=&q=&sort=` (contoh `sort=-created_at`) dan filte
 | 426 | `APP_UPDATE_REQUIRED` | Versi aplikasi terlalu lama |
 | 429 | `RATE_LIMITED` | Terlalu banyak permintaan (`Retry-After`) |
 | 500 | `INTERNAL_ERROR` | Kesalahan server |
+| 503 | `FACE_SERVICE_UNAVAILABLE` | Mesin wajah server belum dipasang (`FACE_MODELS_DIR` kosong) |
 
 Setiap `code` baru wajib ditambahkan di tabel ini.
 
@@ -756,22 +760,22 @@ respons: `{ "data": { "access_token", "refresh_token", "expires_in", "device_id"
 **Challenge** — `POST /v1/attendance/challenge`
 request: `{ "purpose": "clock_in" }` → respons: `{ "data": { "challenge_id": "uuid", "nonce": "string", "expires_at": "2026-11-02T01:01:30Z" } }`
 
-**Clock-in** — `POST /v1/attendance/clock-in`. Target akhirnya `multipart/form-data` seperti di bawah. Sampai verifikasi perangkat dibuat, API menerima JSON tanpa `selfie` dan `integrity_token` (D36). Bagian wajah (`face_embedding`, `face_model_version`, `liveness_passed`) sudah dicocokkan bila dikirim, dan di development boleh tidak dikirim (D41).
+**Clock-in** — `POST /v1/attendance/clock-in`, `multipart/form-data` seperti di bawah. Server menghitung wajah dari `selfie` dan mencocokkannya dengan template (D42). Sampai verifikasi perangkat dibuat, `integrity_token` belum dibaca, dan JSON tanpa selfie hanya diterima di development (D36).
 - bagian `payload` (JSON):
 ```json
 { "challenge_id": "uuid",
   "latitude": -6.200100, "longitude": 106.816600, "accuracy_m": 12.5,
   "captured_at": "2026-11-02T01:00:00Z",
-  "face_embedding": [0.012, -0.231],
-  "face_model_version": "mobilefacenet-v1",
-  "liveness_passed": true,
-  "integrity_token": "string",
   "selfie_sha256": "hex",
+  "liveness_passed": true,
+  "liveness_action": "blink",
+  "integrity_token": "string",
   "signals": { "is_mock_location": false, "fake_gps_app_detected": false,
                "root_detected": false, "emulator_detected": false,
                "app_version": "1.0.3+12" } }
 ```
-- bagian `selfie` (file JPEG).
+- bagian `selfie` (file JPEG, maksimal 1 MB, satu wajah). `selfie_sha256` wajib sama dengan berkasnya, dan `liveness_action` sama dengan gerakan yang diminta challenge.
+- Challenge menjawab `liveness_action` (`blink`, `turn_left`, `turn_right`, atau `smile`) yang dipilih acak server.
 - `signals` bersifat saran; keputusan memakai verifikasi server.
 
 Respons:
@@ -967,13 +971,13 @@ flowchart TD
     B -- Tidak --> X["Blokir: DEVICE_PENDING_APPROVAL"]
     B -- Ya --> C["Tampilkan dan terima persetujuan biometrik: consents biometric_face"]
     C --> D["App minta challenge purpose face_enroll"]
-    D --> E["Kamera, liveness, ambil 3 sampai 5 sampel embedding"]
-    E --> F{"Sampel konsisten satu sama lain?"}
-    F -- Tidak --> E
-    F -- Ya --> G["Kirim sampel, integrity_token, consent_version"]
+    D --> E["Kamera, liveness sesuai liveness_action, ambil 3 sampai 5 selfie"]
+    E --> G["Kirim selfie, sample_sha256, integrity_token, consent_version"]
     G --> H{"Challenge dan integrity valid? di geofence bila diwajibkan?"}
     H -- Tidak --> X2["Tolak: CHALLENGE_EXPIRED / ATTENDANCE_BLOCKED / GEOFENCE_OUT"]
-    H -- Ya --> I["Gabungkan jadi satu template, enkripsi AES-GCM, simpan embedding_enc"]
+    H -- Ya --> F{"Server: tiap selfie satu wajah dan saling mirip?"}
+    F -- Tidak --> X3["Tolak: FACE_NOT_DETECTED / VALIDATION_FAILED, ambil ulang"]
+    F -- Ya --> I["Gabungkan jadi satu template, enkripsi AES-GCM, simpan embedding_enc"]
     I --> J["Nonaktifkan template lama, audit face.enrolled"]
 ```
 
@@ -1345,7 +1349,7 @@ mobile/app/src/main/java/.../
 ├─ domain/        # use case
 ├─ data/          # repository, api (generate), local
 ├─ security/      # MockLocationDetector, RootDetector, EmulatorDetector, IntegrityClient, SecureStore
-├─ face/          # liveness, embedding, kualitas gambar
+├─ face/          # liveness dan kualitas gambar; embedding dihitung server (D42)
 └─ core/          # error mapper, konstanta (generate)
 ```
 
@@ -1517,6 +1521,8 @@ Estimasi untuk tim kecil; sesuaikan setelah kapasitas tim jelas.
 - [ ] Pendaftaran wajah jarak jauh
 - [x] Challenge, clock-in, clock-out, cutoff harian, dan `worked_minutes` (D31), masih tanpa verifikasi perangkat dan wajah (D36)
 - [x] Enroll + cocok wajah (enkripsi aplikasi), reset oleh SDM, dan `consents` (D41). Masih bergantung pada verifikasi perangkat (D36)
+- [x] Wajah dihitung server dari selfie dengan dlib, selfie terenkripsi, liveness acak, dan tolak selfie yang dikirim ulang (D42)
+- [ ] Lihat selfie di Review Absen dan hapus selfie setelah masa retensi
 - [x] Skor risiko dari sinyal yang sudah tersedia + `attendance_attempts`, termasuk `face_borderline`; sinyal integritas menyusul bersama verifikasinya
 - [x] Halaman Review Absen
 - [x] Halaman Monitor Absen: semua Pejuang per tanggal kerja dan peta titik absen, diperbarui tiap 60 detik. Ini titik saat absen, bukan pelacakan lokasi terus-menerus
@@ -1527,7 +1533,7 @@ Estimasi untuk tim kecil; sesuaikan setelah kapasitas tim jelas.
 - [ ] Aplikasi minimal dimajukan: login, daftar perangkat, absen tanpa wajah. Dikerjakan sebelum Play Integrity dan wajah agar keduanya diuji di HP sungguhan (D35)
 - [ ] Login, profile, penyimpanan token aman (API login, refresh, dan logout mobile sudah ada, D40)
 - [ ] Modul deteksi native
-- [ ] Kamera + liveness + embedding
+- [ ] Kamera + liveness (gerakan dari `liveness_action`) + kirim selfie (D42)
 - [ ] Layar presensi + rekap
 - [ ] FCM, pop-up, banner
 - [ ] Timer sebelum tombol sudah baca, ditegakkan server (D27)
@@ -1605,6 +1611,7 @@ Estimasi untuk tim kecil; sesuaikan setelah kapasitas tim jelas.
 | D39 | Absen hanya diterima dari sesi aplikasi yang terikat perangkat, kecuali di development dengan `DEV_ALLOW_UNVERIFIED_ATTENDANCE` | Sesi web tidak punya ikatan `did`, sehingga orang yang tahu kata sandi bisa mengirim `X-Device-Id` perangkat akun itu. Konsekuensi: absen di produksi baru bisa setelah login mobile tersedia |
 | D40 | Login mobile mewajibkan kode MFA bagi akun yang memakainya, dan sesi mobile berakhir 30 hari setelah login tanpa diperpanjang refresh | Token mobile juga membuka route admin sesuai role, jadi MFA tidak boleh terlewati lewat aplikasi. Konsekuensi: Pejuang masuk ulang dengan kata sandi setiap 30 hari. Login dan refresh mobile dikecualikan dari D37 karena aplikasi belum punya token saat memanggilnya |
 | D41 | Template wajah adalah rata-rata 3 sampai 5 sampel yang saling mirip (cosine ≥ 0.80), disimpan float32 terenkripsi AES-GCM dengan `key_id`. Embedding dari versi model lain diperlakukan sebagai belum terdaftar. Absen development boleh tanpa bagian wajah, tetapi bila dikirim tetap dicocokkan. Pendaftaran yang gagal tidak dicatat di `attendance_attempts`, dan `face_score` hanya disimpan untuk absen masuk | Satu template rata-rata lebih stabil daripada satu foto, dan sampel yang tidak konsisten menandakan wajah orang lain atau gambar buruk. Embedding beda model tidak sebanding, jadi Pejuang mendaftar ulang saat model diganti. Konsekuensi: ambang 0.80, 0.70, dan 0.60 masih nilai awal yang dikalibrasi dengan HP sungguhan, dan `embedding_replay` belum diperiksa |
+| D42 | Embedding wajah dihitung server dari selfie dengan model dlib (go-face), bukan dikirim HP. HP tetap menjalankan deteksi dan liveness, dengan gerakan yang dipilih acak lewat `liveness_action` challenge. Selfie disimpan terenkripsi dan dicatat di `face_captures`; selfie yang sama dari Pejuang yang sama ditolak sebagai `embedding_replay`. Ambang memakai jarak Euclid dlib: diterima ≤ 0.50, `face_borderline` ≤ 0.60, lebih jauh ditolak. Menggantikan bagian D41 tentang embedding dari HP | Embedding dari HP bisa dipalsukan aplikasi yang dibongkar tanpa wajah sama sekali, sedangkan selfie bisa diperiksa ulang dan diaudit SDM. Model dlib dirilis pembuatnya ke domain publik dan tercatat 99,38% pada LFW. Konsekuensi: API butuh cgo dan pustaka dlib di server (`deploy/setup-face.sh`), setiap absen mengunggah foto sekitar 100 sampai 300 KB, dan ambang tetap harus dikalibrasi dengan Pejuang dan HP sungguhan. Model dilatih dari dataset publik (VGG, FaceScrub); konfirmasikan penggunaannya ke bagian legal bersama UU PDP |
 | D15 | `/v1/admin/reports/payroll-preview` mewajibkan `attendance:report` dan `payroll:manage` | Respons memuat gaji, sedangkan §7.6 membatasi `base_salary` untuk `sdm` dan pemilik data |
 
 ### 14.2 Pertanyaan yang Harus Dijawab (blokir pekerjaan terkait)

@@ -133,7 +133,12 @@ func NoContent(w http.ResponseWriter) error {
 // Decode membaca JSON ke dst dan menolak key tak dikenal. Field yang tidak dikirim
 // membiarkan nilai dst apa adanya, sehingga dipakai juga untuk PATCH (ubah sebagian).
 func Decode(r *http.Request, dst any) error {
-	dec := json.NewDecoder(r.Body)
+	return DecodeFrom(r.Body, dst)
+}
+
+// DecodeFrom sama dengan Decode untuk sumber lain, misalnya bagian payload multipart.
+func DecodeFrom(src io.Reader, dst any) error {
+	dec := json.NewDecoder(src)
 	dec.DisallowUnknownFields()
 	if err := dec.Decode(dst); err != nil {
 		var tooLarge *http.MaxBytesError

@@ -62,14 +62,15 @@ func (q *Queries) CreateInactiveUser(ctx context.Context, arg CreateInactiveUser
 }
 
 const createSession = `-- name: CreateSession :one
-INSERT INTO sessions (user_id, client, refresh_hash, ip, user_agent, idle_expires_at, absolute_expires_at)
-VALUES ($1, $2, $3, $4, $5, $6, $7)
+INSERT INTO sessions (user_id, client, device_id, refresh_hash, ip, user_agent, idle_expires_at, absolute_expires_at)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
 RETURNING id
 `
 
 type CreateSessionParams struct {
 	UserID            uuid.UUID
 	Client            string
+	DeviceID          uuid.NullUUID
 	RefreshHash       string
 	Ip                *netip.Addr
 	UserAgent         pgtype.Text
@@ -81,6 +82,7 @@ func (q *Queries) CreateSession(ctx context.Context, arg CreateSessionParams) (u
 	row := q.db.QueryRow(ctx, createSession,
 		arg.UserID,
 		arg.Client,
+		arg.DeviceID,
 		arg.RefreshHash,
 		arg.Ip,
 		arg.UserAgent,
@@ -310,8 +312,9 @@ func (q *Queries) GetSessionByPrevRefreshHash(ctx context.Context, arg GetSessio
 }
 
 const getSessionByRefreshHash = `-- name: GetSessionByRefreshHash :one
-SELECT s.id, s.user_id, s.client, s.device_id, s.refresh_hash, s.prev_refresh_hash, s.ip, s.user_agent, s.created_at, s.last_used_at, s.idle_expires_at, s.absolute_expires_at, s.revoked_at, s.revoke_reason, u.employee_id, u.role, u.is_active
+SELECT s.id, s.user_id, s.client, s.device_id, s.refresh_hash, s.prev_refresh_hash, s.ip, s.user_agent, s.created_at, s.last_used_at, s.idle_expires_at, s.absolute_expires_at, s.revoked_at, s.revoke_reason, u.employee_id, u.role, u.is_active, d.status AS device_status
 FROM sessions s JOIN users u ON u.id = s.user_id
+LEFT JOIN devices d ON d.id = s.device_id AND d.employee_id = u.employee_id
 WHERE s.refresh_hash = $1
 `
 
@@ -333,6 +336,7 @@ type GetSessionByRefreshHashRow struct {
 	EmployeeID        uuid.UUID
 	Role              UserRole
 	IsActive          bool
+	DeviceStatus      NullDeviceStatus
 }
 
 func (q *Queries) GetSessionByRefreshHash(ctx context.Context, refreshHash string) (GetSessionByRefreshHashRow, error) {
@@ -356,6 +360,7 @@ func (q *Queries) GetSessionByRefreshHash(ctx context.Context, refreshHash strin
 		&i.EmployeeID,
 		&i.Role,
 		&i.IsActive,
+		&i.DeviceStatus,
 	)
 	return i, err
 }

@@ -165,12 +165,16 @@ func TestPermissionMatrix(t *testing.T) {
 	}
 }
 
+var mobileAuthPaths = map[string]bool{"/v1/auth/mobile/login": true, "/v1/auth/mobile/refresh": true}
+
 var publicPaths = map[string]bool{
 	"/v1/auth/web/login":      true,
 	"/v1/auth/web/refresh":    true,
 	"/v1/auth/web/mfa/verify": true,
 	"/v1/auth/activate":       true,
 	"/v1/auth/activate/check": true,
+	"/v1/auth/mobile/login":   true,
+	"/v1/auth/mobile/refresh": true,
 }
 
 // Saat sandi atau MFA belum dipenuhi, hanya route akun sendiri yang terbuka.
@@ -362,6 +366,9 @@ func TestDirectAccessIsBlocked(t *testing.T) {
 	h, _, table := testRouter(t, true)
 	paths := []struct{ method, path string }{{http.MethodGet, "/"}, {http.MethodGet, "/healthz"}, {http.MethodGet, "/readyz"}, {http.MethodGet, "/tidak-ada"}, {http.MethodGet, "/.env"}}
 	for _, r := range table {
+		if mobileAuthPaths[r.Path] {
+			continue
+		}
 		paths = append(paths, struct{ method, path string }{r.Method, r.Path})
 	}
 	for _, p := range paths {
@@ -369,6 +376,20 @@ func TestDirectAccessIsBlocked(t *testing.T) {
 		h.ServeHTTP(rec, directRequest(p.method, p.path, nil))
 		if rec.Code != http.StatusForbidden || errorCode(t, rec) != "API_ACCESS_DENIED" {
 			t.Errorf("%s %s: %d %s", p.method, p.path, rec.Code, rec.Body.String())
+		}
+	}
+
+	// Aplikasi belum punya token saat login, jadi hanya POST ke route ini yang dibuka (D37).
+	for path := range mobileAuthPaths {
+		rec := httptest.NewRecorder()
+		h.ServeHTTP(rec, directRequest(http.MethodPost, path, nil))
+		if rec.Code != http.StatusTeapot {
+			t.Errorf("POST %s: %d %s", path, rec.Code, rec.Body.String())
+		}
+		rec = httptest.NewRecorder()
+		h.ServeHTTP(rec, directRequest(http.MethodGet, path, nil))
+		if rec.Code != http.StatusForbidden {
+			t.Errorf("GET %s: %d", path, rec.Code)
 		}
 	}
 

@@ -253,6 +253,102 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/auth/mobile/login": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Login aplikasi mobile dan ikat perangkat
+         * @description Perangkat pertama akun langsung approved, perangkat berikutnya pending sampai disetujui SDM (D32). Akun ber-MFA wajib mengirim mfa_code; tanpa kode dijawab AUTH_MFA_REQUIRED (D40). Perangkat yang dicabut ditolak DEVICE_REVOKED. Sesi berlaku 30 hari dan tidak diperpanjang.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["MobileLoginRequest"];
+                };
+            };
+            responses: {
+                /** @description Berhasil */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data: components["schemas"]["MobileTokens"];
+                        };
+                    };
+                };
+                400: components["responses"]["ValidationFailed"];
+                401: components["responses"]["Error"];
+                403: components["responses"]["Error"];
+                423: components["responses"]["Error"];
+                429: components["responses"]["Error"];
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/auth/mobile/refresh": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Rotasi refresh token mobile
+         * @description Refresh token lama yang dipakai ulang mencabut sesi (F6). Sesi web dan perangkat yang dicabut ditolak.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["MobileRefreshRequest"];
+                };
+            };
+            responses: {
+                /** @description Berhasil */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data: components["schemas"]["MobileTokens"];
+                        };
+                    };
+                };
+                401: components["responses"]["Error"];
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/auth/activate": {
         parameters: {
             query?: never;
@@ -2853,6 +2949,32 @@ export interface components {
             /** Format: email */
             email: string;
             password: string;
+        };
+        MobileLoginRequest: {
+            /** Format: email */
+            email: string;
+            password: string;
+            /** @description Wajib bila akun memakai MFA */
+            mfa_code?: string;
+            device: components["schemas"]["DeviceRegisterInput"];
+        };
+        MobileRefreshRequest: {
+            refresh_token: string;
+        };
+        MobileTokens: {
+            /** @description JWT 15 menit. Simpan di memori saja. */
+            access_token: string;
+            /** @description Simpan di Android Keystore. */
+            refresh_token: string;
+            /** @description Detik sampai access token kedaluwarsa */
+            expires_in: number;
+            /**
+             * Format: uuid
+             * @description Kirim di header X-Device-Id pada route presensi
+             */
+            device_id: string;
+            /** @enum {string} */
+            device_status: "pending" | "approved";
         };
         Me: {
             /** Format: uuid */

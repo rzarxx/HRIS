@@ -68,6 +68,13 @@ type RegisterInput struct {
 }
 
 func (in RegisterInput) validate() error {
+	if fields := in.problems(); len(fields) > 0 {
+		return httpx.Validation(fields)
+	}
+	return nil
+}
+
+func (in RegisterInput) problems() map[string]string {
 	fields := map[string]string{}
 	if !hashPattern.MatchString(in.DeviceHash) {
 		fields["device_hash"] = "Hash perangkat tidak valid."
@@ -81,10 +88,7 @@ func (in RegisterInput) validate() error {
 	if in.FCMToken != nil && len(*in.FCMToken) > maxFCMTokenLen {
 		fields["fcm_token"] = "Token notifikasi terlalu panjang."
 	}
-	if len(fields) > 0 {
-		return httpx.Validation(fields)
-	}
-	return nil
+	return fields
 }
 
 func errRevoked() error {
@@ -132,13 +136,46 @@ func (s *Service) Register(ctx context.Context, p auth.Principal, ip *netip.Addr
 	var out store.Device
 	created := false
 	err := database.InTx(ctx, s.pool, func(q *store.Queries) error {
-		if _, err := q.LockEmployeeForDevice(ctx, p.EmployeeID); err != nil {
+		var err error
+		out, created, err = bind(ctx, q, p.EmployeeID, p.UserID, ip, in)
+		return err
+	})
+	if err != nil {
+		return Device{}, false, err
+	}
+	return present(out), created, nil
+}
+
+// BindForLogin mengikat perangkat saat login mobile, di dalam transaksi pembuatan sesi (F5).
+func BindForLogin(ctx context.Context, q *store.Queries, employeeID, userID uuid.UUID, ip *netip.Addr, d auth.MobileDevice) (auth.BoundDevice, error) {
+	in := RegisterInput(d)
+	if problems := in.problems(); len(problems) > 0 {
+		fields := map[string]string{}
+		for name, msg := range problems {
+			fields["device."+name] = msg
+		}
+		return auth.BoundDevice{}, httpx.Validation(fields)
+	}
+	device, _, err := bind(ctx, q, employeeID, userID, ip, in)
+	if err != nil {
+		return auth.BoundDevice{}, err
+	}
+	return auth.BoundDevice{ID: device.ID, Status: string(device.Status)}, nil
+}
+
+// bind mendaftarkan perangkat baru atau mengenali yang lama. Perangkat langsung approved hanya bila
+// akun belum pernah punya perangkat (D32).
+func bind(ctx context.Context, q *store.Queries, employeeID, userID uuid.UUID, ip *netip.Addr, in RegisterInput) (store.Device, bool, error) {
+	var out store.Device
+	created := false
+	err := func() error {
+		if _, err := q.LockEmployeeForDevice(ctx, employeeID); err != nil {
 			if pgconv.IsNoRows(err) {
 				return httpx.ErrNotFound()
 			}
 			return err
 		}
-		existing, err := q.GetDeviceByHash(ctx, store.GetDeviceByHashParams{EmployeeID: p.EmployeeID, DeviceHash: in.DeviceHash})
+		existing, err := q.GetDeviceByHash(ctx, store.GetDeviceByHashParams{EmployeeID: employeeID, DeviceHash: in.DeviceHash})
 		if err == nil {
 			if existing.Status == store.DeviceStatusRevoked {
 				return errRevoked()
@@ -151,7 +188,7 @@ func (s *Service) Register(ctx context.Context, p auth.Principal, ip *netip.Addr
 		if !pgconv.IsNoRows(err) {
 			return err
 		}
-		count, err := q.CountEmployeeDevices(ctx, p.EmployeeID)
+		count, err := q.CountEmployeeDevices(ctx, employeeID)
 		if err != nil {
 			return err
 		}
@@ -162,7 +199,7 @@ func (s *Service) Register(ctx context.Context, p auth.Principal, ip *netip.Addr
 			approvedAt = pgconv.Time(time.Now())
 		}
 		out, err = q.InsertDevice(ctx, store.InsertDeviceParams{
-			EmployeeID: p.EmployeeID, DeviceHash: in.DeviceHash, Model: pgconv.Text(in.Model),
+			EmployeeID: employeeID, DeviceHash: in.DeviceHash, Model: pgconv.Text(in.Model),
 			OsVersion: pgconv.Text(in.OSVersion), FcmToken: pgconv.Text(in.FCMToken), Status: status, ApprovedAt: approvedAt,
 		})
 		if err != nil {
@@ -170,14 +207,11 @@ func (s *Service) Register(ctx context.Context, p auth.Principal, ip *netip.Addr
 		}
 		created = true
 		return audit.Write(ctx, q, audit.Entry{
-			UserID: audit.Actor(p.UserID), Action: audit.DeviceRegistered, Entity: "device", EntityID: out.ID,
+			UserID: audit.Actor(userID), Action: audit.DeviceRegistered, Entity: "device", EntityID: out.ID,
 			Detail: map[string]any{"status": string(status)}, IP: ip,
 		})
-	})
-	if err != nil {
-		return Device{}, false, err
-	}
-	return present(out), created, nil
+	}()
+	return out, created, err
 }
 
 // Mine mengembalikan semua perangkat milik pengguna.

@@ -176,6 +176,7 @@ func fresh(t *testing.T, opt options) *httptest.Server {
 	if err != nil {
 		t.Fatal(err)
 	}
+	authSvc.SetDeviceBinder(device.BindForLogin)
 	q := store.New(appPool)
 	srv := httptest.NewServer(server.New(server.Deps{
 		Auth:         auth.NewHandler(authSvc, false, "", limiter),

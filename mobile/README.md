@@ -1,0 +1,68 @@
+# Aplikasi Android HRIS Pejuang
+
+Aplikasi untuk Pejuang: login, absen dengan lokasi dan wajah, riwayat, pengajuan, dan slip upah. Acuannya tetap
+`MASTER.md` (§10.2 Mobile, §5.9 Kontrol Mobile, F5 Login Mobile). Stack: Kotlin, Jetpack Compose, MVVM, Hilt,
+Retrofit/OkHttp, CameraX, ML Kit, TFLite MobileFaceNet, Play Integrity, FusedLocationProvider, FCM. `minSdk 26`.
+
+Folder ini masih kosong. Proyek Android dibuat dan dikerjakan di PC lain.
+
+## Yang dipasang di PC pengembang
+
+Pasang versi stabil terbaru saat memulai, lalu catat versinya di bagian akhir README ini.
+
+| Perangkat lunak | Catatan |
+|---|---|
+| Android Studio (stabil) | Sudah termasuk JDK untuk Gradle. Tidak perlu memasang JDK terpisah. |
+| Git | Untuk mengambil repo dan membuat branch `feat/...` seperti biasa. |
+| Driver USB HP | Windows: *Google USB Driver* dari SDK Manager, atau driver dari pabrikan HP. |
+
+Lewat **SDK Manager** di Android Studio:
+
+| Komponen | Untuk apa |
+|---|---|
+| Android SDK Platform | Satu versi untuk `compileSdk` dan `targetSdk`, mengikuti batas *target API level* Google Play saat rilis |
+| Android SDK Build-Tools | Versi terbaru |
+| Android SDK Platform-Tools | `adb`, untuk memasang aplikasi ke HP |
+| Android SDK Command-line Tools | Build dari terminal dan CI |
+| Android Emulator + system image | Opsional. Kamera, GPS, dan Play Integrity tetap harus diuji di HP sungguhan. |
+| NDK dan CMake | Nanti, saat modul deteksi native dibuat (§5.9) |
+
+Pustaka (Compose, Hilt, Retrofit, CameraX, ML Kit, TFLite, Play Integrity, lokasi, Firebase Messaging) diambil
+otomatis oleh Gradle, tidak dipasang manual.
+
+## Akun dan layanan
+
+| Kebutuhan | Kapan |
+|---|---|
+| Akun Google Play Console | Sebelum Play Integrity. Ada biaya pendaftaran sekali dan verifikasi identitas yang bisa makan beberapa hari. |
+| Proyek Firebase | Untuk notifikasi (FCM). File `google-services.json` jangan di-commit. |
+| Play Integrity API | Diaktifkan di proyek Google Cloud yang terhubung ke Play Console |
+| 3 HP Android kelas bawah | Untuk uji. `minSdk 26` berarti Android 8 ke atas. |
+
+## Menghubungkan ke API
+
+- Kontrak ada di `backend/api/openapi.yaml`. Buat klien Kotlin dari kontrak itu, jangan menulis model sendiri.
+- Login: `POST /v1/auth/mobile/login` dengan `email`, `password`, `mfa_code` (bila akun memakai MFA), dan
+  `device.device_hash` (SHA-256 heksadesimal, 64 karakter, stabil per HP). Responsnya `access_token`,
+  `refresh_token`, `device_id`, dan `device_status`.
+- Simpan `refresh_token` di Android Keystore, `access_token` cukup di memori. Perpanjang lewat
+  `POST /v1/auth/mobile/refresh` sebelum access token habis (15 menit). Refresh token lama tidak boleh dipakai
+  ulang, karena sesi langsung dicabut. Sesi berakhir 30 hari setelah login (D40).
+- Kirim `Authorization: Bearer <access_token>` di semua request. Route presensi juga butuh `X-Device-Id`
+  berisi `device_id` dari login.
+- `device_status: pending` berarti HP menunggu persetujuan SDM. Login tetap boleh, tetapi absen ditolak
+  `DEVICE_PENDING_APPROVAL`.
+- Tampilkan pesan dari kode error di `MASTER.md` §7.4, misalnya `DEVICE_REVOKED` dan `ATTENDANCE_BLOCKED`.
+
+## Server development
+
+- Server development masih HTTP. Izinkan cleartext hanya untuk build debug dan hanya ke alamat server itu,
+  lewat *network security config*. Build rilis wajib HTTPS (`cleartextTrafficPermitted=false`).
+- HP biasanya tidak bisa memakai baris `hosts` seperti laptop, jadi `api.hris.local` tidak akan ditemukan.
+  Pakai alamat IP server, atau minta pengelola jaringan menambahkan nama itu di DNS lokal.
+- Selama verifikasi perangkat dan wajah belum dibuat, absen hanya diterima bila server memasang
+  `DEV_ALLOW_UNVERIFIED_ATTENDANCE=true` (D36).
+
+## Versi yang dipakai
+
+Isi saat proyek dibuat: versi Android Studio, Gradle, Kotlin, `compileSdk`, dan `targetSdk`.

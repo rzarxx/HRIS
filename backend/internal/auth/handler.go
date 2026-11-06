@@ -39,11 +39,7 @@ type loginRequest struct {
 	Password string `json:"password"`
 }
 
-func (h *Handler) Login(w http.ResponseWriter, r *http.Request) error {
-	var req loginRequest
-	if err := httpx.Decode(r, &req); err != nil {
-		return err
-	}
+func (req *loginRequest) problems() map[string]string {
 	req.Email = strings.TrimSpace(req.Email)
 	fields := map[string]string{}
 	if req.Email == "" || !strings.Contains(req.Email, "@") || len(req.Email) > 254 {
@@ -54,7 +50,15 @@ func (h *Handler) Login(w http.ResponseWriter, r *http.Request) error {
 	} else if len(req.Password) > 256 {
 		fields["password"] = "Kata sandi terlalu panjang."
 	}
-	if len(fields) > 0 {
+	return fields
+}
+
+func (h *Handler) Login(w http.ResponseWriter, r *http.Request) error {
+	var req loginRequest
+	if err := httpx.Decode(r, &req); err != nil {
+		return err
+	}
+	if fields := req.problems(); len(fields) > 0 {
 		return httpx.Validation(fields)
 	}
 
@@ -73,6 +77,55 @@ func (h *Handler) Login(w http.ResponseWriter, r *http.Request) error {
 		return err
 	}
 	return h.finishLogin(w, r, userID, tokens)
+}
+
+type mobileLoginRequest struct {
+	loginRequest
+	MFACode string       `json:"mfa_code"`
+	Device  MobileDevice `json:"device"`
+}
+
+// MobileLogin menerbitkan token di body, bukan cookie. Batas percobaannya sama dengan login web.
+func (h *Handler) MobileLogin(w http.ResponseWriter, r *http.Request) error {
+	var req mobileLoginRequest
+	if err := httpx.Decode(r, &req); err != nil {
+		return err
+	}
+	fields := req.problems()
+	if len(req.MFACode) > 64 {
+		fields["mfa_code"] = "Kode terlalu panjang."
+	}
+	if len(fields) > 0 {
+		return httpx.Validation(fields)
+	}
+	limitKey := "login:" + strings.ToLower(req.Email)
+	if err := h.checkLimit(w, r, limitKey, loginAttemptLimit, loginAttemptWindow); err != nil {
+		return err
+	}
+	tokens, err := h.svc.LoginMobile(r.Context(), req.Email, req.Password, strings.TrimSpace(req.MFACode), req.Device, audit.ClientIP(r), r.UserAgent(), time.Now())
+	if err != nil {
+		return err
+	}
+	h.resetLimit(r, limitKey)
+	w.Header().Set("Cache-Control", "no-store")
+	return httpx.Data(w, http.StatusOK, tokens)
+}
+
+type mobileRefreshRequest struct {
+	RefreshToken string `json:"refresh_token"`
+}
+
+func (h *Handler) MobileRefresh(w http.ResponseWriter, r *http.Request) error {
+	var req mobileRefreshRequest
+	if err := httpx.Decode(r, &req); err != nil {
+		return err
+	}
+	tokens, err := h.svc.RefreshMobile(r.Context(), req.RefreshToken, audit.ClientIP(r), time.Now())
+	if err != nil {
+		return err
+	}
+	w.Header().Set("Cache-Control", "no-store")
+	return httpx.Data(w, http.StatusOK, tokens)
 }
 
 func (h *Handler) finishLogin(w http.ResponseWriter, r *http.Request, userID uuid.UUID, tokens Tokens) error {

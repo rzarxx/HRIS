@@ -14,13 +14,14 @@ RETURNING failed_login_count, locked_until;
 UPDATE users SET failed_login_count = 0, locked_until = NULL, last_login_at = now() WHERE id = $1;
 
 -- name: CreateSession :one
-INSERT INTO sessions (user_id, client, refresh_hash, ip, user_agent, idle_expires_at, absolute_expires_at)
-VALUES ($1, $2, $3, $4, $5, $6, $7)
+INSERT INTO sessions (user_id, client, device_id, refresh_hash, ip, user_agent, idle_expires_at, absolute_expires_at)
+VALUES (@user_id, @client, sqlc.narg(device_id), @refresh_hash, @ip, @user_agent, @idle_expires_at, @absolute_expires_at)
 RETURNING id;
 
 -- name: GetSessionByRefreshHash :one
-SELECT s.*, u.employee_id, u.role, u.is_active
+SELECT s.*, u.employee_id, u.role, u.is_active, d.status AS device_status
 FROM sessions s JOIN users u ON u.id = s.user_id
+LEFT JOIN devices d ON d.id = s.device_id AND d.employee_id = u.employee_id
 WHERE s.refresh_hash = $1;
 
 -- name: GetSessionByPrevRefreshHash :one

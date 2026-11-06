@@ -112,6 +112,54 @@ paths:
         "400": { $ref: "#/components/responses/ValidationFailed" }
         "401": { $ref: "#/components/responses/Error" }
         "429": { $ref: "#/components/responses/Error" }
+  /v1/auth/mobile/login:
+    post:
+      tags: [Auth]
+      summary: Login aplikasi mobile dan ikat perangkat
+      description: "Perangkat pertama akun langsung approved, perangkat berikutnya pending sampai disetujui SDM (D32). Akun ber-MFA wajib mengirim mfa_code; tanpa kode dijawab AUTH_MFA_REQUIRED (D40). Perangkat yang dicabut ditolak DEVICE_REVOKED. Sesi berlaku 30 hari dan tidak diperpanjang."
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/MobileLoginRequest" }
+      responses:
+        "200":
+          description: Berhasil
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data: { $ref: "#/components/schemas/MobileTokens" }
+        "400": { $ref: "#/components/responses/ValidationFailed" }
+        "401": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+        "423": { $ref: "#/components/responses/Error" }
+        "429": { $ref: "#/components/responses/Error" }
+  /v1/auth/mobile/refresh:
+    post:
+      tags: [Auth]
+      summary: Rotasi refresh token mobile
+      description: Refresh token lama yang dipakai ulang mencabut sesi (F6). Sesi web dan perangkat yang dicabut ditolak.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/MobileRefreshRequest" }
+      responses:
+        "200":
+          description: Berhasil
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data: { $ref: "#/components/schemas/MobileTokens" }
+        "401": { $ref: "#/components/responses/Error" }
   /v1/auth/activate:
     post:
       tags: [Auth]
@@ -1489,6 +1537,28 @@ components:
       properties:
         email: { type: string, format: email }
         password: { type: string }
+    MobileLoginRequest:
+      type: object
+      required: [email, password, device]
+      properties:
+        email: { type: string, format: email }
+        password: { type: string }
+        mfa_code: { type: string, description: Wajib bila akun memakai MFA }
+        device: { $ref: "#/components/schemas/DeviceRegisterInput" }
+    MobileRefreshRequest:
+      type: object
+      required: [refresh_token]
+      properties:
+        refresh_token: { type: string }
+    MobileTokens:
+      type: object
+      required: [access_token, refresh_token, expires_in, device_id, device_status]
+      properties:
+        access_token: { type: string, description: JWT 15 menit. Simpan di memori saja. }
+        refresh_token: { type: string, description: Simpan di Android Keystore. }
+        expires_in: { type: integer, description: Detik sampai access token kedaluwarsa }
+        device_id: { type: string, format: uuid, description: Kirim di header X-Device-Id pada route presensi }
+        device_status: { type: string, enum: [pending, approved] }
     Me:
       type: object
       required:

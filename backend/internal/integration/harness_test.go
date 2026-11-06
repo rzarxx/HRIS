@@ -187,7 +187,7 @@ func fresh(t *testing.T, opt options) *httptest.Server {
 		Report:       report.NewHandler(report.NewService(q, authSvc.ResolveScope)),
 		Location:     location.NewHandler(location.NewService(appPool)),
 		Device:       device.NewHandler(device.NewService(appPool)),
-		Attendance:   attendance.NewHandler(attendance.NewService(appPool, attendance.Options{AllowUnverified: opt.allowUnverified, Now: opt.clock})),
+		Attendance:   attendance.NewHandler(attendance.NewService(appPool, attendance.Options{AllowUnverified: opt.allowUnverified, Now: opt.clock, Cipher: cipher})),
 		Shift:        shift.NewHandler(shift.NewService(appPool)),
 		Signer:       signer,
 		SessionCheck: authSvc.SessionState,

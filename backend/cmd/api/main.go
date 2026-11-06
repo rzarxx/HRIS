@@ -83,7 +83,7 @@ func run() error {
 		Report:       report.NewHandler(report.NewService(q, authSvc.ResolveScope)),
 		Location:     location.NewHandler(location.NewService(pool)),
 		Device:       device.NewHandler(device.NewService(pool)),
-		Attendance:   attendance.NewHandler(attendance.NewService(pool, attendance.Options{AllowUnverified: cfg.DevAllowUnverifiedAttendance, ChallengeTTL: cfg.ChallengeTTL})),
+		Attendance:   attendance.NewHandler(attendance.NewService(pool, attendance.Options{AllowUnverified: cfg.DevAllowUnverifiedAttendance, ChallengeTTL: cfg.ChallengeTTL, Cipher: fieldCipher})),
 		Shift:        shift.NewHandler(shift.NewService(pool)),
 		Signer:       signer,
 		SessionCheck: authSvc.SessionState,

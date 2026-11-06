@@ -339,6 +339,8 @@ type Me struct {
 	MFAEnabled         bool     `json:"mfa_enabled"`
 	// DeviceStatus hanya terisi untuk sesi aplikasi, agar aplikasi tahu layar yang harus ditampilkan (F5).
 	DeviceStatus *string `json:"device_status"`
+	// FaceEnrolled memberi tahu aplikasi apakah harus membuka alur daftar wajah (F7).
+	FaceEnrolled bool `json:"face_enrolled"`
 }
 
 type Ref struct {
@@ -360,6 +362,10 @@ func (s *Service) Me(ctx context.Context, userID, deviceID uuid.UUID) (Me, error
 		return Me{}, err
 	}
 	mfaEnabled := err == nil && mfa.EnabledAt.Valid
+	faceEnrolled, err := s.q.EmployeeHasFace(ctx, row.EmployeeID)
+	if err != nil {
+		return Me{}, err
+	}
 	var deviceStatus *string
 	if deviceID != uuid.Nil {
 		status, err := s.q.GetDeviceStatus(ctx, deviceID)
@@ -385,6 +391,7 @@ func (s *Service) Me(ctx context.Context, userID, deviceID uuid.UUID) (Me, error
 		MustChangePassword: row.MustChangePassword,
 		MFAEnabled:         mfaEnabled,
 		DeviceStatus:       deviceStatus,
+		FaceEnrolled:       faceEnrolled,
 	}, nil
 }
 

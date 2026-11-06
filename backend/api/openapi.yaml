@@ -20,6 +20,7 @@ tags:
   - name: Pejuang
   - name: Akun
   - name: Presensi
+  - name: Wajah
   - name: Perangkat
   - name: Lokasi
   - name: Shift
@@ -699,6 +700,81 @@ paths:
                     type: array
                     items: { $ref: "#/components/schemas/AttendanceRecord" }
         "400": { $ref: "#/components/responses/ValidationFailed" }
+  /v1/face/status:
+    get:
+      tags: [Wajah]
+      summary: Status wajah sendiri
+      description: "Permission `face:enroll`. Template wajah tidak pernah dikirim ke klien."
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data: { $ref: "#/components/schemas/FaceStatus" }
+  /v1/face/enroll:
+    post:
+      tags: [Wajah]
+      summary: Daftarkan wajah (F7)
+      description: "Permission `face:enroll`. Butuh perangkat approved, challenge `face_enroll`, persetujuan biometrik, liveness, dan lokasi di dalam geofence kantor (`face.enroll_requires_geofence`). Template lama dinonaktifkan. Sama seperti absen, ditolak `ATTENDANCE_BLOCKED` sampai verifikasi perangkat dibuat, kecuali di development (D36)."
+      parameters:
+        - { name: X-Device-Id, in: header, required: true, description: "ID perangkat dari hasil registrasi", schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/FaceEnrollInput" }
+      responses:
+        "201":
+          description: Wajah terdaftar
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data: { $ref: "#/components/schemas/FaceStatus" }
+        "400": { $ref: "#/components/responses/ValidationFailed" }
+        "403": { $ref: "#/components/responses/Error" }
+        "422": { $ref: "#/components/responses/Error" }
+  /v1/consents:
+    post:
+      tags: [Wajah]
+      summary: Catat persetujuan pengguna
+      description: "Untuk diri sendiri. Persetujuan biometrik juga dicatat otomatis saat pendaftaran wajah."
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ConsentInput" }
+      responses:
+        "204": { description: Tersimpan }
+        "400": { $ref: "#/components/responses/ValidationFailed" }
+  /v1/admin/employees/{id}/face/reset:
+    parameters:
+      - $ref: "#/components/parameters/Id"
+    post:
+      tags: [Wajah]
+      summary: Reset wajah Pejuang
+      description: "Permission `face:reset` (SDM). Pejuang harus mendaftar ulang. Tidak untuk diri sendiri (`CONFLICT_SELF_ACTION`) dan tidak untuk super admin (D34). 404 bila wajahnya belum terdaftar."
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [reason]
+              properties:
+                reason: { type: string, maxLength: 500 }
+      responses:
+        "204": { description: Wajah direset }
+        "400": { $ref: "#/components/responses/ValidationFailed" }
+        "403": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+        "409": { $ref: "#/components/responses/Error" }
   /v1/devices/register:
     post:
       tags: [Perangkat]
@@ -1610,7 +1686,7 @@ components:
     Me:
       type: object
       required:
-        [user_id, employee_id, role, full_name, nip, email, position, subdivision, division, permissions, must_change_password, mfa_enabled]
+        [user_id, employee_id, role, full_name, nip, email, position, subdivision, division, permissions, must_change_password, mfa_enabled, face_enrolled]
       properties:
         user_id: { type: string, format: uuid }
         employee_id: { type: string, format: uuid }
@@ -1631,6 +1707,7 @@ components:
           nullable: true
           enum: [pending, approved, revoked, null]
           description: Status perangkat sesi aplikasi. Null untuk sesi web.
+        face_enrolled: { type: boolean, description: "Wajah sudah terdaftar. Bila false, aplikasi membuka alur daftar wajah (F7)." }
     DivisionInput:
       allOf:
         - $ref: "#/components/schemas/DivisionPatch"
@@ -1704,7 +1781,7 @@ components:
     Employee:
       type: object
       required:
-        [id, nip, full_name, email, phone, subdivision_id, subdivision_name, division_id, division_name, position, join_date, status, default_shift_id, default_shift_name]
+        [id, nip, full_name, email, phone, subdivision_id, subdivision_name, division_id, division_name, position, join_date, status, default_shift_id, default_shift_name, face_enrolled]
       properties:
         id: { type: string, format: uuid }
         nip: { type: string }
@@ -1720,6 +1797,7 @@ components:
         status: { $ref: "#/components/schemas/EmployeeStatus" }
         default_shift_id: { type: string, format: uuid, nullable: true }
         default_shift_name: { type: string, nullable: true }
+        face_enrolled: { type: boolean, description: Pejuang punya template wajah aktif }
         base_salary:
           allOf: [{ $ref: "#/components/schemas/Money" }]
           description: Hanya untuk sdm dan pemilik data
@@ -1906,7 +1984,7 @@ components:
       type: object
       required: [purpose]
       properties:
-        purpose: { type: string, enum: [clock_in, clock_out] }
+        purpose: { type: string, enum: [clock_in, clock_out, face_enroll] }
     AttendanceChallenge:
       type: object
       required: [challenge_id, nonce, expires_at]
@@ -1917,7 +1995,7 @@ components:
     ClockInput:
       type: object
       required: [challenge_id, latitude, longitude, accuracy_m, captured_at]
-      description: "Foto wajah dan token integritas ditambahkan bersama verifikasinya."
+      description: "Bagian wajah dicocokkan 1:1 dengan template aktif: di bawah 0.60 ditolak `FACE_MISMATCH`, 0.60 sampai 0.70 diterima dengan sinyal `face_borderline` (+20). Absen development boleh tanpa bagian wajah (D36). Selfie dan token integritas ditambahkan bersama verifikasinya."
       properties:
         challenge_id: { type: string, format: uuid }
         latitude: { type: number, minimum: -90, maximum: 90, example: -6.2001 }
@@ -1925,6 +2003,40 @@ components:
         accuracy_m: { type: number, minimum: 0, example: 12.5 }
         captured_at: { type: string, format: date-time }
         signals: { $ref: "#/components/schemas/AttendanceSignals" }
+        face_embedding: { type: array, items: { type: number }, minItems: 64, maxItems: 1024, description: Embedding dari model di HP }
+        face_model_version: { type: string, maxLength: 64, example: mobilefacenet-v1 }
+        liveness_passed: { type: boolean }
+    FaceEnrollInput:
+      type: object
+      required: [challenge_id, samples, face_model_version, liveness_passed, consent_version, latitude, longitude, accuracy_m]
+      properties:
+        challenge_id: { type: string, format: uuid, description: "Challenge `face_enroll`" }
+        samples:
+          type: array
+          minItems: 3
+          maxItems: 5
+          description: Sampel embedding berdimensi sama dan saling mirip. Server menggabungkannya menjadi satu template terenkripsi.
+          items: { type: array, items: { type: number }, minItems: 64, maxItems: 1024 }
+        face_model_version: { type: string, maxLength: 64, example: mobilefacenet-v1 }
+        liveness_passed: { type: boolean }
+        consent_version: { type: string, maxLength: 32, description: Versi teks persetujuan biometrik yang diterima }
+        latitude: { type: number, minimum: -90, maximum: 90 }
+        longitude: { type: number, minimum: -180, maximum: 180 }
+        accuracy_m: { type: number, minimum: 0 }
+        signals: { $ref: "#/components/schemas/AttendanceSignals" }
+    FaceStatus:
+      type: object
+      required: [enrolled, model_version, enrolled_at]
+      properties:
+        enrolled: { type: boolean }
+        model_version: { type: string, nullable: true }
+        enrolled_at: { type: string, format: date-time, nullable: true }
+    ConsentInput:
+      type: object
+      required: [type, version]
+      properties:
+        type: { type: string, enum: [biometric_face, location] }
+        version: { type: string, maxLength: 32 }
     AttendanceSignals:
       type: object
       description: "Laporan dari HP. Sifatnya saran, tetapi laporan buruk tetap ditolak."
@@ -2151,7 +2263,7 @@ components:
         nip: { type: string }
         subdivision_name: { type: string }
         division_name: { type: string }
-        purpose: { type: string, enum: [clock_in, clock_out] }
+        purpose: { type: string, enum: [clock_in, clock_out, face_enroll] }
         outcome: { type: string, enum: [accepted, review, rejected] }
         reason_code: { type: string, description: "Kode internal MASTER.md §6.3" }
         risk_score: { type: integer }

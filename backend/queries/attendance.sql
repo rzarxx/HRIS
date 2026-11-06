@@ -24,8 +24,8 @@ SELECT sh.* FROM employees e JOIN shifts sh ON sh.id = e.default_shift_id WHERE 
 SELECT EXISTS (SELECT 1 FROM holidays WHERE date = $1);
 
 -- name: ClockIn :one
-INSERT INTO attendances (employee_id, work_date, shift_id, clock_in_at, in_accuracy_m, risk_score, risk_flags, status, late_minutes, work_mode, flexible_hours, location_id, in_latitude, in_longitude)
-VALUES (@employee_id, @work_date, @shift_id, @clock_in_at, @in_accuracy_m, @risk_score, @risk_flags, @status, @late_minutes, @work_mode, @flexible_hours, @location_id, @in_latitude, @in_longitude)
+INSERT INTO attendances (employee_id, work_date, shift_id, clock_in_at, in_accuracy_m, risk_score, risk_flags, status, late_minutes, work_mode, flexible_hours, location_id, in_latitude, in_longitude, face_score)
+VALUES (@employee_id, @work_date, @shift_id, @clock_in_at, @in_accuracy_m, @risk_score, @risk_flags, @status, @late_minutes, @work_mode, @flexible_hours, @location_id, @in_latitude, @in_longitude, @face_score)
 ON CONFLICT (employee_id, work_date) DO NOTHING
 RETURNING *;
 
@@ -134,3 +134,18 @@ WHERE a.created_at >= @from_at AND a.created_at < @to_at
   AND (sqlc.narg(outcome)::text IS NULL OR a.outcome = sqlc.narg(outcome))
 ORDER BY a.created_at DESC, a.id DESC
 LIMIT @page_limit OFFSET @page_offset;
+
+-- name: GetActiveFaceTemplate :one
+SELECT * FROM face_templates WHERE employee_id = $1 AND is_active;
+
+-- name: DeactivateFaceTemplates :execrows
+UPDATE face_templates SET is_active = false, deactivated_at = now(), deactivated_by = @actor
+WHERE employee_id = @employee_id AND is_active;
+
+-- name: InsertFaceTemplate :one
+INSERT INTO face_templates (employee_id, device_id, embedding_enc, key_id, model_version, dimension)
+VALUES (@employee_id, @device_id, @embedding_enc, @key_id, @model_version, @dimension)
+RETURNING *;
+
+-- name: InsertConsent :exec
+INSERT INTO consents (employee_id, type, version, ip) VALUES (@employee_id, @type, @version, @ip);

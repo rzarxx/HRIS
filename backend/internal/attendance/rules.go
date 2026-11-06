@@ -142,10 +142,11 @@ const (
 )
 
 var softPoints = map[string]int{
-	flagAccuracyLow:  15,
-	flagLocationJump: 40,
-	flagClockSkew:    20,
-	flagNewDevice:    10,
+	flagAccuracyLow:    15,
+	flagLocationJump:   40,
+	flagClockSkew:      20,
+	flagNewDevice:      10,
+	flagFaceBorderline: 20,
 }
 
 // PointAt adalah titik absen beserta waktunya.

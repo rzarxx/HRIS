@@ -1570,6 +1570,191 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/face/status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Status wajah sendiri
+         * @description Permission `face:enroll`. Template wajah tidak pernah dikirim ke klien.
+         */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data: components["schemas"]["FaceStatus"];
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/face/enroll": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Daftarkan wajah (F7)
+         * @description Permission `face:enroll`. Butuh perangkat approved, challenge `face_enroll`, persetujuan biometrik, liveness, dan lokasi di dalam geofence kantor (`face.enroll_requires_geofence`). Template lama dinonaktifkan. Sama seperti absen, ditolak `ATTENDANCE_BLOCKED` sampai verifikasi perangkat dibuat, kecuali di development (D36).
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header: {
+                    /** @description ID perangkat dari hasil registrasi */
+                    "X-Device-Id": string;
+                };
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["FaceEnrollInput"];
+                };
+            };
+            responses: {
+                /** @description Wajah terdaftar */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data: components["schemas"]["FaceStatus"];
+                        };
+                    };
+                };
+                400: components["responses"]["ValidationFailed"];
+                403: components["responses"]["Error"];
+                422: components["responses"]["Error"];
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/consents": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Catat persetujuan pengguna
+         * @description Untuk diri sendiri. Persetujuan biometrik juga dicatat otomatis saat pendaftaran wajah.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["ConsentInput"];
+                };
+            };
+            responses: {
+                /** @description Tersimpan */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                400: components["responses"]["ValidationFailed"];
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/employees/{id}/face/reset": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Reset wajah Pejuang
+         * @description Permission `face:reset` (SDM). Pejuang harus mendaftar ulang. Tidak untuk diri sendiri (`CONFLICT_SELF_ACTION`) dan tidak untuk super admin (D34). 404 bila wajahnya belum terdaftar.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: components["parameters"]["Id"];
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        reason: string;
+                    };
+                };
+            };
+            responses: {
+                /** @description Wajah direset */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                400: components["responses"]["ValidationFailed"];
+                403: components["responses"]["Error"];
+                404: components["responses"]["Error"];
+                409: components["responses"]["Error"];
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/devices/register": {
         parameters: {
             query?: never;
@@ -3090,6 +3275,8 @@ export interface components {
              * @enum {string|null}
              */
             device_status?: "pending" | "approved" | "revoked" | null;
+            /** @description Wajah sudah terdaftar. Bila false, aplikasi membuka alur daftar wajah (F7). */
+            face_enrolled: boolean;
         };
         DivisionInput: components["schemas"]["DivisionPatch"] & Record<string, never>;
         /** @description Pada PATCH, field yang tidak dikirim tetap nilai lamanya. */
@@ -3179,6 +3366,8 @@ export interface components {
             /** Format: uuid */
             default_shift_id: string | null;
             default_shift_name: string | null;
+            /** @description Pejuang punya template wajah aktif */
+            face_enrolled: boolean;
             /** @description Hanya untuk sdm dan pemilik data */
             base_salary?: components["schemas"]["Money"];
             /** @description Hanya untuk pemegang user:manage. Tidak ada bila Pejuang belum punya akun. */
@@ -3338,7 +3527,7 @@ export interface components {
         };
         AttendanceChallengeInput: {
             /** @enum {string} */
-            purpose: "clock_in" | "clock_out";
+            purpose: "clock_in" | "clock_out" | "face_enroll";
         };
         AttendanceChallenge: {
             /** Format: uuid */
@@ -3347,7 +3536,7 @@ export interface components {
             /** Format: date-time */
             expires_at: string;
         };
-        /** @description Foto wajah dan token integritas ditambahkan bersama verifikasinya. */
+        /** @description Bagian wajah dicocokkan 1:1 dengan template aktif: di bawah 0.60 ditolak `FACE_MISMATCH`, 0.60 sampai 0.70 diterima dengan sinyal `face_borderline` (+20). Absen development boleh tanpa bagian wajah (D36). Selfie dan token integritas ditambahkan bersama verifikasinya. */
         ClockInput: {
             /** Format: uuid */
             challenge_id: string;
@@ -3360,6 +3549,40 @@ export interface components {
             /** Format: date-time */
             captured_at: string;
             signals?: components["schemas"]["AttendanceSignals"];
+            /** @description Embedding dari model di HP */
+            face_embedding?: number[];
+            /** @example mobilefacenet-v1 */
+            face_model_version?: string;
+            liveness_passed?: boolean;
+        };
+        FaceEnrollInput: {
+            /**
+             * Format: uuid
+             * @description Challenge `face_enroll`
+             */
+            challenge_id: string;
+            /** @description Sampel embedding berdimensi sama dan saling mirip. Server menggabungkannya menjadi satu template terenkripsi. */
+            samples: number[][];
+            /** @example mobilefacenet-v1 */
+            face_model_version: string;
+            liveness_passed: boolean;
+            /** @description Versi teks persetujuan biometrik yang diterima */
+            consent_version: string;
+            latitude: number;
+            longitude: number;
+            accuracy_m: number;
+            signals?: components["schemas"]["AttendanceSignals"];
+        };
+        FaceStatus: {
+            enrolled: boolean;
+            model_version: string | null;
+            /** Format: date-time */
+            enrolled_at: string | null;
+        };
+        ConsentInput: {
+            /** @enum {string} */
+            type: "biometric_face" | "location";
+            version: string;
         };
         /** @description Laporan dari HP. Sifatnya saran, tetapi laporan buruk tetap ditolak. */
         AttendanceSignals: {
@@ -3589,7 +3812,7 @@ export interface components {
             subdivision_name: string;
             division_name: string;
             /** @enum {string} */
-            purpose: "clock_in" | "clock_out";
+            purpose: "clock_in" | "clock_out" | "face_enroll";
             /** @enum {string} */
             outcome: "accepted" | "review" | "rejected";
             /** @description Kode internal MASTER.md §6.3 */

@@ -67,19 +67,26 @@ jobs:
   # contoh dari go-face-testdata. Foto tidak disimpan di repo.
   face-dlib:
     runs-on: ubuntu-latest
+    # Sama dengan server development (Ubuntu 22.04). Runner terbaru tidak lagi punya libatlas-base-dev.
+    container: ubuntu:22.04
     defaults:
       run:
+        shell: bash
         working-directory: backend
     env:
       TESTDATA: https://github.com/Kagami/go-face-testdata/raw/96ccafa591055ef57286ffed1c3d7e39d17140b7
+      DEBIAN_FRONTEND: noninteractive
     steps:
+      - name: Pustaka dlib dan alat build
+        working-directory: /
+        run: |
+          apt-get update -q
+          apt-get install -y -q ca-certificates curl git build-essential libdlib-dev libblas-dev libatlas-base-dev liblapack-dev libjpeg-turbo8-dev
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
         with:
           go-version-file: backend/go.mod
           cache-dependency-path: backend/go.sum
-      - name: Pustaka dlib
-        run: sudo apt-get update -q && sudo apt-get install -y -q libdlib-dev libblas-dev libatlas-base-dev liblapack-dev libjpeg-turbo8-dev
       - name: Model dan foto uji
         run: |
           mkdir -p "$RUNNER_TEMP/face/models" "$RUNNER_TEMP/face/images"

@@ -1,30 +1,191 @@
 package face
 
 import (
+	"bytes"
+	"image"
+	"image/color"
+	"image/jpeg"
 	"math"
 	"testing"
 )
 
-func TestDistanceAndMean(t *testing.T) {
-	a := []float64{0, 0, 0}
-	b := []float64{3, 4, 0}
-	if d := Distance(a, b); d != 5 {
-		t.Errorf("jarak = %v", d)
+func near(a, b, tol float64) bool { return math.Abs(a-b) <= tol }
+
+func TestCosineAndTemplate(t *testing.T) {
+	a := []float64{1, 0, 0}
+	if c := Cosine(a, []float64{2, 0, 0}); !near(c, 1, 1e-12) {
+		t.Errorf("searah = %v", c)
 	}
-	if !math.IsInf(Distance(a, b[:2]), 1) || !math.IsInf(Distance(nil, nil), 1) {
-		t.Error("dimensi berbeda harus tak hingga")
+	if c := Cosine(a, []float64{0, 3, 0}); !near(c, 0, 1e-12) {
+		t.Errorf("tegak lurus = %v", c)
 	}
-	m := Mean([][]float64{{1, 2}, {3, 6}})
-	if m[0] != 2 || m[1] != 4 {
-		t.Errorf("rata-rata = %v", m)
+	if Cosine(a, []float64{1, 0}) != -1 || Cosine(a, []float64{0, 0, 0}) != -1 || Cosine(nil, nil) != -1 {
+		t.Error("vektor tidak sebanding harus -1")
 	}
-	if Mean(nil) != nil {
-		t.Error("rata-rata kosong")
+	tpl := Template([][]float64{{1, 0}, {0, 1}})
+	if !near(tpl[0], math.Sqrt(0.5), 1e-12) || !near(tpl[1], math.Sqrt(0.5), 1e-12) {
+		t.Errorf("template = %v", tpl)
+	}
+	if Template(nil) != nil || Template([][]float64{{1, 0}, {0, 0}}) != nil {
+		t.Error("template tidak valid harus nil")
+	}
+	if MinSimilarityReview >= MinSimilarityPass {
+		t.Error("ambang review harus di bawah ambang lolos")
 	}
 }
 
 func TestIsJPEG(t *testing.T) {
 	if !IsJPEG([]byte{0xFF, 0xD8, 0xFF, 0xE0}) || IsJPEG([]byte("\x89PNG")) || IsJPEG(nil) {
 		t.Error("deteksi JPEG")
+	}
+}
+
+// Transformasi kemiripan harus menemukan kembali rotasi, skala, dan geseran yang diketahui.
+func TestSimilarityTransform(t *testing.T) {
+	angle, scale, tx, ty := 0.3, 1.7, -12.0, 40.0
+	// Titik sumber dibuat dari template dengan transformasi kebalikan, jadi hasilnya harus persis.
+	inv := func(p [2]float64) [2]float64 {
+		x, y := p[0]-tx, p[1]-ty
+		c, s := math.Cos(-angle)/scale, math.Sin(-angle)/scale
+		return [2]float64{c*x - s*y, s*x + c*y}
+	}
+	var src [5][2]float64
+	for i, p := range arcfaceTemplate {
+		src[i] = inv(p)
+	}
+	m := similarityTransform(src)
+	for i, p := range src {
+		x := m[0]*p[0] + m[1]*p[1] + m[2]
+		y := m[3]*p[0] + m[4]*p[1] + m[5]
+		if !near(x, arcfaceTemplate[i][0], 1e-6) || !near(y, arcfaceTemplate[i][1], 1e-6) {
+			t.Errorf("titik %d ke (%v, %v), harus %v", i, x, y, arcfaceTemplate[i])
+		}
+	}
+	if !near(math.Hypot(m[0], m[3]), scale, 1e-9) {
+		t.Errorf("skala = %v", math.Hypot(m[0], m[3]))
+	}
+}
+
+func gradient(w, h int) *image.RGBA {
+	img := image.NewRGBA(image.Rect(0, 0, w, h))
+	for y := 0; y < h; y++ {
+		for x := 0; x < w; x++ {
+			img.SetRGBA(x, y, color.RGBA{R: uint8(x % 256), G: uint8(y % 256), B: 100, A: 255})
+		}
+	}
+	return img
+}
+
+func TestAlignCropIdentity(t *testing.T) {
+	img := imageFromRGBA(gradient(200, 200))
+	// Geser 10 piksel: titik (x, y) di gambar tujuan diambil dari (x+10, y+20) di sumber.
+	blob := alignCrop(img, [6]float64{1, 0, -10, 0, 1, -20})
+	at := func(ch, x, y int) float32 { return blob[ch*112*112+y*112+x] }
+	if at(0, 5, 7) != 15 || at(1, 5, 7) != 27 || at(2, 5, 7) != 100 {
+		t.Errorf("RGB di (5,7) = %v %v %v", at(0, 5, 7), at(1, 5, 7), at(2, 5, 7))
+	}
+	// Di luar gambar sumber diisi hitam.
+	edge := alignCrop(img, [6]float64{1, 0, 150, 0, 1, 0})
+	if edge[0] != 0 {
+		t.Errorf("tepi = %v", edge[0])
+	}
+}
+
+func TestDetectorInputAndResize(t *testing.T) {
+	small := imageFromRGBA(gradient(320, 240))
+	if out, scale := detectorInput(small); scale != 1 || out.w != 320 {
+		t.Errorf("gambar kecil tidak boleh diubah: %v %v", out.w, scale)
+	}
+	big := imageFromRGBA(gradient(1280, 960))
+	out, scale := detectorInput(big)
+	if scale != 0.5 || out.w != 640 || out.h != 480 {
+		t.Fatalf("diperkecil ke %dx%d skala %v", out.w, out.h, scale)
+	}
+	// Setengah ukuran: piksel (10, 4) adalah rata-rata sumber x 20 dan 21, dibulatkan.
+	if got := out.at(10, 4, 2); got != 20 && got != 21 { // kanal R = x sumber
+		t.Errorf("R = %v", got)
+	}
+	d := scaleDetection(Detection{X: 10, W: 20, Landmarks: [5][2]float64{{5, 6}}}, 0.5)
+	if d.X != 20 || d.W != 40 || d.Landmarks[0] != [2]float64{10, 12} {
+		t.Errorf("skala balik = %+v", d)
+	}
+	blob, pw, ph := yunetBlob(out)
+	if pw != YuNetSize || ph != YuNetSize || len(blob) != 3*YuNetSize*YuNetSize {
+		t.Errorf("blob %dx%d", pw, ph)
+	}
+	// Kanal B bernilai tetap 100; baris di bawah tinggi gambar adalah pad hitam.
+	if blob[0*pw*ph+0*pw+30] != 100 || blob[0*pw*ph+500*pw+30] != 0 {
+		t.Error("isi blob atau pad salah")
+	}
+}
+
+func TestDecodeYuNetAndPick(t *testing.T) {
+	outputs := make([][]float32, 12)
+	for i, stride := range yunetStrides {
+		n := (YuNetSize / stride) * (YuNetSize / stride)
+		outputs[i] = make([]float32, n)
+		outputs[i+3] = make([]float32, n)
+		outputs[i+6] = make([]float32, n*4)
+		outputs[i+9] = make([]float32, n*10)
+	}
+	// Satu wajah di sel (c=10, r=5) stride 16: kotak 64x64 berpusat di (168, 88).
+	set := func(stride, c, r int, score float32, size float64) {
+		i := map[int]int{8: 0, 16: 1, 32: 2}[stride]
+		idx := r*(YuNetSize/stride) + c
+		outputs[i][idx], outputs[i+3][idx] = score, score
+		outputs[i+6][idx*4+0], outputs[i+6][idx*4+1] = 0.5, 0.5
+		outputs[i+6][idx*4+2] = float32(math.Log(size / float64(stride)))
+		outputs[i+6][idx*4+3] = float32(math.Log(size / float64(stride)))
+		outputs[i+9][idx*10] = 1
+	}
+	set(16, 10, 5, 0.9, 64)
+	set(16, 11, 5, 0.8, 64) // tumpang tindih, dibuang NMS
+	set(8, 2, 2, 0.5, 16)   // skor rendah, dibuang
+	faces := decodeYuNet(outputs, YuNetSize, YuNetSize)
+	if len(faces) != 1 {
+		t.Fatalf("wajah = %d", len(faces))
+	}
+	f := faces[0]
+	if !near(f.X, 136, 1e-3) || !near(f.Y, 56, 1e-3) || !near(f.W, 64, 1e-3) || !near(f.Landmarks[0][0], 176, 1e-3) {
+		t.Errorf("deteksi = %+v", f)
+	}
+	if !near(f.Score, 0.9, 1e-6) {
+		t.Errorf("skor = %v", f.Score)
+	}
+
+	if _, err := pickFace(nil); err != ErrNoFace {
+		t.Errorf("tanpa wajah: %v", err)
+	}
+	small := Detection{X: 500, W: 10, H: 10}
+	if got, err := pickFace([]Detection{small, f}); err != nil || got != f {
+		t.Errorf("wajah kecil di belakang harus diabaikan: %v", err)
+	}
+	other := Detection{X: 300, W: 50, H: 50}
+	if _, err := pickFace([]Detection{f, other}); err != ErrManyFaces {
+		t.Errorf("dua wajah: %v", err)
+	}
+}
+
+func TestDecodeJPEG(t *testing.T) {
+	var buf bytes.Buffer
+	if err := jpeg.Encode(&buf, gradient(64, 48), &jpeg.Options{Quality: 100}); err != nil {
+		t.Fatal(err)
+	}
+	img, err := decodeJPEG(buf.Bytes())
+	if err != nil || img.w != 64 || img.h != 48 {
+		t.Fatalf("decode: %v %dx%d", err, img.w, img.h)
+	}
+	if b := img.at(10, 10, 0); math.Abs(float64(b)-100) > 3 {
+		t.Errorf("B = %v", b)
+	}
+	if _, err := decodeJPEG([]byte{0xFF, 0xD8, 0xFF, 0x00}); err != ErrBadImage {
+		t.Errorf("JPEG rusak: %v", err)
+	}
+	var tiny bytes.Buffer
+	if err := jpeg.Encode(&tiny, gradient(8, 8), nil); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := decodeJPEG(tiny.Bytes()); err != ErrBadImage {
+		t.Errorf("gambar terlalu kecil: %v", err)
 	}
 }

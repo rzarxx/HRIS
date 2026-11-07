@@ -64,7 +64,7 @@ otomatis oleh Gradle, tidak dipasang manual.
   lokasi) dan berkas `samples`. Pendaftaran harus di dalam area kantor.
 - Absen masuk dan pulang juga `multipart/form-data`: bagian `payload` (isi absen ditambah `selfie_sha256`) dan
   berkas `selfie`.
-- Selfie: JPEG, satu wajah, sekitar 640 px, maksimal 1 MB. Selalu ambil foto baru untuk setiap upaya, karena
+- Selfie: JPEG yang sudah tegak (server tidak membaca orientasi EXIF), satu wajah, sisi terpanjang sekitar 640 px, maksimal 1 MB. Selalu ambil foto baru untuk setiap upaya, karena
   foto yang pernah dikirim ditolak `ATTENDANCE_BLOCKED`. Hapus foto dari HP setelah terkirim.
 - `FACE_NOT_DETECTED` berarti foto perlu diambil ulang (cahaya, wajah terhalang, atau lebih dari satu orang).
   `FACE_SERVICE_UNAVAILABLE` (503) berarti mesin wajah server belum dipasang.

@@ -38,14 +38,10 @@ const (
 	maxFaceSamples   = 5
 	maxConsentLength = 32
 
-	// Ambang memakai jarak Euclid model dlib, yang divalidasi pembuatnya pada jarak 0.6 (D42).
-	// Skor yang disimpan adalah 1 - jarak, jadi FaceThresholdPass dan FaceThresholdReview mengikuti
-	// face.threshold_pass dan face.threshold_review (§5.4). Semuanya nilai awal untuk dikalibrasi.
-	FaceThresholdPass   = 0.50
-	FaceThresholdReview = 0.40
-	// faceSampleAgreement adalah jarak terjauh antarsampel saat pendaftaran, agar satu sampel yang
-	// buram atau milik orang lain tidak ikut membentuk template.
-	faceSampleAgreement = 0.50
+	// Skor wajah adalah kemiripan cosine SFace (D43), sama dengan face.threshold_pass dan
+	// face.threshold_review (§5.4). Nilainya ada di paket face agar diuji bersama modelnya.
+	FaceThresholdPass   = face.MinSimilarityPass
+	FaceThresholdReview = face.MinSimilarityReview
 
 	faceKeyID = "field-v1"
 
@@ -87,9 +83,9 @@ func randomLivenessAction() (string, error) {
 	return LivenessActions[n.Int64()], nil
 }
 
-// scoreOf mengubah jarak menjadi skor 0 sampai 1 untuk attendances.face_score.
-func scoreOf(distance float64) decimal.NullDecimal {
-	score := math.Max(0, math.Min(1, 1-distance))
+// scoreOf mengubah kemiripan menjadi skor 0 sampai 1 untuk attendances.face_score.
+func scoreOf(similarity float64) decimal.NullDecimal {
+	score := math.Max(0, math.Min(1, similarity))
 	return decimal.NullDecimal{Decimal: decimal.NewFromFloat(score).Round(4), Valid: true}
 }
 
@@ -106,11 +102,12 @@ func faceProblem(err error) (string, bool) {
 	return "", false
 }
 
-// checkAgreement memastikan semua sampel pendaftaran saling dekat.
+// checkAgreement memastikan semua sampel pendaftaran saling mirip, agar satu foto yang buram atau
+// milik orang lain tidak ikut membentuk template.
 func checkAgreement(samples [][]float64) bool {
 	for i := range samples {
 		for j := i + 1; j < len(samples); j++ {
-			if face.Distance(samples[i], samples[j]) > faceSampleAgreement {
+			if face.Cosine(samples[i], samples[j]) < face.MinEnrollSimilarity {
 				return false
 			}
 		}
@@ -214,15 +211,15 @@ func (s *Service) checkFace(ctx context.Context, a *attempt, in ClockInput) (fac
 		}
 		return faceResult{}, err
 	}
-	distance := face.Distance(vector, tpl.vector)
-	out := faceResult{capture: uuid.NullUUID{UUID: captureID, Valid: true}, score: scoreOf(distance)}
+	similarity := face.Cosine(vector, tpl.vector)
+	out := faceResult{capture: uuid.NullUUID{UUID: captureID, Valid: true}, score: scoreOf(similarity)}
 	if err := s.q.SetFaceCaptureScore(ctx, store.SetFaceCaptureScoreParams{ID: captureID, FaceScore: out.score}); err != nil {
 		return faceResult{}, err
 	}
 	switch {
-	case out.score.Decimal.InexactFloat64() < FaceThresholdReview:
+	case similarity < face.MinSimilarityReview:
 		return faceResult{}, s.reject(ctx, *a, "face_mismatch", httpx.NewError(http.StatusUnprocessableEntity, "FACE_MISMATCH", "Wajah tidak cocok, silakan ulangi."))
-	case out.score.Decimal.InexactFloat64() < FaceThresholdPass:
+	case similarity < face.MinSimilarityPass:
 		a.flags = append(a.flags, flagFaceBorderline)
 	}
 	return out, nil
@@ -393,7 +390,10 @@ func (s *Service) Enroll(ctx context.Context, p auth.Principal, ip *netip.Addr, 
 	if !checkAgreement(vectors) {
 		return FaceStatus{}, httpx.Validation(map[string]string{"samples": "Foto wajah tidak konsisten, silakan ulangi."})
 	}
-	template := face.Mean(vectors)
+	template := face.Template(vectors)
+	if template == nil {
+		return FaceStatus{}, httpx.Validation(map[string]string{"samples": "Foto wajah tidak valid, silakan ulangi."})
+	}
 	enc, err := s.opt.Cipher.Encrypt(encodeEmbedding(template))
 	if err != nil {
 		return FaceStatus{}, err

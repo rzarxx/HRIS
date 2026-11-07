@@ -46,14 +46,22 @@ as_builder mkdir -p "$BUILD_DIR"
 for program in migrate seed superadmin; do
   as_builder bash -c "cd '$SRC_DIR/backend' && go build -o '$BUILD_DIR/hris-$program' ./cmd/$program"
 done
-# Mesin wajah dlib butuh cgo dan pustaka dari setup-face.sh (D42). Tanpanya API tetap jalan, tetapi
+# Mesin wajah ONNX butuh cgo dan pustaka dari setup-face.sh (D43). Tanpanya API tetap jalan, tetapi
 # daftar wajah dan absen dengan selfie dijawab FACE_SERVICE_UNAVAILABLE.
-if [ "${FACE_ENGINE:-}" = "dlib" ]; then
-  echo "    API dengan mesin wajah dlib (build pertama bisa beberapa menit)"
-  as_builder env CGO_ENABLED=1 bash -c "cd '$SRC_DIR/backend' && go build -tags dlib -o '$BUILD_DIR/hris-api' ./cmd/api"
-else
-  as_builder bash -c "cd '$SRC_DIR/backend' && go build -o '$BUILD_DIR/hris-api' ./cmd/api"
-fi
+case "${FACE_ENGINE:-}" in
+  onnx)
+    echo "    API dengan mesin wajah ONNX (SFace)"
+    as_builder env CGO_ENABLED=1 bash -c "cd '$SRC_DIR/backend' && go build -tags onnx -o '$BUILD_DIR/hris-api' ./cmd/api"
+    ;;
+  "")
+    as_builder bash -c "cd '$SRC_DIR/backend' && go build -o '$BUILD_DIR/hris-api' ./cmd/api"
+    ;;
+  *)
+    # Mis. FACE_ENGINE=dlib dari D42. Berhenti sebelum biner yang berjalan diganti.
+    echo "FACE_ENGINE=${FACE_ENGINE} tidak dikenal lagi. Jalankan dulu: bash $SRC_DIR/backend/deploy/setup-face.sh"
+    exit 1
+    ;;
+esac
 
 echo "==> Build web"
 as_builder bash -c "cd '$SRC_DIR/web' && npm ci --ignore-scripts --no-audit --no-fund && npm run build"

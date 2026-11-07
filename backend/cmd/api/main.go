@@ -68,7 +68,7 @@ func run() error {
 	}
 	attendanceOpt := attendance.Options{AllowUnverified: cfg.DevAllowUnverifiedAttendance, ChallengeTTL: cfg.ChallengeTTL, Cipher: fieldCipher}
 	if cfg.FaceModelsDir != "" {
-		engine, err := face.NewDlib(cfg.FaceModelsDir)
+		engine, err := face.NewSFace(cfg.FaceModelsDir, cfg.OnnxRuntimeLib)
 		if err != nil {
 			return err
 		}

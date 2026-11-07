@@ -241,7 +241,7 @@ Web Admin (statis) ───┘                                           ├─
 | Aplikasi | API Go, scheduler | Tidak punya akses internet selain FCM, Google API, HMS (jalur C), dan SMTP |
 | Data (privat) | PostgreSQL, Redis, object storage | Tidak terbuka ke internet; hanya dapat dijangkau API |
 
-**Stack:** Go (chi, pgx, sqlc, golang-migrate) · PostgreSQL 16+ · Redis · Next.js (static export) + Refine · Kotlin Jetpack Compose · ML Kit (deteksi dan liveness di HP) + dlib lewat go-face (embedding di server, D42) · FCM · Docker Compose · OpenAPI 3.
+**Stack:** Go (chi, pgx, sqlc, golang-migrate) · PostgreSQL 16+ · Redis · Next.js (static export) + Refine · Kotlin Jetpack Compose · ML Kit (deteksi dan liveness di HP) + YuNet dan SFace lewat ONNX Runtime (embedding di server, D43) · FCM · Docker Compose · OpenAPI 3.
 
 Domain terpisah: `admin.<domain>` (web statis) dan `api.<domain>` (API), keduanya satu situs (same-site) sehingga cookie `SameSite=Strict` tetap terkirim.
 
@@ -370,9 +370,9 @@ Level `MEETS_STRONG_INTEGRITY` tidak diwajibkan karena menolak banyak HP Android
 **Konfigurasi ambang (nilai awal, wajib dikalibrasi dengan data uji nyata):**
 | Key | Default |
 |---|---|
-| `face.threshold_pass` | 0.50 (skor = 1 - jarak Euclid dlib; jarak 0.50) |
-| `face.threshold_review` | 0.40 (jarak 0.60, batas yang divalidasi pembuat model) |
-| `face.enroll_max_distance` | 0.50 (jarak terjauh antarsampel pendaftaran) |
+| `face.threshold_pass` | 0.50 (kemiripan cosine SFace, D43) |
+| `face.threshold_review` | 0.46 (di bawahnya ditolak; pasangan orang berbeda paling mirip di uji banding 0.448) |
+| `face.enroll_min_similarity` | 0.50 (kemiripan terendah antarselfie pendaftaran) |
 | `risk.review_min` | 30 |
 | `risk.reject_min` | 60 |
 | `challenge.ttl_seconds` | 90 |
@@ -426,7 +426,7 @@ Semua HP Android didukung lewat jalur berjenjang. Jalur ditetapkan **server** da
 - Pencocokan bersifat **1:1** (akun sudah diketahui dari token), jadi tidak perlu pgvector. Cosine similarity dihitung di Go.
 - Template disimpan **terenkripsi di level aplikasi** (AES-256-GCM, kunci dari secret manager, `key_id` untuk rotasi) di kolom `embedding_enc`.
 - Pendaftaran wajah wajib: perangkat `approved`, persetujuan (*consent*) biometrik, liveness, challenge, dan dianjurkan dilakukan di lokasi kantor. Reset hanya oleh SDM dan tercatat.
-- Embedding dihitung server dari selfie dengan model dlib (D42); HP tidak mengirim angka wajah.
+- Embedding dihitung server dari selfie dengan detektor YuNet dan pengenal SFace lewat ONNX Runtime (D43); HP tidak mengirim angka wajah.
 - Selfie disimpan terenkripsi AES-GCM di folder privat server (`SELFIE_DIR`), dicatat di `face_captures`, dan dihapus setelah masa retensi. Akses SDM lewat endpoint ber-permission; signed URL dipakai bila nanti pindah ke bucket.
 
 ### 5.6 Klasifikasi & Retensi Data
@@ -1521,7 +1521,8 @@ Estimasi untuk tim kecil; sesuaikan setelah kapasitas tim jelas.
 - [ ] Pendaftaran wajah jarak jauh
 - [x] Challenge, clock-in, clock-out, cutoff harian, dan `worked_minutes` (D31), masih tanpa verifikasi perangkat dan wajah (D36)
 - [x] Enroll + cocok wajah (enkripsi aplikasi), reset oleh SDM, dan `consents` (D41). Masih bergantung pada verifikasi perangkat (D36)
-- [x] Wajah dihitung server dari selfie dengan dlib, selfie terenkripsi, liveness acak, dan tolak selfie yang dikirim ulang (D42)
+- [x] Wajah dihitung server dari selfie, selfie terenkripsi, liveness acak, dan tolak selfie yang dikirim ulang (D42)
+- [x] Model wajah diganti dari dlib ke SFace setelah uji banding (D43); CI membandingkan hasil Go dengan OpenCV dan menguji ambang
 - [ ] Lihat selfie di Review Absen dan hapus selfie setelah masa retensi
 - [x] Skor risiko dari sinyal yang sudah tersedia + `attendance_attempts`, termasuk `face_borderline`; sinyal integritas menyusul bersama verifikasinya
 - [x] Halaman Review Absen
@@ -1612,6 +1613,7 @@ Estimasi untuk tim kecil; sesuaikan setelah kapasitas tim jelas.
 | D40 | Login mobile mewajibkan kode MFA bagi akun yang memakainya, dan sesi mobile berakhir 30 hari setelah login tanpa diperpanjang refresh | Token mobile juga membuka route admin sesuai role, jadi MFA tidak boleh terlewati lewat aplikasi. Konsekuensi: Pejuang masuk ulang dengan kata sandi setiap 30 hari. Login dan refresh mobile dikecualikan dari D37 karena aplikasi belum punya token saat memanggilnya |
 | D41 | Template wajah adalah rata-rata 3 sampai 5 sampel yang saling mirip (cosine ≥ 0.80), disimpan float32 terenkripsi AES-GCM dengan `key_id`. Embedding dari versi model lain diperlakukan sebagai belum terdaftar. Absen development boleh tanpa bagian wajah, tetapi bila dikirim tetap dicocokkan. Pendaftaran yang gagal tidak dicatat di `attendance_attempts`, dan `face_score` hanya disimpan untuk absen masuk | Satu template rata-rata lebih stabil daripada satu foto, dan sampel yang tidak konsisten menandakan wajah orang lain atau gambar buruk. Embedding beda model tidak sebanding, jadi Pejuang mendaftar ulang saat model diganti. Konsekuensi: ambang 0.80, 0.70, dan 0.60 masih nilai awal yang dikalibrasi dengan HP sungguhan, dan `embedding_replay` belum diperiksa |
 | D42 | Embedding wajah dihitung server dari selfie dengan model dlib (go-face), bukan dikirim HP. HP tetap menjalankan deteksi dan liveness, dengan gerakan yang dipilih acak lewat `liveness_action` challenge. Selfie disimpan terenkripsi dan dicatat di `face_captures`; selfie yang sama dari Pejuang yang sama ditolak sebagai `embedding_replay`. Ambang memakai jarak Euclid dlib: diterima ≤ 0.50, `face_borderline` ≤ 0.60, lebih jauh ditolak. Menggantikan bagian D41 tentang embedding dari HP | Embedding dari HP bisa dipalsukan aplikasi yang dibongkar tanpa wajah sama sekali, sedangkan selfie bisa diperiksa ulang dan diaudit SDM. Model dlib dirilis pembuatnya ke domain publik dan tercatat 99,38% pada LFW. Konsekuensi: API butuh cgo dan pustaka dlib di server (`deploy/setup-face.sh`), setiap absen mengunggah foto sekitar 100 sampai 300 KB, dan ambang tetap harus dikalibrasi dengan Pejuang dan HP sungguhan. Model dilatih dari dataset publik (VGG, FaceScrub); konfirmasikan penggunaannya ke bagian legal bersama UU PDP |
+| D43 | Model wajah server diganti dari dlib ke detektor YuNet (MIT) dan pengenal SFace (Apache-2.0) dari OpenCV Zoo, dijalankan ONNX Runtime lewat cgo (tag build `onnx`). Skor adalah kemiripan cosine: diterima ≥ 0.50, `face_borderline` ≥ 0.46, di bawahnya ditolak; selfie pendaftaran harus saling ≥ 0.50. Gambar diperkecil agar sisi terpanjang ≤ 640 untuk deteksi. Menggantikan pilihan model dan ambang di D42; alur selfie, liveness, dan replay D42 tetap | Uji banding pada 33 foto contoh wajah Asia (`backend/tools/face-bench`): dengan tidak ada orang berbeda yang lolos, dlib menerima 0% pasangan orang sama, SFace 44%, ArcFace 89%. ArcFace terbaik tetapi model siap pakainya non-komersial. Konsekuensi: SFace jauh lebih baik dari dlib tetapi belum terbukti cukup untuk produksi; ambang wajib dikalibrasi dengan selfie Pejuang dari HP sebelum dipakai, dan bila kurang, pilihannya lisensi komersial ArcFace atau layanan verifikasi wajah komersial. Template dlib dianggap belum terdaftar. Foto harus tegak karena orientasi EXIF tidak diterapkan |
 | D15 | `/v1/admin/reports/payroll-preview` mewajibkan `attendance:report` dan `payroll:manage` | Respons memuat gaji, sedangkan §7.6 membatasi `base_salary` untuk `sdm` dan pemilik data |
 
 ### 14.2 Pertanyaan yang Harus Dijawab (blokir pekerjaan terkait)

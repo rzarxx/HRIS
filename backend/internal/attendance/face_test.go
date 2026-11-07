@@ -15,28 +15,27 @@ import (
 
 func TestScoreOf(t *testing.T) {
 	for _, c := range []struct {
-		distance float64
-		want     string
+		similarity float64
+		want       string
 	}{
-		{0, "1"}, {0.35, "0.65"}, {0.5, "0.5"}, {0.6, "0.4"}, {1.3, "0"},
+		{1, "1"}, {0.65, "0.65"}, {0.5, "0.5"}, {-0.2, "0"}, {1.3, "1"},
 	} {
-		if got := scoreOf(c.distance).Decimal.String(); got != c.want {
-			t.Errorf("jarak %v: skor %s, harus %s", c.distance, got, c.want)
+		if got := scoreOf(c.similarity).Decimal.String(); got != c.want {
+			t.Errorf("kemiripan %v: skor %s, harus %s", c.similarity, got, c.want)
 		}
 	}
-	// Ambang skor sama dengan jarak dlib 0.5 dan 0.6.
-	if FaceThresholdPass != 1-0.5 || FaceThresholdReview != 1-0.6 {
+	if FaceThresholdPass != face.MinSimilarityPass || FaceThresholdReview != face.MinSimilarityReview || FaceThresholdPass <= FaceThresholdReview {
 		t.Error("ambang skor tidak sesuai jarak")
 	}
 }
 
 func TestCheckAgreement(t *testing.T) {
-	near := [][]float64{{0, 0}, {0.3, 0}, {0, 0.3}}
+	near := [][]float64{{1, 0.1}, {1, 0.2}, {1, 0.3}}
 	if !checkAgreement(near) {
-		t.Error("sampel dekat harus lolos")
+		t.Error("sampel mirip harus lolos")
 	}
-	if checkAgreement(append(near, []float64{0.6, 0})) {
-		t.Error("sampel jauh harus ditolak")
+	if checkAgreement(append(near, []float64{0, 1})) {
+		t.Error("sampel berbeda harus ditolak")
 	}
 }
 
@@ -46,7 +45,7 @@ func TestEmbeddingRoundTrip(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if face.Distance(got, v) != 0 {
+	if face.Cosine(got, v) < 0.999999 {
 		t.Errorf("hasil decode berbeda: %v", got)
 	}
 	if _, err := decodeEmbedding([]byte{1, 2, 3}); err == nil {

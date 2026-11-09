@@ -29,6 +29,7 @@ import androidx.navigation.NavBackStackEntry
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
+import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import id.pejuang.hris.ui.BrandGradient
 import id.pejuang.hris.ui.CaptureScreen
@@ -85,7 +86,9 @@ class MainActivity : ComponentActivity() {
                         HistoryScreen(app.repository) { if (entry.isActive()) nav.popBackStack() }
                     }
                 }
-                UpdatePrompt()
+                val activeEntry by nav.currentBackStackEntryAsState()
+                val route = activeEntry?.destination?.route
+                UpdatePrompt(allowDialog = route == "login" || route == "home")
             }
         }
     }

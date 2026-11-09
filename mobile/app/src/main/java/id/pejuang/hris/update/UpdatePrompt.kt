@@ -37,7 +37,7 @@ private sealed interface UpdateUi {
 
 /** Pemeriksaan tidak memerlukan login; debug memakai applicationId berbeda dari APK rilis. */
 @Composable
-fun UpdatePrompt() {
+fun UpdatePrompt(allowDialog: Boolean) {
     if (BuildConfig.DEBUG) return
     val context = LocalContext.current
     val downloads = remember { UpdateDownloads(context.applicationContext) }
@@ -103,6 +103,7 @@ fun UpdatePrompt() {
             }
         }
     }
+    if (!allowDialog) return
     when (val state = ui) {
         UpdateUi.Hidden -> Unit
         is UpdateUi.Available -> AlertDialog(

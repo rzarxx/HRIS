@@ -156,4 +156,12 @@ class Repository(private val session: Session) {
     }
 
     suspend fun history(): List<AttendanceRecord> = call { history().data }
+
+    /** Mengganti kata sandi sendiri. Server mencabut sesi lain, sesi HP ini tetap aktif. */
+    suspend fun changePassword(current: String, next: String) {
+        call {
+            val response = changePassword(PasswordChangeRequest(current, next))
+            if (!response.isSuccessful) throw retrofit2.HttpException(response)
+        }
+    }
 }

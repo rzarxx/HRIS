@@ -1541,10 +1541,10 @@ Estimasi untuk tim kecil; sesuaikan setelah kapasitas tim jelas.
 **Fase 3: Mobile**
 - [ ] Pembaruan APK mandiri dari GitHub Releases untuk build rilis bertanda tangan (D45); menunggu konfigurasi kunci, rilis, dan uji di HP.
 - [ ] Aplikasi minimal dimajukan: login, daftar perangkat, absen tanpa wajah. Dikerjakan sebelum Play Integrity dan wajah agar keduanya diuji di HP sungguhan (D35) Kode ada di `mobile/` (D44), menunggu uji di HP sungguhan.
-- [ ] Login, profile, penyimpanan token aman (API login, refresh, dan logout mobile sudah ada, D40). Kode ada (D44), menunggu uji HP
+- [ ] Login, profile, penyimpanan token aman (API login, refresh, dan logout mobile sudah ada, D40). Kode ada (D44) termasuk tab Profil, data pribadi, dan ganti kata sandi; menunggu uji HP
 - [ ] Modul deteksi native
 - [ ] Kamera + liveness (gerakan dari `liveness_action`) + kirim selfie (D42). Kode ada (D44), menunggu uji HP
-- [ ] Layar presensi + rekap. Absen dan riwayat ada (D44), rekap menyusul
+- [ ] Layar presensi + rekap. Absen, riwayat, dan rekap jam kerja hari ini serta bulan berjalan ada di tab Presensi; rekap per periode cutoff menunggu D31
 - [ ] FCM, pop-up, banner
 - [ ] Timer sebelum tombol sudah baca, ditegakkan server (D27)
 - [ ] Uji Android 8-14, 3 HP kelas bawah

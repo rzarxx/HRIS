@@ -1,5 +1,6 @@
 ﻿package id.pejuang.hris.update
 
+import id.pejuang.hris.BuildConfig
 import kotlinx.coroutines.runBlocking
 import okhttp3.OkHttpClient
 import okhttp3.Protocol
@@ -25,7 +26,7 @@ class UpdateTest {
         }.build()
         return ReleaseService(client)
     }
-    private fun release(url: String = "https://github.com/rzarxx/HRIS/releases/download/v1.2.0/hris-pejuang-release.apk", digest: String = "sha256:" + "a".repeat(64)) =
+    private fun release(url: String = "https://github.com/${BuildConfig.UPDATE_REPO}/releases/download/v1.2.0/hris-pejuang-release.apk", digest: String = "sha256:" + "a".repeat(64)) =
         """{"draft":false,"prerelease":false,"tag_name":"v1.2.0","assets":[{"name":"hris-pejuang-release.apk","state":"uploaded","browser_download_url":"$url","digest":"$digest","size":1234}]}"""
 
     @Test fun acceptsValidReleaseAndIgnoresOlder() = runBlocking {
@@ -37,7 +38,8 @@ class UpdateTest {
     @Test fun rejectsUntrustedAssetAndMalformedMetadata() = runBlocking {
         val invalid = listOf(
             release(url = "https://attacker.invalid/hris-pejuang-release.apk"),
-            release(url = "http://github.com/rzarxx/HRIS/releases/download/v1.2.0/hris-pejuang-release.apk"),
+            release(url = "http://github.com/${BuildConfig.UPDATE_REPO}/releases/download/v1.2.0/hris-pejuang-release.apk"),
+            release(url = "https://github.com/other/repo/releases/download/v1.2.0/hris-pejuang-release.apk"),
             release(digest = "sha256:bad"),
             "{broken",
             release().replace("\"prerelease\":false", "\"prerelease\":true"),

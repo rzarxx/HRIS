@@ -142,7 +142,7 @@ jobs:
           gradle-version: "8.11.1"
       # recordPaparazziDebug menjalankan semua tes unit sekaligus merender layar ke PNG.
       - name: Build APK debug, tes unit, dan screenshot
-        run: gradle --no-daemon --stacktrace assembleDebug recordPaparazziDebug assembleRelease -Phris.apiBaseUrl=https://example.invalid/
+        run: gradle --no-daemon --stacktrace assembleDebug recordPaparazziDebug assembleRelease -Phris.apiBaseUrl=https://example.invalid/ -Phris.updateRepo=example-org/test-repo
       - name: Uji tanda tangan APK rilis dengan kunci sementara
         working-directory: .
         shell: bash

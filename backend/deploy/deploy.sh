@@ -9,6 +9,9 @@ set -euo pipefail
 
 APP_DIR=/opt/hris
 SRC_DIR="$APP_DIR/src"
+SELF="$SRC_DIR/backend/deploy/deploy.sh"
+# Hash isi skrip yang sedang berjalan, sebelum git memperbaruinya.
+SELF_SUM="$(sha256sum "$SELF" 2>/dev/null | cut -d" " -f1)"
 CONFIG="$APP_DIR/deploy.env"
 
 [ "$(id -u)" -eq 0 ] || { echo "Jalankan sebagai root."; exit 1; }
@@ -37,6 +40,12 @@ as_builder git -C "$SRC_DIR" fetch --prune origin "$BRANCH"
 as_builder git -C "$SRC_DIR" checkout -q "$BRANCH"
 # Hanya maju: bila riwayat bercabang atau ada perubahan lokal, berhenti daripada menimpa.
 as_builder git -C "$SRC_DIR" merge --ff-only "origin/$BRANCH"
+# Bash tetap menjalankan isi skrip lama setelah git mengganti berkasnya. Bila skrip ini ikut berubah,
+# jalankan ulang versi barunya sekali agar langkah baru tidak terlewat.
+if [ -z "${HRIS_DEPLOY_REEXEC:-}" ] && [ "$(sha256sum "$SELF" | cut -d" " -f1)" != "$SELF_SUM" ]; then
+  echo "    deploy.sh berubah, menjalankan versi terbaru"
+  HRIS_DEPLOY_REEXEC=1 exec bash "$SELF" "$@"
+fi
 COMMIT="$(as_builder git -C "$SRC_DIR" log -1 --format='%h %s')"
 echo "    $COMMIT"
 

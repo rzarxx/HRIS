@@ -18,6 +18,9 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.statusBars
+import androidx.compose.foundation.layout.windowInsetsTopHeight
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
@@ -69,11 +72,12 @@ fun ProfileContent(
 ) {
     StatusBarIcons(dark = false)
     val verified = me.deviceStatus == "approved" && me.faceEnrolled
+    Box(modifier.fillMaxSize().background(Color.White)) {
     Column(
-        modifier
+        Modifier
             .fillMaxSize()
-            .background(Color.White)
             .verticalScroll(rememberScrollState()),
+        horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Box(Modifier.fillMaxWidth()) {
             // Header hijau setinggi 179dp (termasuk status bar) dan lembar putih bersudut 12dp.
@@ -121,7 +125,7 @@ fun ProfileContent(
         }
 
         Column(
-            Modifier.fillMaxWidth().padding(start = 15.dp, end = 15.dp, top = 12.dp, bottom = 24.dp).navigationBarsPadding(),
+            ContentWidth.fillMaxWidth().padding(start = 15.dp, end = 15.dp, top = 12.dp, bottom = bottomContentSpace(16.dp)),
             verticalArrangement = Arrangement.spacedBy(20.dp),
         ) {
             ProfileGroup("KONTAK") {
@@ -139,6 +143,9 @@ fun ProfileContent(
                 ProfileRow(FigmaIcons.Logout, "Keluar", onClick = onLogout, iconTint = Fg.Danger)
             }
         }
+    }
+    // Status bar tetap hijau saat digulir, agar isi putih tidak menembus jam dan ikon sistem.
+    Box(Modifier.fillMaxWidth().windowInsetsTopHeight(WindowInsets.statusBars).background(Fg.Accent))
     }
 }
 

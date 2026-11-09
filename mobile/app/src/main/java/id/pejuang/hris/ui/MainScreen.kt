@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -18,7 +19,10 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import dev.chrisbanes.haze.HazeState
+import dev.chrisbanes.haze.hazeSource
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.unit.dp
@@ -178,8 +182,11 @@ fun MainTabs(
     onChangePassword: () -> Unit,
     onLogout: () -> Unit,
 ) {
-    Column(Modifier.fillMaxSize().background(Fg.Page)) {
-        Box(Modifier.weight(1f)) {
+    // Isi tab menjadi sumber blur; bottom bar kaca mengambang di atasnya.
+    val haze = remember { HazeState() }
+    Box(Modifier.fillMaxSize().background(Fg.Page)) {
+        Box(Modifier.fillMaxSize().hazeSource(haze)) {
+          CompositionLocalProvider(LocalBottomBarSpace provides glassBarSpace()) {
             when (tab) {
                 MainTab.Home -> HomeContent(
                     me = me,
@@ -222,8 +229,9 @@ fun MainTabs(
                     )
                 }
             }
+          }
         }
-        FigmaBottomNav(tab, onTab)
+        GlassBottomBar(tab, onTab, haze, Modifier.align(Alignment.BottomCenter))
     }
 }
 
@@ -232,7 +240,7 @@ fun MainTabs(
 fun ComingSoonContent(title: String, subtitle: String, body: String) {
     Box(Modifier.fillMaxSize().background(Fg.Page)) {
         FigmaTabHeader(title, subtitle, illustration = false)
-        Column(Modifier.statusBarsPadding().padding(start = 12.dp, end = 12.dp, top = 100.dp)) {
+        Column(Modifier.align(Alignment.TopCenter).statusBarsPadding().then(ContentWidth).padding(start = 12.dp, end = 12.dp, top = 100.dp)) {
             FigmaCard(title = "Segera tersedia", subtitle = body, top = 16.dp, bottom = 16.dp) {}
         }
     }

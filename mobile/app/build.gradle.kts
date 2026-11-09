@@ -93,6 +93,8 @@ dependencies {
     implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.8.7")
     implementation("androidx.lifecycle:lifecycle-runtime-compose:2.8.7")
     implementation("androidx.navigation:navigation-compose:2.8.5")
+    // Blur latar (glassmorphism) untuk bottom bar; Android 12+ memakai RenderEffect, versi lama memakai tint.
+    implementation("dev.chrisbanes.haze:haze:1.2.2")
 
     implementation("com.squareup.retrofit2:retrofit:2.11.0")
     implementation("com.squareup.retrofit2:converter-kotlinx-serialization:2.11.0")

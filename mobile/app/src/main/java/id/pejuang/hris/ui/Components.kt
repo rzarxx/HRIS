@@ -288,7 +288,8 @@ fun CenterMessage(
     extra: (@Composable ColumnScope.() -> Unit)? = null,
     actions: (@Composable ColumnScope.() -> Unit)? = null,
 ) {
-    Column(modifier.fillMaxSize().background(Hc.Canvas).navigationBarsPadding().padding(24.dp)) {
+    // Latar dipasang sebelum inset agar area status bar tidak memperlihatkan latar window.
+    Column(modifier.fillMaxSize().background(Hc.Canvas).statusBarsPadding().navigationBarsPadding().padding(24.dp)) {
         Column(
             modifier = Modifier.weight(1f).fillMaxWidth(),
             horizontalAlignment = Alignment.CenterHorizontally,

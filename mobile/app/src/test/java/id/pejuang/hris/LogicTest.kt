@@ -70,6 +70,45 @@ class LivenessTrackerTest {
         assertEquals(LivenessState.NoFace, t.update(emptyList()))
         assertEquals(LivenessState.ManyFaces, t.update(listOf(face(), face())))
     }
+
+    @Test
+    fun interruptedGestureMustStartOver() {
+        for (interruption in listOf(emptyList(), listOf(face(), face()))) {
+            val t = LivenessTracker("blink")
+            t.update(listOf(face()))
+            t.update(listOf(face(eyes = 0.1f)))
+            t.update(interruption)
+            // Membuka mata setelah interupsi hanya menetapkan posisi awal baru.
+            assertTrue(t.update(listOf(face())) is LivenessState.Waiting)
+            assertTrue(t.update(listOf(face())) is LivenessState.Waiting)
+            t.update(listOf(face(eyes = 0.1f)))
+            assertEquals(LivenessState.Passed, t.update(listOf(face())))
+        }
+    }
+
+    @Test
+    fun interruptionAfterGestureRequiresNewGesture() {
+        val t = LivenessTracker("turn_left")
+        t.update(listOf(face()))
+        t.update(listOf(face(yaw = 30f)))
+        t.update(emptyList())
+        assertTrue(t.update(listOf(face())) is LivenessState.Waiting)
+        assertTrue(t.update(listOf(face())) is LivenessState.Waiting)
+    }
+
+    @Test
+    fun unknownClassificationDoesNotEstablishNeutralOrFinishCapture() {
+        val t = LivenessTracker("smile")
+        t.update(listOf(face(eyes = null)))
+        t.update(listOf(face(smile = 0.9f)))
+        assertTrue(t.update(listOf(face(smile = 0.9f))) is LivenessState.Waiting)
+
+        t.update(listOf(face(smile = null)))
+        assertTrue(t.update(listOf(face(smile = 0.9f))) is LivenessState.Waiting)
+        t.update(listOf(face()))
+        assertTrue(t.update(listOf(face(eyes = null, smile = 0.9f))) is LivenessState.Waiting)
+        assertEquals(LivenessState.Passed, t.update(listOf(face())))
+    }
 }
 
 class DataTest {

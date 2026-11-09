@@ -201,4 +201,50 @@ class UiLogicTest {
         assertEquals("07:42", id.pejuang.hris.ui.wibTime("2026-11-09T00:42:00Z"))
         assertEquals("--:--", id.pejuang.hris.ui.wibTime(null))
     }
+
+    @Test
+    fun workedMinutesAndPeriod() {
+        val now = java.time.ZonedDateTime.of(2026, 11, 9, 9, 42, 0, 0, id.pejuang.hris.ui.Wib)
+        val open = id.pejuang.hris.data.AttendanceRecord("a", "2026-11-09", "present", "2026-11-09T00:42:00Z", workMode = "onsite")
+        val closed = id.pejuang.hris.data.AttendanceRecord("b", "2026-11-06", "late", "2026-11-06T01:17:00Z", "2026-11-06T10:05:00Z", 17, 528, "onsite")
+        val forgot = id.pejuang.hris.data.AttendanceRecord("c", "2026-11-05", "present", "2026-11-05T00:51:00Z", workMode = "onsite")
+        val lastMonth = id.pejuang.hris.data.AttendanceRecord("d", "2026-10-31", "present", workedMinutes = 480, workMode = "onsite")
+        // Absen hari ini yang belum pulang dihitung sampai sekarang; hari lalu tanpa pulang tidak dihitung.
+        assertEquals(120, id.pejuang.hris.ui.workedMinutesOf(open, now))
+        assertEquals(528, id.pejuang.hris.ui.workedMinutesOf(closed, now))
+        assertEquals(0, id.pejuang.hris.ui.workedMinutesOf(forgot, now))
+        assertEquals(648, id.pejuang.hris.ui.monthWorkedMinutes(listOf(open, closed, forgot, lastMonth), now))
+        assertEquals("10:48", id.pejuang.hris.ui.hourMinute(648))
+        assertEquals("1 Nov 2026 - 30 Nov 2026", id.pejuang.hris.ui.monthPeriodLabel(now.toLocalDate()))
+        assertEquals("9 November 2026", id.pejuang.hris.ui.dateLabel(now.toLocalDate()))
+    }
+
+    @Test
+    fun clockActionFollowsState() {
+        val me = id.pejuang.hris.data.Me(
+            employeeId = "e", fullName = "Siti", nip = "1",
+            subdivision = id.pejuang.hris.data.Ref("s", "S"), division = id.pejuang.hris.data.Ref("d", "D"),
+            deviceStatus = "approved", faceEnrolled = true,
+        )
+        val inOnly = id.pejuang.hris.data.AttendanceRecord("a", "2026-11-09", "present", "2026-11-09T00:42:00Z", workMode = "onsite")
+        assertEquals(id.pejuang.hris.data.PURPOSE_CLOCK_IN, id.pejuang.hris.ui.clockAction(me, null).purpose)
+        assertEquals(id.pejuang.hris.data.PURPOSE_CLOCK_OUT, id.pejuang.hris.ui.clockAction(me, inOnly).purpose)
+        assertEquals(null, id.pejuang.hris.ui.clockAction(me, inOnly.copy(clockOutAt = "2026-11-09T10:00:00Z")).purpose)
+        assertEquals(id.pejuang.hris.data.PURPOSE_FACE_ENROLL, id.pejuang.hris.ui.clockAction(me.copy(faceEnrolled = false), null).purpose)
+        assertEquals(null, id.pejuang.hris.ui.clockAction(me.copy(deviceStatus = "pending"), null).purpose)
+        assertEquals(null, id.pejuang.hris.ui.clockAction(me.copy(mustChangePassword = true), null).purpose)
+    }
+
+    @Test
+    fun passwordFormChecks() {
+        val ok = id.pejuang.hris.ui.PasswordForm(current = "lama", next = "baru-panjang-1", repeat = "baru-panjang-1")
+        assertEquals(null, id.pejuang.hris.ui.passwordProblem(ok))
+        assertEquals("Minimal 10 karakter.", id.pejuang.hris.ui.passwordProblem(ok.copy(next = "pendek", repeat = "")))
+        assertEquals("Kata sandi tidak sama.", id.pejuang.hris.ui.passwordProblem(ok.copy(repeat = "beda-sekali-1")))
+        val body = apiJson.encodeToString(
+            id.pejuang.hris.data.PasswordChangeRequest.serializer(),
+            id.pejuang.hris.data.PasswordChangeRequest("lama", "baru-panjang-1"),
+        )
+        assertEquals("""{"current_password":"lama","new_password":"baru-panjang-1"}""", body)
+    }
 }

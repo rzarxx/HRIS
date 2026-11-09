@@ -58,3 +58,19 @@ fun durationLabel(minutes: Int): String {
     val m = minutes % 60
     return if (h == 0) "$m mnt" else "$h j $m mnt"
 }
+
+private val dayMonthYear = DateTimeFormatter.ofPattern("d MMMM yyyy", indonesian)
+private val dayMonthShortYear = DateTimeFormatter.ofPattern("d MMM yyyy", indonesian)
+
+/** Tanggal seperti "9 November 2026". */
+fun dateLabel(date: LocalDate): String = date.format(dayMonthYear)
+
+/** Periode bulan berjalan, mis. "1 Nov 2026 - 30 Nov 2026". */
+fun monthPeriodLabel(date: LocalDate): String {
+    val first = date.withDayOfMonth(1)
+    val last = date.withDayOfMonth(date.lengthOfMonth())
+    return "${first.format(dayMonthShortYear).replace(".", "")} - ${last.format(dayMonthShortYear).replace(".", "")}"
+}
+
+/** Durasi format jam:menit, mis. 527 menit menjadi "08:47". */
+fun hourMinute(minutes: Int): String = "%02d:%02d".format(Locale.ROOT, minutes / 60, minutes % 60)

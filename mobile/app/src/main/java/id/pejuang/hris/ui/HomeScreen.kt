@@ -62,88 +62,6 @@ import java.time.LocalDate
 import java.time.ZonedDateTime
 
 @Composable
-fun HomeScreen(
-    repository: Repository,
-    crash: String?,
-    onDismissCrash: () -> Unit,
-    onCapture: (String) -> Unit,
-    onHistory: () -> Unit,
-    onLoggedOut: () -> Unit,
-) {
-    val scope = rememberCoroutineScope()
-    val clipboard = LocalClipboardManager.current
-    var me by remember { mutableStateOf<Me?>(null) }
-    var today by remember { mutableStateOf<AttendanceRecord?>(null) }
-    var error by remember { mutableStateOf<String?>(null) }
-    var loading by remember { mutableStateOf(true) }
-    var reload by remember { mutableIntStateOf(0) }
-
-    LaunchedEffect(reload) {
-        loading = true
-        error = null
-        try {
-            me = repository.me()
-            // Riwayat hanya untuk kartu "hari ini"; kegagalannya tidak menghalangi absen.
-            val date = LocalDate.now(Wib).toString()
-            today = runCatching { repository.history().firstOrNull { it.workDate == date } }.getOrNull()
-        } catch (e: Exception) {
-            val err = e.toApiError()
-            if (err.code == "AUTH_TOKEN_INVALID" || !repository.loggedIn) {
-                repository.logout()
-                onLoggedOut()
-            } else {
-                error = err.message
-            }
-        } finally {
-            loading = false
-        }
-    }
-
-    val current = me
-    when {
-        current != null -> HomeContent(
-            me = current,
-            today = today,
-            now = ZonedDateTime.now(Wib),
-            refreshing = loading,
-            crash = crash,
-            onCopyCrash = { crash?.let { clipboard.setText(AnnotatedString(it)) } },
-            onDismissCrash = onDismissCrash,
-            onCapture = onCapture,
-            onHistory = onHistory,
-            onRefresh = { if (!loading) reload++ },
-            onLogout = {
-                scope.launch {
-                    repository.logout()
-                    onLoggedOut()
-                }
-            },
-        )
-        error != null -> {
-            StatusBarIcons(dark = true)
-            CenterMessage(
-                title = "Data belum bisa dimuat",
-                body = error,
-                icon = Icons.Filled.Warning,
-                tone = Tone.Warning,
-            ) {
-                PrimaryButton("Coba lagi", onClick = { reload++ })
-                SecondaryButton("Keluar", onClick = {
-                    scope.launch {
-                        repository.logout()
-                        onLoggedOut()
-                    }
-                })
-            }
-        }
-        else -> {
-            StatusBarIcons(dark = true)
-            CenterMessage(title = "Memuat data Anda", body = null, loading = true)
-        }
-    }
-}
-
-@Composable
 fun HomeContent(
     me: Me,
     today: AttendanceRecord?,
@@ -211,7 +129,7 @@ fun HomeContent(
                 "pending" -> StatusBanner(Tone.Warning, HrisIcons.Smartphone, "HP menunggu persetujuan", "SDM perlu menyetujui HP ini sebelum Anda bisa absen. Muat ulang setelah disetujui.")
                 else -> StatusBanner(Tone.Danger, HrisIcons.Smartphone, "HP tidak aktif", "HP ini sudah dicabut. Hubungi SDM.")
             }
-            if (me.mustChangePassword) StatusBanner(Tone.Warning, Icons.Filled.Lock, "Ganti kata sandi dulu", "Ganti kata sandi lewat web admin, lalu muat ulang aplikasi.")
+            if (me.mustChangePassword) StatusBanner(Tone.Warning, Icons.Filled.Lock, "Ganti kata sandi dulu", "Buka menu Profil, lalu pilih Ganti kata sandi.")
             if (!me.faceEnrolled) {
                 StatusBanner(Tone.Info, HrisIcons.FaceScan, "Daftarkan wajah Anda", "Sekali saja, di lokasi kantor, sebelum absen pertama.") {
                     BannerAction("Daftarkan sekarang", enabled = ready) { onCapture(PURPOSE_FACE_ENROLL) }
@@ -255,11 +173,6 @@ fun HomeContent(
             }
             Text("HRIS Pejuang · versi ${BuildConfig.VERSION_NAME}", style = MaterialTheme.typography.labelSmall, color = Hc.InkMuted, modifier = Modifier.fillMaxWidth(), textAlign = androidx.compose.ui.text.style.TextAlign.Center)
         }
-        // Hanya tujuan yang sudah tersedia yang ditampilkan.
-        Row(Modifier.fillMaxWidth().background(Color(0xFF1B2020)).navigationBarsPadding().height(64.dp), horizontalArrangement = Arrangement.SpaceEvenly, verticalAlignment = Alignment.CenterVertically) {
-            HomeNavItem("Beranda", androidx.compose.material.icons.Icons.Filled.Home, true) { }
-            HomeNavItem("Riwayat", HrisIcons.History, false, onHistory)
-        }
     }
 }
 
@@ -291,16 +204,6 @@ private fun HomeAction(title: String, subtitle: String, icon: ImageVector, enabl
             IconBadge(icon, Tone.Success, size = 32.dp)
             Text(title, style = MaterialTheme.typography.titleSmall, color = if (enabled) Hc.Ink else Hc.InkMuted, maxLines = 1)
             Text(subtitle, style = MaterialTheme.typography.bodySmall, color = Hc.InkSoft, maxLines = 1, overflow = TextOverflow.Ellipsis)
-        }
-    }
-}
-
-@Composable
-private fun HomeNavItem(label: String, icon: ImageVector, selected: Boolean, onClick: () -> Unit) {
-    androidx.compose.material3.TextButton(onClick = onClick) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Icon(icon, contentDescription = null, tint = Color.White, modifier = Modifier.size(22.dp))
-            Text(label, style = MaterialTheme.typography.labelSmall, color = if (selected) Color.White else Color.White.copy(alpha = 0.7f))
         }
     }
 }

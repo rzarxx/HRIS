@@ -57,6 +57,7 @@ data class Me(
     @SerialName("employee_id") val employeeId: String,
     @SerialName("full_name") val fullName: String,
     @SerialName("nip") val nip: String,
+    @SerialName("email") val email: String = "",
     @SerialName("position") val position: String? = null,
     @SerialName("subdivision") val subdivision: Ref,
     @SerialName("division") val division: Ref,
@@ -151,6 +152,13 @@ data class FaceStatus(
     @SerialName("enrolled") val enrolled: Boolean,
     @SerialName("model_version") val modelVersion: String? = null,
     @SerialName("enrolled_at") val enrolledAt: String? = null,
+)
+
+// schema: PasswordChangeRequest
+@Serializable
+data class PasswordChangeRequest(
+    @SerialName("current_password") val currentPassword: String,
+    @SerialName("new_password") val newPassword: String,
 )
 
 // schema: ConsentInput

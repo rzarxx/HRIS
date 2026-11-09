@@ -18,7 +18,13 @@ import id.pejuang.hris.face.cameraMessage
 import id.pejuang.hris.ui.CameraOverlay
 import id.pejuang.hris.ui.ConsentContent
 import id.pejuang.hris.ui.FailedContent
-import id.pejuang.hris.ui.HistoryContent
+import id.pejuang.hris.ui.ChangePasswordContent
+import id.pejuang.hris.ui.FigmaIcons
+import id.pejuang.hris.ui.FigmaPopup
+import id.pejuang.hris.ui.MainTab
+import id.pejuang.hris.ui.MainTabs
+import id.pejuang.hris.ui.PasswordForm
+import id.pejuang.hris.ui.PersonalDataContent
 import id.pejuang.hris.ui.HomeContent
 import id.pejuang.hris.ui.HrisTheme
 import id.pejuang.hris.ui.LoginContent
@@ -46,6 +52,7 @@ class ScreenshotTest {
         employeeId = "e1",
         fullName = "Siti Nurhaliza Rahmawati",
         nip = "2024.07.0153",
+        email = "siti.nurhaliza@pejuang.id",
         position = "Staf Keuangan",
         subdivision = Ref("s1", "Akuntansi"),
         division = Ref("d1", "Keuangan"),
@@ -154,9 +161,56 @@ class ScreenshotTest {
         FailedContent("Absen masuk", "Wajah tidak cocok dengan data terdaftar. Coba lagi di tempat yang lebih terang.", onRetry = {}, onClose = {})
     }
 
-    @Test
-    fun historyList() = shot { HistoryContent(rows = history, error = null, onBack = {}, onRetry = {}) }
+    private fun tabs(tab: MainTab, me: Me = this.me, rows: List<AttendanceRecord>? = history, error: String? = null, popup: Boolean = false) = shot {
+        Box(Modifier.fillMaxSize()) {
+            MainTabs(
+                tab = tab, onTab = {}, me = me, records = rows, historyError = error, now = now, refreshing = false, crash = null,
+                onCopyCrash = {}, onDismissCrash = {}, onCapture = {}, onRefresh = {}, onPersonalData = {}, onChangePassword = {}, onLogout = {},
+            )
+            if (popup) {
+                FigmaPopup(
+                    icon = FigmaIcons.Logout, title = "Keluar dari aplikasi?",
+                    body = "Anda perlu masuk lagi dengan email dan kata sandi untuk absen berikutnya.",
+                    primary = "Ya, keluar", onPrimary = {}, secondary = "Batal", danger = true,
+                )
+            }
+        }
+    }
 
     @Test
-    fun historyEmpty() = shot { HistoryContent(rows = emptyList(), error = null, onBack = {}, onRetry = {}) }
+    fun tabHome() = tabs(MainTab.Home)
+
+    @Test
+    fun tabAttendanceClockedIn() = tabs(MainTab.Attendance)
+
+    @Test
+    fun tabAttendanceNewDevice() = tabs(MainTab.Attendance, me.copy(deviceStatus = "pending", faceEnrolled = false), rows = emptyList())
+
+    @Test
+    fun tabAttendanceError() = tabs(MainTab.Attendance, rows = null, error = "Tidak bisa terhubung ke server. Periksa koneksi internet.")
+
+    @Test
+    fun tabRequests() = tabs(MainTab.Requests)
+
+    @Test
+    fun tabProfile() = tabs(MainTab.Profile)
+
+    @Test
+    fun logoutPopup() = tabs(MainTab.Profile, popup = true)
+
+    @Test
+    fun personalData() = shot { PersonalDataContent(me, onBack = {}) }
+
+    @Test
+    fun changePasswordError() = shot {
+        ChangePasswordContent(
+            form = PasswordForm(current = "lama-sekali", next = "pendek", repeat = "beda", error = "Kata sandi saat ini salah."),
+            onCurrent = {}, onNext = {}, onRepeat = {}, onSubmit = {}, onBack = {}, onFinished = {},
+        )
+    }
+
+    @Test
+    fun changePasswordDone() = shot {
+        ChangePasswordContent(form = PasswordForm(done = true), onCurrent = {}, onNext = {}, onRepeat = {}, onSubmit = {}, onBack = {}, onFinished = {})
+    }
 }

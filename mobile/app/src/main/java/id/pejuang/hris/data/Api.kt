@@ -53,6 +53,9 @@ interface HrisApi {
     @POST("v1/face/enroll")
     suspend fun enroll(@Part("payload") payload: RequestBody, @Part samples: List<MultipartBody.Part>): DataResponse<FaceStatus>
 
+    @POST("v1/auth/password/change")
+    suspend fun changePassword(@Body body: PasswordChangeRequest): retrofit2.Response<Unit>
+
     @POST("v1/consents")
     suspend fun consent(@Body body: ConsentInput): retrofit2.Response<Unit>
 }

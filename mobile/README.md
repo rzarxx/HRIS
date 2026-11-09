@@ -12,7 +12,12 @@ selfie (D42), jadi aplikasi tidak memuat model pengenalan wajah. Play Integrity 
 - Beranda: sapaan, presensi hari ini (jam masuk/pulang), tombol absen besar, status HP dan wajah.
 - Persetujuan biometrik dan lokasi, lalu daftar wajah: challenge `face_enroll`, gerakan liveness, 3 selfie.
 - Absen masuk dan pulang: challenge, gerakan liveness, selfie, lokasi GPS, kirim multipart.
-- Riwayat absen 31 hari terakhir.
+- Navigasi bawah lima menu sesuai MASTER.md §10.2 dan UI kit Figma: Beranda, Presensi, Pengajuan, Slip upah,
+  dan Profil. Pengajuan dan Slip upah masih menampilkan "Segera tersedia" sampai API Fase 4 dan 5 ada.
+- Presensi: total jam kerja hari ini dan bulan berjalan, tombol absen masuk/pulang, dan riwayat 31 hari terakhir.
+- Profil: kontak, data pribadi (hanya baca), status HP dan wajah, ganti kata sandi
+  (`POST /v1/auth/password/change`), versi aplikasi, dan keluar. Layar Profil, Data pribadi, Ganti kata sandi,
+  dan Slip upah memakai `FLAG_SECURE`.
 
 Belum: Play Integrity (butuh akun Play Console), deteksi root/emulator/fake GPS app selain `isMock`,
 notifikasi FCM, pengajuan, dan slip upah.

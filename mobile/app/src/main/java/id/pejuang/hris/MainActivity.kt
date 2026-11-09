@@ -33,11 +33,10 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import id.pejuang.hris.ui.BrandGradient
 import id.pejuang.hris.ui.CaptureScreen
-import id.pejuang.hris.ui.HistoryScreen
-import id.pejuang.hris.ui.HomeScreen
 import id.pejuang.hris.ui.HrisTheme
 import id.pejuang.hris.ui.LoginScreen
 import id.pejuang.hris.ui.LogoMark
+import id.pejuang.hris.ui.MainScreen
 import id.pejuang.hris.ui.StatusBarIcons
 import id.pejuang.hris.update.UpdatePrompt
 
@@ -65,12 +64,11 @@ class MainActivity : ComponentActivity() {
                         LoginScreen(app.repository, crash, dismissCrash) { nav.replaceWith("home") }
                     }
                     composable("home") { entry ->
-                        HomeScreen(
+                        MainScreen(
                             repository = app.repository,
                             crash = crash,
                             onDismissCrash = dismissCrash,
                             onCapture = { purpose -> if (entry.isActive()) nav.navigate("capture/$purpose") },
-                            onHistory = { if (entry.isActive()) nav.navigate("history") },
                             onLoggedOut = { nav.replaceWith("login") },
                         )
                     }
@@ -81,9 +79,6 @@ class MainActivity : ComponentActivity() {
                             location = app.location,
                             onClose = { if (entry.isActive()) nav.popBackStack() },
                         )
-                    }
-                    composable("history") { entry ->
-                        HistoryScreen(app.repository) { if (entry.isActive()) nav.popBackStack() }
                     }
                 }
                 val activeEntry by nav.currentBackStackEntryAsState()

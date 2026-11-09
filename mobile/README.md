@@ -185,7 +185,7 @@ file unduhan sementara berada di folder khusus aplikasi, dan file terverifikasi 
 
 ### Uji lokal dan di HP
 
-1. Jalankan `gradle testDebugUnitTest` dari `mobile/` untuk uji perbandingan versi dan validasi metadata.
+1. Jalankan `gradle recordPaparazziDebug` dari `mobile/` untuk uji unit, perbandingan versi, validasi metadata, dan render layar.
    Debug tidak menjalankan updater karena nama paket/kunci debug berbeda dari rilis.
 2. Untuk uji lengkap, gunakan **repo GitHub publik khusus pengujian**, bukan repo produksi; salin workflow
    dan atur lima secret di repo uji dengan keystore uji tersendiri. Workflow mengikat APK ke repo tempat

@@ -1,0 +1,109 @@
+package id.pejuang.hris
+
+import id.pejuang.hris.data.AttendanceSignals
+import id.pejuang.hris.data.ClockInput
+import id.pejuang.hris.data.DeviceRegisterInput
+import id.pejuang.hris.data.MobileLoginRequest
+import id.pejuang.hris.data.apiJson
+import id.pejuang.hris.data.normalizeBaseUrl
+import id.pejuang.hris.data.sha256Hex
+import id.pejuang.hris.face.FaceSample
+import id.pejuang.hris.face.LivenessState
+import id.pejuang.hris.face.LivenessTracker
+import id.pejuang.hris.face.scaledSize
+import id.pejuang.hris.location.roundCoordinate
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
+import org.junit.Test
+
+class LivenessTrackerTest {
+    private fun face(yaw: Float = 0f, eyes: Float? = 0.9f, smile: Float? = 0.1f) =
+        FaceSample(leftEyeOpen = eyes, rightEyeOpen = eyes, smiling = smile, yaw = yaw)
+
+    @Test
+    fun blinkNeedsOpenClosedOpen() {
+        val t = LivenessTracker("blink")
+        assertTrue(t.update(listOf(face())) is LivenessState.Waiting)
+        assertTrue(t.update(listOf(face(eyes = 0.1f))) is LivenessState.Waiting)
+        assertEquals(LivenessState.Passed, t.update(listOf(face(eyes = 0.9f))))
+    }
+
+    @Test
+    fun closedEyesFromStartDoNotPass() {
+        val t = LivenessTracker("blink")
+        repeat(3) { assertTrue(t.update(listOf(face(eyes = 0.1f))) is LivenessState.Waiting) }
+    }
+
+    @Test
+    fun turnNeedsStraightFirst() {
+        val t = LivenessTracker("turn_left")
+        // Kepala sudah menoleh sejak awal: belum dianggap gerakan.
+        assertTrue(t.update(listOf(face(yaw = 40f))) is LivenessState.Waiting)
+        t.update(listOf(face(yaw = 2f)))
+        assertEquals(LivenessState.Passed, t.update(listOf(face(yaw = -30f))))
+    }
+
+    @Test
+    fun smileNeedsNeutralFirst() {
+        val t = LivenessTracker("smile")
+        assertTrue(t.update(listOf(face(smile = 0.95f))) is LivenessState.Waiting)
+        t.update(listOf(face(smile = 0.1f)))
+        assertEquals(LivenessState.Passed, t.update(listOf(face(smile = 0.9f))))
+    }
+
+    @Test
+    fun noFaceAndManyFaces() {
+        val t = LivenessTracker("blink")
+        assertEquals(LivenessState.NoFace, t.update(emptyList()))
+        assertEquals(LivenessState.ManyFaces, t.update(listOf(face(), face())))
+    }
+}
+
+class DataTest {
+    @Test
+    fun scaledSizeNeverEnlarges() {
+        assertEquals(640 to 480, scaledSize(1280, 960))
+        assertEquals(480 to 640, scaledSize(1080, 1440))
+        assertEquals(320 to 240, scaledSize(320, 240))
+    }
+
+    @Test
+    fun coordinatesHaveSixDecimals() {
+        assertEquals(-6.200100, roundCoordinate(-6.2001004), 0.0)
+        assertEquals(106.816601, roundCoordinate(106.8166009), 0.0)
+    }
+
+    @Test
+    fun sha256IsLowerHex() {
+        val hash = sha256Hex("abc".toByteArray())
+        assertEquals("ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad", hash)
+    }
+
+    @Test
+    fun baseUrlEndsWithSlash() {
+        assertEquals("http://10.0.0.2:8080/", normalizeBaseUrl(" http://10.0.0.2:8080 "))
+        assertEquals("https://api.domain.id/", normalizeBaseUrl("https://api.domain.id/"))
+    }
+
+    @Test
+    fun loginOmitsEmptyMfaAndUsesSnakeCase() {
+        val json = apiJson.encodeToString(
+            MobileLoginRequest.serializer(),
+            MobileLoginRequest("a@b.id", "rahasia", null, DeviceRegisterInput("h")),
+        )
+        assertFalse(json.contains("mfa_code"))
+        assertTrue(json.contains("\"device_hash\":\"h\""))
+    }
+
+    @Test
+    fun clockPayloadHasContractFields() {
+        val json = apiJson.encodeToString(
+            ClockInput.serializer(),
+            ClockInput("c", -6.2, 106.8, 12.5, "2026-11-09T01:00:00Z", AttendanceSignals(false, "0.1.0"), "ab", true, "blink"),
+        )
+        for (field in listOf("challenge_id", "accuracy_m", "captured_at", "selfie_sha256", "liveness_passed", "liveness_action", "is_mock_location", "app_version")) {
+            assertTrue("$field ada", json.contains("\"$field\""))
+        }
+    }
+}

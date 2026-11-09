@@ -122,6 +122,30 @@ jobs:
           for name in TestSFaceMatchesOpenCV TestSFaceEngineErrors TestSFaceEngine; do
             grep -q -- "--- PASS: $name " "$RUNNER_TEMP/face-test.log"
           done
+  # Aplikasi Android (D44). Tidak ada wrapper Gradle di repo, jadi versinya dipasang di sini.
+  mobile:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: mobile
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.11.1"
+      - name: Build APK debug dan tes unit
+        run: gradle --no-daemon --stacktrace assembleDebug testDebugUnitTest
+      - name: Simpan APK debug
+        uses: actions/upload-artifact@v4
+        with:
+          name: hris-pejuang-debug-apk
+          path: mobile/app/build/outputs/apk/debug/*.apk
+          retention-days: 14
+
   web:
     runs-on: ubuntu-latest
     defaults:

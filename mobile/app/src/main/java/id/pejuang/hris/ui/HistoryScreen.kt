@@ -12,13 +12,17 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -31,6 +35,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import id.pejuang.hris.data.AttendanceRecord
@@ -61,8 +66,16 @@ fun HistoryScreen(repository: Repository, onBack: () -> Unit) {
 
 @Composable
 fun HistoryContent(rows: List<AttendanceRecord>?, error: String?, onBack: () -> Unit, onRetry: () -> Unit) {
+    StatusBarIcons(dark = false)
     Column(Modifier.fillMaxSize().background(Hc.Canvas)) {
-        TopBar("Riwayat absen", onBack = onBack)
+        Column(Modifier.fillMaxWidth().background(Hc.Brand).statusBarsPadding().padding(bottom = 20.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Kembali", tint = Color.White) }
+                Text("Presensi", style = MaterialTheme.typography.titleMedium, color = Color.White)
+            }
+            Text("Riwayat kehadiran", style = MaterialTheme.typography.headlineSmall, color = Color.White, modifier = Modifier.padding(horizontal = 16.dp))
+            Text("Catatan presensi 31 hari terakhir", style = MaterialTheme.typography.bodyMedium, color = Color.White.copy(alpha = 0.85f), modifier = Modifier.padding(horizontal = 16.dp))
+        }
         val modifier = Modifier.weight(1f)
         when {
             error != null -> CenterMessage(
@@ -84,11 +97,10 @@ fun HistoryContent(rows: List<AttendanceRecord>?, error: String?, onBack: () -> 
             )
             else -> LazyColumn(
                 modifier = modifier,
-                contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 16.dp, bottom = 24.dp),
-                verticalArrangement = Arrangement.spacedBy(10.dp),
+                contentPadding = PaddingValues(start = 12.dp, end = 12.dp, top = 16.dp, bottom = 24.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp),
             ) {
                 item { Summary(rows) }
-                item { SectionLabel("31 hari terakhir") }
                 items(rows, key = { it.id }) { HistoryRow(it) }
                 item { Spacer(Modifier.navigationBarsPadding()) }
             }
@@ -99,7 +111,7 @@ fun HistoryContent(rows: List<AttendanceRecord>?, error: String?, onBack: () -> 
 @Composable
 private fun Summary(rows: List<AttendanceRecord>) {
     val counts = rows.groupingBy { it.status }.eachCount()
-    SectionCard(padding = 16.dp) {
+    SectionCard(padding = 16.dp, shape = RoundedCornerShape(8.dp), shadowElevation = 0.dp) {
         Row(Modifier.fillMaxWidth()) {
             SummaryCell("Hadir", counts["present"] ?: 0, Tone.Success, Modifier.weight(1f))
             SummaryCell("Terlambat", counts["late"] ?: 0, Tone.Warning, Modifier.weight(1f))
@@ -121,19 +133,17 @@ private fun SummaryCell(label: String, value: Int, tone: Tone, modifier: Modifie
 fun HistoryRow(r: AttendanceRecord) {
     val date = runCatching { LocalDate.parse(r.workDate) }.getOrNull()
     val (label, tone) = statusLabel(r.status)
-    SectionCard(padding = 14.dp) {
+    SectionCard(padding = 16.dp, shape = RoundedCornerShape(8.dp), shadowElevation = 0.dp) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Column(
-                Modifier.width(52.dp).clip(MaterialTheme.shapes.medium).background(Hc.Canvas).padding(vertical = 8.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
-            ) {
-                Text(date?.let(::shortDay) ?: "", style = MaterialTheme.typography.labelSmall, color = Hc.InkSoft)
-                Text(date?.dayOfMonth?.toString() ?: r.workDate, style = MaterialTheme.typography.titleLarge, color = Hc.Ink)
-                Text(date?.let(::shortMonth) ?: "", style = MaterialTheme.typography.labelSmall, color = Hc.InkSoft)
-            }
-            Spacer(Modifier.width(14.dp))
-            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Icon(Icons.Filled.DateRange, contentDescription = null, tint = Hc.Brand, modifier = Modifier.size(18.dp))
+            Spacer(Modifier.width(8.dp))
+            Text(date?.let(::longDateLabel) ?: r.workDate, style = MaterialTheme.typography.titleSmall, color = Hc.Ink, modifier = Modifier.weight(1f))
+            StatusChip(label, tone)
+        }
+        Spacer(Modifier.size(12.dp))
+        Column(Modifier.fillMaxWidth().clip(MaterialTheme.shapes.medium).background(Hc.Canvas).padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("Masuk / Pulang", style = MaterialTheme.typography.bodySmall, color = Hc.InkSoft, modifier = Modifier.weight(1f))
                     TimePair(HrisIcons.ClockIn, wibTime(r.clockInAt))
                     Spacer(Modifier.width(14.dp))
                     TimePair(HrisIcons.ClockOut, wibTime(r.clockOutAt))
@@ -152,9 +162,6 @@ fun HistoryRow(r: AttendanceRecord) {
                         overflow = TextOverflow.Ellipsis,
                     )
                 }
-            }
-            Spacer(Modifier.width(8.dp))
-            StatusChip(label, tone)
         }
     }
 }

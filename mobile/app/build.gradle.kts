@@ -12,8 +12,8 @@ plugins {
 // Alamat API untuk build rilis, mis. -Phris.apiBaseUrl=https://api.domain.id/
 // Build debug bisa mengganti alamat ini di layar masuk.
 val apiBaseUrl = (findProperty("hris.apiBaseUrl") as String?) ?: ""
-val releaseVersionName = (findProperty("hris.versionName") as String?) ?: "0.3.0"
-val releaseVersionCode = (findProperty("hris.versionCode") as String?)?.toIntOrNull() ?: 3
+val releaseVersionName = (findProperty("hris.versionName") as String?) ?: "0.4.0"
+val releaseVersionCode = (findProperty("hris.versionCode") as String?)?.toIntOrNull() ?: 4
 val updateRepo = (findProperty("hris.updateRepo") as String?) ?: "rzarxx/HRIS"
 require(Regex("^[A-Za-z0-9][A-Za-z0-9-]{0,38}/[A-Za-z0-9_.-]+$").matches(updateRepo) &&
     updateRepo.substringAfter('/') !in setOf(".", "..")) { "hris.updateRepo harus berupa owner/repo GitHub" }

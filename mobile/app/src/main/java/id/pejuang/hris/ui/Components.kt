@@ -128,14 +128,16 @@ fun TopBar(title: String, onBack: (() -> Unit)?, navIcon: ImageVector = Icons.Au
 fun SectionCard(
     modifier: Modifier = Modifier,
     padding: Dp = 16.dp,
+    shape: androidx.compose.ui.graphics.Shape = MaterialTheme.shapes.large,
+    shadowElevation: Dp = 1.dp,
     content: @Composable ColumnScope.() -> Unit,
 ) {
     Surface(
         modifier = modifier.fillMaxWidth(),
-        shape = MaterialTheme.shapes.large,
+        shape = shape,
         color = Hc.Surface,
         border = BorderStroke(1.dp, Hc.Line),
-        shadowElevation = 1.dp,
+        shadowElevation = shadowElevation,
     ) {
         Column(Modifier.padding(padding), content = content)
     }
@@ -203,12 +205,13 @@ fun PrimaryButton(
     enabled: Boolean = true,
     loading: Boolean = false,
     icon: ImageVector? = null,
+    shape: androidx.compose.ui.graphics.Shape = MaterialTheme.shapes.medium,
 ) {
     Button(
         onClick = onClick,
         enabled = enabled && !loading,
         modifier = modifier.fillMaxWidth().height(52.dp),
-        shape = MaterialTheme.shapes.medium,
+        shape = shape,
         colors = ButtonDefaults.buttonColors(
             containerColor = Hc.Brand,
             contentColor = Color.White,
@@ -349,4 +352,3 @@ fun RowDivider() {
 fun Dot(color: Color, size: Dp = 8.dp) {
     Box(Modifier.size(size).clip(CircleShape).background(color))
 }
-

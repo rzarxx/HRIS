@@ -26,7 +26,7 @@ sealed interface LivenessState {
 class LivenessTracker(private val action: String) {
     private var neutralSeen = false
     private var eyesClosedSeen = false
-    private var passed = false
+    private var gestureDone = false
 
     val prompt: String = when (action) {
         "blink" -> "Kedipkan mata"
@@ -37,22 +37,30 @@ class LivenessTracker(private val action: String) {
     }
 
     fun update(faces: List<FaceSample>): LivenessState {
-        if (passed) return LivenessState.Passed
         if (faces.isEmpty()) return LivenessState.NoFace
         if (faces.size > 1) return LivenessState.ManyFaces
         val face = faces.first()
 
+        // Foto diambil saat wajah sudah lurus dan mata terbuka lagi, bukan di tengah gerakan,
+        // agar selfie mirip dengan template dan antarsampel pendaftaran saling mirip.
+        if (gestureDone) {
+            return if (abs(face.yaw) < STRAIGHT_YAW && eyesOpen(face)) {
+                LivenessState.Passed
+            } else {
+                LivenessState.Waiting("Bagus. Sekarang lihat lurus ke kamera")
+            }
+        }
+
         if (!neutralSeen) {
-            val eyesOpen = (face.leftEyeOpen ?: 1f) > OPEN && (face.rightEyeOpen ?: 1f) > OPEN
             val notSmiling = action != "smile" || (face.smiling ?: 0f) < NEUTRAL_SMILE
-            if (abs(face.yaw) < STRAIGHT_YAW && eyesOpen && notSmiling) {
+            if (abs(face.yaw) < STRAIGHT_YAW && eyesOpen(face) && notSmiling) {
                 neutralSeen = true
                 return LivenessState.Waiting(prompt)
             }
             return LivenessState.Waiting("Lihat lurus ke kamera")
         }
 
-        passed = when (action) {
+        gestureDone = when (action) {
             "blink" -> {
                 val left = face.leftEyeOpen
                 val right = face.rightEyeOpen
@@ -65,8 +73,11 @@ class LivenessTracker(private val action: String) {
             "smile" -> (face.smiling ?: 0f) > SMILE
             else -> false
         }
-        return if (passed) LivenessState.Passed else LivenessState.Waiting(prompt)
+        if (!gestureDone) return LivenessState.Waiting(prompt)
+        return update(faces)
     }
+
+    private fun eyesOpen(face: FaceSample) = (face.leftEyeOpen ?: 1f) > OPEN && (face.rightEyeOpen ?: 1f) > OPEN
 
     companion object {
         const val OPEN = 0.6f

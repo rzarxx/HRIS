@@ -13,6 +13,10 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.statusBars
+import androidx.compose.foundation.layout.windowInsetsTopHeight
+import androidx.compose.ui.Alignment
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
@@ -125,12 +129,13 @@ fun LoginContent(
     val canSubmit = form.email.isNotBlank() && form.password.isNotEmpty() &&
         (!showServer || form.server.isNotBlank()) && (!form.askMfa || form.mfa.length == 6)
 
+    Box(Modifier.fillMaxSize().background(Hc.Surface)) {
     Column(
         Modifier
             .fillMaxSize()
-            .background(Hc.Surface)
             .imePadding()
             .verticalScroll(rememberScrollState()),
+        horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Box(
             Modifier
@@ -153,7 +158,7 @@ fun LoginContent(
         }
 
         Column(
-            Modifier.fillMaxWidth()
+            ContentWidth.fillMaxWidth()
                 .offset(y = (-24).dp)
                 .clip(RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp))
                 .background(Hc.Surface)
@@ -250,6 +255,9 @@ fun LoginContent(
                 modifier = Modifier.fillMaxWidth().navigationBarsPadding().padding(top = 8.dp),
             )
         }
+    }
+    // Status bar tetap hijau saat formulir digulir, agar isian tidak menembus jam dan ikon sistem.
+    Box(Modifier.fillMaxWidth().windowInsetsTopHeight(WindowInsets.statusBars).background(Hc.Brand))
     }
 }
 

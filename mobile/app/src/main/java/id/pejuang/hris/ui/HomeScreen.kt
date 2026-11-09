@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
@@ -106,11 +107,12 @@ fun HomeContent(
             IconButton(onClick = onLogout) { Icon(HrisIcons.ClockOut, contentDescription = "Keluar", tint = Hc.Brand) }
         }
         Column(
-            Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(horizontal = 12.dp, vertical = 16.dp),
+            Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState())
+                .padding(start = 12.dp, end = 12.dp, top = 16.dp, bottom = bottomContentSpace(16.dp)),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
-            Box(Modifier.fillMaxWidth().height(96.dp).clip(RoundedCornerShape(12.dp)).background(Hc.Brand)) {
-                Column(Modifier.align(Alignment.CenterStart).padding(start = 16.dp, end = 110.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Box(Modifier.fillMaxWidth().heightIn(min = 96.dp).clip(RoundedCornerShape(12.dp)).background(Hc.Brand)) {
+                Column(Modifier.align(Alignment.CenterStart).padding(start = 16.dp, end = 110.dp, top = 16.dp, bottom = 16.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                     Text("Ringkasan kerja", style = MaterialTheme.typography.titleMedium, color = Color.White, maxLines = 1)
                     Text("Presensi dan kegiatan Anda", style = MaterialTheme.typography.bodySmall, color = Color.White.copy(alpha = 0.9f), maxLines = 1)
                 }

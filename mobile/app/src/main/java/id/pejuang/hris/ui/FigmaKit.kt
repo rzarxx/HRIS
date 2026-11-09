@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
@@ -126,7 +127,7 @@ fun FigmaPrimaryButton(
     Box(
         modifier
             .fillMaxWidth()
-            .height(48.dp)
+            .heightIn(min = 48.dp)
             .clip(shape)
             .background(if (enabled || loading) Fg.ButtonRing else Fg.Gray300)
             .padding(1.dp)
@@ -136,7 +137,8 @@ fun FigmaPrimaryButton(
                 else SolidColor(Fg.Gray200),
             )
             .border(1.dp, if (enabled || loading) Fg.ButtonBorder else Fg.Gray300, shape)
-            .clickable(enabled = active, role = Role.Button, onClick = onClick),
+            .clickable(enabled = active, role = Role.Button, onClick = onClick)
+            .padding(horizontal = 20.dp, vertical = 12.dp),
         contentAlignment = Alignment.Center,
     ) {
         if (loading) {
@@ -160,10 +162,11 @@ fun FigmaSecondaryButton(text: String, onClick: () -> Unit, modifier: Modifier =
     Box(
         modifier
             .fillMaxWidth()
-            .height(48.dp)
+            .heightIn(min = 48.dp)
             .clip(RoundedCornerShape(100.dp))
             .border(BorderStroke(1.dp, color), RoundedCornerShape(100.dp))
-            .clickable(role = Role.Button, onClick = onClick),
+            .clickable(role = Role.Button, onClick = onClick)
+            .padding(horizontal = 20.dp, vertical = 12.dp),
         contentAlignment = Alignment.Center,
     ) {
         Text(text, style = figmaText(14, FontWeight.Medium, color, tracking = 0.1f).copy(lineHeight = 20.sp), maxLines = 1)
@@ -187,7 +190,7 @@ fun FigmaCircleButton(icon: ImageVector, description: String, background: Color,
 fun FigmaHeader(title: String, onBack: () -> Unit) {
     StatusBarIcons(dark = true)
     Column(Modifier.fillMaxWidth().background(Fg.Card).statusBarsPadding()) {
-        Box(Modifier.fillMaxWidth().padding(horizontal = 23.5.dp).padding(top = 12.dp, bottom = 16.dp).height(32.dp)) {
+        Box(Modifier.fillMaxWidth().padding(horizontal = 23.5.dp).padding(top = 12.dp, bottom = 16.dp).heightIn(min = 32.dp)) {
             Box(Modifier.align(Alignment.CenterStart)) {
                 FigmaCircleButton(FigmaIcons.ArrowLeftOutline, "Kembali", Fg.PageProfile, Fg.Accent, onBack)
             }
@@ -261,7 +264,7 @@ fun FigmaInput(
                 Row(
                     Modifier
                         .fillMaxWidth()
-                        .height(44.dp)
+                        .heightIn(min = 44.dp)
                         .shadow(1.dp, RoundedCornerShape(8.dp), ambientColor = Color(0x0D101828), spotColor = Color(0x0D101828))
                         .clip(RoundedCornerShape(8.dp))
                         .background(Color.White)
@@ -339,41 +342,6 @@ enum class MainTab(val label: String, val icon: ImageVector, val selectedIcon: I
     Requests("Pengajuan", FigmaIcons.NavNote, FigmaIcons.NavNoteBold),
     Payslip("Slip upah", FigmaIcons.NavReceipt, FigmaIcons.NavReceiptBold),
     Profile("Profil", FigmaIcons.User, FigmaIcons.UserBold),
-}
-
-/** Navbar Figma: latar #1C2020, ikon 24dp putih, garis 12×2dp di bawah ikon aktif. */
-@Composable
-fun FigmaBottomNav(selected: MainTab, onSelect: (MainTab) -> Unit) {
-    Box(Modifier.fillMaxWidth().background(Fg.NavBar)) {
-        // Pendaran elips #2A2A2A di tepi atas navbar.
-        Box(
-            Modifier.fillMaxWidth().height(18.dp)
-                .background(Brush.verticalGradient(listOf(Color(0xFF2A2A2A), Fg.NavBar))),
-        )
-        Row(
-            Modifier.fillMaxWidth().navigationBarsPadding().padding(horizontal = 20.dp).padding(top = 18.dp, bottom = 16.dp).height(40.dp),
-            verticalAlignment = Alignment.Top,
-        ) {
-            MainTab.entries.forEach { tab ->
-                val active = tab == selected
-                Column(
-                    Modifier
-                        .weight(1f)
-                        .clip(RoundedCornerShape(8.dp))
-                        .clickable(role = Role.Tab) { onSelect(tab) }
-                        .semantics {
-                            contentDescription = tab.label
-                            this.selected = active
-                        },
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    Icon(if (active) tab.selectedIcon else tab.icon, contentDescription = null, tint = Color(0xFFFEFEFE), modifier = Modifier.size(24.dp))
-                    Box(Modifier.width(12.dp).height(2.dp).clip(RoundedCornerShape(2.dp)).background(if (active) Color.White else Color.Transparent))
-                }
-            }
-        }
-    }
 }
 
 /** Bintang empat sudut dari header Figma, berputar sesuai desain. */

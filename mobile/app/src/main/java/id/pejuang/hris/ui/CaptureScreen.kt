@@ -1,3 +1,5 @@
+@file:OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
+
 package id.pejuang.hris.ui
 
 import android.Manifest
@@ -24,6 +26,9 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.consumeWindowInsets
+import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -311,7 +316,7 @@ fun PermissionContent(denied: Boolean, onRequest: () -> Unit, onOpenSettings: ()
 fun ProgressContent(title: String, heading: String, body: String, onClose: (() -> Unit)?) {
     Column(Modifier.fillMaxSize().background(Hc.Canvas)) {
         TopBar(title, onBack = onClose, navIcon = Icons.Filled.Close)
-        CenterMessage(title = heading, body = body, loading = true, modifier = Modifier.weight(1f))
+        CenterMessage(title = heading, body = body, loading = true, modifier = Modifier.weight(1f).consumeWindowInsets(WindowInsets.statusBars))
     }
 }
 
@@ -323,7 +328,6 @@ fun ResultContent(outcome: ClockOutcome, at: ZonedDateTime, onClose: () -> Unit)
         body = outcome.detail,
         icon = if (outcome.needsReview) Icons.Filled.Info else Icons.Filled.CheckCircle,
         tone = if (outcome.needsReview) Tone.Warning else Tone.Success,
-        modifier = Modifier.statusBarsPadding(),
         extra = {
             StatusChip("Pukul ${wibTime(at.toInstant().toString())} WIB", Tone.Neutral)
             if (outcome.needsReview) {
@@ -350,7 +354,7 @@ fun FailedContent(title: String, message: String, onRetry: () -> Unit, onClose: 
             body = message,
             icon = Icons.Filled.Close,
             tone = Tone.Danger,
-            modifier = Modifier.weight(1f),
+            modifier = Modifier.weight(1f).consumeWindowInsets(WindowInsets.statusBars),
         ) {
             PrimaryButton("Coba lagi", onClick = onRetry)
             SecondaryButton("Kembali", onClick = onClose)

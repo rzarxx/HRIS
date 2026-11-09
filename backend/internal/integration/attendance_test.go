@@ -305,6 +305,57 @@ func TestChallengeRules(t *testing.T) {
 	f.hp.do(http.MethodPost, "/v1/attendance/clock-in", map[string]any{"challenge_id": "salah"}).wantError(t, http.StatusBadRequest, "VALIDATION_FAILED")
 }
 
+// Challenge harus tetap sekali pakai saat permintaan yang sama tiba bersamaan. Uji juga
+// percobaan yang ditolak setelah challenge dikonsumsi, bukan hanya absen yang berhasil.
+func TestConcurrentChallengeReplay(t *testing.T) {
+	for _, tc := range []struct {
+		name       string
+		lat, lon   float64
+		firstCode  int
+		firstError string
+	}{
+		{"accepted", officeLat, officeLon, http.StatusCreated, ""},
+		{"rejected outside geofence", 0, 0, http.StatusUnprocessableEntity, "GEOFENCE_OUT"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			f := newClockFixture(t, options{}, "08:00", "17:00")
+			challenge := f.challenge(t, "clock_in")
+			body := f.clockBody(challenge, tc.lat, tc.lon)
+			start := make(chan struct{})
+			responses := make([]response, 2)
+			var wg sync.WaitGroup
+			for i := range responses {
+				client := f.hp.clone().withHeaders(f.hp.headers)
+				wg.Add(1)
+				go func(i int) {
+					defer wg.Done()
+					<-start
+					responses[i] = client.do(http.MethodPost, "/v1/attendance/clock-in", body)
+				}(i)
+			}
+			close(start)
+			wg.Wait()
+
+			first, replay := 0, 0
+			for _, r := range responses {
+				switch {
+				case r.status == tc.firstCode && (tc.firstError == "" || r.errorField("code") == tc.firstError):
+					first++
+				case r.status == http.StatusUnprocessableEntity && r.errorField("code") == "CHALLENGE_EXPIRED":
+					replay++
+				default:
+					t.Errorf("respons tak terduga: %d %s", r.status, r.body)
+				}
+			}
+			if first != 1 || replay != 1 {
+				t.Fatalf("challenge digunakan %d kali dan ditolak sebagai replay %d kali", first, replay)
+			}
+			f.hp.do(http.MethodPost, "/v1/attendance/clock-in", body).
+				wantError(t, http.StatusUnprocessableEntity, "CHALLENGE_EXPIRED")
+		})
+	}
+}
+
 func TestClockInDeviceRules(t *testing.T) {
 	f := newClockFixture(t, options{}, "08:00", "17:00")
 	challenge := f.challenge(t, "clock_in")

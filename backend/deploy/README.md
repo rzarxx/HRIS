@@ -191,6 +191,23 @@ Template wajah dari model lain (dlib, D42) dianggap belum terdaftar, jadi Pejuan
 Selfie disimpan terenkripsi dengan kunci `FIELD_ENCRYPTION_KEY_PATH`. Folder selfie ikut dicadangkan
 bersama kunci itu; tanpa kunci, selfie tidak bisa dibuka.
 
+Selfie dihapus setelah 90 hari oleh `hris-purge-selfies.timer`, yang dipasang dan diaktifkan
+`deploy.sh` (setiap hari pukul 02.17 waktu server, ditambah jeda acak sampai 10 menit; yang
+terlewat saat server mati dijalankan begitu menyala). Hash selfie tetap disimpan untuk menolak foto
+yang dikirim ulang. Service-nya dilewati bila `/opt/hris/selfies` belum ada. Periksa jadwal dan hasil
+terakhir:
+
+```bash
+systemctl list-timers hris-purge-selfies.timer
+journalctl -u hris-purge-selfies -n 20 --no-pager
+```
+
+Menjalankan sekali secara manual:
+
+```bash
+systemctl start hris-purge-selfies
+```
+
 ## Super admin
 
 Super admin adalah role tertinggi: semua akses kecuali keuangan. Role diberikan lewat server, pada

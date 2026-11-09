@@ -43,16 +43,16 @@ development sampai pengikatan kriptografis instalasi perangkat selesai. Tanpa ko
 pendaftaran wajah tetap ditolak di luar mode development yang secara eksplisit mengizinkan bypass.
 Jangan commit file kredensial. Gangguan layanan Google saat ini menyebabkan penolakan tertutup.
 
-Retensi selfie dijalankan harian oleh scheduler host dari direktori `backend` dengan environment
-yang sama dengan API dan `SELFIE_DIR` yang menunjuk penyimpanan sebenarnya:
+Retensi selfie dijalankan harian dengan environment yang sama dengan API dan `SELFIE_DIR` yang
+menunjuk penyimpanan sebenarnya. Di lokal, dari direktori `backend`:
 
 ```bash
 go run ./cmd/purge-selfies
 ```
 
 Jalankan migrasi terlebih dahulu. Perintah menghapus berkas setelah 90 hari, mempertahankan hash
-untuk menolak replay, dan dapat dijalankan ulang setelah gagal. Pantau status keluar scheduler;
-perintah ini tidak memasang jadwal secara otomatis.
+untuk menolak replay, dan dapat dijalankan ulang setelah gagal. Di server development, `deploy.sh`
+membangun `hris-purge-selfies` dan memasang timer systemd harian (lihat `deploy/README.md`).
 
 Saat `DEV_SIMULATE_ATTENDANCE=true`, API mengisi presensi dummy sampai hari ini setiap 5 menit.
 Presensi nyata dari aplikasi HP menyusul di Fase 2-3.

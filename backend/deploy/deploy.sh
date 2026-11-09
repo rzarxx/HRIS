@@ -43,7 +43,7 @@ echo "    $COMMIT"
 echo "==> Build API"
 BUILD_DIR="$APP_DIR/build-home/dist"
 as_builder mkdir -p "$BUILD_DIR"
-for program in migrate seed superadmin; do
+for program in migrate seed superadmin purge-selfies; do
   as_builder bash -c "cd '$SRC_DIR/backend' && go build -o '$BUILD_DIR/hris-$program' ./cmd/$program"
 done
 # Mesin wajah ONNX butuh cgo dan pustaka dari setup-face.sh (D43). Tanpanya API tetap jalan, tetapi
@@ -67,7 +67,7 @@ echo "==> Build web"
 as_builder bash -c "cd '$SRC_DIR/web' && npm ci --ignore-scripts --no-audit --no-fund && npm run build"
 
 echo "==> Memasang"
-for program in api migrate seed superadmin; do
+for program in api migrate seed superadmin purge-selfies; do
   install -o hris -g hris -m 750 "$BUILD_DIR/hris-$program" "$APP_DIR/hris-$program.new"
   mv -f "$APP_DIR/hris-$program.new" "$APP_DIR/hris-$program"
 done
@@ -89,6 +89,15 @@ curl -fsS -o /dev/null http://127.0.0.1:8080/readyz || {
   journalctl -u hris-api -n 30 --no-pager
   exit 1
 }
+
+echo "==> Jadwal hapus selfie lama"
+# Timer harian purge-selfies (retensi 90 hari, MASTER.md §5.6). Dipasang ulang setiap deploy agar
+# ikut berubah bersama repo; service-nya sendiri dilewati bila /opt/hris/selfies belum ada.
+install -m 644 "$SRC_DIR/backend/deploy/hris-purge-selfies.service" /etc/systemd/system/hris-purge-selfies.service
+install -m 644 "$SRC_DIR/backend/deploy/hris-purge-selfies.timer" /etc/systemd/system/hris-purge-selfies.timer
+systemctl daemon-reload
+systemctl enable --now hris-purge-selfies.timer >/dev/null
+systemctl list-timers hris-purge-selfies.timer --no-pager || true
 
 echo "==> Menyalin web ke $WEB_ROOT"
 # Web disalin terakhir agar tidak mendahului API. File milik aaPanel tidak ikut dihapus.

@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -20,7 +21,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Warning
@@ -157,170 +158,87 @@ fun HomeContent(
     onLogout: () -> Unit,
 ) {
     StatusBarIcons(dark = true)
-    val deviceApproved = me.deviceStatus == "approved"
-    val ready = deviceApproved && !me.mustChangePassword
+    val ready = me.deviceStatus == "approved" && !me.mustChangePassword
     val canClock = ready && me.faceEnrolled
     val clockedIn = today?.clockInAt != null
     val clockedOut = today?.clockOutAt != null
     val (statusText, statusTone) = statusLabel(today?.status)
 
-    Column(
-        Modifier
-            .fillMaxSize()
-            .background(Hc.Canvas)
-            .verticalScroll(rememberScrollState()),
-    ) {
-        // Header dan kartu ringkasan mengikuti susunan beranda pada desain Figma.
-        Column(
-            Modifier
-                .fillMaxWidth()
-                .background(Hc.Surface)
-                .statusBarsPadding()
-                .padding(start = 16.dp, end = 8.dp, top = 12.dp, bottom = 16.dp),
+    Column(Modifier.fillMaxSize().background(Hc.Canvas)) {
+        // Profil dan tombol tindakan tetap berada di bagian atas saat konten digulir.
+        Row(
+            Modifier.fillMaxWidth().background(Hc.Surface).statusBarsPadding().padding(start = 12.dp, end = 4.dp, top = 12.dp, bottom = 16.dp),
+            verticalAlignment = Alignment.CenterVertically,
         ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Box(
-                    Modifier.size(44.dp).clip(CircleShape).background(Hc.BrandSoft),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Text(initials(me.fullName), style = MaterialTheme.typography.titleMedium, color = Hc.BrandDeep)
-                }
-                Spacer(Modifier.width(12.dp))
-                Column(Modifier.weight(1f)) {
-                    Text(
-                        me.fullName,
-                        style = MaterialTheme.typography.titleMedium,
-                        color = Hc.Ink,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                    Text(
-                        listOfNotNull(me.position, me.subdivision.name).joinToString(" · ").ifBlank { "Pejuang Yayasan" },
-                        style = MaterialTheme.typography.bodySmall,
-                        color = Hc.BrandDark,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                }
-                IconButton(onClick = onRefresh) {
-                    if (refreshing) {
-                        CircularProgressIndicator(color = Hc.Brand, strokeWidth = 2.dp, modifier = Modifier.size(20.dp))
-                    } else {
-                        Icon(Icons.Filled.Refresh, contentDescription = "Muat ulang", tint = Hc.BrandDark)
-                    }
-                }
-                IconButton(onClick = onLogout) {
-                    Icon(HrisIcons.ClockOut, contentDescription = "Keluar", tint = Hc.BrandDark)
-                }
+            Box(Modifier.size(44.dp).clip(CircleShape).background(Hc.BrandSoft), contentAlignment = Alignment.Center) {
+                Text(initials(me.fullName), style = MaterialTheme.typography.titleMedium, color = Hc.BrandDeep)
             }
+            Spacer(Modifier.width(9.dp))
+            Column(Modifier.weight(1f)) {
+                Text(me.fullName, style = MaterialTheme.typography.titleMedium, color = Hc.Ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(
+                    listOfNotNull(me.position, me.subdivision.name).joinToString(" · ").ifBlank { "Pejuang Yayasan" },
+                    style = MaterialTheme.typography.labelMedium, color = Hc.BrandDark, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                )
+            }
+            IconButton(onClick = onRefresh) {
+                if (refreshing) CircularProgressIndicator(color = Hc.Brand, strokeWidth = 2.dp, modifier = Modifier.size(20.dp))
+                else Icon(Icons.Filled.Refresh, contentDescription = "Muat ulang", tint = Hc.Brand)
+            }
+            IconButton(onClick = onLogout) { Icon(HrisIcons.ClockOut, contentDescription = "Keluar", tint = Hc.Brand) }
         }
-
         Column(
-            Modifier.padding(horizontal = 12.dp, vertical = 16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
+            Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(horizontal = 12.dp, vertical = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
-            Column(
-                Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(Hc.BrandDark).padding(16.dp),
-                verticalArrangement = Arrangement.spacedBy(4.dp),
-            ) {
-                Text(greeting(now), style = MaterialTheme.typography.titleMedium, color = Color.White)
-                Text("Ringkasan presensi dan kegiatan Anda", style = MaterialTheme.typography.bodySmall, color = Color.White.copy(alpha = 0.9f))
-                Text(longDateLabel(now.toLocalDate()), style = MaterialTheme.typography.labelMedium, color = Color.White.copy(alpha = 0.9f))
-            }
-            // Presensi hari ini
-            SectionCard(padding = 18.dp) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text("Presensi hari ini", style = MaterialTheme.typography.titleMedium, color = Hc.Ink, modifier = Modifier.weight(1f))
-                    StatusChip(statusText, statusTone)
+            Box(Modifier.fillMaxWidth().height(96.dp).clip(RoundedCornerShape(12.dp)).background(Hc.Brand)) {
+                Column(Modifier.align(Alignment.CenterStart).padding(start = 16.dp, end = 110.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    Text("Ringkasan kerja", style = MaterialTheme.typography.titleMedium, color = Color.White, maxLines = 1)
+                    Text("Presensi dan kegiatan Anda", style = MaterialTheme.typography.bodySmall, color = Color.White.copy(alpha = 0.9f), maxLines = 1)
                 }
-                Spacer(Modifier.height(16.dp))
-                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                    TimeCell("Masuk", wibTime(today?.clockInAt), HrisIcons.ClockIn, clockedIn, Modifier.weight(1f))
-                    Box(Modifier.width(1.dp).height(44.dp).background(Hc.Line))
-                    TimeCell("Pulang", wibTime(today?.clockOutAt), HrisIcons.ClockOut, clockedOut, Modifier.weight(1f).padding(start = 16.dp))
-                }
-                val note = today?.let { t ->
-                    val worked = t.workedMinutes
-                    when {
-                        t.lateMinutes > 0 -> "Terlambat ${t.lateMinutes} menit"
-                        worked != null && clockedOut -> "Jam kerja ${durationLabel(worked)}"
-                        else -> t.locationName ?: workModeLabel(t.workMode)
-                    }
-                }
-                if (note != null) {
-                    Spacer(Modifier.height(12.dp))
-                    Text(note, style = MaterialTheme.typography.bodySmall, color = Hc.InkSoft)
-                }
+                Box(Modifier.align(Alignment.TopEnd)) { FigmaBannerStars() }
+                androidx.compose.foundation.Image(
+                    painter = androidx.compose.ui.res.painterResource(id.pejuang.hris.R.drawable.figma_summary),
+                    contentDescription = null,
+                    contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+                    modifier = Modifier.align(Alignment.TopEnd).offset(x = 20.dp, y = 13.dp).width(101.dp).height(85.dp),
+                )
             }
 
             if (crash != null) CrashNotice(crash, onCopyCrash, onDismissCrash)
-
             when (me.deviceStatus) {
                 "approved" -> {}
-                "pending" -> StatusBanner(
-                    Tone.Warning,
-                    HrisIcons.Smartphone,
-                    "HP menunggu persetujuan",
-                    "SDM perlu menyetujui HP ini sebelum Anda bisa absen. Muat ulang setelah disetujui.",
-                )
+                "pending" -> StatusBanner(Tone.Warning, HrisIcons.Smartphone, "HP menunggu persetujuan", "SDM perlu menyetujui HP ini sebelum Anda bisa absen. Muat ulang setelah disetujui.")
                 else -> StatusBanner(Tone.Danger, HrisIcons.Smartphone, "HP tidak aktif", "HP ini sudah dicabut. Hubungi SDM.")
             }
-            if (me.mustChangePassword) {
-                StatusBanner(
-                    Tone.Warning,
-                    Icons.Filled.Lock,
-                    "Ganti kata sandi dulu",
-                    "Ganti kata sandi lewat web admin, lalu muat ulang aplikasi.",
-                )
-            }
+            if (me.mustChangePassword) StatusBanner(Tone.Warning, Icons.Filled.Lock, "Ganti kata sandi dulu", "Ganti kata sandi lewat web admin, lalu muat ulang aplikasi.")
             if (!me.faceEnrolled) {
-                StatusBanner(
-                    Tone.Info,
-                    HrisIcons.FaceScan,
-                    "Daftarkan wajah Anda",
-                    "Sekali saja, di lokasi kantor, sebelum absen pertama.",
-                ) {
+                StatusBanner(Tone.Info, HrisIcons.FaceScan, "Daftarkan wajah Anda", "Sekali saja, di lokasi kantor, sebelum absen pertama.") {
                     BannerAction("Daftarkan sekarang", enabled = ready) { onCapture(PURPOSE_FACE_ENROLL) }
                 }
             }
 
-            SectionLabel("Absen")
-            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                // Tombol yang relevan saat ini dibuat menonjol.
-                val inFirst = !clockedIn
-                ActionTile(
-                    title = "Absen masuk",
-                    subtitle = if (clockedIn) "Tercatat ${wibTime(today?.clockInAt)}" else "Mulai hari kerja",
-                    icon = HrisIcons.ClockIn,
-                    emphasized = inFirst,
-                    enabled = canClock,
-                    onClick = { onCapture(PURPOSE_CLOCK_IN) },
-                    modifier = Modifier.weight(1f),
-                )
-                ActionTile(
-                    title = "Absen pulang",
-                    subtitle = if (clockedOut) "Tercatat ${wibTime(today?.clockOutAt)}" else "Akhiri hari kerja",
-                    icon = HrisIcons.ClockOut,
-                    emphasized = !inFirst && !clockedOut,
-                    enabled = canClock,
-                    onClick = { onCapture(PURPOSE_CLOCK_OUT) },
-                    modifier = Modifier.weight(1f),
-                )
-            }
-            if (!canClock) {
-                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(horizontal = 4.dp)) {
-                    Icon(Icons.Filled.Info, contentDescription = null, tint = Hc.InkMuted, modifier = Modifier.size(16.dp))
-                    Spacer(Modifier.width(6.dp))
-                    Text(
-                        "Absen aktif setelah HP disetujui dan wajah terdaftar.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = Hc.InkSoft,
-                    )
+            HomeSection("Presensi hari ini", longDateLabel(now.toLocalDate())) {
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    Text("Status kehadiran", style = MaterialTheme.typography.titleSmall, color = Hc.Ink, modifier = Modifier.weight(1f))
+                    StatusChip(statusText, statusTone)
                 }
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    HomeTime("Masuk", wibTime(today?.clockInAt), Modifier.weight(1f))
+                    HomeTime("Pulang", wibTime(today?.clockOutAt), Modifier.weight(1f))
+                }
+                Text(today?.locationName ?: today?.let { workModeLabel(it.workMode) } ?: "Presensi belum tercatat", style = MaterialTheme.typography.bodySmall, color = Hc.InkSoft)
             }
 
-            SectionLabel("Lainnya")
-            SectionCard(padding = 0.dp) {
+            HomeSection("Absen", "Catat kehadiran sesuai jadwal kerja") {
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    HomeAction("Absen masuk", if (clockedIn) "Tercatat ${wibTime(today?.clockInAt)}" else "Mulai hari kerja", HrisIcons.ClockIn, canClock, Modifier.weight(1f)) { onCapture(PURPOSE_CLOCK_IN) }
+                    HomeAction("Absen pulang", if (clockedOut) "Tercatat ${wibTime(today?.clockOutAt)}" else "Akhiri hari kerja", HrisIcons.ClockOut, canClock, Modifier.weight(1f)) { onCapture(PURPOSE_CLOCK_OUT) }
+                }
+                if (!canClock) Text("Absen aktif setelah HP disetujui dan wajah terdaftar.", style = MaterialTheme.typography.bodySmall, color = Hc.InkSoft)
+            }
+
+            HomeSection("Layanan Pejuang", "Informasi dan riwayat kehadiran") {
                 ListRow(HrisIcons.History, "Riwayat absen", "31 hari terakhir", onClick = onHistory)
                 RowDivider()
                 ListRow(HrisIcons.FaceScan, "Data wajah", "Untuk verifikasi saat absen") {
@@ -335,26 +253,54 @@ fun HomeContent(
                     }
                 }
             }
-
-            Text(
-                "HRIS Pejuang · versi ${BuildConfig.VERSION_NAME}",
-                style = MaterialTheme.typography.labelSmall,
-                color = Hc.InkMuted,
-                modifier = Modifier.fillMaxWidth().navigationBarsPadding().padding(top = 8.dp),
-                textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-            )
+            Text("HRIS Pejuang · versi ${BuildConfig.VERSION_NAME}", style = MaterialTheme.typography.labelSmall, color = Hc.InkMuted, modifier = Modifier.fillMaxWidth(), textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+        }
+        // Hanya tujuan yang sudah tersedia yang ditampilkan.
+        Row(Modifier.fillMaxWidth().background(Color(0xFF1B2020)).navigationBarsPadding().height(64.dp), horizontalArrangement = Arrangement.SpaceEvenly, verticalAlignment = Alignment.CenterVertically) {
+            HomeNavItem("Beranda", androidx.compose.material.icons.Icons.Filled.Home, true) { }
+            HomeNavItem("Riwayat", HrisIcons.History, false, onHistory)
         }
     }
 }
 
 @Composable
-private fun TimeCell(label: String, time: String, icon: ImageVector, done: Boolean, modifier: Modifier = Modifier) {
-    Row(modifier, verticalAlignment = Alignment.CenterVertically) {
-        IconBadge(icon, if (done) Tone.Success else Tone.Neutral, size = 40.dp)
-        Spacer(Modifier.width(12.dp))
-        Column {
-            Text(label, style = MaterialTheme.typography.bodySmall, color = Hc.InkSoft)
-            Text(time, style = MaterialTheme.typography.titleLarge, color = if (done) Hc.Ink else Hc.InkMuted)
+private fun HomeSection(title: String, subtitle: String, content: @Composable androidx.compose.foundation.layout.ColumnScope.() -> Unit) {
+    Surface(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(8.dp), color = Hc.Surface) {
+        Column(Modifier.padding(horizontal = 16.dp, vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text(title, style = MaterialTheme.typography.titleSmall, color = Hc.Ink)
+                Text(subtitle, style = MaterialTheme.typography.bodySmall, color = Hc.InkSoft)
+            }
+            content()
+        }
+    }
+}
+
+@Composable
+private fun HomeTime(label: String, value: String, modifier: Modifier = Modifier) {
+    Column(modifier.clip(RoundedCornerShape(12.dp)).background(Color(0xFFF9FAFB)).padding(12.dp)) {
+        Text(label, style = MaterialTheme.typography.bodySmall, color = Hc.InkSoft)
+        Text(value, style = MaterialTheme.typography.titleMedium, color = Hc.Ink)
+    }
+}
+
+@Composable
+private fun HomeAction(title: String, subtitle: String, icon: ImageVector, enabled: Boolean, modifier: Modifier = Modifier, onClick: () -> Unit) {
+    Surface(onClick = onClick, enabled = enabled, modifier = modifier, shape = RoundedCornerShape(12.dp), color = Color(0xFFF9FAFB), border = BorderStroke(1.dp, Hc.Line)) {
+        Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            IconBadge(icon, Tone.Success, size = 32.dp)
+            Text(title, style = MaterialTheme.typography.titleSmall, color = if (enabled) Hc.Ink else Hc.InkMuted, maxLines = 1)
+            Text(subtitle, style = MaterialTheme.typography.bodySmall, color = Hc.InkSoft, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        }
+    }
+}
+
+@Composable
+private fun HomeNavItem(label: String, icon: ImageVector, selected: Boolean, onClick: () -> Unit) {
+    androidx.compose.material3.TextButton(onClick = onClick) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Icon(icon, contentDescription = null, tint = Color.White, modifier = Modifier.size(22.dp))
+            Text(label, style = MaterialTheme.typography.labelSmall, color = if (selected) Color.White else Color.White.copy(alpha = 0.7f))
         }
     }
 }
@@ -374,51 +320,5 @@ private fun BannerAction(text: String, enabled: Boolean, onClick: () -> Unit) {
             color = if (enabled) Color.White else Hc.InkMuted,
             modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
         )
-    }
-}
-
-/** Kartu aksi besar untuk absen masuk/pulang. */
-@Composable
-private fun ActionTile(
-    title: String,
-    subtitle: String,
-    icon: ImageVector,
-    emphasized: Boolean,
-    enabled: Boolean,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    val container = if (emphasized) Hc.Brand else Hc.Surface
-    val content = if (emphasized) Color.White else Hc.Ink
-    Surface(
-        onClick = onClick,
-        enabled = enabled,
-        shape = MaterialTheme.shapes.large,
-        color = container,
-        border = if (emphasized) null else BorderStroke(1.dp, Hc.Line),
-        shadowElevation = if (emphasized) 4.dp else 1.dp,
-        modifier = modifier.height(132.dp).alpha(if (enabled) 1f else 0.5f),
-    ) {
-        Column(Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.SpaceBetween) {
-            Box(
-                Modifier
-                    .size(42.dp)
-                    .clip(CircleShape)
-                    .background(if (emphasized) Color.White.copy(alpha = 0.18f) else Hc.BrandSoft),
-                contentAlignment = Alignment.Center,
-            ) {
-                Icon(icon, contentDescription = null, tint = if (emphasized) Color.White else Hc.Brand, modifier = Modifier.size(22.dp))
-            }
-            Column {
-                Text(title, style = MaterialTheme.typography.titleMedium, color = content)
-                Text(
-                    subtitle,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = content.copy(alpha = 0.75f),
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-            }
-        }
     }
 }

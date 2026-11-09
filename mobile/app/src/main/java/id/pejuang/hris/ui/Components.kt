@@ -203,12 +203,13 @@ fun PrimaryButton(
     enabled: Boolean = true,
     loading: Boolean = false,
     icon: ImageVector? = null,
+    shape: androidx.compose.ui.graphics.Shape = MaterialTheme.shapes.medium,
 ) {
     Button(
         onClick = onClick,
         enabled = enabled && !loading,
         modifier = modifier.fillMaxWidth().height(52.dp),
-        shape = MaterialTheme.shapes.medium,
+        shape = shape,
         colors = ButtonDefaults.buttonColors(
             containerColor = Hc.Brand,
             contentColor = Color.White,
@@ -349,4 +350,3 @@ fun RowDivider() {
 fun Dot(color: Color, size: Dp = 8.dp) {
     Box(Modifier.size(size).clip(CircleShape).background(color))
 }
-

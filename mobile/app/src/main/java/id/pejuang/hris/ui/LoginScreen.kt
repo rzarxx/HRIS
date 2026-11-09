@@ -10,7 +10,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.rememberScrollState
@@ -128,17 +127,16 @@ fun LoginContent(
     Column(
         Modifier
             .fillMaxSize()
-            .background(Hc.Canvas)
+            .background(Hc.BrandDeep)
             .imePadding()
             .verticalScroll(rememberScrollState()),
     ) {
         Box(
             Modifier
                 .fillMaxWidth()
-                .clip(RoundedCornerShape(bottomStart = 32.dp, bottomEnd = 32.dp))
                 .background(BrandGradient)
                 .statusBarsPadding()
-                .padding(start = 24.dp, end = 24.dp, top = 36.dp, bottom = 88.dp),
+                .padding(start = 32.dp, end = 32.dp, top = 24.dp, bottom = 28.dp),
         ) {
             Column {
                 LogoMark(size = 60.dp)
@@ -154,16 +152,21 @@ fun LoginContent(
         }
 
         Column(
-            Modifier.padding(horizontal = 20.dp).offset(y = (-56).dp),
+            Modifier.fillMaxWidth()
+                .clip(RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp))
+                .background(Hc.Surface)
+                .padding(start = 32.dp, end = 32.dp, top = 40.dp, bottom = 24.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            SectionCard(padding = 20.dp) {
-                Text("Masuk ke akun Anda", style = MaterialTheme.typography.titleLarge, color = Hc.Ink)
+            Column {
+                Text("Masuk", style = MaterialTheme.typography.headlineSmall, color = Hc.Ink, modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center)
                 Spacer(Modifier.height(4.dp))
                 Text(
-                    "Gunakan email dan kata sandi akun Pejuang.",
+                    "Masuk ke akun Pejuang Anda",
                     style = MaterialTheme.typography.bodyMedium,
                     color = Hc.InkSoft,
+                    modifier = Modifier.fillMaxWidth(),
+                    textAlign = TextAlign.Center,
                 )
                 Spacer(Modifier.height(20.dp))
                 Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
@@ -210,6 +213,7 @@ fun LoginContent(
                         enabled = canSubmit,
                         loading = form.busy,
                         modifier = Modifier.padding(top = 4.dp),
+                        shape = RoundedCornerShape(100.dp),
                     )
                 }
             }

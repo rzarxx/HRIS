@@ -202,3 +202,16 @@ Pengujian di atas membutuhkan Android SDK, dua APK bertanda tangan, dan perangka
 akses GitHub. CI debug tidak membuktikan bahwa rilis yang ditandatangani atau instalasi pada HP sudah berhasil.
 Karena APK dipasang di luar Play Store, `PLAY_RECOGNIZED` bukan jaminan yang dapat diasumsikan: lihat D45
 untuk ketergantungan verifikasi perangkat sebelum presensi produksi.
+
+Contoh setelah perubahan yang disetujui masuk ke `main` dan kelima secret tersedia:
+
+```bash
+git checkout main
+git pull --ff-only origin main
+git tag -a v0.4.1 -m "Rilis Android 0.4.1"
+git push origin v0.4.1
+```
+
+Periksa job **Android release** dan asset GitHub Release setelah push; perintah tag tidak membuktikan
+build, tanda tangan, maupun pemasangan berhasil. Tag pertama yang berisi fitur updater harus sudah
+dipasang sebagai APK rilis sebelum aplikasi tersebut dapat menawarkan pembaruan berikutnya.

@@ -39,7 +39,7 @@ jobs:
             exit 1
           fi
           major=${BASH_REMATCH[1]}; minor=${BASH_REMATCH[2]}; patch=${BASH_REMATCH[3]}
-          if (( major > 2100 || minor > 999 || patch > 999 )); then
+          if (( ${#major} > 4 || ${#minor} > 3 || ${#patch} > 3 || major > 2100 || minor > 999 || patch > 999 )); then
             echo 'Komponen versi terlalu besar untuk versionCode Android' >&2
             exit 1
           fi
@@ -61,7 +61,7 @@ jobs:
             echo 'Secret HRIS_RELEASE_API_BASE_URL harus berupa URL HTTPS' >&2
             exit 1
           fi
-          gradle --no-daemon testDebugUnitTest assembleRelease \
+          gradle --no-daemon recordPaparazziDebug assembleRelease \
             "-Phris.apiBaseUrl=$API_BASE_URL" "-Phris.versionName=$VERSION_NAME" "-Phris.versionCode=$VERSION_CODE" \
             "-Phris.updateRepo=$UPDATE_REPO"
       - name: Tanda tangani dan periksa APK

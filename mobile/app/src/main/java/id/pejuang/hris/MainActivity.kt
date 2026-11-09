@@ -29,6 +29,7 @@ import androidx.navigation.NavBackStackEntry
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
+import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import id.pejuang.hris.ui.BrandGradient
 import id.pejuang.hris.ui.CaptureScreen
@@ -38,6 +39,7 @@ import id.pejuang.hris.ui.HrisTheme
 import id.pejuang.hris.ui.LoginScreen
 import id.pejuang.hris.ui.LogoMark
 import id.pejuang.hris.ui.StatusBarIcons
+import id.pejuang.hris.update.UpdatePrompt
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -84,6 +86,9 @@ class MainActivity : ComponentActivity() {
                         HistoryScreen(app.repository) { if (entry.isActive()) nav.popBackStack() }
                     }
                 }
+                val activeEntry by nav.currentBackStackEntryAsState()
+                val route = activeEntry?.destination?.route
+                UpdatePrompt(allowDialog = route == "login" || route == "home")
             }
         }
     }

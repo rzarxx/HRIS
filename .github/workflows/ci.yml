@@ -142,7 +142,19 @@ jobs:
           gradle-version: "8.11.1"
       # recordPaparazziDebug menjalankan semua tes unit sekaligus merender layar ke PNG.
       - name: Build APK debug, tes unit, dan screenshot
-        run: gradle --no-daemon --stacktrace assembleDebug recordPaparazziDebug
+        run: gradle --no-daemon --stacktrace assembleDebug recordPaparazziDebug assembleRelease -Phris.apiBaseUrl=https://example.invalid/ -Phris.updateRepo=example-org/test-repo
+      - name: Uji tanda tangan APK rilis dengan kunci sementara
+        working-directory: .
+        shell: bash
+        run: |
+          set -euo pipefail
+          keytool -genkeypair -keystore "$RUNNER_TEMP/test.keystore" -storetype PKCS12 \
+            -storepass ci-password -keypass ci-password -alias ci-key -keyalg RSA -keysize 2048 \
+            -validity 2 -dname 'CN=CI Test' -noprompt
+          export KEYSTORE_B64="$(base64 -w 0 "$RUNNER_TEMP/test.keystore")"
+          export KEYSTORE_PASSWORD=ci-password KEY_ALIAS=ci-key KEY_PASSWORD=ci-password
+          bash .github/scripts/sign-android-release.sh
+          rm -f "$RUNNER_TEMP/test.keystore" hris-pejuang-release.apk
       - name: Simpan APK debug
         uses: actions/upload-artifact@v4
         with:

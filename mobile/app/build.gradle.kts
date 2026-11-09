@@ -1,4 +1,5 @@
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
+import java.net.URI
 
 plugins {
     id("com.android.application")
@@ -12,6 +13,22 @@ plugins {
 // Alamat API untuk build rilis, mis. -Phris.apiBaseUrl=https://api.domain.id/
 // Build debug bisa mengganti alamat ini di layar masuk.
 val apiBaseUrl = (findProperty("hris.apiBaseUrl") as String?) ?: ""
+val releaseVersionName = (findProperty("hris.versionName") as String?) ?: "0.4.0"
+val releaseVersionCode = (findProperty("hris.versionCode") as String?)?.let {
+    requireNotNull(it.toIntOrNull()) { "hris.versionCode harus berupa bilangan bulat" }
+} ?: 4
+val updateRepo = (findProperty("hris.updateRepo") as String?) ?: "rzarxx/HRIS"
+require(Regex("^[A-Za-z0-9][A-Za-z0-9-]{0,38}/[A-Za-z0-9_.-]+$").matches(updateRepo) &&
+    updateRepo.substringAfter('/') !in setOf(".", "..")) { "hris.updateRepo harus berupa owner/repo GitHub" }
+require(Regex("^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)$").matches(releaseVersionName)) { "hris.versionName harus berupa versi stabil x.y.z" }
+require(releaseVersionCode > 0) { "hris.versionCode harus positif" }
+if (apiBaseUrl.isNotEmpty()) {
+    val uri = URI(apiBaseUrl)
+    require(uri.scheme == "https" && !uri.host.isNullOrBlank() && uri.userInfo == null &&
+        uri.query == null && uri.fragment == null && !apiBaseUrl.contains('"') && !apiBaseUrl.contains('\\')) {
+        "hris.apiBaseUrl harus berupa URL HTTPS tanpa kredensial, query, atau fragment"
+    }
+}
 
 android {
     namespace = "id.pejuang.hris"
@@ -22,9 +39,10 @@ android {
         minSdk = 26
         // Naikkan mengikuti batas target API Google Play sebelum rilis.
         targetSdk = 35
-        versionCode = 4
-        versionName = "0.4.0"
+        versionCode = releaseVersionCode
+        versionName = releaseVersionName
         buildConfigField("String", "API_BASE_URL", "\"$apiBaseUrl\"")
+        buildConfigField("String", "UPDATE_REPO", "\"$updateRepo\"")
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 

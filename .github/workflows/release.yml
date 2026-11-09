@@ -73,18 +73,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          test -n "$KEYSTORE_B64" && test -n "$KEYSTORE_PASSWORD" && test -n "$KEY_ALIAS" && test -n "$KEY_PASSWORD"
-          keyfile="$RUNNER_TEMP/hris-release.keystore"
-          trap 'rm -f "$keyfile"' EXIT
-          printf '%s' "$KEYSTORE_B64" | base64 --decode > "$keyfile"
-          tools_dir="$(find "$ANDROID_HOME/build-tools" -mindepth 1 -maxdepth 1 -type d | sort -V | tail -n 1)"
-          unsigned=mobile/app/build/outputs/apk/release/app-release-unsigned.apk
-          aligned="$RUNNER_TEMP/aligned.apk"
-          "$tools_dir/zipalign" -f -p 4 "$unsigned" "$aligned"
-          "$tools_dir/apksigner" sign --ks "$keyfile" --ks-key-alias "$KEY_ALIAS" \
-            --ks-pass env:KEYSTORE_PASSWORD --key-pass env:KEY_PASSWORD \
-            --out hris-pejuang-release.apk "$aligned"
-          "$tools_dir/apksigner" verify --verbose hris-pejuang-release.apk
+          bash .github/scripts/sign-android-release.sh
       - name: Publikasikan GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}

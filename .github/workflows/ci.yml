@@ -50,7 +50,8 @@ jobs:
         run: |
           go test ./internal/integration -count=1 -v -run '^(TestReadiness|TestConcurrentChallengeReplay)$' | tee "$RUNNER_TEMP/integration-critical.log"
           grep -q -- "--- PASS: TestReadiness" "$RUNNER_TEMP/integration-critical.log"
-          grep -q -- "--- PASS: TestConcurrentChallengeReplay" "$RUNNER_TEMP/integration-critical.log"
+          grep -q -- "--- PASS: TestConcurrentChallengeReplay/accepted " "$RUNNER_TEMP/integration-critical.log"
+          grep -q -- "--- PASS: TestConcurrentChallengeReplay/rejected_outside_geofence " "$RUNNER_TEMP/integration-critical.log"
         env:
           HRIS_TEST_DATABASE_URL: postgres://postgres:postgres@localhost:5432/hris_test?sslmode=disable
       - name: Hasil generate sqlc harus mutakhir

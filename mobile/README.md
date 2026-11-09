@@ -145,3 +145,60 @@ Pustaka (Compose, Retrofit, CameraX, ML Kit, lokasi) diambil otomatis oleh Gradl
   atau kanan selama sudutnya lebih dari 25 derajat (`LivenessTracker`).
 - Ambang mata tertutup, senyum, dan wajah lurus pada HP kelas bawah dan cahaya redup.
 - Selfie tegak di berbagai merek HP setelah rotasi kamera diterapkan.
+
+## Rilis dan pembaruan APK mandiri
+
+Workflow `.github/workflows/release.yml` berjalan pada push tag `vMAJOR.MINOR.PATCH` dan menerbitkan
+`hris-pejuang-release.apk` di GitHub Releases. Hanya rilis stabil yang dipakai; tag prarilis ditolak.
+Versi `0.3.1`, misalnya, menghasilkan `versionCode` 3001 (`major * 1000000 + minor * 1000 + patch`;
+minor dan patch 0–999, major maksimal 2100). Gunakan tag yang selalu lebih tinggi dari semua rilis sebelumnya.
+
+Sebelum tag pertama, buat **kunci rilis yang tetap** di komputer yang aman (misalnya dengan `keytool`
+atau Android Studio), simpan cadangannya di tempat aman, dan siapkan GitHub Actions secrets berikut:
+
+| Secret | Isi |
+|---|---|
+| `ANDROID_KEYSTORE_BASE64` | Seluruh file keystore yang dienkode base64 tanpa perubahan byte |
+| `ANDROID_KEYSTORE_PASSWORD` | Kata sandi keystore |
+| `ANDROID_KEY_ALIAS` | Alias kunci rilis |
+| `ANDROID_KEY_PASSWORD` | Kata sandi kunci |
+| `HRIS_RELEASE_API_BASE_URL` | Alamat API tetap dengan HTTPS, misalnya `https://api.example.id/` |
+
+Jangan masukkan kunci atau kata sandi ke repo. Semua rilis untuk instalasi yang sama wajib menggunakan
+applicationId dan kunci yang sama. APK debug `id.pejuang.hris.debug` tidak dapat diperbarui menjadi APK
+rilis `id.pejuang.hris`; pasang rilis sebagai aplikasi terpisah. Kehilangan atau mengganti kunci rilis
+mencegah Android memasang pembaruan di atas aplikasi lama.
+
+Setelah perubahan digabung dan CI hijau, buat tag pada commit yang sudah ditinjau dan push tag tersebut.
+Workflow membangun APK, menjalankan tes unit, menyelaraskan dan menandatangani APK, memverifikasi tanda
+tangan, lalu menerbitkan GitHub Release. Pembuatan tag memicu publikasi ke repo publik; jangan buat tag
+percobaan di repo produksi. Jika secret belum dikonfigurasi, workflow gagal dan tidak menerbitkan APK.
+Jangan ubah aset rilis yang sudah dibagikan; buat versi baru bila ada koreksi.
+
+Aplikasi memeriksa `https://api.github.com/repos/rzarxx/HRIS/releases/latest` tanpa token. Repo harus
+publik; token GitHub tidak boleh ditanam di APK. Aplikasi menerima hanya aset bernama tetap dengan digest
+SHA-256 dari GitHub, mengunduhnya lewat DownloadManager, memeriksa ukuran, digest, nama paket, versi,
+dan sertifikat, lalu meminta Android membuka installer. Pengguna harus mengizinkan sumber pemasangan
+untuk aplikasi ini dan mengonfirmasi instalasi. Tidak ada pemasangan diam-diam. Unduhan dapat berlanjut
+saat aplikasi ditutup; progres diperbarui ketika aplikasi aktif. Tidak diperlukan izin penyimpanan luas:
+file unduhan sementara berada di folder khusus aplikasi, dan file terverifikasi di penyimpanan privat.
+
+### Uji lokal dan di HP
+
+1. Jalankan `gradle testDebugUnitTest` dari `mobile/` untuk uji perbandingan versi dan validasi metadata.
+   Debug tidak menjalankan updater karena nama paket/kunci debug berbeda dari rilis.
+2. Untuk uji lengkap, gunakan **repo GitHub publik khusus pengujian**, bukan repo produksi; salin workflow
+   dan atur lima secret di repo uji dengan keystore uji tersendiri. Workflow mengikat APK ke repo tempat
+   workflow berjalan. Gunakan endpoint HTTPS pengujian yang sah untuk API aplikasi.
+3. Terbitkan versi stabil pertama di repo uji, pasang APK rilisnya di HP/emulator Android 8+ lewat `adb install`.
+   Terbitkan versi kedua dengan tag lebih tinggi dan **keystore uji yang sama**. Buka kembali aplikasi, pilih
+   Unduh, periksa progres, izinkan pemasangan dari sumber ini bila diminta, lalu pilih Pasang dan setujui
+   installer sistem. Tutup dan buka aplikasi saat unduhan berjalan untuk memeriksa pemulihan status.
+4. Uji juga jaringan terputus, ruang habis, membatalkan unduhan, izin instalasi ditolak, checksum tidak
+   cocok dan APK dengan kunci/nama paket berbeda. Pastikan tidak ada APK invalid yang ditawarkan untuk dipasang.
+   Uji negatif terakhir dapat dilakukan dengan rilis uji terpisah; jangan gunakan kunci produksi.
+
+Pengujian di atas membutuhkan Android SDK, dua APK bertanda tangan, dan perangkat atau emulator dengan
+akses GitHub. CI debug tidak membuktikan bahwa rilis yang ditandatangani atau instalasi pada HP sudah berhasil.
+Karena APK dipasang di luar Play Store, `PLAY_RECOGNIZED` bukan jaminan yang dapat diasumsikan: lihat D45
+untuk ketergantungan verifikasi perangkat sebelum presensi produksi.

@@ -38,6 +38,7 @@ import id.pejuang.hris.ui.HrisTheme
 import id.pejuang.hris.ui.LoginScreen
 import id.pejuang.hris.ui.LogoMark
 import id.pejuang.hris.ui.StatusBarIcons
+import id.pejuang.hris.update.UpdatePrompt
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -84,6 +85,7 @@ class MainActivity : ComponentActivity() {
                         HistoryScreen(app.repository) { if (entry.isActive()) nav.popBackStack() }
                     }
                 }
+                UpdatePrompt()
             }
         }
     }

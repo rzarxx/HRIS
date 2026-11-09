@@ -15,8 +15,13 @@ class HrisApp : Application() {
     lateinit var location: LocationReader
         private set
 
+    /** Ringkasan crash dari pemakaian sebelumnya; ditampilkan sekali lalu dibuang. */
+    var lastCrash: String? = null
+
     override fun onCreate() {
         super.onCreate()
+        lastCrash = CrashLog.take(this)
+        CrashLog.install(this)
         session = Session(this, SecureStore(this))
         repository = Repository(session)
         location = LocationReader(this)

@@ -9,17 +9,21 @@ selfie (D42), jadi aplikasi tidak memuat model pengenalan wajah. Play Integrity 
 
 - Masuk dengan email, kata sandi, dan kode MFA bila diminta; refresh token terenkripsi dengan kunci Android
   Keystore; sesi diperpanjang otomatis saat access token habis.
-- Beranda: data Pejuang, status HP (menunggu persetujuan, dicabut), dan status wajah.
+- Beranda: sapaan, presensi hari ini (jam masuk/pulang), tombol absen besar, status HP dan wajah.
 - Persetujuan biometrik dan lokasi, lalu daftar wajah: challenge `face_enroll`, gerakan liveness, 3 selfie.
 - Absen masuk dan pulang: challenge, gerakan liveness, selfie, lokasi GPS, kirim multipart.
 - Riwayat absen 31 hari terakhir.
 
 Belum: Play Integrity (butuh akun Play Console), deteksi root/emulator/fake GPS app selain `isMock`,
-notifikasi FCM, pengajuan, slip upah, dan ikon aplikasi.
+notifikasi FCM, pengajuan, dan slip upah.
+
+Bila aplikasi tertutup tiba-tiba, ringkasan galatnya (tanpa token atau data pribadi) muncul saat aplikasi dibuka
+lagi, dengan tombol **Salin laporan** untuk dikirim ke tim.
 
 ## Mendapatkan APK
 
-Setiap push menjalankan job CI `mobile` yang membangun APK debug dan menjalankan tes unit. APK-nya ada di
+Setiap push menjalankan job CI `mobile` yang membangun APK debug, menjalankan tes unit, dan merender screenshot
+tiap layar dengan Paparazzi (artefak `hris-pejuang-screenshots`, untuk meninjau tampilan tanpa HP). APK-nya ada di
 halaman run GitHub Actions, bagian **Artifacts**, dengan nama `hris-pejuang-debug-apk` (disimpan 14 hari).
 Pasang ke HP dengan mengizinkan instalasi dari sumber tidak dikenal, atau lewat `adb install`.
 
@@ -31,7 +35,7 @@ Build lokal (butuh JDK 17 dan Android SDK, lihat di bawah):
 
 ```bash
 cd mobile
-gradle assembleDebug testDebugUnitTest
+gradle assembleDebug recordPaparazziDebug
 ```
 
 Repo belum memuat Gradle wrapper; buat sekali dengan `gradle wrapper --gradle-version 8.11.1` bila memakai
@@ -44,7 +48,7 @@ Android Studio.
 | `data/` | DTO JSON, klien Retrofit, sesi dan token, penyimpanan Keystore, terjemahan error |
 | `face/` | Pelacak liveness (Kotlin murni, ada tes unit), kamera CameraX + ML Kit, pengolah foto |
 | `location/` | Lokasi GPS saat absen |
-| `ui/` | Layar Compose: masuk, beranda, daftar wajah dan absen, riwayat |
+| `ui/` | Tema, komponen, dan layar Compose. Tiap layar punya versi `*Content` tanpa jaringan untuk screenshot |
 
 Dependensi disusun manual di `HrisApp`, belum memakai Hilt (D44).
 

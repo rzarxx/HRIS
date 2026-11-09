@@ -1,6 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <!-- Latar hijau sejak jendela pertama agar tidak ada kilatan putih sebelum layar pembuka. -->
     <style name="Theme.Hris" parent="android:Theme.Material.Light.NoActionBar">
-        <item name="android:statusBarColor">#15803D</item>
+        <item name="android:windowBackground">@color/brand</item>
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
     </style>
 </resources>

@@ -1,11 +1,52 @@
 # Aplikasi Android HRIS Pejuang
 
 Aplikasi untuk Pejuang: login, absen dengan lokasi dan wajah, riwayat, pengajuan, dan slip upah. Acuannya tetap
-`MASTER.md` (§10.2 Mobile, §5.9 Kontrol Mobile, F5 Login Mobile). Stack: Kotlin, Jetpack Compose, MVVM, Hilt,
-Retrofit/OkHttp, CameraX, ML Kit, Play Integrity, FusedLocationProvider, FCM. `minSdk 26`. Pencocokan wajah
-dihitung server dari selfie (D42), jadi aplikasi tidak memuat model pengenalan wajah.
+`MASTER.md` (§10.2 Mobile, §5.9 Kontrol Mobile, F5 Login Mobile). Stack: Kotlin, Jetpack Compose, Retrofit/OkHttp,
+kotlinx.serialization, CameraX, ML Kit, FusedLocationProvider. `minSdk 26`. Pencocokan wajah dihitung server dari
+selfie (D42), jadi aplikasi tidak memuat model pengenalan wajah. Play Integrity dan FCM menyusul.
 
-Folder ini masih kosong. Proyek Android dibuat dan dikerjakan di PC lain.
+## Yang sudah ada (D44)
+
+- Masuk dengan email, kata sandi, dan kode MFA bila diminta; refresh token terenkripsi dengan kunci Android
+  Keystore; sesi diperpanjang otomatis saat access token habis.
+- Beranda: data Pejuang, status HP (menunggu persetujuan, dicabut), dan status wajah.
+- Persetujuan biometrik dan lokasi, lalu daftar wajah: challenge `face_enroll`, gerakan liveness, 3 selfie.
+- Absen masuk dan pulang: challenge, gerakan liveness, selfie, lokasi GPS, kirim multipart.
+- Riwayat absen 31 hari terakhir.
+
+Belum: Play Integrity (butuh akun Play Console), deteksi root/emulator/fake GPS app selain `isMock`,
+notifikasi FCM, pengajuan, slip upah, dan ikon aplikasi.
+
+## Mendapatkan APK
+
+Setiap push menjalankan job CI `mobile` yang membangun APK debug dan menjalankan tes unit. APK-nya ada di
+halaman run GitHub Actions, bagian **Artifacts**, dengan nama `hris-pejuang-debug-apk` (disimpan 14 hari).
+Pasang ke HP dengan mengizinkan instalasi dari sumber tidak dikenal, atau lewat `adb install`.
+
+Build debug memakai `applicationId` `id.pejuang.hris.debug` dan menampilkan kolom **Alamat server** di layar
+masuk, mis. `http://192.168.1.10:8080`. Build rilis memakai alamat dari `-Phris.apiBaseUrl=https://...` dan
+tidak bisa diganti.
+
+Build lokal (butuh JDK 17 dan Android SDK, lihat di bawah):
+
+```bash
+cd mobile
+gradle assembleDebug testDebugUnitTest
+```
+
+Repo belum memuat Gradle wrapper; buat sekali dengan `gradle wrapper --gradle-version 8.11.1` bila memakai
+Android Studio.
+
+## Struktur
+
+| Folder | Isi |
+|---|---|
+| `data/` | DTO JSON, klien Retrofit, sesi dan token, penyimpanan Keystore, terjemahan error |
+| `face/` | Pelacak liveness (Kotlin murni, ada tes unit), kamera CameraX + ML Kit, pengolah foto |
+| `location/` | Lokasi GPS saat absen |
+| `ui/` | Layar Compose: masuk, beranda, daftar wajah dan absen, riwayat |
+
+Dependensi disusun manual di `HrisApp`, belum memakai Hilt (D44).
 
 ## Yang dipasang di PC pengembang
 
@@ -28,8 +69,7 @@ Lewat **SDK Manager** di Android Studio:
 | Android Emulator + system image | Opsional. Kamera, GPS, dan Play Integrity tetap harus diuji di HP sungguhan. |
 | NDK dan CMake | Nanti, saat modul deteksi native dibuat (§5.9) |
 
-Pustaka (Compose, Hilt, Retrofit, CameraX, ML Kit, Play Integrity, lokasi, Firebase Messaging) diambil
-otomatis oleh Gradle, tidak dipasang manual.
+Pustaka (Compose, Retrofit, CameraX, ML Kit, lokasi) diambil otomatis oleh Gradle, tidak dipasang manual.
 
 ## Akun dan layanan
 
@@ -42,7 +82,9 @@ otomatis oleh Gradle, tidak dipasang manual.
 
 ## Menghubungkan ke API
 
-- Kontrak ada di `backend/api/openapi.yaml`. Buat klien Kotlin dari kontrak itu, jangan menulis model sendiri.
+- Kontrak ada di `backend/api/openapi.yaml`. Model JSON ditulis di `data/Dto.kt` dengan penanda
+  `// schema: Nama` di atas tiap kelas; tes backend `TestMobileDTOsMatchOpenAPI` gagal bila ada `@SerialName`
+  yang tidak ada di skema itu (D44). Tambahkan penanda yang sama untuk kelas baru.
 - Login: `POST /v1/auth/mobile/login` dengan `email`, `password`, `mfa_code` (bila akun memakai MFA), dan
   `device.device_hash` (SHA-256 heksadesimal, 64 karakter, stabil per HP). Responsnya `access_token`,
   `refresh_token`, `device_id`, dan `device_status`.
@@ -71,8 +113,9 @@ otomatis oleh Gradle, tidak dipasang manual.
 
 ## Server development
 
-- Server development masih HTTP. Izinkan cleartext hanya untuk build debug dan hanya ke alamat server itu,
-  lewat *network security config*. Build rilis wajib HTTPS (`cleartextTrafficPermitted=false`).
+- Server development masih HTTP. Build debug mengizinkan cleartext ke semua alamat karena alamat server diisi
+  saat masuk (`src/debug/res/xml/network_security_config.xml`). Build rilis wajib HTTPS
+  (`cleartextTrafficPermitted=false`).
 - HP biasanya tidak bisa memakai baris `hosts` seperti laptop, jadi `api.hris.local` tidak akan ditemukan.
   Pakai alamat IP server, atau minta pengelola jaringan menambahkan nama itu di DNS lokal.
 - Di server development, absen dan daftar wajah dapat diuji dengan `DEV_ALLOW_UNVERIFIED_ATTENDANCE=true`
@@ -81,4 +124,20 @@ otomatis oleh Gradle, tidak dipasang manual.
 
 ## Versi yang dipakai
 
-Isi saat proyek dibuat: versi Android Studio, Gradle, Kotlin, `compileSdk`, dan `targetSdk`.
+| | Versi |
+|---|---|
+| Gradle | 8.11.1 |
+| Android Gradle Plugin | 8.7.3 |
+| Kotlin | 2.1.0 |
+| JDK | 17 |
+| `compileSdk` / `targetSdk` | 35 / 35. Naikkan mengikuti batas Google Play sebelum rilis |
+| Compose BOM | 2024.12.01 |
+| CameraX | 1.4.1 |
+| ML Kit face detection | 16.1.7 (model dibundel) |
+
+## Perlu dicek di HP sungguhan
+
+- Arah toleh kepala pada kamera depan. Saat ini `turn_left` dan `turn_right` sama-sama menerima toleh ke kiri
+  atau kanan selama sudutnya lebih dari 25 derajat (`LivenessTracker`).
+- Ambang mata tertutup, senyum, dan wajah lurus pada HP kelas bawah dan cahaya redup.
+- Selfie tegak di berbagai merek HP setelah rotasi kamera diterapkan.

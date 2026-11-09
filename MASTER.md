@@ -1526,7 +1526,7 @@ Estimasi untuk tim kecil; sesuaikan setelah kapasitas tim jelas.
 - [ ] Key Attestation (jalur B), perangkat manual (jalur D), kiosk (jalur E); Huawei (jalur C) bila ada penggunanya
 - [x] Izin WFA dan hybrid per Pejuang dan jam fleksibel, di API dan layar SDM
 - [x] Penetapan izin massal per divisi atau subdiv, dan saring rekap per `work_mode`
-- [ ] Pendaftaran wajah jarak jauh
+- [x] Pendaftaran wajah jarak jauh (izin satu kali 24 jam dari SDM)
 - [x] Challenge, clock-in, clock-out, cutoff harian, dan `worked_minutes` (D31), masih tanpa verifikasi perangkat dan wajah (D36)
 - [x] Enroll + cocok wajah (enkripsi aplikasi), reset oleh SDM, dan `consents` (D41). Masih bergantung pada verifikasi perangkat (D36)
 - [x] Wajah dihitung server dari selfie, selfie terenkripsi, liveness acak, dan tolak selfie yang dikirim ulang (D42)
@@ -1539,11 +1539,11 @@ Estimasi untuk tim kecil; sesuaikan setelah kapasitas tim jelas.
 - [ ] Kalibrasi ambang wajah dan risiko dengan data uji
 
 **Fase 3: Mobile**
-- [ ] Aplikasi minimal dimajukan: login, daftar perangkat, absen tanpa wajah. Dikerjakan sebelum Play Integrity dan wajah agar keduanya diuji di HP sungguhan (D35)
-- [ ] Login, profile, penyimpanan token aman (API login, refresh, dan logout mobile sudah ada, D40)
+- [ ] Aplikasi minimal dimajukan: login, daftar perangkat, absen tanpa wajah. Dikerjakan sebelum Play Integrity dan wajah agar keduanya diuji di HP sungguhan (D35) Kode ada di `mobile/` (D44), menunggu uji di HP sungguhan.
+- [ ] Login, profile, penyimpanan token aman (API login, refresh, dan logout mobile sudah ada, D40). Kode ada (D44), menunggu uji HP
 - [ ] Modul deteksi native
-- [ ] Kamera + liveness (gerakan dari `liveness_action`) + kirim selfie (D42)
-- [ ] Layar presensi + rekap
+- [ ] Kamera + liveness (gerakan dari `liveness_action`) + kirim selfie (D42). Kode ada (D44), menunggu uji HP
+- [ ] Layar presensi + rekap. Absen dan riwayat ada (D44), rekap menyusul
 - [ ] FCM, pop-up, banner
 - [ ] Timer sebelum tombol sudah baca, ditegakkan server (D27)
 - [ ] Uji Android 8-14, 3 HP kelas bawah
@@ -1622,6 +1622,7 @@ Estimasi untuk tim kecil; sesuaikan setelah kapasitas tim jelas.
 | D41 | Template wajah adalah rata-rata 3 sampai 5 sampel yang saling mirip (cosine ≥ 0.80), disimpan float32 terenkripsi AES-GCM dengan `key_id`. Embedding dari versi model lain diperlakukan sebagai belum terdaftar. Absen development boleh tanpa bagian wajah, tetapi bila dikirim tetap dicocokkan. Pendaftaran yang gagal tidak dicatat di `attendance_attempts`, dan `face_score` hanya disimpan untuk absen masuk | Satu template rata-rata lebih stabil daripada satu foto, dan sampel yang tidak konsisten menandakan wajah orang lain atau gambar buruk. Embedding beda model tidak sebanding, jadi Pejuang mendaftar ulang saat model diganti. Konsekuensi: ambang 0.80, 0.70, dan 0.60 masih nilai awal yang dikalibrasi dengan HP sungguhan, dan `embedding_replay` belum diperiksa |
 | D42 | Embedding wajah dihitung server dari selfie dengan model dlib (go-face), bukan dikirim HP. HP tetap menjalankan deteksi dan liveness, dengan gerakan yang dipilih acak lewat `liveness_action` challenge. Selfie disimpan terenkripsi dan dicatat di `face_captures`; selfie yang sama dari Pejuang yang sama ditolak sebagai `embedding_replay`. Ambang memakai jarak Euclid dlib: diterima ≤ 0.50, `face_borderline` ≤ 0.60, lebih jauh ditolak. Menggantikan bagian D41 tentang embedding dari HP | Embedding dari HP bisa dipalsukan aplikasi yang dibongkar tanpa wajah sama sekali, sedangkan selfie bisa diperiksa ulang dan diaudit SDM. Model dlib dirilis pembuatnya ke domain publik dan tercatat 99,38% pada LFW. Konsekuensi: API butuh cgo dan pustaka dlib di server (`deploy/setup-face.sh`), setiap absen mengunggah foto sekitar 100 sampai 300 KB, dan ambang tetap harus dikalibrasi dengan Pejuang dan HP sungguhan. Model dilatih dari dataset publik (VGG, FaceScrub); konfirmasikan penggunaannya ke bagian legal bersama UU PDP |
 | D43 | Model wajah server diganti dari dlib ke detektor YuNet (MIT) dan pengenal SFace (Apache-2.0) dari OpenCV Zoo, dijalankan ONNX Runtime lewat cgo (tag build `onnx`). Skor adalah kemiripan cosine: diterima ≥ 0.50, `face_borderline` ≥ 0.46, di bawahnya ditolak; selfie pendaftaran harus saling ≥ 0.50. Gambar diperkecil agar sisi terpanjang ≤ 640 untuk deteksi. Menggantikan pilihan model dan ambang di D42; alur selfie, liveness, dan replay D42 tetap | Uji banding pada 33 foto contoh wajah Asia (`backend/tools/face-bench`): dengan tidak ada orang berbeda yang lolos, dlib menerima 0% pasangan orang sama, SFace 44%, ArcFace 89%. ArcFace terbaik tetapi model siap pakainya non-komersial. Konsekuensi: SFace jauh lebih baik dari dlib tetapi belum terbukti cukup untuk produksi; ambang wajib dikalibrasi dengan selfie Pejuang dari HP sebelum dipakai, dan bila kurang, pilihannya lisensi komersial ArcFace atau layanan verifikasi wajah komersial. Template dlib dianggap belum terdaftar. Foto harus tegak karena orientasi EXIF tidak diterapkan |
+| D44 | Aplikasi Android dibangun di repo ini (`mobile/`) dan APK debugnya dibuat CI, karena PC pengembang belum punya Android SDK. Model JSON ditulis tangan di `data/Dto.kt` dan dijaga tes kontrak backend `TestMobileDTOsMatchOpenAPI`, bukan dari generator OpenAPI. Dependensi disusun manual tanpa Hilt. Build debug memakai `applicationId` `.debug`, alamat server diisi di layar masuk, dan cleartext diizinkan ke semua alamat; build rilis HTTPS dengan alamat tetap | Generator Kotlin tidak cocok dengan beberapa skema (enum berisi `null`, objek tanpa properti, multipart dengan bagian `payload`) dan setiap kegagalan baru terlihat di CI. Tes kontrak memberi jaminan yang sama: field yang tidak ada di kontrak membuat CI merah. Konsekuensi: aplikasi belum diuji di HP sungguhan; arah toleh liveness, ambang ML Kit, rotasi foto, dan Play Integrity harus diuji sebelum Fase 2 ditutup. Hilt, ikon aplikasi, dan Gradle wrapper menyusul |
 | D15 | `/v1/admin/reports/payroll-preview` mewajibkan `attendance:report` dan `payroll:manage` | Respons memuat gaji, sedangkan §7.6 membatasi `base_salary` untuk `sdm` dan pemilik data |
 
 ### 14.2 Pertanyaan yang Harus Dijawab (blokir pekerjaan terkait)

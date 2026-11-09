@@ -234,7 +234,6 @@ fun ChangePasswordContent(
     onBack: () -> Unit,
     onFinished: () -> Unit,
 ) {
-    val problem = passwordProblem(form)
     val canSubmit = form.current.isNotEmpty() && form.next.length >= 10 && form.repeat == form.next && !form.busy
     Box(Modifier.fillMaxSize().background(Fg.PageProfile)) {
         Column(Modifier.fillMaxSize().imePadding()) {
@@ -254,12 +253,12 @@ fun ChangePasswordContent(
                     )
                     FigmaInput(
                         "Kata sandi baru", form.next, onNext, lock, password = true,
-                        error = problem?.takeIf { form.next.isNotEmpty() && form.next.length < 10 },
+                        error = "Minimal 10 karakter.".takeIf { form.next.isNotEmpty() && form.next.length < 10 },
                         keyboard = KeyboardOptions(keyboardType = KeyboardType.Password, imeAction = ImeAction.Next),
                     )
                     FigmaInput(
                         "Ulangi kata sandi baru", form.repeat, onRepeat, lock, password = true,
-                        error = problem?.takeIf { form.repeat.isNotEmpty() && form.repeat != form.next },
+                        error = "Kata sandi tidak sama.".takeIf { form.repeat.isNotEmpty() && form.repeat != form.next },
                         keyboard = KeyboardOptions(keyboardType = KeyboardType.Password, imeAction = ImeAction.Done),
                         onDone = { if (canSubmit) onSubmit() },
                     )

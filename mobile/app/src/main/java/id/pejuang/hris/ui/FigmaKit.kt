@@ -52,6 +52,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -401,9 +402,9 @@ fun FigmaTabHeader(title: String, subtitle: String, illustration: Boolean = true
             .statusBarsPadding()
             .height(189.dp + extraHeight),
     ) {
-        Column(Modifier.padding(start = 28.dp, top = 27.dp, end = 128.dp), verticalArrangement = Arrangement.spacedBy(1.dp)) {
-            Text(title, style = figmaText(24, FontWeight.SemiBold, Color(0xFFFEFEFE)).copy(lineHeight = 32.sp), maxLines = 2)
-            Text(subtitle, style = figmaText(14, FontWeight.Medium, Fg.OnHeaderSoft, tracking = 0.1f).copy(lineHeight = 20.sp), maxLines = 2)
+        Column(Modifier.padding(start = 28.dp, top = 27.dp, end = 104.dp), verticalArrangement = Arrangement.spacedBy(1.dp)) {
+            Text(title, style = figmaText(24, FontWeight.SemiBold, Color(0xFFFEFEFE)).copy(lineHeight = 32.sp), maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(subtitle, style = figmaText(14, FontWeight.Medium, Fg.OnHeaderSoft, tracking = 0.1f).copy(lineHeight = 20.sp), maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
         if (illustration) {
             // Koordinat dari frame 390dp, dihitung dari tepi kanan agar tetap di kanan pada layar lain.

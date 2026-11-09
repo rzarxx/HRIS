@@ -82,8 +82,8 @@ fun AttendanceContent(
     val today = records?.firstOrNull { it.workDate == todayKey }
     val action = clockAction(me, today)
     val (title, subtitle) = when {
-        today?.clockOutAt != null -> "Sampai jumpa besok!" to "Presensi hari ini sudah lengkap"
-        today?.clockInAt != null -> "Waktunya absen pulang!" to "Jangan lupa absen sebelum pulang"
+        today?.clockOutAt != null -> "Presensi selesai!" to "Terima kasih, sampai jumpa besok"
+        today?.clockInAt != null -> "Ayo absen pulang!" to "Jangan lupa absen sebelum pulang"
         else -> "Ayo absen masuk!" to "Jangan lewatkan jadwal absen Anda"
     }
     val past = records.orEmpty().filter { it.workDate != todayKey }

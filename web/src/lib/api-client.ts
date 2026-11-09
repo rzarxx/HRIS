@@ -92,7 +92,7 @@ function redirectToSettings(code: string) {
   window.location.href = `/pengaturan/?wajib=${code}`;
 }
 
-async function request<T>(method: string, path: string, opts: { query?: Query; body?: unknown } = {}): Promise<T> {
+async function request<T>(method: string, path: string, opts: { query?: Query; body?: unknown; blob?: boolean } = {}): Promise<T> {
   const url = buildUrl(path, opts.query);
   let res: Response;
   try {
@@ -109,6 +109,7 @@ async function request<T>(method: string, path: string, opts: { query?: Query; b
 
   if (res.status === 204) return undefined as T;
 
+  if (res.ok && opts.blob) return (await res.blob()) as T;
   const payload = await res.json().catch(() => null);
   if (!res.ok) {
     const err = payload?.error;
@@ -127,6 +128,7 @@ async function request<T>(method: string, path: string, opts: { query?: Query; b
 
 export const api = {
   get: <T>(path: string, query?: Query) => request<T>("GET", path, { query }),
+  blob: (path: string) => request<Blob>("GET", path, { blob: true }),
   post: <T>(path: string, body?: unknown) => request<T>("POST", path, { body }),
   patch: <T>(path: string, body?: unknown) => request<T>("PATCH", path, { body }),
   put: <T>(path: string, body?: unknown) => request<T>("PUT", path, { body }),

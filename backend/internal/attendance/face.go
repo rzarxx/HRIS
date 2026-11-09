@@ -13,6 +13,7 @@ import (
 	"net/http"
 	"net/netip"
 	"strings"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
@@ -22,6 +23,7 @@ import (
 	"github.com/rzarxx/HRIS/backend/internal/face"
 	"github.com/rzarxx/HRIS/backend/internal/platform/database"
 	"github.com/rzarxx/HRIS/backend/internal/platform/httpx"
+	"github.com/rzarxx/HRIS/backend/internal/platform/integrity"
 	"github.com/rzarxx/HRIS/backend/internal/platform/pgconv"
 	"github.com/rzarxx/HRIS/backend/internal/store"
 )
@@ -258,6 +260,8 @@ func (s *Service) activeTemplate(ctx context.Context, employeeID uuid.UUID) (fac
 // `samples` dan hash-nya, berurutan, di sample_sha256.
 type EnrollInput struct {
 	ChallengeID    string   `json:"challenge_id"`
+	CapturedAt     string   `json:"captured_at"`
+	IntegrityToken string   `json:"integrity_token"`
 	SampleSHA256   []string `json:"sample_sha256"`
 	LivenessPassed *bool    `json:"liveness_passed"`
 	LivenessAction string   `json:"liveness_action"`
@@ -355,16 +359,40 @@ func (s *Service) Enroll(ctx context.Context, p auth.Principal, ip *netip.Addr, 
 		}
 		return FaceStatus{}, err
 	}
-	if !s.opt.AllowUnverified || len(in.Signals.hardFlags()) > 0 {
+	if len(in.Signals.hardFlags()) > 0 {
 		return FaceStatus{}, errBlocked()
 	}
 	if in.LivenessPassed == nil || !*in.LivenessPassed || in.LivenessAction == "" || in.LivenessAction != challenge.LivenessAction.String {
 		return FaceStatus{}, errLiveness()
 	}
+	if !s.opt.AllowUnverified {
+		if s.opt.PlayVerifier == nil {
+			return FaceStatus{}, errBlocked()
+		}
+		capturedAt, err := time.Parse(time.RFC3339Nano, in.CapturedAt)
+		if err != nil {
+			return FaceStatus{}, errBlocked()
+		}
+		hash, err := integrity.EnrollmentHash(challenge.Nonce, point.Latitude, point.Longitude, capturedAt, in.ConsentVersion, in.LivenessAction, in.SampleSHA256)
+		if err != nil {
+			return FaceStatus{}, errBlocked()
+		}
+		if err := s.opt.PlayVerifier.Verify(ctx, in.IntegrityToken, hash); err != nil {
+			return FaceStatus{}, errBlocked()
+		}
+	}
+	var remotePermissionID uuid.UUID
 	if _, ok, err := s.matchLocation(ctx, p.EmployeeID, point); err != nil {
 		return FaceStatus{}, err
 	} else if !ok {
-		return FaceStatus{}, httpx.NewError(http.StatusUnprocessableEntity, "GEOFENCE_OUT", "Daftarkan wajah di lokasi kantor.")
+		permission, err := s.q.GetRemoteFacePermission(ctx, store.GetRemoteFacePermissionParams{EmployeeID: p.EmployeeID, Now: pgconv.Time(s.opt.Now())})
+		if pgconv.IsNoRows(err) {
+			return FaceStatus{}, httpx.NewError(http.StatusUnprocessableEntity, "GEOFENCE_OUT", "Daftarkan wajah di lokasi kantor atau minta izin SDM.")
+		}
+		if err != nil {
+			return FaceStatus{}, err
+		}
+		remotePermissionID = permission.ID
 	}
 
 	vectors := make([][]float64, 0, len(in.samples))
@@ -401,6 +429,15 @@ func (s *Service) Enroll(ctx context.Context, p auth.Principal, ip *netip.Addr, 
 	model := s.opt.Faces.Model()
 	var row store.FaceTemplate
 	err = database.InTx(ctx, s.pool, func(q *store.Queries) error {
+		if remotePermissionID != uuid.Nil {
+			consumed, err := q.ConsumeRemoteFacePermission(ctx, store.ConsumeRemoteFacePermissionParams{EmployeeID: p.EmployeeID, ID: remotePermissionID, Now: pgconv.Time(s.opt.Now())})
+			if err != nil {
+				return err
+			}
+			if consumed == 0 {
+				return httpx.NewError(http.StatusUnprocessableEntity, "GEOFENCE_OUT", "Izin pendaftaran jarak jauh tidak berlaku.")
+			}
+		}
 		replaced, err := q.DeactivateFaceTemplates(ctx, store.DeactivateFaceTemplatesParams{Actor: audit.Actor(p.UserID), EmployeeID: p.EmployeeID})
 		if err != nil {
 			return err
@@ -417,7 +454,7 @@ func (s *Service) Enroll(ctx context.Context, p auth.Principal, ip *netip.Addr, 
 		}
 		return audit.Write(ctx, q, audit.Entry{
 			UserID: audit.Actor(p.UserID), Action: audit.FaceEnrolled, Entity: "employee", EntityID: p.EmployeeID, IP: ip,
-			Detail: map[string]any{"model_version": model, "samples": len(captures), "replaced": replaced > 0, "device_id": device.ID.String()},
+			Detail: map[string]any{"model_version": model, "samples": len(captures), "replaced": replaced > 0, "device_id": device.ID.String(), "remote_permission_used": remotePermissionID != uuid.Nil},
 		})
 	})
 	if err != nil {

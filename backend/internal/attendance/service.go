@@ -22,6 +22,7 @@ import (
 	"github.com/rzarxx/HRIS/backend/internal/face"
 	"github.com/rzarxx/HRIS/backend/internal/platform/database"
 	"github.com/rzarxx/HRIS/backend/internal/platform/httpx"
+	"github.com/rzarxx/HRIS/backend/internal/platform/integrity"
 	"github.com/rzarxx/HRIS/backend/internal/platform/pgconv"
 	"github.com/rzarxx/HRIS/backend/internal/store"
 )
@@ -52,6 +53,10 @@ type Options struct {
 	// pendaftaran dan absen yang membawa selfie dijawab FACE_SERVICE_UNAVAILABLE.
 	Faces   face.Engine
 	Selfies SelfieStore
+	// PlayVerifier memeriksa token pada server Google; nil mempertahankan penolakan default.
+	PlayVerifier interface {
+		Verify(context.Context, string, string) error
+	}
 }
 
 // Service memuat aturan presensi (MASTER.md §5.4, alur F8 sampai F10).
@@ -99,12 +104,13 @@ func (s Signals) hardFlags() []string {
 
 // ClockInput adalah isi absen masuk dan pulang.
 type ClockInput struct {
-	ChallengeID string   `json:"challenge_id"`
-	Latitude    *float64 `json:"latitude"`
-	Longitude   *float64 `json:"longitude"`
-	AccuracyM   *float64 `json:"accuracy_m"`
-	CapturedAt  string   `json:"captured_at"`
-	Signals     Signals  `json:"signals"`
+	ChallengeID    string   `json:"challenge_id"`
+	Latitude       *float64 `json:"latitude"`
+	Longitude      *float64 `json:"longitude"`
+	AccuracyM      *float64 `json:"accuracy_m"`
+	CapturedAt     string   `json:"captured_at"`
+	IntegrityToken string   `json:"integrity_token"`
+	Signals        Signals  `json:"signals"`
 	// Bagian wajah (D42). Selfie dikirim sebagai berkas multipart `selfie`; hash-nya di payload
 	// mengikat foto ke challenge.
 	SelfieSHA256   string `json:"selfie_sha256"`
@@ -319,14 +325,23 @@ func (s *Service) verify(ctx context.Context, a *attempt, deviceHeader string, i
 	a.challenge = uuid.NullUUID{UUID: parsed.challengeID, Valid: true}
 	a.livenessAction = challenge.LivenessAction.String
 
-	if !s.opt.AllowUnverified {
-		return s.reject(ctx, *a, "integrity_failed", errBlocked())
-	}
-	a.flags = append(a.flags, flagUnverified)
-
 	if hard := in.Signals.hardFlags(); len(hard) > 0 {
 		a.flags = append(a.flags, hard...)
 		return s.reject(ctx, *a, "hard_signal", errBlocked())
+	}
+	if s.opt.AllowUnverified {
+		a.flags = append(a.flags, flagUnverified)
+		return nil
+	}
+	if s.opt.PlayVerifier == nil || len(in.selfie) == 0 {
+		return s.reject(ctx, *a, "integrity_failed", errBlocked())
+	}
+	hash, err := integrity.AttendanceHash(challenge.Nonce, parsed.point.Latitude, parsed.point.Longitude, parsed.capturedAt, in.SelfieSHA256)
+	if err != nil {
+		return s.reject(ctx, *a, "integrity_failed", errBlocked())
+	}
+	if err := s.opt.PlayVerifier.Verify(ctx, in.IntegrityToken, hash); err != nil {
+		return s.reject(ctx, *a, "integrity_failed", errBlocked())
 	}
 	return nil
 }

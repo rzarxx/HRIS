@@ -153,7 +153,7 @@ const consumeAttendanceChallenge = `-- name: ConsumeAttendanceChallenge :one
 UPDATE attendance_challenges SET used_at = $1
 WHERE id = $2 AND employee_id = $3 AND device_id = $4 AND purpose = $5
   AND used_at IS NULL AND expires_at > $1
-RETURNING id, liveness_action
+RETURNING id, nonce, liveness_action
 `
 
 type ConsumeAttendanceChallengeParams struct {
@@ -166,6 +166,7 @@ type ConsumeAttendanceChallengeParams struct {
 
 type ConsumeAttendanceChallengeRow struct {
 	ID             uuid.UUID
+	Nonce          string
 	LivenessAction pgtype.Text
 }
 
@@ -179,8 +180,26 @@ func (q *Queries) ConsumeAttendanceChallenge(ctx context.Context, arg ConsumeAtt
 		arg.Purpose,
 	)
 	var i ConsumeAttendanceChallengeRow
-	err := row.Scan(&i.ID, &i.LivenessAction)
+	err := row.Scan(&i.ID, &i.Nonce, &i.LivenessAction)
 	return i, err
+}
+
+const consumeRemoteFacePermission = `-- name: ConsumeRemoteFacePermission :execrows
+DELETE FROM face_remote_permissions WHERE employee_id = $1 AND id = $2 AND expires_at > $3
+`
+
+type ConsumeRemoteFacePermissionParams struct {
+	EmployeeID uuid.UUID
+	ID         uuid.UUID
+	Now        pgtype.Timestamptz
+}
+
+func (q *Queries) ConsumeRemoteFacePermission(ctx context.Context, arg ConsumeRemoteFacePermissionParams) (int64, error) {
+	result, err := q.db.Exec(ctx, consumeRemoteFacePermission, arg.EmployeeID, arg.ID, arg.Now)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }
 
 const countAttendanceAttempts = `-- name: CountAttendanceAttempts :one
@@ -265,6 +284,18 @@ type DeactivateFaceTemplatesParams struct {
 
 func (q *Queries) DeactivateFaceTemplates(ctx context.Context, arg DeactivateFaceTemplatesParams) (int64, error) {
 	result, err := q.db.Exec(ctx, deactivateFaceTemplates, arg.Actor, arg.EmployeeID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const deleteRemoteFacePermission = `-- name: DeleteRemoteFacePermission :execrows
+DELETE FROM face_remote_permissions WHERE employee_id = $1
+`
+
+func (q *Queries) DeleteRemoteFacePermission(ctx context.Context, employeeID uuid.UUID) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteRemoteFacePermission, employeeID)
 	if err != nil {
 		return 0, err
 	}
@@ -506,6 +537,29 @@ func (q *Queries) GetOwnDevice(ctx context.Context, arg GetOwnDeviceParams) (Dev
 		&i.RevokedAt,
 		&i.RevokedReason,
 		&i.LastSeenAt,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
+const getRemoteFacePermission = `-- name: GetRemoteFacePermission :one
+SELECT id, employee_id, approved_by, reason, expires_at, created_at FROM face_remote_permissions WHERE employee_id = $1 AND expires_at > $2
+`
+
+type GetRemoteFacePermissionParams struct {
+	EmployeeID uuid.UUID
+	Now        pgtype.Timestamptz
+}
+
+func (q *Queries) GetRemoteFacePermission(ctx context.Context, arg GetRemoteFacePermissionParams) (FaceRemotePermission, error) {
+	row := q.db.QueryRow(ctx, getRemoteFacePermission, arg.EmployeeID, arg.Now)
+	var i FaceRemotePermission
+	err := row.Scan(
+		&i.ID,
+		&i.EmployeeID,
+		&i.ApprovedBy,
+		&i.Reason,
+		&i.ExpiresAt,
 		&i.CreatedAt,
 	)
 	return i, err
@@ -1081,6 +1135,60 @@ func (q *Queries) ListWorkArrangements(ctx context.Context, employeeID uuid.UUID
 	return items, nil
 }
 
+const lockExpiredFaceCapture = `-- name: LockExpiredFaceCapture :one
+SELECT id, storage_key FROM face_captures
+WHERE selfie_deleted_at IS NULL AND created_at < $1
+ORDER BY created_at, id LIMIT 1 FOR UPDATE SKIP LOCKED
+`
+
+type LockExpiredFaceCaptureRow struct {
+	ID         uuid.UUID
+	StorageKey string
+}
+
+// Satu baris dikunci selama berkas dihapus. SKIP LOCKED memungkinkan beberapa pekerja.
+func (q *Queries) LockExpiredFaceCapture(ctx context.Context, cutoff pgtype.Timestamptz) (LockExpiredFaceCaptureRow, error) {
+	row := q.db.QueryRow(ctx, lockExpiredFaceCapture, cutoff)
+	var i LockExpiredFaceCaptureRow
+	err := row.Scan(&i.ID, &i.StorageKey)
+	return i, err
+}
+
+const lockReviewSelfie = `-- name: LockReviewSelfie :one
+SELECT f.id, f.storage_key FROM face_captures f
+JOIN attendances a ON a.id = f.attendance_id
+WHERE a.id = $1 AND a.status = 'review' AND f.purpose = $2
+  AND f.selfie_deleted_at IS NULL AND f.created_at > $3
+ORDER BY f.created_at DESC LIMIT 1 FOR UPDATE OF a, f
+`
+
+type LockReviewSelfieParams struct {
+	AttendanceID uuid.UUID
+	Purpose      string
+	Cutoff       pgtype.Timestamptz
+}
+
+type LockReviewSelfieRow struct {
+	ID         uuid.UUID
+	StorageKey string
+}
+
+func (q *Queries) LockReviewSelfie(ctx context.Context, arg LockReviewSelfieParams) (LockReviewSelfieRow, error) {
+	row := q.db.QueryRow(ctx, lockReviewSelfie, arg.AttendanceID, arg.Purpose, arg.Cutoff)
+	var i LockReviewSelfieRow
+	err := row.Scan(&i.ID, &i.StorageKey)
+	return i, err
+}
+
+const markFaceCaptureDeleted = `-- name: MarkFaceCaptureDeleted :exec
+UPDATE face_captures SET selfie_deleted_at = now() WHERE id = $1
+`
+
+func (q *Queries) MarkFaceCaptureDeleted(ctx context.Context, id uuid.UUID) error {
+	_, err := q.db.Exec(ctx, markFaceCaptureDeleted, id)
+	return err
+}
+
 const resolveAttendanceReview = `-- name: ResolveAttendanceReview :one
 UPDATE attendances
 SET status = $1, late_minutes = $2, review_by = $3, reviewed_at = $4, review_note = $5
@@ -1147,5 +1255,29 @@ type SetFaceCaptureScoreParams struct {
 
 func (q *Queries) SetFaceCaptureScore(ctx context.Context, arg SetFaceCaptureScoreParams) error {
 	_, err := q.db.Exec(ctx, setFaceCaptureScore, arg.FaceScore, arg.ID)
+	return err
+}
+
+const setRemoteFacePermission = `-- name: SetRemoteFacePermission :exec
+INSERT INTO face_remote_permissions (employee_id, approved_by, reason, expires_at)
+VALUES ($1, $2, $3, $4)
+ON CONFLICT (employee_id) DO UPDATE SET id = EXCLUDED.id, approved_by = EXCLUDED.approved_by,
+ reason = EXCLUDED.reason, expires_at = EXCLUDED.expires_at, created_at = now()
+`
+
+type SetRemoteFacePermissionParams struct {
+	EmployeeID uuid.UUID
+	ApprovedBy uuid.UUID
+	Reason     string
+	ExpiresAt  pgtype.Timestamptz
+}
+
+func (q *Queries) SetRemoteFacePermission(ctx context.Context, arg SetRemoteFacePermissionParams) error {
+	_, err := q.db.Exec(ctx, setRemoteFacePermission,
+		arg.EmployeeID,
+		arg.ApprovedBy,
+		arg.Reason,
+		arg.ExpiresAt,
+	)
 	return err
 }

@@ -340,15 +340,25 @@ type EmployeeWorkArrangement struct {
 }
 
 type FaceCapture struct {
-	ID           uuid.UUID
-	EmployeeID   uuid.UUID
-	ChallengeID  uuid.NullUUID
-	AttendanceID uuid.NullUUID
-	Purpose      string
-	Sha256       string
-	StorageKey   string
-	FaceScore    decimal.NullDecimal
-	CreatedAt    pgtype.Timestamptz
+	ID              uuid.UUID
+	EmployeeID      uuid.UUID
+	ChallengeID     uuid.NullUUID
+	AttendanceID    uuid.NullUUID
+	Purpose         string
+	Sha256          string
+	StorageKey      string
+	FaceScore       decimal.NullDecimal
+	CreatedAt       pgtype.Timestamptz
+	SelfieDeletedAt pgtype.Timestamptz
+}
+
+type FaceRemotePermission struct {
+	ID         uuid.UUID
+	EmployeeID uuid.UUID
+	ApprovedBy uuid.UUID
+	Reason     string
+	ExpiresAt  pgtype.Timestamptz
+	CreatedAt  pgtype.Timestamptz
 }
 
 type FaceTemplate struct {

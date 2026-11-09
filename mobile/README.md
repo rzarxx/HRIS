@@ -61,7 +61,7 @@ otomatis oleh Gradle, tidak dipasang manual.
 - Daftar wajah (F7): bila `GET /v1/me` mengembalikan `face_enrolled: false`, buka layar daftar wajah. Minta
   challenge `face_enroll`, ambil 3 sampai 5 selfie berbeda, lalu kirim `multipart/form-data` ke
   `POST /v1/face/enroll`: bagian `payload` (JSON berisi `sample_sha256`, `liveness_*`, `consent_version`, dan
-  lokasi) dan berkas `samples`. Pendaftaran harus di dalam area kantor.
+  lokasi) dan berkas `samples`. Pendaftaran di luar area kantor memerlukan izin satu kali dari SDM yang berlaku 24 jam.
 - Absen masuk dan pulang juga `multipart/form-data`: bagian `payload` (isi absen ditambah `selfie_sha256`) dan
   berkas `selfie`.
 - Selfie: JPEG yang sudah tegak (server tidak membaca orientasi EXIF), satu wajah, sisi terpanjang sekitar 640 px, maksimal 1 MB. Selalu ambil foto baru untuk setiap upaya, karena
@@ -75,8 +75,9 @@ otomatis oleh Gradle, tidak dipasang manual.
   lewat *network security config*. Build rilis wajib HTTPS (`cleartextTrafficPermitted=false`).
 - HP biasanya tidak bisa memakai baris `hosts` seperti laptop, jadi `api.hris.local` tidak akan ditemukan.
   Pakai alamat IP server, atau minta pengelola jaringan menambahkan nama itu di DNS lokal.
-- Selama verifikasi perangkat belum dibuat, absen dan daftar wajah hanya diterima bila server memasang
-  `DEV_ALLOW_UNVERIFIED_ATTENDANCE=true` (D36).
+- Di server development, absen dan daftar wajah dapat diuji dengan `DEV_ALLOW_UNVERIFIED_ATTENDANCE=true`
+  atau dengan konfigurasi Play Integrity eksperimental. Keduanya tidak boleh diaktifkan bersamaan.
+  Produksi tetap menolak sampai pengikatan perangkat selesai (D36).
 
 ## Versi yang dipakai
 

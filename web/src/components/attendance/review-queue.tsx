@@ -1,7 +1,7 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { MapPoint } from "@/components/attendance/attendance-points-map";
 import { Button } from "@/components/ui/button";
 import { Field, Select, Textarea } from "@/components/ui/form";
@@ -42,6 +42,32 @@ function pointsOf(a: AttendanceReviewItem): MapPoint[] {
   if (a.in_latitude !== null && a.in_longitude !== null) points.push({ label: "Masuk", latitude: a.in_latitude, longitude: a.in_longitude });
   if (a.out_latitude !== null && a.out_longitude !== null) points.push({ label: "Pulang", latitude: a.out_latitude, longitude: a.out_longitude });
   return points;
+}
+
+function ReviewSelfie({ attendanceId, purpose, label }: { attendanceId: string; purpose: "clock_in" | "clock_out"; label: string }) {
+  const [requested, setRequested] = useState(false);
+  const [url, setUrl] = useState<string | null>(null);
+  const [error, setError] = useState("");
+  useEffect(() => {
+    if (!requested) return;
+    let active = true;
+    let objectUrl: string | undefined;
+    api.blob(`/admin/attendance/${attendanceId}/selfie/${purpose}`).then((blob) => {
+      if (!active) return;
+      objectUrl = URL.createObjectURL(blob);
+      setUrl(objectUrl);
+    }).catch(() => { if (active) setError("Selfie tidak tersedia atau tidak dapat dimuat."); });
+    return () => { active = false; if (objectUrl) URL.revokeObjectURL(objectUrl); };
+  }, [attendanceId, purpose, requested]);
+  return <div>
+    {!requested && <Button type="button" variant="secondary" onClick={() => setRequested(true)}>Lihat selfie {label}</Button>}
+    {requested && !url && !error && <Loading label="Memuat selfie..." />}
+    {error && <p className="text-sm text-slate-500">{error}</p>}
+    {url && <div><p className="text-sm text-slate-600">Selfie {label}</p>{/* Blob URL privat, dihapus saat modal ditutup. */}
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img src={url} alt={`Selfie absen ${label}`} className="mt-1 max-h-64 max-w-full rounded-md" />
+    </div>}
+  </div>;
 }
 
 function ReviewModal({ item, onClose }: { item: AttendanceReviewItem; onClose: () => void }) {
@@ -117,6 +143,11 @@ function ReviewModal({ item, onClose }: { item: AttendanceReviewItem; onClose: (
         <dt className="text-slate-500">Akurasi GPS</dt>
         <dd className="col-span-2 text-slate-800">{item.in_accuracy_m === null ? "-" : `${item.in_accuracy_m} m`}</dd>
       </dl>
+
+      <div className="mt-4 flex flex-wrap gap-3">
+        <ReviewSelfie attendanceId={item.id} purpose="clock_in" label="masuk" />
+        {item.clock_out_at && <ReviewSelfie attendanceId={item.id} purpose="clock_out" label="pulang" />}
+      </div>
 
       <div className="mt-4 rounded-md border border-amber-200 bg-amber-50 px-3 py-2">
         <p className="text-sm font-medium text-amber-900">Skor risiko {item.risk_score}</p>

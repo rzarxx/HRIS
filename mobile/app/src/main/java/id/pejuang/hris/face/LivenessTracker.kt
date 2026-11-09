@@ -37,8 +37,13 @@ class LivenessTracker(private val action: String) {
     }
 
     fun update(faces: List<FaceSample>): LivenessState {
-        if (faces.isEmpty()) return LivenessState.NoFace
-        if (faces.size > 1) return LivenessState.ManyFaces
+        if (faces.size != 1) {
+            // Gerakan sebelum wajah hilang atau wajah tambahan muncul tidak boleh digunakan lagi.
+            neutralSeen = false
+            eyesClosedSeen = false
+            gestureDone = false
+            return if (faces.isEmpty()) LivenessState.NoFace else LivenessState.ManyFaces
+        }
         val face = faces.first()
 
         // Foto diambil saat wajah sudah lurus dan mata terbuka lagi, bukan di tengah gerakan,
@@ -52,7 +57,7 @@ class LivenessTracker(private val action: String) {
         }
 
         if (!neutralSeen) {
-            val notSmiling = action != "smile" || (face.smiling ?: 0f) < NEUTRAL_SMILE
+            val notSmiling = action != "smile" || (face.smiling != null && face.smiling < NEUTRAL_SMILE)
             if (abs(face.yaw) < STRAIGHT_YAW && eyesOpen(face) && notSmiling) {
                 neutralSeen = true
                 return LivenessState.Waiting(prompt)
@@ -77,7 +82,8 @@ class LivenessTracker(private val action: String) {
         return update(faces)
     }
 
-    private fun eyesOpen(face: FaceSample) = (face.leftEyeOpen ?: 1f) > OPEN && (face.rightEyeOpen ?: 1f) > OPEN
+    private fun eyesOpen(face: FaceSample) =
+        face.leftEyeOpen != null && face.rightEyeOpen != null && face.leftEyeOpen > OPEN && face.rightEyeOpen > OPEN
 
     companion object {
         const val OPEN = 0.6f

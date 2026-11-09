@@ -1531,7 +1531,7 @@ Estimasi untuk tim kecil; sesuaikan setelah kapasitas tim jelas.
 - [x] Enroll + cocok wajah (enkripsi aplikasi), reset oleh SDM, dan `consents` (D41). Masih bergantung pada verifikasi perangkat (D36)
 - [x] Wajah dihitung server dari selfie, selfie terenkripsi, liveness acak, dan tolak selfie yang dikirim ulang (D42)
 - [x] Model wajah diganti dari dlib ke SFace setelah uji banding (D43); CI membandingkan hasil Go dengan OpenCV dan menguji ambang
-- [ ] Lihat selfie di Review Absen dan hapus selfie setelah masa retensi
+- [x] Lihat selfie di Review Absen dan hapus selfie setelah masa retensi (`purge_selfies` lewat timer systemd harian di server)
 - [x] Skor risiko dari sinyal yang sudah tersedia + `attendance_attempts`, termasuk `face_borderline`; sinyal integritas menyusul bersama verifikasinya
 - [x] Halaman Review Absen
 - [x] Halaman Monitor Absen: semua Pejuang per tanggal kerja dan peta titik absen, diperbarui tiap 60 detik. Ini titik saat absen, bukan pelacakan lokasi terus-menerus

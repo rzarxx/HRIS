@@ -11,7 +11,7 @@ RETURNING *;
 UPDATE attendance_challenges SET used_at = @now
 WHERE id = @id AND employee_id = @employee_id AND device_id = @device_id AND purpose = @purpose
   AND used_at IS NULL AND expires_at > @now
-RETURNING id, liveness_action;
+RETURNING id, nonce, liveness_action;
 
 -- name: InsertAttendanceAttempt :exec
 INSERT INTO attendance_attempts (employee_id, device_id, challenge_id, purpose, outcome, reason_code, risk_score, risk_flags, latitude, longitude, ip)
@@ -162,3 +162,34 @@ UPDATE face_captures SET face_score = @face_score WHERE id = @id;
 
 -- name: LinkFaceCapture :exec
 UPDATE face_captures SET attendance_id = @attendance_id WHERE id = @id;
+
+-- Satu baris dikunci selama berkas dihapus. SKIP LOCKED memungkinkan beberapa pekerja.
+-- name: LockExpiredFaceCapture :one
+SELECT id, storage_key FROM face_captures
+WHERE selfie_deleted_at IS NULL AND created_at < @cutoff
+ORDER BY created_at, id LIMIT 1 FOR UPDATE SKIP LOCKED;
+
+-- name: MarkFaceCaptureDeleted :exec
+UPDATE face_captures SET selfie_deleted_at = now() WHERE id = @id;
+
+-- name: LockReviewSelfie :one
+SELECT f.id, f.storage_key FROM face_captures f
+JOIN attendances a ON a.id = f.attendance_id
+WHERE a.id = @attendance_id AND a.status = 'review' AND f.purpose = @purpose
+  AND f.selfie_deleted_at IS NULL AND f.created_at > @cutoff
+ORDER BY f.created_at DESC LIMIT 1 FOR UPDATE OF a, f;
+
+-- name: GetRemoteFacePermission :one
+SELECT * FROM face_remote_permissions WHERE employee_id = @employee_id AND expires_at > @now;
+
+-- name: SetRemoteFacePermission :exec
+INSERT INTO face_remote_permissions (employee_id, approved_by, reason, expires_at)
+VALUES (@employee_id, @approved_by, @reason, @expires_at)
+ON CONFLICT (employee_id) DO UPDATE SET id = EXCLUDED.id, approved_by = EXCLUDED.approved_by,
+ reason = EXCLUDED.reason, expires_at = EXCLUDED.expires_at, created_at = now();
+
+-- name: DeleteRemoteFacePermission :execrows
+DELETE FROM face_remote_permissions WHERE employee_id = @employee_id;
+
+-- name: ConsumeRemoteFacePermission :execrows
+DELETE FROM face_remote_permissions WHERE employee_id = @employee_id AND id = @id AND expires_at > @now;

@@ -99,6 +99,10 @@ func TestDiskStoreEncrypts(t *testing.T) {
 	if err != nil || !bytes.Equal(plain, photo) {
 		t.Errorf("dekripsi: %v", err)
 	}
+	loaded, err := store.Get(context.Background(), "clock_in/2026/11/a.jpg.enc")
+	if err != nil || !bytes.Equal(loaded, photo) {
+		t.Errorf("baca selfie: %v", err)
+	}
 	for _, bad := range []string{"../luar.jpg", "/abs.jpg", ""} {
 		if err := store.Put(context.Background(), bad, photo); err == nil {
 			t.Errorf("kunci %q harus ditolak", bad)

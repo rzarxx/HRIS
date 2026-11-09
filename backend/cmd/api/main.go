@@ -25,6 +25,7 @@ import (
 	"github.com/rzarxx/HRIS/backend/internal/platform/config"
 	"github.com/rzarxx/HRIS/backend/internal/platform/database"
 	"github.com/rzarxx/HRIS/backend/internal/platform/fieldcrypt"
+	"github.com/rzarxx/HRIS/backend/internal/platform/integrity"
 	"github.com/rzarxx/HRIS/backend/internal/report"
 	"github.com/rzarxx/HRIS/backend/internal/server"
 	"github.com/rzarxx/HRIS/backend/internal/shift"
@@ -67,16 +68,26 @@ func run() error {
 		return err
 	}
 	attendanceOpt := attendance.Options{AllowUnverified: cfg.DevAllowUnverifiedAttendance, ChallengeTTL: cfg.ChallengeTTL, Cipher: fieldCipher}
+	if cfg.PlayIntegrityPackage != "" {
+		account, err := integrity.LoadServiceAccount(cfg.PlayIntegrityCredentials, nil)
+		if err != nil {
+			return err
+		}
+		attendanceOpt.PlayVerifier = integrity.PlayVerifier{PackageName: cfg.PlayIntegrityPackage, AccessToken: account.Token}
+	}
+	if cfg.SelfieDir != "" {
+		selfies, err := attendance.NewDiskStore(cfg.SelfieDir, fieldCipher)
+		if err != nil {
+			return err
+		}
+		attendanceOpt.Selfies = selfies
+	}
 	if cfg.FaceModelsDir != "" {
 		engine, err := face.NewSFace(cfg.FaceModelsDir, cfg.OnnxRuntimeLib)
 		if err != nil {
 			return err
 		}
-		selfies, err := attendance.NewDiskStore(cfg.SelfieDir, fieldCipher)
-		if err != nil {
-			return err
-		}
-		attendanceOpt.Faces, attendanceOpt.Selfies = engine, selfies
+		attendanceOpt.Faces = engine
 		slog.Info("verifikasi wajah aktif", "model", engine.Model())
 	} else {
 		slog.Warn("FACE_MODELS_DIR kosong: daftar wajah dan absen dengan selfie dijawab FACE_SERVICE_UNAVAILABLE")

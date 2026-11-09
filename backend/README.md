@@ -35,6 +35,25 @@ go run ./cmd/api
 
 API berjalan di `http://localhost:8080`. Cek dengan `GET /healthz` dan `GET /readyz`.
 
+Play Integrity bersifat opsional dan belum teruji dengan aplikasi Android nyata. Untuk pengujian,
+atur `PLAY_INTEGRITY_PACKAGE` ke package aplikasi dan `PLAY_INTEGRITY_CREDENTIALS` ke path file
+service account Google yang memiliki akses Play Integrity. Kedua nilai harus diisi bersama dan tidak
+boleh digabung dengan `DEV_ALLOW_UNVERIFIED_ATTENDANCE=true`. Konfigurasi ini ditolak di luar
+development sampai pengikatan kriptografis instalasi perangkat selesai. Tanpa konfigurasi itu, presensi dan
+pendaftaran wajah tetap ditolak di luar mode development yang secara eksplisit mengizinkan bypass.
+Jangan commit file kredensial. Gangguan layanan Google saat ini menyebabkan penolakan tertutup.
+
+Retensi selfie dijalankan harian oleh scheduler host dari direktori `backend` dengan environment
+yang sama dengan API dan `SELFIE_DIR` yang menunjuk penyimpanan sebenarnya:
+
+```bash
+go run ./cmd/purge-selfies
+```
+
+Jalankan migrasi terlebih dahulu. Perintah menghapus berkas setelah 90 hari, mempertahankan hash
+untuk menolak replay, dan dapat dijalankan ulang setelah gagal. Pantau status keluar scheduler;
+perintah ini tidak memasang jadwal secara otomatis.
+
 Saat `DEV_SIMULATE_ATTENDANCE=true`, API mengisi presensi dummy sampai hari ini setiap 5 menit.
 Presensi nyata dari aplikasi HP menyusul di Fase 2-3.
 

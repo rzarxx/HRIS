@@ -631,7 +631,7 @@ paths:
     post:
       tags: [Presensi]
       summary: Absen masuk
-      description: "Kirim multipart: bagian `payload` (JSON `ClockInput`) dan berkas `selfie`. Server menghitung wajah dari selfie dan mencocokkannya dengan template (D42). JSON tanpa selfie hanya diterima di development (D36). Selama verifikasi perangkat belum dibuat, semua absen ditolak `ATTENDANCE_BLOCKED` kecuali di development dengan izin khusus. Alasan keamanan tidak dikirim ke klien."
+      description: "Kirim multipart: bagian `payload` (JSON `ClockInput`) dan berkas `selfie`. Server mencocokkan wajah dan memverifikasi token Play jika dikonfigurasi. JSON tanpa selfie hanya diterima dengan bypass development (D36). Tanpa verifikasi atau bypass tersebut, absen ditolak `ATTENDANCE_BLOCKED`. Alasan keamanan tidak dikirim ke klien."
       parameters:
         - { name: X-Device-Id, in: header, required: true, description: "ID perangkat dari hasil registrasi", schema: { type: string, format: uuid } }
       requestBody:
@@ -745,7 +745,7 @@ paths:
     post:
       tags: [Wajah]
       summary: Daftarkan wajah (F7)
-      description: "Permission `face:enroll`. Butuh perangkat approved, challenge `face_enroll`, persetujuan biometrik, liveness, dan lokasi di dalam geofence kantor (`face.enroll_requires_geofence`). Server menghitung wajah dari setiap selfie dengan model dlib; selfie yang tidak saling mirip ditolak. Template lama dinonaktifkan. Sama seperti absen, ditolak `ATTENDANCE_BLOCKED` sampai verifikasi perangkat dibuat, kecuali di development (D36)."
+      description: "Permission `face:enroll`. Butuh perangkat approved, challenge `face_enroll`, persetujuan biometrik, liveness, dan lokasi di dalam geofence kantor atau izin jarak jauh satu kali dari SDM. Server menghitung wajah dari setiap selfie menggunakan SFace; selfie yang tidak saling mirip ditolak. Template lama dinonaktifkan. Verifikasi token Play diperlukan jika dikonfigurasi; tanpa verifier atau bypass development pendaftaran ditolak (D36)."
       parameters:
         - { name: X-Device-Id, in: header, required: true, description: "ID perangkat dari hasil registrasi", schema: { type: string, format: uuid } }
       requestBody:
@@ -795,6 +795,51 @@ paths:
       responses:
         "204": { description: Tersimpan }
         "400": { $ref: "#/components/responses/ValidationFailed" }
+  /v1/admin/employees/{id}/face/remote-permission:
+    parameters:
+      - $ref: "#/components/parameters/Id"
+    get:
+      tags: [Wajah]
+      summary: Status izin daftar wajah jarak jauh
+      responses:
+        "200":
+          description: Izin aktif atau null
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    allOf:
+                      - $ref: "#/components/schemas/RemoteFacePermission"
+                    nullable: true
+    put:
+      tags: [Wajah]
+      summary: Berikan izin satu kali selama 24 jam
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [reason]
+              properties:
+                reason: { type: string, minLength: 1, maxLength: 500 }
+      responses:
+        "204": { description: Izin disimpan }
+        "400": { $ref: "#/components/responses/ValidationFailed" }
+        "403": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+        "409": { $ref: "#/components/responses/Error" }
+    delete:
+      tags: [Wajah]
+      summary: Cabut izin daftar wajah jarak jauh
+      responses:
+        "204": { description: Izin dicabut }
+        "403": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
   /v1/admin/employees/{id}/face/reset:
     parameters:
       - $ref: "#/components/parameters/Id"
@@ -1228,6 +1273,26 @@ paths:
                     items: { $ref: "#/components/schemas/AttendanceReviewItem" }
                   meta: { $ref: "#/components/schemas/PageMeta" }
         "400": { $ref: "#/components/responses/ValidationFailed" }
+  /v1/admin/attendance/{id}/selfie/{purpose}:
+    parameters:
+      - $ref: "#/components/parameters/Id"
+      - name: purpose
+        in: path
+        required: true
+        schema: { type: string, enum: [clock_in, clock_out] }
+    get:
+      tags: [Presensi]
+      summary: Lihat selfie untuk review absen
+      description: "Permission `attendance:review`; akses dicatat di audit. Hanya absen review dan selfie yang belum melewati retensi."
+      responses:
+        "200":
+          description: Selfie JPEG, tidak boleh disimpan di cache
+          content:
+            image/jpeg:
+              schema: { type: string, format: binary }
+        "400": { $ref: "#/components/responses/ValidationFailed" }
+        "403": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
   /v1/admin/attendance/attempts:
     get:
       tags: [Presensi]
@@ -2040,13 +2105,14 @@ components:
     ClockInput:
       type: object
       required: [challenge_id, latitude, longitude, accuracy_m, captured_at]
-      description: "Payload absen. Skor wajah adalah kemiripan cosine SFace (D43): di bawah 0.46 ditolak `FACE_MISMATCH`, 0.46 sampai 0.50 diterima dengan sinyal `face_borderline` (+20). Selfie yang pernah dikirim ditolak `ATTENDANCE_BLOCKED`. Token integritas ditambahkan bersama verifikasinya."
+      description: "Payload absen. Skor wajah adalah kemiripan cosine SFace (D43): di bawah 0.46 ditolak `FACE_MISMATCH`, 0.46 sampai 0.50 diterima dengan sinyal `face_borderline` (+20). Selfie yang pernah dikirim ditolak `ATTENDANCE_BLOCKED`. Token Play saat ini hanya dapat diuji di development."
       properties:
         challenge_id: { type: string, format: uuid }
         latitude: { type: number, minimum: -90, maximum: 90, example: -6.2001 }
         longitude: { type: number, minimum: -180, maximum: 180, example: 106.8166 }
         accuracy_m: { type: number, minimum: 0, example: 12.5 }
         captured_at: { type: string, format: date-time }
+        integrity_token: { type: string, maxLength: 32768, description: "Token Play Integrity untuk presensi; wajib ketika jalur Play dikonfigurasi." }
         signals: { $ref: "#/components/schemas/AttendanceSignals" }
         selfie_sha256: { type: string, pattern: '^[0-9a-f]{64}$', description: "SHA-256 berkas selfie; wajib bila selfie dikirim" }
         liveness_passed: { type: boolean }
@@ -2056,6 +2122,8 @@ components:
       required: [challenge_id, sample_sha256, liveness_passed, liveness_action, consent_version, latitude, longitude, accuracy_m]
       properties:
         challenge_id: { type: string, format: uuid, description: "Challenge `face_enroll`" }
+        captured_at: { type: string, format: date-time, description: "Waktu foto untuk mengikat token integritas; diperlukan saat verifikasi perangkat aktif." }
+        integrity_token: { type: string, maxLength: 32768, description: "Token Play Integrity untuk pendaftaran wajah." }
         sample_sha256:
           type: array
           minItems: 3
@@ -2069,6 +2137,12 @@ components:
         longitude: { type: number, minimum: -180, maximum: 180 }
         accuracy_m: { type: number, minimum: 0 }
         signals: { $ref: "#/components/schemas/AttendanceSignals" }
+    RemoteFacePermission:
+      type: object
+      required: [expires_at, reason]
+      properties:
+        expires_at: { type: string, format: date-time }
+        reason: { type: string }
     FaceStatus:
       type: object
       required: [enrolled, model_version, enrolled_at]

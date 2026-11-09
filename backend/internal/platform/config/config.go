@@ -31,10 +31,12 @@ type Config struct {
 	// FaceModelsDir berisi yunet.onnx dan sface.onnx untuk menghitung wajah dari selfie (D43), dan
 	// OnnxRuntimeLib adalah pustaka ONNX Runtime. Kosong berarti verifikasi wajah tidak tersedia.
 	// SelfieDir adalah folder selfie terenkripsi.
-	FaceModelsDir  string
-	OnnxRuntimeLib string
-	SelfieDir      string
-	MFARequired    bool
+	FaceModelsDir            string
+	OnnxRuntimeLib           string
+	SelfieDir                string
+	PlayIntegrityPackage     string
+	PlayIntegrityCredentials string
+	MFARequired              bool
 	// CookieSecure menandai cookie hanya untuk HTTPS. Bawaan: aktif di luar development.
 	CookieSecure bool
 	// TrustProxy memercayai X-Real-IP dari reverse proxy di mesin yang sama.
@@ -76,20 +78,22 @@ func LoadDotEnv(path string) error {
 // Load gagal bila secret wajib kosong (MASTER.md §11.4).
 func Load() (Config, error) {
 	cfg := Config{
-		AppEnv:                 env("APP_ENV", "production"),
-		HTTPAddr:               env("HTTP_ADDR", "127.0.0.1:8080"),
-		DatabaseURL:            os.Getenv("DATABASE_URL"),
-		MigrateDatabaseURL:     os.Getenv("MIGRATE_DATABASE_URL"),
-		JWTSigningKeyPath:      os.Getenv("JWT_SIGNING_KEY_PATH"),
-		JWTKeyID:               env("JWT_KEY_ID", "dev-1"),
-		CookieDomain:           os.Getenv("COOKIE_DOMAIN"),
-		LogLevel:               env("LOG_LEVEL", "info"),
-		SeedSDMPassword:        os.Getenv("SEED_SDM_PASSWORD"),
-		FieldEncryptionKeyPath: os.Getenv("FIELD_ENCRYPTION_KEY_PATH"),
-		FaceModelsDir:          os.Getenv("FACE_MODELS_DIR"),
-		OnnxRuntimeLib:         os.Getenv("ONNXRUNTIME_LIB"),
-		SelfieDir:              os.Getenv("SELFIE_DIR"),
-		MFARequired:            true,
+		AppEnv:                   env("APP_ENV", "production"),
+		HTTPAddr:                 env("HTTP_ADDR", "127.0.0.1:8080"),
+		DatabaseURL:              os.Getenv("DATABASE_URL"),
+		MigrateDatabaseURL:       os.Getenv("MIGRATE_DATABASE_URL"),
+		JWTSigningKeyPath:        os.Getenv("JWT_SIGNING_KEY_PATH"),
+		JWTKeyID:                 env("JWT_KEY_ID", "dev-1"),
+		CookieDomain:             os.Getenv("COOKIE_DOMAIN"),
+		LogLevel:                 env("LOG_LEVEL", "info"),
+		SeedSDMPassword:          os.Getenv("SEED_SDM_PASSWORD"),
+		FieldEncryptionKeyPath:   os.Getenv("FIELD_ENCRYPTION_KEY_PATH"),
+		FaceModelsDir:            os.Getenv("FACE_MODELS_DIR"),
+		OnnxRuntimeLib:           os.Getenv("ONNXRUNTIME_LIB"),
+		SelfieDir:                os.Getenv("SELFIE_DIR"),
+		PlayIntegrityPackage:     os.Getenv("PLAY_INTEGRITY_PACKAGE"),
+		PlayIntegrityCredentials: os.Getenv("PLAY_INTEGRITY_CREDENTIALS"),
+		MFARequired:              true,
 	}
 	for _, origin := range strings.Split(os.Getenv("CORS_ALLOWED_ORIGINS"), ",") {
 		if origin = strings.TrimSpace(origin); origin != "" {
@@ -150,6 +154,17 @@ func Load() (Config, error) {
 	}
 	if cfg.FaceModelsDir != "" && (cfg.SelfieDir == "" || cfg.OnnxRuntimeLib == "") {
 		return cfg, errors.New("SELFIE_DIR dan ONNXRUNTIME_LIB wajib diisi bila FACE_MODELS_DIR diisi")
+	}
+	if (cfg.PlayIntegrityPackage == "") != (cfg.PlayIntegrityCredentials == "") {
+		return cfg, errors.New("PLAY_INTEGRITY_PACKAGE dan PLAY_INTEGRITY_CREDENTIALS harus diisi bersama")
+	}
+	if cfg.PlayIntegrityPackage != "" && cfg.DevAllowUnverifiedAttendance {
+		return cfg, errors.New("Play Integrity tidak dapat digabung dengan DEV_ALLOW_UNVERIFIED_ATTENDANCE")
+	}
+	// Verdict Play tidak mengidentifikasi instalasi yang terikat pada sesi. Jangan aktifkan di
+	// produksi sebelum bukti kunci perangkat mengikat token dan sesi ke instalasi yang sama.
+	if cfg.PlayIntegrityPackage != "" && !cfg.IsDevelopment() {
+		return cfg, errors.New("Play Integrity hanya untuk pengujian development sampai pengikatan perangkat selesai")
 	}
 	if cfg.DatabaseURL == "" {
 		return cfg, errors.New("DATABASE_URL wajib diisi")

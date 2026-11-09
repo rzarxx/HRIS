@@ -47,6 +47,9 @@ const (
 	EmployeeWorkArrangementChanged = "employee.work_arrangement_changed"
 	FaceEnrolled                   = "face.enrolled"
 	FaceReset                      = "face.reset"
+	FaceCaptureViewed              = "face.capture_viewed"
+	FaceRemotePermissionGranted    = "face.remote_permission_granted"
+	FaceRemotePermissionRevoked    = "face.remote_permission_revoked"
 )
 
 // Entry adalah satu baris audit. Detail tidak boleh memuat kata sandi atau token.

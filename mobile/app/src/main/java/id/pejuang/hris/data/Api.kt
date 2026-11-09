@@ -71,9 +71,11 @@ val apiJson = Json {
 
 private val jsonMedia = "application/json".toMediaType()
 
+/** Alamat tanpa skema dianggap http (hanya build debug yang mengizinkan isian bebas). */
 fun normalizeBaseUrl(raw: String): String {
     val trimmed = raw.trim()
-    return if (trimmed.endsWith("/")) trimmed else "$trimmed/"
+    val withScheme = if (trimmed.startsWith("http://", true) || trimmed.startsWith("https://", true)) trimmed else "http://$trimmed"
+    return if (withScheme.endsWith("/")) withScheme else "$withScheme/"
 }
 
 /** Membuat klien API untuk satu alamat server. */

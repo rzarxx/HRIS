@@ -10,3 +10,6 @@ captures/
 google-services.json
 *.keystore
 *.jks
+
+# Screenshot Paparazzi dirender di CI dan diunggah sebagai artefak, tidak disimpan di Git.
+app/src/test/snapshots/

@@ -41,7 +41,19 @@ class LivenessTrackerTest {
         // Kepala sudah menoleh sejak awal: belum dianggap gerakan.
         assertTrue(t.update(listOf(face(yaw = 40f))) is LivenessState.Waiting)
         t.update(listOf(face(yaw = 2f)))
-        assertEquals(LivenessState.Passed, t.update(listOf(face(yaw = -30f))))
+        // Gerakan selesai, tetapi foto baru diambil setelah wajah lurus kembali.
+        assertTrue(t.update(listOf(face(yaw = -30f))) is LivenessState.Waiting)
+        assertTrue(t.update(listOf(face(yaw = 20f))) is LivenessState.Waiting)
+        assertEquals(LivenessState.Passed, t.update(listOf(face(yaw = 3f))))
+    }
+
+    @Test
+    fun passedFaceStillMustBeAloneAndOpenEyed() {
+        val t = LivenessTracker("smile")
+        t.update(listOf(face()))
+        assertEquals(LivenessState.Passed, t.update(listOf(face(smile = 0.9f))))
+        assertEquals(LivenessState.ManyFaces, t.update(listOf(face(), face())))
+        assertTrue(t.update(listOf(face(eyes = 0.1f))) is LivenessState.Waiting)
     }
 
     @Test
@@ -61,6 +73,24 @@ class LivenessTrackerTest {
 }
 
 class DataTest {
+    @Test
+    fun validationFieldsAreShown() {
+        val err = id.pejuang.hris.data.errorFromBody(
+            """{"error":{"code":"VALIDATION_FAILED","message":"Periksa kembali isian form.","details":{"fields":{"samples":"Foto wajah tidak konsisten, silakan ulangi."}},"request_id":"r1"}}""",
+        )
+        assertEquals("VALIDATION_FAILED", err?.code)
+        assertEquals("Foto wajah tidak konsisten, silakan ulangi.", err?.message)
+    }
+
+    @Test
+    fun knownCodesUseFriendlyMessage() {
+        val err = id.pejuang.hris.data.errorFromBody(
+            """{"error":{"code":"ATTENDANCE_BLOCKED","message":"x","details":{},"request_id":"r2"}}""",
+        )
+        assertEquals("Presensi ditolak. Hubungi SDM bila ini terus terjadi.", err?.message)
+        assertEquals(null, id.pejuang.hris.data.errorFromBody("bukan json"))
+    }
+
     @Test
     fun scaledSizeNeverEnlarges() {
         assertEquals(640 to 480, scaledSize(1280, 960))
@@ -84,6 +114,8 @@ class DataTest {
     fun baseUrlEndsWithSlash() {
         assertEquals("http://10.0.0.2:8080/", normalizeBaseUrl(" http://10.0.0.2:8080 "))
         assertEquals("https://api.domain.id/", normalizeBaseUrl("https://api.domain.id/"))
+        // Isian tanpa skema di build debug dianggap http, bukan galat Retrofit yang membingungkan.
+        assertEquals("http://192.168.1.10:8080/", normalizeBaseUrl("192.168.1.10:8080"))
     }
 
     @Test
@@ -105,5 +137,29 @@ class DataTest {
         for (field in listOf("challenge_id", "accuracy_m", "captured_at", "selfie_sha256", "liveness_passed", "liveness_action", "is_mock_location", "app_version")) {
             assertTrue("$field ada", json.contains("\"$field\""))
         }
+    }
+}
+
+class UiLogicTest {
+    @Test
+    fun crashSummaryKeepsTypeMessageAndRootCause() {
+        val error = RuntimeException("luar", IllegalStateException("akar"))
+        val text = CrashLog.summary(error, "main", "0.2.0", "Xiaomi Redmi · Android 13", java.time.Instant.parse("2026-11-09T00:30:00Z"))
+        val lines = text.lines()
+        assertEquals("2026-11-09 07:30:00 WIB · v0.2.0 · Xiaomi Redmi · Android 13 · thread main", lines[0])
+        assertEquals("java.lang.RuntimeException: luar", lines[1])
+        assertTrue(text.contains("Caused by java.lang.IllegalStateException: akar"))
+    }
+
+    @Test
+    fun labelsAndGreeting() {
+        assertEquals("SN", id.pejuang.hris.ui.initials("Siti Nurhaliza Rahmawati"))
+        assertEquals("Terlambat", id.pejuang.hris.ui.statusLabel("late").first)
+        assertEquals("Belum absen", id.pejuang.hris.ui.statusLabel(null).first)
+        val morning = java.time.ZonedDateTime.of(2026, 11, 9, 7, 0, 0, 0, id.pejuang.hris.ui.Wib)
+        assertEquals("Selamat pagi", id.pejuang.hris.ui.greeting(morning))
+        assertEquals("Selamat malam", id.pejuang.hris.ui.greeting(morning.withHour(20)))
+        assertEquals("07:42", id.pejuang.hris.ui.wibTime("2026-11-09T00:42:00Z"))
+        assertEquals("--:--", id.pejuang.hris.ui.wibTime(null))
     }
 }

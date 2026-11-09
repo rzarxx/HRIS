@@ -6,6 +6,7 @@ import id.pejuang.hris.location.Fix
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import java.time.Instant
 import java.time.temporal.ChronoUnit
 
@@ -33,6 +34,9 @@ class Repository(private val session: Session) {
     @Synchronized
     private fun clientFor(url: String): ApiClient {
         if (url.isBlank()) throw ApiError("NO_SERVER", "Alamat server belum diisi.")
+        if (normalizeBaseUrl(url).toHttpUrlOrNull() == null) {
+            throw ApiError("BAD_SERVER", "Alamat server tidak valid. Contoh: http://192.168.1.10:8080")
+        }
         val existing = client
         if (existing != null && lastUrl == url) return existing
         return ApiClient(url, session).also {

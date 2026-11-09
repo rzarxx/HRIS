@@ -14,7 +14,9 @@
     <application
         android:name=".HrisApp"
         android:allowBackup="false"
+        android:icon="@mipmap/ic_launcher"
         android:label="HRIS Pejuang"
+        android:roundIcon="@mipmap/ic_launcher_round"
         android:networkSecurityConfig="@xml/network_security_config"
         android:supportsRtl="true"
         android:theme="@style/Theme.Hris">

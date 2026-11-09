@@ -78,7 +78,7 @@ class ScreenshotTest {
         LoginContent(
             form = LoginForm(email = "siti@pejuang.id", password = "rahasia"),
             showServer = false,
-            version = "0.2.0",
+            version = "0.4.0",
             crash = null,
             onCopyCrash = {}, onDismissCrash = {}, onServer = {}, onEmail = {}, onPassword = {}, onMfa = {}, onSubmit = {},
         )
@@ -95,7 +95,7 @@ class ScreenshotTest {
                 error = "Email atau kata sandi salah.",
             ),
             showServer = true,
-            version = "0.2.0",
+            version = "0.4.0",
             crash = "2026-11-09 07:40:00 WIB · v0.2.0\njava.lang.IllegalStateException: contoh",
             onCopyCrash = {}, onDismissCrash = {}, onServer = {}, onEmail = {}, onPassword = {}, onMfa = {}, onSubmit = {},
         )

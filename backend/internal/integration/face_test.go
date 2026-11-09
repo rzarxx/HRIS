@@ -15,12 +15,31 @@ import (
 	"github.com/rzarxx/HRIS/backend/internal/face"
 )
 
-// fakeFaces menggantikan dlib di tes. Isi "foto" adalah tanda JPEG diikuti "orang:geser:tanda":
-// orang yang sama menghasilkan vektor dasar yang sama, dan geser memindahkannya sejauh itu,
-// sehingga jarak antarfoto bisa diatur tepat.
+// fakeFaces menggantikan SFace di tes. Isi "foto" adalah tanda JPEG diikuti "orang:geser:tanda":
+// tiap orang punya vektor dasar sendiri, dan geser g menghasilkan vektor dengan kemiripan cosine
+// 1 - g terhadap dasarnya, sehingga kemiripan antarfoto bisa diatur.
 type fakeFaces struct{}
 
-func (fakeFaces) Model() string { return face.ModelDlib }
+func (fakeFaces) Model() string { return face.ModelSFace }
+
+// fakeBasis membuat vektor dasar orang dan satu arah tegak lurus terhadapnya.
+func fakeBasis(seed int) ([]float64, []float64) {
+	base := make([]float64, 128)
+	dir := make([]float64, 128)
+	for i := range base {
+		base[i] = math.Sin(float64((i+1)*(seed+1)) * 0.37)
+		dir[i] = math.Cos(float64(i+1) * 0.11)
+	}
+	base = face.Normalize(base)
+	var dot float64
+	for i := range dir {
+		dot += dir[i] * base[i]
+	}
+	for i := range dir {
+		dir[i] -= dot * base[i]
+	}
+	return base, face.Normalize(dir)
+}
 
 func (fakeFaces) Embed(_ context.Context, data []byte) ([]float64, error) {
 	if !face.IsJPEG(data) {
@@ -41,9 +60,11 @@ func (fakeFaces) Embed(_ context.Context, data []byte) ([]float64, error) {
 	if err != nil {
 		return nil, face.ErrBadImage
 	}
+	base, dir := fakeBasis(seed)
+	sim := 1 - shift
 	out := make([]float64, 128)
 	for i := range out {
-		out[i] = 0.1*math.Sin(float64((i+1)*(seed+1))*0.37) + shift/math.Sqrt(128)
+		out[i] = sim*base[i] + math.Sqrt(1-sim*sim)*dir[i]
 	}
 	return out, nil
 }
@@ -164,7 +185,7 @@ func TestFaceEnrollAndMatch(t *testing.T) {
 	}
 
 	got := data[faceStatus](t, f.enroll(t, enrollSamples(), nil).want(t, http.StatusCreated))
-	if !got.Enrolled || got.ModelVersion == nil || *got.ModelVersion != face.ModelDlib {
+	if !got.Enrolled || got.ModelVersion == nil || *got.ModelVersion != face.ModelSFace {
 		t.Fatalf("daftar: %+v", got)
 	}
 	if !data[meFace](t, f.hp.do(http.MethodGet, "/v1/me", nil).want(t, http.StatusOK)).FaceEnrolled {
@@ -198,8 +219,9 @@ func TestFaceEnrollAndMatch(t *testing.T) {
 		t.Errorf("alasan replay: %s", reason)
 	}
 
-	// Jarak 0.55 dari template: diterima dengan sinyal face_borderline.
-	in := data[clockInResp](t, f.faceClock(t, "clock_in", photo("1", 0.57), nil).want(t, http.StatusCreated))
+	// Kemiripan sekitar 0.48 dengan template (antara MinSimilarityReview dan MinSimilarityPass):
+	// diterima dengan sinyal face_borderline.
+	in := data[clockInResp](t, f.faceClock(t, "clock_in", photo("1", 0.67), nil).want(t, http.StatusCreated))
 	var score float64
 	var flags []string
 	var linked int
@@ -213,7 +235,7 @@ func TestFaceEnrollAndMatch(t *testing.T) {
 	for _, fl := range flags {
 		borderline = borderline || fl == "face_borderline"
 	}
-	if math.Abs(score-0.45) > 0.001 || !borderline || in.RequiresReview || linked != 1 {
+	if score < face.MinSimilarityReview || score >= face.MinSimilarityPass || !borderline || in.RequiresReview || linked != 1 {
 		t.Errorf("skor %v, sinyal %v, review %v, selfie terkait %d", score, flags, in.RequiresReview, linked)
 	}
 

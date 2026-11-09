@@ -1432,7 +1432,7 @@ export interface paths {
         put?: never;
         /**
          * Absen masuk
-         * @description Kirim multipart: bagian `payload` (JSON `ClockInput`) dan berkas `selfie`. Server menghitung wajah dari selfie dan mencocokkannya dengan template (D42). JSON tanpa selfie hanya diterima di development (D36). Selama verifikasi perangkat belum dibuat, semua absen ditolak `ATTENDANCE_BLOCKED` kecuali di development dengan izin khusus. Alasan keamanan tidak dikirim ke klien.
+         * @description Kirim multipart: bagian `payload` (JSON `ClockInput`) dan berkas `selfie`. Server mencocokkan wajah dan memverifikasi token Play jika dikonfigurasi. JSON tanpa selfie hanya diterima dengan bypass development (D36). Tanpa verifikasi atau bypass tersebut, absen ditolak `ATTENDANCE_BLOCKED`. Alasan keamanan tidak dikirim ke klien.
          */
         post: {
             parameters: {
@@ -1646,7 +1646,7 @@ export interface paths {
         put?: never;
         /**
          * Daftarkan wajah (F7)
-         * @description Permission `face:enroll`. Butuh perangkat approved, challenge `face_enroll`, persetujuan biometrik, liveness, dan lokasi di dalam geofence kantor (`face.enroll_requires_geofence`). Server menghitung wajah dari setiap selfie dengan model dlib; selfie yang tidak saling mirip ditolak. Template lama dinonaktifkan. Sama seperti absen, ditolak `ATTENDANCE_BLOCKED` sampai verifikasi perangkat dibuat, kecuali di development (D36).
+         * @description Permission `face:enroll`. Butuh perangkat approved, challenge `face_enroll`, persetujuan biometrik, liveness, dan lokasi di dalam geofence kantor atau izin jarak jauh satu kali dari SDM. Server menghitung wajah dari setiap selfie menggunakan SFace; selfie yang tidak saling mirip ditolak. Template lama dinonaktifkan. Verifikasi token Play diperlukan jika dikonfigurasi; tanpa verifier atau bypass development pendaftaran ditolak (D36).
          */
         post: {
             parameters: {
@@ -1731,6 +1731,100 @@ export interface paths {
             };
         };
         delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/employees/{id}/face/remote-permission": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        /** Status izin daftar wajah jarak jauh */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: components["parameters"]["Id"];
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Izin aktif atau null */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data: components["schemas"]["RemoteFacePermission"] | null;
+                        };
+                    };
+                };
+            };
+        };
+        /** Berikan izin satu kali selama 24 jam */
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: components["parameters"]["Id"];
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        reason: string;
+                    };
+                };
+            };
+            responses: {
+                /** @description Izin disimpan */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                400: components["responses"]["ValidationFailed"];
+                403: components["responses"]["Error"];
+                404: components["responses"]["Error"];
+                409: components["responses"]["Error"];
+            };
+        };
+        post?: never;
+        /** Cabut izin daftar wajah jarak jauh */
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: components["parameters"]["Id"];
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Izin dicabut */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                403: components["responses"]["Error"];
+                404: components["responses"]["Error"];
+            };
+        };
         options?: never;
         head?: never;
         patch?: never;
@@ -2626,6 +2720,54 @@ export interface paths {
                     };
                 };
                 400: components["responses"]["ValidationFailed"];
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/attendance/{id}/selfie/{purpose}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+                purpose: "clock_in" | "clock_out";
+            };
+            cookie?: never;
+        };
+        /**
+         * Lihat selfie untuk review absen
+         * @description Permission `attendance:review`; akses dicatat di audit. Hanya absen review dan selfie yang belum melewati retensi.
+         */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: components["parameters"]["Id"];
+                    purpose: "clock_in" | "clock_out";
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Selfie JPEG, tidak boleh disimpan di cache */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "image/jpeg": string;
+                    };
+                };
+                400: components["responses"]["ValidationFailed"];
+                403: components["responses"]["Error"];
+                404: components["responses"]["Error"];
             };
         };
         put?: never;
@@ -3573,7 +3715,7 @@ export interface components {
              */
             liveness_action: "blink" | "turn_left" | "turn_right" | "smile";
         };
-        /** @description Payload absen. Skor wajah adalah 1 dikurangi jarak dlib: di bawah 0.40 ditolak `FACE_MISMATCH`, 0.40 sampai 0.50 diterima dengan sinyal `face_borderline` (+20). Selfie yang pernah dikirim ditolak `ATTENDANCE_BLOCKED`. Token integritas ditambahkan bersama verifikasinya. */
+        /** @description Payload absen. Skor wajah adalah kemiripan cosine SFace (D43): di bawah 0.46 ditolak `FACE_MISMATCH`, 0.46 sampai 0.50 diterima dengan sinyal `face_borderline` (+20). Selfie yang pernah dikirim ditolak `ATTENDANCE_BLOCKED`. Token Play saat ini hanya dapat diuji di development. */
         ClockInput: {
             /** Format: uuid */
             challenge_id: string;
@@ -3585,6 +3727,8 @@ export interface components {
             accuracy_m: number;
             /** Format: date-time */
             captured_at: string;
+            /** @description Token Play Integrity untuk presensi; wajib ketika jalur Play dikonfigurasi. */
+            integrity_token?: string;
             signals?: components["schemas"]["AttendanceSignals"];
             /** @description SHA-256 berkas selfie; wajib bila selfie dikirim */
             selfie_sha256?: string;
@@ -3598,6 +3742,13 @@ export interface components {
              * @description Challenge `face_enroll`
              */
             challenge_id: string;
+            /**
+             * Format: date-time
+             * @description Waktu foto untuk mengikat token integritas; diperlukan saat verifikasi perangkat aktif.
+             */
+            captured_at?: string;
+            /** @description Token Play Integrity untuk pendaftaran wajah. */
+            integrity_token?: string;
             /** @description SHA-256 setiap berkas sampel, berurutan */
             sample_sha256: string[];
             liveness_passed: boolean;
@@ -3609,6 +3760,11 @@ export interface components {
             longitude: number;
             accuracy_m: number;
             signals?: components["schemas"]["AttendanceSignals"];
+        };
+        RemoteFacePermission: {
+            /** Format: date-time */
+            expires_at: string;
+            reason: string;
         };
         FaceStatus: {
             enrolled: boolean;

@@ -157,20 +157,24 @@ API menolak menyala bila baris ini dipakai di luar `APP_ENV=development`.
 Simulasi presensi melewati Pejuang yang sudah punya perangkat. Daftarkan perangkat sebelum jam masuk,
 karena bila baris simulasi hari ini sudah terisi, absen baru bisa dicoba keesokan harinya.
 
-## Verifikasi wajah (D42)
+## Verifikasi wajah (D43)
 
-Wajah dihitung API dari selfie dengan model dlib. Model ini butuh cgo dan pustaka C, jadi disiapkan
-sekali dengan skrip berikut, sebagai root, di Ubuntu atau Debian:
+Wajah dihitung API dari selfie dengan detektor YuNet dan pengenal SFace dari OpenCV Zoo, dijalankan
+ONNX Runtime. Bagian ONNX Runtime memakai cgo, jadi disiapkan sekali dengan skrip berikut, sebagai root,
+di Ubuntu atau Debian x86-64:
 
 ```bash
 bash /opt/hris/src/backend/deploy/setup-face.sh
 bash /opt/hris/src/backend/deploy/deploy.sh
 ```
 
-Skrip memasang `libdlib-dev`, BLAS, LAPACK, dan libjpeg, mengunduh dua model dlib (sekitar 30 MB,
-checksum dicocokkan) ke `/opt/hris/face-models`, membuat `/opt/hris/selfies`, lalu mengisi
-`FACE_MODELS_DIR` dan `SELFIE_DIR` di `/opt/hris/.env` serta `FACE_ENGINE=dlib` di `deploy.env`.
-Build API pertama dengan dlib bisa beberapa menit dan butuh RAM sekitar 2 GB.
+Skrip mengunduh ONNX Runtime 1.31.0 ke `/opt/hris/onnxruntime` dan dua model (sekitar 39 MB) ke
+`/opt/hris/face-models`, semuanya dengan checksum; membuat `/opt/hris/selfies`; menghapus model dlib
+lama; lalu mengisi `FACE_MODELS_DIR`, `ONNXRUNTIME_LIB`, dan `SELFIE_DIR` di `/opt/hris/.env` serta
+`FACE_ENGINE=onnx` di `deploy.env`. Butuh `gcc` (paket `build-essential`).
+
+Versi ONNX Runtime harus sama dengan versi header `github.com/yalue/onnxruntime_go` di `go.mod`.
+Saat pustaka itu diperbarui, perbarui juga `ORT_VERSION` dan checksum di `setup-face.sh`.
 
 Periksa setelah deploy:
 
@@ -178,11 +182,31 @@ Periksa setelah deploy:
 journalctl -u hris-api -n 20 --no-pager | grep -i wajah
 ```
 
-Baris `verifikasi wajah aktif` berarti siap. Tanpa langkah ini API tetap jalan, tetapi daftar wajah
-dan absen yang membawa selfie dijawab `FACE_SERVICE_UNAVAILABLE`.
+Baris `verifikasi wajah aktif` dengan `model: sface-2021dec` berarti siap. Tanpa langkah ini API tetap
+jalan, tetapi daftar wajah dan absen yang membawa selfie dijawab `FACE_SERVICE_UNAVAILABLE`.
+`deploy.sh` berhenti sebelum mengganti biner bila `FACE_ENGINE` masih berisi nilai lama seperti `dlib`.
+
+Template wajah dari model lain (dlib, D42) dianggap belum terdaftar, jadi Pejuang mendaftar ulang.
 
 Selfie disimpan terenkripsi dengan kunci `FIELD_ENCRYPTION_KEY_PATH`. Folder selfie ikut dicadangkan
 bersama kunci itu; tanpa kunci, selfie tidak bisa dibuka.
+
+Selfie dihapus setelah 90 hari oleh `hris-purge-selfies.timer`, yang dipasang dan diaktifkan
+`deploy.sh` (setiap hari pukul 02.17 waktu server, ditambah jeda acak sampai 10 menit; yang
+terlewat saat server mati dijalankan begitu menyala). Hash selfie tetap disimpan untuk menolak foto
+yang dikirim ulang. Service-nya dilewati bila `/opt/hris/selfies` belum ada. Periksa jadwal dan hasil
+terakhir:
+
+```bash
+systemctl list-timers hris-purge-selfies.timer
+journalctl -u hris-purge-selfies -n 20 --no-pager
+```
+
+Menjalankan sekali secara manual:
+
+```bash
+systemctl start hris-purge-selfies
+```
 
 ## Super admin
 

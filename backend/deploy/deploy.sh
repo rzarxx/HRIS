@@ -9,6 +9,9 @@ set -euo pipefail
 
 APP_DIR=/opt/hris
 SRC_DIR="$APP_DIR/src"
+SELF="$SRC_DIR/backend/deploy/deploy.sh"
+# Hash isi skrip yang sedang berjalan, sebelum git memperbaruinya.
+SELF_SUM="$(sha256sum "$SELF" 2>/dev/null | cut -d" " -f1)"
 CONFIG="$APP_DIR/deploy.env"
 
 [ "$(id -u)" -eq 0 ] || { echo "Jalankan sebagai root."; exit 1; }
@@ -37,29 +40,43 @@ as_builder git -C "$SRC_DIR" fetch --prune origin "$BRANCH"
 as_builder git -C "$SRC_DIR" checkout -q "$BRANCH"
 # Hanya maju: bila riwayat bercabang atau ada perubahan lokal, berhenti daripada menimpa.
 as_builder git -C "$SRC_DIR" merge --ff-only "origin/$BRANCH"
+# Bash tetap menjalankan isi skrip lama setelah git mengganti berkasnya. Bila skrip ini ikut berubah,
+# jalankan ulang versi barunya sekali agar langkah baru tidak terlewat.
+if [ -z "${HRIS_DEPLOY_REEXEC:-}" ] && [ "$(sha256sum "$SELF" | cut -d" " -f1)" != "$SELF_SUM" ]; then
+  echo "    deploy.sh berubah, menjalankan versi terbaru"
+  HRIS_DEPLOY_REEXEC=1 exec bash "$SELF" "$@"
+fi
 COMMIT="$(as_builder git -C "$SRC_DIR" log -1 --format='%h %s')"
 echo "    $COMMIT"
 
 echo "==> Build API"
 BUILD_DIR="$APP_DIR/build-home/dist"
 as_builder mkdir -p "$BUILD_DIR"
-for program in migrate seed superadmin; do
+for program in migrate seed superadmin purge-selfies; do
   as_builder bash -c "cd '$SRC_DIR/backend' && go build -o '$BUILD_DIR/hris-$program' ./cmd/$program"
 done
-# Mesin wajah dlib butuh cgo dan pustaka dari setup-face.sh (D42). Tanpanya API tetap jalan, tetapi
+# Mesin wajah ONNX butuh cgo dan pustaka dari setup-face.sh (D43). Tanpanya API tetap jalan, tetapi
 # daftar wajah dan absen dengan selfie dijawab FACE_SERVICE_UNAVAILABLE.
-if [ "${FACE_ENGINE:-}" = "dlib" ]; then
-  echo "    API dengan mesin wajah dlib (build pertama bisa beberapa menit)"
-  as_builder env CGO_ENABLED=1 bash -c "cd '$SRC_DIR/backend' && go build -tags dlib -o '$BUILD_DIR/hris-api' ./cmd/api"
-else
-  as_builder bash -c "cd '$SRC_DIR/backend' && go build -o '$BUILD_DIR/hris-api' ./cmd/api"
-fi
+case "${FACE_ENGINE:-}" in
+  onnx)
+    echo "    API dengan mesin wajah ONNX (SFace)"
+    as_builder env CGO_ENABLED=1 bash -c "cd '$SRC_DIR/backend' && go build -tags onnx -o '$BUILD_DIR/hris-api' ./cmd/api"
+    ;;
+  "")
+    as_builder bash -c "cd '$SRC_DIR/backend' && go build -o '$BUILD_DIR/hris-api' ./cmd/api"
+    ;;
+  *)
+    # Mis. FACE_ENGINE=dlib dari D42. Berhenti sebelum biner yang berjalan diganti.
+    echo "FACE_ENGINE=${FACE_ENGINE} tidak dikenal lagi. Jalankan dulu: bash $SRC_DIR/backend/deploy/setup-face.sh"
+    exit 1
+    ;;
+esac
 
 echo "==> Build web"
 as_builder bash -c "cd '$SRC_DIR/web' && npm ci --ignore-scripts --no-audit --no-fund && npm run build"
 
 echo "==> Memasang"
-for program in api migrate seed superadmin; do
+for program in api migrate seed superadmin purge-selfies; do
   install -o hris -g hris -m 750 "$BUILD_DIR/hris-$program" "$APP_DIR/hris-$program.new"
   mv -f "$APP_DIR/hris-$program.new" "$APP_DIR/hris-$program"
 done
@@ -81,6 +98,15 @@ curl -fsS -o /dev/null http://127.0.0.1:8080/readyz || {
   journalctl -u hris-api -n 30 --no-pager
   exit 1
 }
+
+echo "==> Jadwal hapus selfie lama"
+# Timer harian purge-selfies (retensi 90 hari, MASTER.md §5.6). Dipasang ulang setiap deploy agar
+# ikut berubah bersama repo; service-nya sendiri dilewati bila /opt/hris/selfies belum ada.
+install -m 644 "$SRC_DIR/backend/deploy/hris-purge-selfies.service" /etc/systemd/system/hris-purge-selfies.service
+install -m 644 "$SRC_DIR/backend/deploy/hris-purge-selfies.timer" /etc/systemd/system/hris-purge-selfies.timer
+systemctl daemon-reload
+systemctl enable --now hris-purge-selfies.timer >/dev/null
+systemctl list-timers hris-purge-selfies.timer --no-pager || true
 
 echo "==> Menyalin web ke $WEB_ROOT"
 # Web disalin terakhir agar tidak mendahului API. File milik aaPanel tidak ikut dihapus.

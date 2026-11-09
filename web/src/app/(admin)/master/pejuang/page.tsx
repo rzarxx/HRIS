@@ -1,6 +1,6 @@
 "use client";
 
-import { CalendarClock, CalendarRange, KeyRound, Lock, LockOpen, MapPin, Pencil, Plus, ScanFace, Search, UserX } from "lucide-react";
+import { CalendarClock, CalendarRange, KeyRound, Lock, LockOpen, MapPin, Pencil, Plus, ScanFace, Search, UserX, Video } from "lucide-react";
 import { useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useState } from "react";
 import { ActivationLinkModal } from "@/components/employees/activation-link-modal";
@@ -9,6 +9,7 @@ import { EmployeeArrangementsModal } from "@/components/employees/employee-arran
 import { EmployeeForm } from "@/components/employees/employee-form";
 import { EmployeeLocationsModal } from "@/components/employees/employee-locations-modal";
 import { FaceResetModal } from "@/components/employees/face-reset-modal";
+import { RemoteFaceModal } from "@/components/employees/remote-face-modal";
 import { Button, IconButton } from "@/components/ui/button";
 import { Input, Select } from "@/components/ui/form";
 import { Badge, Card, EmptyState, ErrorState, Loading, PageHeader } from "@/components/ui/layout";
@@ -48,6 +49,7 @@ function EmployeesView() {
   const [assigning, setAssigning] = useState<EmployeeListItem | null>(null);
   const [arranging, setArranging] = useState<EmployeeListItem | null>(null);
   const [resettingFace, setResettingFace] = useState<EmployeeListItem | null>(null);
+  const [remoteFace, setRemoteFace] = useState<EmployeeListItem | null>(null);
 
   const [q, setQ] = useState(params.get("q") ?? "");
   const [divisionId, setDivisionId] = useState("");
@@ -237,6 +239,11 @@ function EmployeesView() {
                           <ScanFace className="size-4" />
                         </IconButton>
                       )}
+                      {canResetFace && e.status === "active" && !isProtected(e) && !isSelf(e) && (
+                        <IconButton label={`Izin daftar wajah jarak jauh ${e.full_name}`} onClick={() => setRemoteFace(e)}>
+                          <Video className="size-4" />
+                        </IconButton>
+                      )}
                       {e.status === "active" && e.account && !isProtected(e) && !isSelf(e) && (
                         <>
                           {canReset && !(isSuperadmin && e.account.role === "sdm") && (
@@ -283,6 +290,7 @@ function EmployeesView() {
       {arranging && <EmployeeArrangementsModal employee={arranging} onClose={() => setArranging(null)} />}
 
       {resettingFace && <FaceResetModal employee={resettingFace} onClose={() => setResettingFace(null)} />}
+      {remoteFace && <RemoteFaceModal employee={remoteFace} onClose={() => setRemoteFace(null)} />}
 
       {bulkOpen && <BulkArrangementModal onClose={() => setBulkOpen(false)} />}
 

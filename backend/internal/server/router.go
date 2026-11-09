@@ -117,8 +117,12 @@ func routes(d Deps) []Route {
 		guarded(http.MethodGet, "/v1/face/status", d.Attendance.FaceStatus, permission.FaceEnroll),
 		guarded(http.MethodPost, "/v1/consents", d.Attendance.Consent, permission.FaceEnroll),
 		guarded(http.MethodPost, "/v1/admin/employees/{id}/face/reset", d.Attendance.ResetFace, permission.FaceReset),
+		guarded(http.MethodGet, "/v1/admin/employees/{id}/face/remote-permission", d.Attendance.RemoteFacePermission, permission.FaceReset),
+		guarded(http.MethodPut, "/v1/admin/employees/{id}/face/remote-permission", d.Attendance.RemoteFacePermission, permission.FaceReset),
+		guarded(http.MethodDelete, "/v1/admin/employees/{id}/face/remote-permission", d.Attendance.RemoteFacePermission, permission.FaceReset),
 		guarded(http.MethodGet, "/v1/admin/attendance/monitor", d.Attendance.Monitor, permission.AttendanceReview),
 		guarded(http.MethodGet, "/v1/admin/attendance/review", d.Attendance.ReviewQueue, permission.AttendanceReview),
+		guarded(http.MethodGet, "/v1/admin/attendance/{id}/selfie/{purpose}", d.Attendance.ReviewSelfie, permission.AttendanceReview),
 		guarded(http.MethodGet, "/v1/admin/attendance/attempts", d.Attendance.Attempts, permission.AttendanceReview),
 		guarded(http.MethodPost, "/v1/admin/attendance/{id}/resolve", d.Attendance.Resolve, permission.AttendanceReview),
 

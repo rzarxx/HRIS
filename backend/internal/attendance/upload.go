@@ -78,6 +78,7 @@ func readUpload(r *http.Request, payload any, field string, maxFiles int) ([][]b
 // SelfieStore menyimpan selfie untuk audit (§5.5).
 type SelfieStore interface {
 	Put(ctx context.Context, key string, data []byte) error
+	Get(ctx context.Context, key string) ([]byte, error)
 	Delete(ctx context.Context, key string) error
 }
 
@@ -134,4 +135,24 @@ func (d *DiskStore) Delete(_ context.Context, key string) error {
 		return err
 	}
 	return nil
+}
+
+func (d *DiskStore) Get(_ context.Context, key string) ([]byte, error) {
+	path, err := d.path(key)
+	if err != nil {
+		return nil, err
+	}
+	f, err := os.Open(path)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+	enc, err := io.ReadAll(io.LimitReader(f, MaxSelfieBytes+1025))
+	if err != nil {
+		return nil, err
+	}
+	if len(enc) > MaxSelfieBytes+1024 {
+		return nil, errors.New("berkas selfie terlalu besar")
+	}
+	return d.cipher.Decrypt(enc)
 }

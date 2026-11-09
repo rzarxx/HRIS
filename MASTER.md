@@ -241,7 +241,7 @@ Web Admin (statis) ───┘                                           ├─
 | Aplikasi | API Go, scheduler | Tidak punya akses internet selain FCM, Google API, HMS (jalur C), dan SMTP |
 | Data (privat) | PostgreSQL, Redis, object storage | Tidak terbuka ke internet; hanya dapat dijangkau API |
 
-**Stack:** Go (chi, pgx, sqlc, golang-migrate) · PostgreSQL 16+ · Redis · Next.js (static export) + Refine · Kotlin Jetpack Compose · ML Kit (deteksi dan liveness di HP) + dlib lewat go-face (embedding di server, D42) · FCM · Docker Compose · OpenAPI 3.
+**Stack:** Go (chi, pgx, sqlc, golang-migrate) · PostgreSQL 16+ · Redis · Next.js (static export) + Refine · Kotlin Jetpack Compose · ML Kit (deteksi dan liveness di HP) + YuNet dan SFace lewat ONNX Runtime (embedding di server, D43) · FCM · Docker Compose · OpenAPI 3.
 
 Domain terpisah: `admin.<domain>` (web statis) dan `api.<domain>` (API), keduanya satu situs (same-site) sehingga cookie `SameSite=Strict` tetap terkirim.
 
@@ -325,6 +325,7 @@ Domain terpisah: `admin.<domain>` (web statis) dan `api.<domain>` (API), keduany
 - Peninjau tidak bisa menyetujui perangkatnya sendiri. Perangkat yang sudah dicabut tidak bisa disetujui lagi; aplikasi yang dipasang ulang mendaftar sebagai perangkat baru.
 - Pejuang yang dinonaktifkan otomatis kehilangan semua perangkatnya.
 - `device_hash` = hash dari ID instalasi acak (disimpan di Keystore), bukan IMEI.
+- Prototipe bukti kunci memakai ECDSA P-256: tanda tangan ASN.1 DER atas SHA-256 dari UTF-8 `HRIS-DEVICE-PROOF-V1\n` diikuti `request_hash` base64url tanpa padding. Kunci publik harus diambil dari penyimpanan server yang telah diverifikasi dan disetujui, bukan dari request presensi. Verifier ini belum terhubung ke pendaftaran maupun presensi dan belum membuktikan kunci hardware; validasi attestation dan pengikatan instalasi masih diperlukan.
 - Presensi dari perangkat `pending` atau `revoked` ditolak.
 - Perangkat hilang: SDM mencabut perangkat dan seluruh sesi (alur F16).
 
@@ -335,6 +336,8 @@ Domain terpisah: `admin.<domain>` (web statis) dan `api.<domain>` (API), keduany
 **Challenge-response (mencegah replay):**
 1. App meminta `POST /v1/attendance/challenge` → server membuat `nonce` acak, berlaku 90 detik, sekali pakai.
 2. App menghitung `request_hash = base64url(SHA256(nonce|latitude|longitude|captured_at|selfie_sha256))`, lalu meminta token Play Integrity dengan hash tersebut.
+   Serialisasi: nonce dan hash selfie heksadesimal huruf kecil; koordinat ditulis tepat 6 angka desimal (nol negatif menjadi `0.000000`); waktu dinormalisasi UTC RFC3339Nano tanpa nol pecahan di akhir; antarfield dipisahkan karakter `|`. Koordinat input tidak boleh melebihi 6 desimal. Encode hash sebagai base64url tanpa padding. Contoh untuk nonce `a` 64 kali, koordinat `-6.200100|106.816600`, waktu `2026-11-07T01:02:03Z`, dan hash selfie `b` 64 kali menghasilkan `dbAzmlRTN__s4xBRepwpPHwwELp5UEH9JukycsqroJE`. Jalur Play ini hanya dapat diaktifkan di development sampai sesi diikat secara kriptografis ke instalasi perangkat dan diuji dengan aplikasi serta layanan Google nyata.
+   Untuk pendaftaran wajah, string yang di-hash adalah `face_enroll|nonce|latitude|longitude|captured_at|consent_version|liveness_action|sample_sha256...`, dengan 3–5 hash sampel dalam urutan pengiriman. Gunakan aturan koordinat, waktu, hash, dan encoding yang sama; `consent_version` tidak boleh memuat `|`.
 3. Server memastikan: challenge milik user + device, belum dipakai, belum kedaluwarsa; token Integrity valid, paket benar, `request_hash` cocok, `deviceRecognitionVerdict` memuat `MEETS_DEVICE_INTEGRITY`, `appRecognitionVerdict` = `PLAY_RECOGNIZED`, dan cap waktu verdict masih segar.
 
 Level `MEETS_STRONG_INTEGRITY` tidak diwajibkan karena menolak banyak HP Android 10 yang sah.
@@ -370,9 +373,9 @@ Level `MEETS_STRONG_INTEGRITY` tidak diwajibkan karena menolak banyak HP Android
 **Konfigurasi ambang (nilai awal, wajib dikalibrasi dengan data uji nyata):**
 | Key | Default |
 |---|---|
-| `face.threshold_pass` | 0.50 (skor = 1 - jarak Euclid dlib; jarak 0.50) |
-| `face.threshold_review` | 0.40 (jarak 0.60, batas yang divalidasi pembuat model) |
-| `face.enroll_max_distance` | 0.50 (jarak terjauh antarsampel pendaftaran) |
+| `face.threshold_pass` | 0.50 (kemiripan cosine SFace, D43) |
+| `face.threshold_review` | 0.46 (di bawahnya ditolak; pasangan orang berbeda paling mirip di uji banding 0.448) |
+| `face.enroll_min_similarity` | 0.50 (kemiripan terendah antarselfie pendaftaran) |
 | `risk.review_min` | 30 |
 | `risk.reject_min` | 60 |
 | `challenge.ttl_seconds` | 90 |
@@ -426,8 +429,9 @@ Semua HP Android didukung lewat jalur berjenjang. Jalur ditetapkan **server** da
 - Pencocokan bersifat **1:1** (akun sudah diketahui dari token), jadi tidak perlu pgvector. Cosine similarity dihitung di Go.
 - Template disimpan **terenkripsi di level aplikasi** (AES-256-GCM, kunci dari secret manager, `key_id` untuk rotasi) di kolom `embedding_enc`.
 - Pendaftaran wajah wajib: perangkat `approved`, persetujuan (*consent*) biometrik, liveness, challenge, dan dianjurkan dilakukan di lokasi kantor. Reset hanya oleh SDM dan tercatat.
-- Embedding dihitung server dari selfie dengan model dlib (D42); HP tidak mengirim angka wajah.
-- Selfie disimpan terenkripsi AES-GCM di folder privat server (`SELFIE_DIR`), dicatat di `face_captures`, dan dihapus setelah masa retensi. Akses SDM lewat endpoint ber-permission; signed URL dipakai bila nanti pindah ke bucket.
+- Pendaftaran di luar geofence hanya dengan izin satu kali per Pejuang dari peninjau `face:reset`, berlaku 24 jam dan dapat dicabut; pemberian, pencabutan, serta pemakaian dicatat di audit. Izin tidak menghapus syarat lokasi, perangkat, integritas, challenge, liveness, dan consent. Peninjau tidak boleh memberi izin kepada dirinya sendiri dan perlindungan akun super admin tetap berlaku.
+- Embedding dihitung server dari selfie dengan detektor YuNet dan pengenal SFace lewat ONNX Runtime (D43); HP tidak mengirim angka wajah.
+- Selfie disimpan terenkripsi AES-GCM di folder privat server (`SELFIE_DIR`), dicatat di `face_captures`, dan dihapus setelah masa retensi. Akses selfie absen review memakai permission `attendance:review` dan dicatat sebagai `face.capture_viewed`; signed URL dipakai bila nanti pindah ke bucket.
 
 ### 5.6 Klasifikasi & Retensi Data
 | Kelas | Contoh | Perlindungan | Retensi (usulan, konfirmasi legal/SDM) |
@@ -481,6 +485,8 @@ Data biometrik tergolong data pribadi bersifat spesifik dalam UU PDP (UU 27/2022
 
 ### 5.11 Registry Event Audit
 `auth.login_success`, `auth.login_failed`, `auth.logout`, `auth.mfa_enabled`, `auth.mfa_failed`, `auth.password_changed`, `auth.session_revoked`, `auth.refresh_reuse_detected`, `org.updated`, `user.created`, `user.locked`, `user.unlocked`, `user.role_changed`, `user.password_reset`, `user.email_changed`, `auth.password_reset_requested`, `email.delivery_failed`, `employee.created`, `employee.updated`, `employee.deactivated`, `employee.salary_changed`, `device.registered`, `device.approved`, `device.revoked`, `device.integrity_tier_changed`, `employee.work_arrangement_changed`, `face.enrolled`, `face.reset`, `attendance.clock_in`, `attendance.clock_out`, `attendance.rejected`, `attendance.review_resolved`, `attendance.adjusted`, `approval.approved`, `approval.rejected`, `payroll.rules_changed`, `payroll.generated`, `payroll.submitted`, `payroll.finalized`, `payroll.paid`, `warning.issued`, `announcement.created`, `announcement.updated`, `announcement.deleted`, `settings.changed`, `data.exported`.
+
+Tambahan event: `face.capture_viewed` untuk akses selfie peninjauan, `face.remote_permission_granted` dan `face.remote_permission_revoked` untuk pengelolaan izin jarak jauh. Pemakaian izin dicatat pada `face.enrolled`.
 
 ### 5.12 Respons Insiden
 Deteksi → **batasi** (cabut sesi, kunci akun, rotasi kunci) → **selidiki** (audit log, log akses) → **pulihkan** → **beri tahu** pihak terdampak dan otoritas sesuai UU PDP (ada batas waktu pemberitahuan; konfirmasi ke legal) → **evaluasi** dan perbaiki kontrol.
@@ -670,6 +676,7 @@ Setiap `code` baru wajib ditambahkan di tabel ini.
 | PUT | `/v1/devices/me/fcm-token` | `device:register`. Dibuat bersama notifikasi di Fase 3; sementara token dikirim saat registrasi |
 | POST | `/v1/face/enroll` | `face:enroll` |
 | GET | `/v1/face/status` | `face:enroll` |
+| GET, PUT, DELETE | `/v1/admin/employees/{id}/face/remote-permission` | `face:reset`; izin satu kali berlaku 24 jam |
 | POST | `/v1/consents` | self |
 | POST | `/v1/attendance/challenge` | `attendance:clock` |
 | POST | `/v1/attendance/clock-in` | `attendance:clock` |
@@ -716,6 +723,7 @@ Setiap `code` baru wajib ditambahkan di tabel ini.
 | GET, PUT | `/v1/admin/settings/mail` | `settings:manage` |
 | POST | `/v1/admin/settings/mail/test` | `settings:manage` |
 | GET | `/v1/admin/attendance/review?work_mode=` | `attendance:review` |
+| GET | `/v1/admin/attendance/{id}/selfie/{purpose}` | `attendance:review`; purpose `clock_in` atau `clock_out`; hanya absen review dan selfie belum melewati retensi |
 | GET | `/v1/admin/attendance/monitor?date=&division_id=` | `attendance:review` |
 | GET | `/v1/admin/attendance`, `/v1/admin/attendance/attempts` | `attendance:review` / `attendance:report`. `attempts` sudah ada: per tanggal kalender WIB, saring `outcome` |
 | POST | `/v1/admin/work-arrangements/bulk` | `employee:write`. Izin untuk semua Pejuang aktif di satu divisi atau subdiv; yang dilewati dikembalikan dengan alasan `self`, `protected`, atau `overlap` |
@@ -760,7 +768,7 @@ respons: `{ "data": { "access_token", "refresh_token", "expires_in", "device_id"
 **Challenge** — `POST /v1/attendance/challenge`
 request: `{ "purpose": "clock_in" }` → respons: `{ "data": { "challenge_id": "uuid", "nonce": "string", "expires_at": "2026-11-02T01:01:30Z" } }`
 
-**Clock-in** — `POST /v1/attendance/clock-in`, `multipart/form-data` seperti di bawah. Server menghitung wajah dari `selfie` dan mencocokkannya dengan template (D42). Sampai verifikasi perangkat dibuat, `integrity_token` belum dibaca, dan JSON tanpa selfie hanya diterima di development (D36).
+**Clock-in** — `POST /v1/attendance/clock-in`, `multipart/form-data` seperti di bawah. Server menghitung wajah dari `selfie` dan mencocokkannya dengan template (D42). Token Play dapat diuji di development bila dikonfigurasi; jalur produksi tetap ditolak sampai pengikatan perangkat selesai. JSON tanpa selfie hanya diterima di development (D36).
 - bagian `payload` (JSON):
 ```json
 { "challenge_id": "uuid",
@@ -1518,11 +1526,12 @@ Estimasi untuk tim kecil; sesuaikan setelah kapasitas tim jelas.
 - [ ] Key Attestation (jalur B), perangkat manual (jalur D), kiosk (jalur E); Huawei (jalur C) bila ada penggunanya
 - [x] Izin WFA dan hybrid per Pejuang dan jam fleksibel, di API dan layar SDM
 - [x] Penetapan izin massal per divisi atau subdiv, dan saring rekap per `work_mode`
-- [ ] Pendaftaran wajah jarak jauh
+- [x] Pendaftaran wajah jarak jauh (izin satu kali 24 jam dari SDM)
 - [x] Challenge, clock-in, clock-out, cutoff harian, dan `worked_minutes` (D31), masih tanpa verifikasi perangkat dan wajah (D36)
 - [x] Enroll + cocok wajah (enkripsi aplikasi), reset oleh SDM, dan `consents` (D41). Masih bergantung pada verifikasi perangkat (D36)
-- [x] Wajah dihitung server dari selfie dengan dlib, selfie terenkripsi, liveness acak, dan tolak selfie yang dikirim ulang (D42)
-- [ ] Lihat selfie di Review Absen dan hapus selfie setelah masa retensi
+- [x] Wajah dihitung server dari selfie, selfie terenkripsi, liveness acak, dan tolak selfie yang dikirim ulang (D42)
+- [x] Model wajah diganti dari dlib ke SFace setelah uji banding (D43); CI membandingkan hasil Go dengan OpenCV dan menguji ambang
+- [x] Lihat selfie di Review Absen dan hapus selfie setelah masa retensi (`purge_selfies` lewat timer systemd harian di server)
 - [x] Skor risiko dari sinyal yang sudah tersedia + `attendance_attempts`, termasuk `face_borderline`; sinyal integritas menyusul bersama verifikasinya
 - [x] Halaman Review Absen
 - [x] Halaman Monitor Absen: semua Pejuang per tanggal kerja dan peta titik absen, diperbarui tiap 60 detik. Ini titik saat absen, bukan pelacakan lokasi terus-menerus
@@ -1530,11 +1539,11 @@ Estimasi untuk tim kecil; sesuaikan setelah kapasitas tim jelas.
 - [ ] Kalibrasi ambang wajah dan risiko dengan data uji
 
 **Fase 3: Mobile**
-- [ ] Aplikasi minimal dimajukan: login, daftar perangkat, absen tanpa wajah. Dikerjakan sebelum Play Integrity dan wajah agar keduanya diuji di HP sungguhan (D35)
-- [ ] Login, profile, penyimpanan token aman (API login, refresh, dan logout mobile sudah ada, D40)
+- [ ] Aplikasi minimal dimajukan: login, daftar perangkat, absen tanpa wajah. Dikerjakan sebelum Play Integrity dan wajah agar keduanya diuji di HP sungguhan (D35) Kode ada di `mobile/` (D44), menunggu uji di HP sungguhan.
+- [ ] Login, profile, penyimpanan token aman (API login, refresh, dan logout mobile sudah ada, D40). Kode ada (D44), menunggu uji HP
 - [ ] Modul deteksi native
-- [ ] Kamera + liveness (gerakan dari `liveness_action`) + kirim selfie (D42)
-- [ ] Layar presensi + rekap
+- [ ] Kamera + liveness (gerakan dari `liveness_action`) + kirim selfie (D42). Kode ada (D44), menunggu uji HP
+- [ ] Layar presensi + rekap. Absen dan riwayat ada (D44), rekap menyusul
 - [ ] FCM, pop-up, banner
 - [ ] Timer sebelum tombol sudah baca, ditegakkan server (D27)
 - [ ] Uji Android 8-14, 3 HP kelas bawah
@@ -1612,6 +1621,8 @@ Estimasi untuk tim kecil; sesuaikan setelah kapasitas tim jelas.
 | D40 | Login mobile mewajibkan kode MFA bagi akun yang memakainya, dan sesi mobile berakhir 30 hari setelah login tanpa diperpanjang refresh | Token mobile juga membuka route admin sesuai role, jadi MFA tidak boleh terlewati lewat aplikasi. Konsekuensi: Pejuang masuk ulang dengan kata sandi setiap 30 hari. Login dan refresh mobile dikecualikan dari D37 karena aplikasi belum punya token saat memanggilnya |
 | D41 | Template wajah adalah rata-rata 3 sampai 5 sampel yang saling mirip (cosine ≥ 0.80), disimpan float32 terenkripsi AES-GCM dengan `key_id`. Embedding dari versi model lain diperlakukan sebagai belum terdaftar. Absen development boleh tanpa bagian wajah, tetapi bila dikirim tetap dicocokkan. Pendaftaran yang gagal tidak dicatat di `attendance_attempts`, dan `face_score` hanya disimpan untuk absen masuk | Satu template rata-rata lebih stabil daripada satu foto, dan sampel yang tidak konsisten menandakan wajah orang lain atau gambar buruk. Embedding beda model tidak sebanding, jadi Pejuang mendaftar ulang saat model diganti. Konsekuensi: ambang 0.80, 0.70, dan 0.60 masih nilai awal yang dikalibrasi dengan HP sungguhan, dan `embedding_replay` belum diperiksa |
 | D42 | Embedding wajah dihitung server dari selfie dengan model dlib (go-face), bukan dikirim HP. HP tetap menjalankan deteksi dan liveness, dengan gerakan yang dipilih acak lewat `liveness_action` challenge. Selfie disimpan terenkripsi dan dicatat di `face_captures`; selfie yang sama dari Pejuang yang sama ditolak sebagai `embedding_replay`. Ambang memakai jarak Euclid dlib: diterima ≤ 0.50, `face_borderline` ≤ 0.60, lebih jauh ditolak. Menggantikan bagian D41 tentang embedding dari HP | Embedding dari HP bisa dipalsukan aplikasi yang dibongkar tanpa wajah sama sekali, sedangkan selfie bisa diperiksa ulang dan diaudit SDM. Model dlib dirilis pembuatnya ke domain publik dan tercatat 99,38% pada LFW. Konsekuensi: API butuh cgo dan pustaka dlib di server (`deploy/setup-face.sh`), setiap absen mengunggah foto sekitar 100 sampai 300 KB, dan ambang tetap harus dikalibrasi dengan Pejuang dan HP sungguhan. Model dilatih dari dataset publik (VGG, FaceScrub); konfirmasikan penggunaannya ke bagian legal bersama UU PDP |
+| D43 | Model wajah server diganti dari dlib ke detektor YuNet (MIT) dan pengenal SFace (Apache-2.0) dari OpenCV Zoo, dijalankan ONNX Runtime lewat cgo (tag build `onnx`). Skor adalah kemiripan cosine: diterima ≥ 0.50, `face_borderline` ≥ 0.46, di bawahnya ditolak; selfie pendaftaran harus saling ≥ 0.50. Gambar diperkecil agar sisi terpanjang ≤ 640 untuk deteksi. Menggantikan pilihan model dan ambang di D42; alur selfie, liveness, dan replay D42 tetap | Uji banding pada 33 foto contoh wajah Asia (`backend/tools/face-bench`): dengan tidak ada orang berbeda yang lolos, dlib menerima 0% pasangan orang sama, SFace 44%, ArcFace 89%. ArcFace terbaik tetapi model siap pakainya non-komersial. Konsekuensi: SFace jauh lebih baik dari dlib tetapi belum terbukti cukup untuk produksi; ambang wajib dikalibrasi dengan selfie Pejuang dari HP sebelum dipakai, dan bila kurang, pilihannya lisensi komersial ArcFace atau layanan verifikasi wajah komersial. Template dlib dianggap belum terdaftar. Foto harus tegak karena orientasi EXIF tidak diterapkan |
+| D44 | Aplikasi Android dibangun di repo ini (`mobile/`) dan APK debugnya dibuat CI, karena PC pengembang belum punya Android SDK. Model JSON ditulis tangan di `data/Dto.kt` dan dijaga tes kontrak backend `TestMobileDTOsMatchOpenAPI`, bukan dari generator OpenAPI. Dependensi disusun manual tanpa Hilt. Build debug memakai `applicationId` `.debug`, alamat server diisi di layar masuk, dan cleartext diizinkan ke semua alamat; build rilis HTTPS dengan alamat tetap | Generator Kotlin tidak cocok dengan beberapa skema (enum berisi `null`, objek tanpa properti, multipart dengan bagian `payload`) dan setiap kegagalan baru terlihat di CI. Tes kontrak memberi jaminan yang sama: field yang tidak ada di kontrak membuat CI merah. Konsekuensi: aplikasi belum diuji di HP sungguhan; arah toleh liveness, ambang ML Kit, rotasi foto, dan Play Integrity harus diuji sebelum Fase 2 ditutup. Hilt, ikon aplikasi, dan Gradle wrapper menyusul |
 | D15 | `/v1/admin/reports/payroll-preview` mewajibkan `attendance:report` dan `payroll:manage` | Respons memuat gaji, sedangkan §7.6 membatasi `base_salary` untuk `sdm` dan pemilik data |
 
 ### 14.2 Pertanyaan yang Harus Dijawab (blokir pekerjaan terkait)

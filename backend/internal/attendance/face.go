@@ -13,6 +13,7 @@ import (
 	"net/http"
 	"net/netip"
 	"strings"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
@@ -22,6 +23,7 @@ import (
 	"github.com/rzarxx/HRIS/backend/internal/face"
 	"github.com/rzarxx/HRIS/backend/internal/platform/database"
 	"github.com/rzarxx/HRIS/backend/internal/platform/httpx"
+	"github.com/rzarxx/HRIS/backend/internal/platform/integrity"
 	"github.com/rzarxx/HRIS/backend/internal/platform/pgconv"
 	"github.com/rzarxx/HRIS/backend/internal/store"
 )
@@ -38,14 +40,10 @@ const (
 	maxFaceSamples   = 5
 	maxConsentLength = 32
 
-	// Ambang memakai jarak Euclid model dlib, yang divalidasi pembuatnya pada jarak 0.6 (D42).
-	// Skor yang disimpan adalah 1 - jarak, jadi FaceThresholdPass dan FaceThresholdReview mengikuti
-	// face.threshold_pass dan face.threshold_review (§5.4). Semuanya nilai awal untuk dikalibrasi.
-	FaceThresholdPass   = 0.50
-	FaceThresholdReview = 0.40
-	// faceSampleAgreement adalah jarak terjauh antarsampel saat pendaftaran, agar satu sampel yang
-	// buram atau milik orang lain tidak ikut membentuk template.
-	faceSampleAgreement = 0.50
+	// Skor wajah adalah kemiripan cosine SFace (D43), sama dengan face.threshold_pass dan
+	// face.threshold_review (§5.4). Nilainya ada di paket face agar diuji bersama modelnya.
+	FaceThresholdPass   = face.MinSimilarityPass
+	FaceThresholdReview = face.MinSimilarityReview
 
 	faceKeyID = "field-v1"
 
@@ -87,9 +85,9 @@ func randomLivenessAction() (string, error) {
 	return LivenessActions[n.Int64()], nil
 }
 
-// scoreOf mengubah jarak menjadi skor 0 sampai 1 untuk attendances.face_score.
-func scoreOf(distance float64) decimal.NullDecimal {
-	score := math.Max(0, math.Min(1, 1-distance))
+// scoreOf mengubah kemiripan menjadi skor 0 sampai 1 untuk attendances.face_score.
+func scoreOf(similarity float64) decimal.NullDecimal {
+	score := math.Max(0, math.Min(1, similarity))
 	return decimal.NullDecimal{Decimal: decimal.NewFromFloat(score).Round(4), Valid: true}
 }
 
@@ -106,11 +104,12 @@ func faceProblem(err error) (string, bool) {
 	return "", false
 }
 
-// checkAgreement memastikan semua sampel pendaftaran saling dekat.
+// checkAgreement memastikan semua sampel pendaftaran saling mirip, agar satu foto yang buram atau
+// milik orang lain tidak ikut membentuk template.
 func checkAgreement(samples [][]float64) bool {
 	for i := range samples {
 		for j := i + 1; j < len(samples); j++ {
-			if face.Distance(samples[i], samples[j]) > faceSampleAgreement {
+			if face.Cosine(samples[i], samples[j]) < face.MinEnrollSimilarity {
 				return false
 			}
 		}
@@ -214,15 +213,15 @@ func (s *Service) checkFace(ctx context.Context, a *attempt, in ClockInput) (fac
 		}
 		return faceResult{}, err
 	}
-	distance := face.Distance(vector, tpl.vector)
-	out := faceResult{capture: uuid.NullUUID{UUID: captureID, Valid: true}, score: scoreOf(distance)}
+	similarity := face.Cosine(vector, tpl.vector)
+	out := faceResult{capture: uuid.NullUUID{UUID: captureID, Valid: true}, score: scoreOf(similarity)}
 	if err := s.q.SetFaceCaptureScore(ctx, store.SetFaceCaptureScoreParams{ID: captureID, FaceScore: out.score}); err != nil {
 		return faceResult{}, err
 	}
 	switch {
-	case out.score.Decimal.InexactFloat64() < FaceThresholdReview:
+	case similarity < face.MinSimilarityReview:
 		return faceResult{}, s.reject(ctx, *a, "face_mismatch", httpx.NewError(http.StatusUnprocessableEntity, "FACE_MISMATCH", "Wajah tidak cocok, silakan ulangi."))
-	case out.score.Decimal.InexactFloat64() < FaceThresholdPass:
+	case similarity < face.MinSimilarityPass:
 		a.flags = append(a.flags, flagFaceBorderline)
 	}
 	return out, nil
@@ -261,6 +260,8 @@ func (s *Service) activeTemplate(ctx context.Context, employeeID uuid.UUID) (fac
 // `samples` dan hash-nya, berurutan, di sample_sha256.
 type EnrollInput struct {
 	ChallengeID    string   `json:"challenge_id"`
+	CapturedAt     string   `json:"captured_at"`
+	IntegrityToken string   `json:"integrity_token"`
 	SampleSHA256   []string `json:"sample_sha256"`
 	LivenessPassed *bool    `json:"liveness_passed"`
 	LivenessAction string   `json:"liveness_action"`
@@ -358,16 +359,40 @@ func (s *Service) Enroll(ctx context.Context, p auth.Principal, ip *netip.Addr, 
 		}
 		return FaceStatus{}, err
 	}
-	if !s.opt.AllowUnverified || len(in.Signals.hardFlags()) > 0 {
+	if len(in.Signals.hardFlags()) > 0 {
 		return FaceStatus{}, errBlocked()
 	}
 	if in.LivenessPassed == nil || !*in.LivenessPassed || in.LivenessAction == "" || in.LivenessAction != challenge.LivenessAction.String {
 		return FaceStatus{}, errLiveness()
 	}
+	if !s.opt.AllowUnverified {
+		if s.opt.PlayVerifier == nil {
+			return FaceStatus{}, errBlocked()
+		}
+		capturedAt, err := time.Parse(time.RFC3339Nano, in.CapturedAt)
+		if err != nil {
+			return FaceStatus{}, errBlocked()
+		}
+		hash, err := integrity.EnrollmentHash(challenge.Nonce, point.Latitude, point.Longitude, capturedAt, in.ConsentVersion, in.LivenessAction, in.SampleSHA256)
+		if err != nil {
+			return FaceStatus{}, errBlocked()
+		}
+		if err := s.opt.PlayVerifier.Verify(ctx, in.IntegrityToken, hash); err != nil {
+			return FaceStatus{}, errBlocked()
+		}
+	}
+	var remotePermissionID uuid.UUID
 	if _, ok, err := s.matchLocation(ctx, p.EmployeeID, point); err != nil {
 		return FaceStatus{}, err
 	} else if !ok {
-		return FaceStatus{}, httpx.NewError(http.StatusUnprocessableEntity, "GEOFENCE_OUT", "Daftarkan wajah di lokasi kantor.")
+		permission, err := s.q.GetRemoteFacePermission(ctx, store.GetRemoteFacePermissionParams{EmployeeID: p.EmployeeID, Now: pgconv.Time(s.opt.Now())})
+		if pgconv.IsNoRows(err) {
+			return FaceStatus{}, httpx.NewError(http.StatusUnprocessableEntity, "GEOFENCE_OUT", "Daftarkan wajah di lokasi kantor atau minta izin SDM.")
+		}
+		if err != nil {
+			return FaceStatus{}, err
+		}
+		remotePermissionID = permission.ID
 	}
 
 	vectors := make([][]float64, 0, len(in.samples))
@@ -393,7 +418,10 @@ func (s *Service) Enroll(ctx context.Context, p auth.Principal, ip *netip.Addr, 
 	if !checkAgreement(vectors) {
 		return FaceStatus{}, httpx.Validation(map[string]string{"samples": "Foto wajah tidak konsisten, silakan ulangi."})
 	}
-	template := face.Mean(vectors)
+	template := face.Template(vectors)
+	if template == nil {
+		return FaceStatus{}, httpx.Validation(map[string]string{"samples": "Foto wajah tidak valid, silakan ulangi."})
+	}
 	enc, err := s.opt.Cipher.Encrypt(encodeEmbedding(template))
 	if err != nil {
 		return FaceStatus{}, err
@@ -401,6 +429,15 @@ func (s *Service) Enroll(ctx context.Context, p auth.Principal, ip *netip.Addr, 
 	model := s.opt.Faces.Model()
 	var row store.FaceTemplate
 	err = database.InTx(ctx, s.pool, func(q *store.Queries) error {
+		if remotePermissionID != uuid.Nil {
+			consumed, err := q.ConsumeRemoteFacePermission(ctx, store.ConsumeRemoteFacePermissionParams{EmployeeID: p.EmployeeID, ID: remotePermissionID, Now: pgconv.Time(s.opt.Now())})
+			if err != nil {
+				return err
+			}
+			if consumed == 0 {
+				return httpx.NewError(http.StatusUnprocessableEntity, "GEOFENCE_OUT", "Izin pendaftaran jarak jauh tidak berlaku.")
+			}
+		}
 		replaced, err := q.DeactivateFaceTemplates(ctx, store.DeactivateFaceTemplatesParams{Actor: audit.Actor(p.UserID), EmployeeID: p.EmployeeID})
 		if err != nil {
 			return err
@@ -417,7 +454,7 @@ func (s *Service) Enroll(ctx context.Context, p auth.Principal, ip *netip.Addr, 
 		}
 		return audit.Write(ctx, q, audit.Entry{
 			UserID: audit.Actor(p.UserID), Action: audit.FaceEnrolled, Entity: "employee", EntityID: p.EmployeeID, IP: ip,
-			Detail: map[string]any{"model_version": model, "samples": len(captures), "replaced": replaced > 0, "device_id": device.ID.String()},
+			Detail: map[string]any{"model_version": model, "samples": len(captures), "replaced": replaced > 0, "device_id": device.ID.String(), "remote_permission_used": remotePermissionID != uuid.Nil},
 		})
 	})
 	if err != nil {

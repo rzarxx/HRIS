@@ -137,6 +137,9 @@ type options struct {
 	clock           func() time.Time
 	allowUnverified bool
 	strictIntegrity bool
+	playVerifier    interface {
+		Verify(context.Context, string, string) error
+	}
 	// noFaceEngine mematikan mesin wajah, seperti server tanpa FACE_MODELS_DIR.
 	noFaceEngine bool
 }
@@ -179,7 +182,7 @@ func fresh(t *testing.T, opt options) *httptest.Server {
 	if err != nil {
 		t.Fatal(err)
 	}
-	attendanceOpt := attendance.Options{AllowUnverified: opt.allowUnverified, Now: opt.clock, Cipher: cipher}
+	attendanceOpt := attendance.Options{AllowUnverified: opt.allowUnverified, Now: opt.clock, Cipher: cipher, PlayVerifier: opt.playVerifier}
 	if !opt.noFaceEngine {
 		selfies, err := attendance.NewDiskStore(t.TempDir(), cipher)
 		if err != nil {

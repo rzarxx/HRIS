@@ -1,5 +1,7 @@
 package id.pejuang.hris.data
 
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
 import retrofit2.HttpException
 import java.io.IOException
 
@@ -24,13 +26,27 @@ fun Throwable.toApiError(): ApiError = when (this) {
         } catch (e: IOException) {
             null
         }
-        val parsed = body?.let { runCatching { apiJson.decodeFromString(ErrorEnvelope.serializer(), it).error }.getOrNull() }
-        if (parsed != null) {
-            ApiError(parsed.code, friendly[parsed.code] ?: parsed.message, parsed.requestId)
-        } else {
-            ApiError("HTTP_${code()}", "Server menjawab ${code()}. Coba lagi nanti.")
-        }
+        body?.let { errorFromBody(it) } ?: ApiError("HTTP_${code()}", "Server menjawab ${code()}. Coba lagi nanti.")
     }
     is IOException -> ApiError("NETWORK", "Tidak bisa terhubung ke server. Periksa koneksi internet.")
     else -> ApiError("UNKNOWN", message ?: "Terjadi kesalahan.")
+}
+
+/**
+ * Menerjemahkan body error server. Pesan per field (VALIDATION_FAILED) ikut ditampilkan, karena
+ * pesan umumnya ("Periksa kembali isian form.") tidak menjelaskan apa yang salah.
+ */
+fun errorFromBody(body: String): ApiError? {
+    val error = runCatching { apiJson.decodeFromString(ErrorEnvelope.serializer(), body).error }.getOrNull() ?: return null
+    val fields = (error.details?.get("fields") as? JsonObject)
+        ?.values
+        ?.mapNotNull { (it as? JsonPrimitive)?.takeIf { p -> p.isString }?.content }
+        .orEmpty()
+    val base = friendly[error.code] ?: error.message
+    val message = when {
+        fields.isNotEmpty() -> fields.joinToString("\n")
+        error.code == "INTERNAL_ERROR" && error.requestId != null -> "$base (kode: ${error.requestId})"
+        else -> base
+    }
+    return ApiError(error.code, message, error.requestId)
 }

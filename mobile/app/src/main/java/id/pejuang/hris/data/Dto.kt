@@ -2,6 +2,7 @@ package id.pejuang.hris.data
 
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.JsonObject
 
 // Model JSON dari backend/api/openapi.yaml. Tiap kelas diberi penanda "schema:" agar tes kontrak
 // di backend (internal/server/mobile_contract_test.go) memastikan setiap @SerialName ada di skema
@@ -173,7 +174,7 @@ data class AttendanceRecord(
     @SerialName("location_name") val locationName: String? = null,
 )
 
-// Bentuk error dari MASTER.md §7.3. Detail per field tidak dipakai aplikasi.
+// Bentuk error dari MASTER.md §7.3.
 @Serializable
 data class ErrorEnvelope(val error: ErrorBody)
 
@@ -181,5 +182,7 @@ data class ErrorEnvelope(val error: ErrorBody)
 data class ErrorBody(
     val code: String,
     val message: String,
+    // Untuk VALIDATION_FAILED berisi {"fields": {"nama_field": "pesan"}}.
+    val details: JsonObject? = null,
     @SerialName("request_id") val requestId: String? = null,
 )

@@ -41,7 +41,19 @@ class LivenessTrackerTest {
         // Kepala sudah menoleh sejak awal: belum dianggap gerakan.
         assertTrue(t.update(listOf(face(yaw = 40f))) is LivenessState.Waiting)
         t.update(listOf(face(yaw = 2f)))
-        assertEquals(LivenessState.Passed, t.update(listOf(face(yaw = -30f))))
+        // Gerakan selesai, tetapi foto baru diambil setelah wajah lurus kembali.
+        assertTrue(t.update(listOf(face(yaw = -30f))) is LivenessState.Waiting)
+        assertTrue(t.update(listOf(face(yaw = 20f))) is LivenessState.Waiting)
+        assertEquals(LivenessState.Passed, t.update(listOf(face(yaw = 3f))))
+    }
+
+    @Test
+    fun passedFaceStillMustBeAloneAndOpenEyed() {
+        val t = LivenessTracker("smile")
+        t.update(listOf(face()))
+        assertEquals(LivenessState.Passed, t.update(listOf(face(smile = 0.9f))))
+        assertEquals(LivenessState.ManyFaces, t.update(listOf(face(), face())))
+        assertTrue(t.update(listOf(face(eyes = 0.1f))) is LivenessState.Waiting)
     }
 
     @Test
@@ -61,6 +73,24 @@ class LivenessTrackerTest {
 }
 
 class DataTest {
+    @Test
+    fun validationFieldsAreShown() {
+        val err = id.pejuang.hris.data.errorFromBody(
+            """{"error":{"code":"VALIDATION_FAILED","message":"Periksa kembali isian form.","details":{"fields":{"samples":"Foto wajah tidak konsisten, silakan ulangi."}},"request_id":"r1"}}""",
+        )
+        assertEquals("VALIDATION_FAILED", err?.code)
+        assertEquals("Foto wajah tidak konsisten, silakan ulangi.", err?.message)
+    }
+
+    @Test
+    fun knownCodesUseFriendlyMessage() {
+        val err = id.pejuang.hris.data.errorFromBody(
+            """{"error":{"code":"ATTENDANCE_BLOCKED","message":"x","details":{},"request_id":"r2"}}""",
+        )
+        assertEquals("Presensi ditolak. Hubungi SDM bila ini terus terjadi.", err?.message)
+        assertEquals(null, id.pejuang.hris.data.errorFromBody("bukan json"))
+    }
+
     @Test
     fun scaledSizeNeverEnlarges() {
         assertEquals(640 to 480, scaledSize(1280, 960))

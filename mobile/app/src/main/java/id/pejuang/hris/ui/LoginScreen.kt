@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.rememberScrollState
@@ -127,7 +128,7 @@ fun LoginContent(
     Column(
         Modifier
             .fillMaxSize()
-            .background(Hc.BrandDeep)
+            .background(Hc.Surface)
             .imePadding()
             .verticalScroll(rememberScrollState()),
     ) {
@@ -153,6 +154,7 @@ fun LoginContent(
 
         Column(
             Modifier.fillMaxWidth()
+                .offset(y = (-24).dp)
                 .clip(RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp))
                 .background(Hc.Surface)
                 .padding(start = 32.dp, end = 32.dp, top = 40.dp, bottom = 24.dp),

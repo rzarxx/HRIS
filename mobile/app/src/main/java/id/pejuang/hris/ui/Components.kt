@@ -128,14 +128,16 @@ fun TopBar(title: String, onBack: (() -> Unit)?, navIcon: ImageVector = Icons.Au
 fun SectionCard(
     modifier: Modifier = Modifier,
     padding: Dp = 16.dp,
+    shape: androidx.compose.ui.graphics.Shape = MaterialTheme.shapes.large,
+    shadowElevation: Dp = 1.dp,
     content: @Composable ColumnScope.() -> Unit,
 ) {
     Surface(
         modifier = modifier.fillMaxWidth(),
-        shape = MaterialTheme.shapes.large,
+        shape = shape,
         color = Hc.Surface,
         border = BorderStroke(1.dp, Hc.Line),
-        shadowElevation = 1.dp,
+        shadowElevation = shadowElevation,
     ) {
         Column(Modifier.padding(padding), content = content)
     }

@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.DateRange
@@ -110,7 +111,7 @@ fun HistoryContent(rows: List<AttendanceRecord>?, error: String?, onBack: () -> 
 @Composable
 private fun Summary(rows: List<AttendanceRecord>) {
     val counts = rows.groupingBy { it.status }.eachCount()
-    SectionCard(padding = 16.dp) {
+    SectionCard(padding = 16.dp, shape = RoundedCornerShape(8.dp), shadowElevation = 0.dp) {
         Row(Modifier.fillMaxWidth()) {
             SummaryCell("Hadir", counts["present"] ?: 0, Tone.Success, Modifier.weight(1f))
             SummaryCell("Terlambat", counts["late"] ?: 0, Tone.Warning, Modifier.weight(1f))
@@ -132,7 +133,7 @@ private fun SummaryCell(label: String, value: Int, tone: Tone, modifier: Modifie
 fun HistoryRow(r: AttendanceRecord) {
     val date = runCatching { LocalDate.parse(r.workDate) }.getOrNull()
     val (label, tone) = statusLabel(r.status)
-    SectionCard(padding = 16.dp) {
+    SectionCard(padding = 16.dp, shape = RoundedCornerShape(8.dp), shadowElevation = 0.dp) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Icon(Icons.Filled.DateRange, contentDescription = null, tint = Hc.Brand, modifier = Modifier.size(18.dp))
             Spacer(Modifier.width(8.dp))

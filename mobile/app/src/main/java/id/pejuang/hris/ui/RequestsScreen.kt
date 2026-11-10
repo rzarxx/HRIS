@@ -226,7 +226,7 @@ fun RequestsContent(ui: RequestsUi, now: ZonedDateTime, modifier: Modifier = Mod
                                 EmptyCard("Semua sudah diputuskan", "Tidak ada pengajuan yang menunggu Anda. Pengajuan baru muncul di sini.", ContentWidth, done = true)
                             }
                             else -> {
-                                item(key = "judul-antrean") { SectionTitle("Menunggu keputusan Anda", "Yang paling lama menunggu di atas", ContentWidth) }
+                                item(key = "judul-antrean") { SectionTitle("Menunggu keputusan Anda", "Terlama di atas", ContentWidth) }
                                 items(pending.sortedBy { it.createdAt }, key = { it.id }) { a ->
                                     ApprovalCard(a, now, onDecide = { approve -> ui.onDecide(Decision(a, approve)) }, modifier = ContentWidth)
                                 }
@@ -241,9 +241,13 @@ fun RequestsContent(ui: RequestsUi, now: ZonedDateTime, modifier: Modifier = Mod
 
 @Composable
 private fun SectionTitle(title: String, subtitle: String, modifier: Modifier) {
-    Row(modifier.fillMaxWidth().padding(start = 4.dp, end = 4.dp, top = 4.dp), verticalAlignment = Alignment.Bottom) {
+    Row(
+        modifier.fillMaxWidth().padding(start = 4.dp, end = 4.dp, top = 4.dp),
+        verticalAlignment = Alignment.Bottom,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
         Text(title, style = figmaText(14, FontWeight.SemiBold), modifier = Modifier.weight(1f).semantics { heading() })
-        Text(subtitle, style = figmaText(12, color = Fg.TextSecondary))
+        Text(subtitle, style = figmaText(12, color = Fg.TextSecondary), maxLines = 1)
     }
 }
 

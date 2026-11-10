@@ -1551,9 +1551,9 @@ Estimasi untuk tim kecil; sesuaikan setelah kapasitas tim jelas.
 - [ ] Uji Android 8-14, 3 HP kelas bawah
 
 **Fase 4: Pengajuan**
-- [ ] `approval_flow_steps` + mesin approval. API ada (D46, D49); web admin ada (kotak Persetujuan, pengaturan jenis dan alur), menunggu aplikasi
-- [ ] Cuti/izin, pinjaman, mutasi. API cuti/izin dengan saldo fleksibel ada (D47); pinjaman (D48) dan mutasi menyusul
-- [ ] Timeline approval web + mobile. Web sudah (detail cuti dan kotak Persetujuan), aplikasi menyusul
+- [x] `approval_flow_steps` + mesin approval. API (D46, D49), web admin (kotak Persetujuan, pengaturan jenis dan alur), dan antrean persetujuan di aplikasi. Notifikasi push menyusul FCM
+- [ ] Cuti/izin, pinjaman, mutasi. Cuti/izin dengan saldo fleksibel (D47) ada di API, web, dan aplikasi; pinjaman (D48) dan mutasi menyusul
+- [x] Timeline approval web + mobile (detail cuti dan kotak Persetujuan di web; detail pengajuan dan lembar keputusan di aplikasi)
 - [ ] Job: leave → attendance (sudah, saat disetujui), mutasi efektif, cicilan pinjaman
 
 **Fase 5: Payroll & SP**

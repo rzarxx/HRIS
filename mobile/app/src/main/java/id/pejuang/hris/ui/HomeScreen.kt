@@ -163,8 +163,8 @@ fun HomeContent(
             HomeSection("Layanan Pejuang", "Informasi dan riwayat kehadiran") {
                 ListRow(HrisIcons.History, "Riwayat presensi", "31 hari terakhir", onClick = onHistory)
                 RowDivider()
-                ListRow(FigmaIcons.NavNote, "Cuti dan izin", "Ajukan dan pantau persetujuan", onClick = onRequests) {
-                    if (pendingApprovals > 0) StatusChip("$pendingApprovals menunggu Anda", Tone.Warning)
+                ListRow(FigmaIcons.NavNote, "Cuti dan izin", if (pendingApprovals > 0) "Ada yang menunggu keputusan Anda" else "Ajukan dan pantau persetujuan", onClick = onRequests) {
+                    if (pendingApprovals > 0) CountPill(pendingApprovals)
                 }
                 RowDivider()
                 ListRow(HrisIcons.FaceScan, "Data wajah", "Untuk verifikasi saat presensi") {

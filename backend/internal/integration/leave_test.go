@@ -81,6 +81,9 @@ func pendingFor(t *testing.T, c *client, requestID string) approvalRow {
 func TestLeaveApprovalFlow(t *testing.T) {
 	f := newClockFixture(t, options{}, "08:00", "17:00") // Senin 2 Nov 2026
 	exec(t, `UPDATE employees SET join_date = '2020-01-06' WHERE id = $1`, f.account.employeeID)
+	// Kepala divisi harus aktif saat pengajuan dibuat; kepala nonaktif dilewati.
+	kadivAcc := activeAccount(t, "kadiv", "OPS-LAP")
+	kadiv := login(t, f.srv, kadivAcc.email, seedPassword)
 	annual := leaveTypeID(t, f.hp, "annual")
 	if annual.Balance == nil || annual.Balance.EntitledDays != 12 || annual.Balance.RemainingDays != 12 {
 		t.Fatalf("saldo awal = %+v, ingin 12 hari", annual.Balance)
@@ -105,8 +108,6 @@ func TestLeaveApprovalFlow(t *testing.T) {
 	step2 := approvalID(t, lr.ID, 2)
 	f.sdm.do(http.MethodPost, "/v1/approvals/"+step2+"/approve", nil).wantError(t, http.StatusForbidden, "APPROVAL_NOT_YOUR_TURN")
 
-	kadivAcc := activeAccount(t, "kadiv", "OPS-LAP")
-	kadiv := login(t, f.srv, kadivAcc.email, seedPassword)
 	item := pendingFor(t, kadiv, lr.ID)
 	if item.ID != step1 || item.RequestType != "leave" || item.Summary["days"] != float64(3) {
 		t.Fatalf("item kotak masuk = %+v", item)

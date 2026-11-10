@@ -3178,6 +3178,186 @@ export interface paths {
         };
         trace?: never;
     };
+    "/v1/admin/announcements/{id}/reads": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        /**
+         * Status baca tiap Pejuang sasaran
+         * @description Permission `announcement:manage`. Sasaran adalah Pejuang aktif di divisi tujuan, atau semua bila pengumuman untuk semua divisi. Urutan: belum membuka, sudah membuka tetapi belum membaca, lalu sudah membaca.
+         */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: components["parameters"]["Id"];
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data: components["schemas"]["AnnouncementReader"][];
+                        };
+                    };
+                };
+                404: components["responses"]["Error"];
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/announcements/active": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Pengumuman yang sedang tayang untuk saya
+         * @description Permission `announcement:read`. Aktif, sudah mulai tayang, belum berakhir, dan untuk divisi saya atau semua divisi. Belum dibaca tampil lebih dulu, paling banyak 50. Aplikasi memanggilnya saat dibuka (MASTER.md §7, notifikasi push menyusul).
+         */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data: components["schemas"]["MyAnnouncement"][];
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/announcements/{id}/open": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Catat isi pengumuman dibuka
+         * @description Permission `announcement:read`. Waktu buka dicatat sekali saja; pemanggilan berikutnya tidak memulai ulang timer baca (D27). Pengumuman yang tidak tayang untuk saya dijawab 404.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: components["parameters"]["Id"];
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data: components["schemas"]["MyAnnouncement"];
+                        };
+                    };
+                };
+                404: components["responses"]["Error"];
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/announcements/{id}/read": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Tandai pengumuman sudah dibaca
+         * @description Permission `announcement:read`. Ditolak `422 READ_TOO_SOON` bila isi belum dibuka atau jeda `min_read_seconds` sejak dibuka belum lewat; `details.wait_seconds` berisi sisa detik. Idempoten setelah dibaca.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: components["parameters"]["Id"];
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data: components["schemas"]["MyAnnouncement"];
+                        };
+                    };
+                };
+                404: components["responses"]["Error"];
+                422: components["responses"]["Error"];
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/admin/dashboard/summary": {
         parameters: {
             query?: never;
@@ -4018,7 +4198,7 @@ export interface components {
          * @description Registry MASTER.md §7.4
          * @enum {string}
          */
-        ErrorCode: "VALIDATION_FAILED" | "AUTH_INVALID_CREDENTIALS" | "AUTH_TOKEN_INVALID" | "AUTH_MFA_REQUIRED" | "AUTH_MFA_INVALID" | "FORBIDDEN_ROLE" | "CSRF_INVALID" | "PASSWORD_CHANGE_REQUIRED" | "MFA_SETUP_REQUIRED" | "DEVICE_NOT_REGISTERED" | "DEVICE_PENDING_APPROVAL" | "DEVICE_REVOKED" | "APPROVAL_NOT_YOUR_TURN" | "APPROVAL_SELF_FORBIDDEN" | "MAKER_CHECKER_VIOLATION" | "NOT_FOUND" | "METHOD_NOT_ALLOWED" | "ALREADY_CLOCKED_IN" | "ALREADY_CLOCKED_OUT" | "SHIFT_NOT_ASSIGNED" | "NOT_CLOCKED_IN" | "REQUEST_NOT_PENDING" | "PERIOD_LOCKED" | "DUPLICATE_REQUEST" | "CONFLICT_DUPLICATE" | "CONFLICT_HAS_DEPENDENTS" | "CONFLICT_SELF_ACTION" | "MFA_ALREADY_ENABLED" | "PAYLOAD_TOO_LARGE" | "UNSUPPORTED_MEDIA_TYPE" | "GEOFENCE_OUT" | "FACE_NOT_ENROLLED" | "FACE_MISMATCH" | "LIVENESS_FAILED" | "FACE_NOT_DETECTED" | "FACE_SERVICE_UNAVAILABLE" | "CHALLENGE_EXPIRED" | "ATTENDANCE_BLOCKED" | "LEAVE_ACTIVE" | "ACTIVATION_INVALID" | "ACTIVATION_USED" | "ACTIVATION_EXPIRED" | "AUTH_ACCOUNT_LOCKED" | "APP_UPDATE_REQUIRED" | "RATE_LIMITED" | "API_ACCESS_DENIED" | "INTERNAL_ERROR";
+        ErrorCode: "VALIDATION_FAILED" | "AUTH_INVALID_CREDENTIALS" | "AUTH_TOKEN_INVALID" | "AUTH_MFA_REQUIRED" | "AUTH_MFA_INVALID" | "FORBIDDEN_ROLE" | "CSRF_INVALID" | "PASSWORD_CHANGE_REQUIRED" | "MFA_SETUP_REQUIRED" | "DEVICE_NOT_REGISTERED" | "DEVICE_PENDING_APPROVAL" | "DEVICE_REVOKED" | "APPROVAL_NOT_YOUR_TURN" | "APPROVAL_SELF_FORBIDDEN" | "MAKER_CHECKER_VIOLATION" | "NOT_FOUND" | "METHOD_NOT_ALLOWED" | "ALREADY_CLOCKED_IN" | "ALREADY_CLOCKED_OUT" | "SHIFT_NOT_ASSIGNED" | "NOT_CLOCKED_IN" | "REQUEST_NOT_PENDING" | "PERIOD_LOCKED" | "DUPLICATE_REQUEST" | "CONFLICT_DUPLICATE" | "CONFLICT_HAS_DEPENDENTS" | "CONFLICT_SELF_ACTION" | "MFA_ALREADY_ENABLED" | "PAYLOAD_TOO_LARGE" | "UNSUPPORTED_MEDIA_TYPE" | "GEOFENCE_OUT" | "FACE_NOT_ENROLLED" | "FACE_MISMATCH" | "LIVENESS_FAILED" | "FACE_NOT_DETECTED" | "FACE_SERVICE_UNAVAILABLE" | "CHALLENGE_EXPIRED" | "ATTENDANCE_BLOCKED" | "LEAVE_ACTIVE" | "READ_TOO_SOON" | "ACTIVATION_INVALID" | "ACTIVATION_USED" | "ACTIVATION_EXPIRED" | "AUTH_ACCOUNT_LOCKED" | "APP_UPDATE_REQUIRED" | "RATE_LIMITED" | "API_ACCESS_DENIED" | "INTERNAL_ERROR";
         /**
          * @description Matriks MASTER.md §3.2
          * @enum {string}
@@ -4279,6 +4459,11 @@ export interface components {
             ends_at?: string | null;
             /** @default true */
             is_active: boolean;
+            /**
+             * @description Detik minimal antara isi dibuka di aplikasi dan "Sudah baca" diterima server (D27)
+             * @default 10
+             */
+            min_read_seconds: number;
         };
         Announcement: {
             /** Format: uuid */
@@ -4298,6 +4483,47 @@ export interface components {
             is_active: boolean;
             /** Format: date-time */
             created_at: string;
+            min_read_seconds: number;
+            /** @description Pejuang aktif di divisi tujuan */
+            audience_count: number;
+            /** @description Sasaran yang sudah membuka isi di aplikasi */
+            opened_count: number;
+            /** @description Sasaran yang sudah menekan "Sudah baca" */
+            read_count: number;
+        };
+        /** @description Pengumuman yang sedang tayang untuk Pejuang yang masuk, beserta status bacanya */
+        MyAnnouncement: {
+            /** Format: uuid */
+            id: string;
+            title: string;
+            /** @description Teks murni; tampilkan sebagai teks */
+            body: string;
+            type: components["schemas"]["AnnouncementType"];
+            /** Format: date-time */
+            starts_at: string;
+            /** Format: date-time */
+            ends_at: string | null;
+            min_read_seconds: number;
+            /**
+             * Format: date-time
+             * @description Pertama kali isi dibuka; tidak berubah setelahnya
+             */
+            opened_at: string | null;
+            /** Format: date-time */
+            read_at: string | null;
+            /** @description Sisa detik sebelum "Sudah baca" diterima, dihitung server saat respons dibuat. Nol bila sudah dibaca. */
+            read_wait_seconds: number;
+        };
+        AnnouncementReader: {
+            /** Format: uuid */
+            employee_id: string;
+            full_name: string;
+            nip: string;
+            subdivision_name: string;
+            /** Format: date-time */
+            opened_at: string | null;
+            /** Format: date-time */
+            read_at: string | null;
         };
         DashboardSummary: {
             employee_count: number;

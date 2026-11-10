@@ -20,7 +20,11 @@ import id.pejuang.hris.data.LeaveRequest
 import id.pejuang.hris.data.LeaveType
 import id.pejuang.hris.data.LeaveTypeRef
 import id.pejuang.hris.data.Me
+import id.pejuang.hris.data.MyAnnouncement
 import id.pejuang.hris.data.Ref
+import id.pejuang.hris.ui.AnnouncementDetailContent
+import id.pejuang.hris.ui.AnnouncementListContent
+import id.pejuang.hris.ui.AnnouncementPopupContent
 import id.pejuang.hris.ui.Decision
 import id.pejuang.hris.ui.DecisionContent
 import id.pejuang.hris.ui.LeaveDetailContent
@@ -146,6 +150,25 @@ class ScreenshotTest {
     )
 
     private val requestsData = RequestsData(types = types, leaves = leaves)
+
+    private val announcements = listOf(
+        MyAnnouncement(
+            "n1", "Selamat datang di HRIS Pejuang",
+            "Mulai bulan ini presensi, pengajuan cuti, dan slip ubar dapat diakses lewat aplikasi HRIS Pejuang. " +
+                "Bila ada kendala, hubungi tim SDM di ruang administrasi.",
+            "popup", "2026-11-04T01:00:00Z", "2026-12-04T01:00:00Z", 10, readWaitSeconds = 10,
+        ),
+        MyAnnouncement(
+            "n2", "Briefing keselamatan kerja",
+            "Seluruh Pejuang divisi Operasional wajib mengikuti briefing K3 setiap Senin pukul 07.45 WIB di halaman gudang.",
+            "banner", "2026-10-28T01:00:00Z", null, 10, readWaitSeconds = 10,
+        ),
+        MyAnnouncement(
+            "n3", "Upacara Hari Pahlawan", "Tanggal 10 November tetap masuk kerja seperti biasa. Upacara singkat pukul 08.00 WIB.",
+            "banner", "2026-11-06T01:00:00Z", "2026-11-11T01:00:00Z", 10,
+            openedAt = "2026-11-06T02:00:00Z", readAt = "2026-11-06T02:00:15Z",
+        ),
+    )
 
     private fun shot(content: @Composable () -> Unit) = paparazzi.snapshot { HrisTheme { content() } }
 
@@ -306,6 +329,52 @@ class ScreenshotTest {
         MainTab.Requests,
         requests = RequestsUi(data = requestsData.copy(pending = emptyList()), canApprove = true, view = RequestsView.Inbox),
     )
+
+    @Test
+    fun homeWithAnnouncements() = shot {
+        Box(Modifier.fillMaxSize()) {
+            MainTabs(
+                tab = MainTab.Home, onTab = {}, me = me, records = history, historyError = null, now = now, refreshing = false, crash = null,
+                onCopyCrash = {}, onDismissCrash = {}, onCapture = {}, onRefresh = {}, onPersonalData = {}, onChangePassword = {}, onLogout = {},
+                announcements = announcements,
+            )
+        }
+    }
+
+    @Test
+    fun announcementPopupCountdown() = shot {
+        Box(Modifier.fillMaxSize()) {
+            MainTabs(
+                tab = MainTab.Home, onTab = {}, me = me, records = history, historyError = null, now = now, refreshing = false, crash = null,
+                onCopyCrash = {}, onDismissCrash = {}, onCapture = {}, onRefresh = {}, onPersonalData = {}, onChangePassword = {}, onLogout = {},
+                announcements = announcements,
+            )
+            AnnouncementPopupContent(announcements[0], wait = 7, busy = false, error = null, onRead = {}, onLater = {})
+        }
+    }
+
+    @Test
+    fun announcementPopupReady() = shot {
+        Box(Modifier.fillMaxSize()) {
+            AnnouncementPopupContent(announcements[0], wait = 0, busy = false, error = null, onRead = {}, onLater = {})
+        }
+    }
+
+    @Test
+    fun announcementList() = shot { AnnouncementListContent(announcements, onBack = {}, onOpen = {}) }
+
+    @Test
+    fun announcementListEmpty() = shot { AnnouncementListContent(emptyList(), onBack = {}, onOpen = {}) }
+
+    @Test
+    fun announcementDetailWaiting() = shot {
+        AnnouncementDetailContent(announcements[1], wait = 4, busy = false, error = null, onBack = {}, onRead = {})
+    }
+
+    @Test
+    fun announcementDetailRead() = shot {
+        AnnouncementDetailContent(announcements[2], wait = 0, busy = false, error = null, onBack = {}, onRead = {})
+    }
 
     @Test
     fun tabHomeApprover() = tabs(MainTab.Home, requests = RequestsUi(data = requestsData.copy(pending = pending), canApprove = true))

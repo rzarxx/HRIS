@@ -2,7 +2,7 @@ import { CalendarCheck, FileText, Home, Megaphone, User, Wallet, X } from "lucid
 import type { AnnouncementType } from "@/lib/types";
 
 /** Pratinjau tampilan pengumuman di aplikasi HP Pejuang (DESIGN.md §8). */
-export function PhonePreview({ title, body, type }: { title: string; body: string; type: AnnouncementType }) {
+export function PhonePreview({ title, body, type, minRead = 0 }: { title: string; body: string; type: AnnouncementType; minRead?: number }) {
   const t = title.trim() || "Judul pengumuman";
   const b = body.trim() || "Isi pengumuman akan tampil di sini.";
   return (
@@ -64,7 +64,10 @@ export function PhonePreview({ title, body, type }: { title: string; body: strin
               </div>
               <p className="mt-2 text-sm font-semibold text-slate-900">{t}</p>
               <p className="mt-1 max-h-40 overflow-hidden text-[11px] text-slate-600">{b}</p>
-              <div className="mt-3 rounded-md bg-primary-600 py-1.5 text-center text-xs font-medium text-white">Saya mengerti</div>
+              {/* Seperti di aplikasi: tombol menghitung mundur dulu, lalu aktif. */}
+              <div className={`mt-3 rounded-md py-1.5 text-center text-xs font-medium ${minRead > 0 ? "bg-slate-200 text-slate-600" : "bg-primary-600 text-white"}`}>
+                {minRead > 0 ? `Sudah baca (${minRead})` : "Sudah baca"}
+              </div>
             </div>
           </div>
         )}

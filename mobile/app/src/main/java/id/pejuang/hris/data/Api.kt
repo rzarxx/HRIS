@@ -83,6 +83,15 @@ interface HrisApi {
 
     @POST("v1/approvals/{id}/reject")
     suspend fun reject(@Path("id") id: String, @Body body: ApprovalDecision): DataResponse<ApprovalItem>
+
+    @GET("v1/announcements/active")
+    suspend fun announcements(): DataResponse<List<MyAnnouncement>>
+
+    @POST("v1/announcements/{id}/open")
+    suspend fun openAnnouncement(@Path("id") id: String): DataResponse<MyAnnouncement>
+
+    @POST("v1/announcements/{id}/read")
+    suspend fun readAnnouncement(@Path("id") id: String): DataResponse<MyAnnouncement>
 }
 
 /** Dipakai terpisah dari [HrisApi] agar perpanjangan sesi tidak memicu dirinya sendiri. */

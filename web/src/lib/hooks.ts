@@ -5,6 +5,7 @@ import { api, ApiError } from "./api-client";
 import type {
   AdminDevice,
   AnnouncementListItem,
+  AnnouncementReader,
   ApprovalFlow,
   ApprovalItem,
   AttendanceAttempt,
@@ -150,6 +151,14 @@ export const useAnnouncements = () =>
   useQuery({
     queryKey: ["announcements"],
     queryFn: () => api.get<Paginated<AnnouncementListItem>>("/admin/announcements", { per_page: 100 }).then((r) => r.data),
+  });
+
+/** Status baca tiap Pejuang sasaran satu pengumuman; dimuat saat dialog rekap dibuka. */
+export const useAnnouncementReaders = (id: string | null) =>
+  useQuery({
+    queryKey: ["announcements", id, "reads"],
+    queryFn: () => api.get<ListResponse<AnnouncementReader>>(`/admin/announcements/${id}/reads`).then((r) => r.data),
+    enabled: id !== null,
   });
 
 export interface LeaveFilter {

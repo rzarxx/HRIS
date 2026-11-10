@@ -230,6 +230,7 @@ func seedAll(ctx context.Context, q *store.Queries, passwordHash string, now tim
 	for _, a := range announcements {
 		a.IsActive = true
 		a.CreatedBy = creator
+		a.MinReadSeconds = 10
 		if _, err := q.CreateAnnouncement(ctx, a); err != nil {
 			return err
 		}

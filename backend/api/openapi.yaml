@@ -1497,6 +1497,89 @@ paths:
       responses:
         "204": { description: Dihapus }
         "404": { $ref: "#/components/responses/Error" }
+  /v1/admin/announcements/{id}/reads:
+    parameters:
+      - $ref: "#/components/parameters/Id"
+    get:
+      tags: [Pengumuman]
+      summary: Status baca tiap Pejuang sasaran
+      description: >-
+        Permission `announcement:manage`. Sasaran adalah Pejuang aktif di divisi tujuan, atau semua bila pengumuman
+        untuk semua divisi. Urutan: belum membuka, sudah membuka tetapi belum membaca, lalu sudah membaca.
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: "#/components/schemas/AnnouncementReader" }
+        "404": { $ref: "#/components/responses/Error" }
+  /v1/announcements/active:
+    get:
+      tags: [Pengumuman]
+      summary: Pengumuman yang sedang tayang untuk saya
+      description: >-
+        Permission `announcement:read`. Aktif, sudah mulai tayang, belum berakhir, dan untuk divisi saya atau semua
+        divisi. Belum dibaca tampil lebih dulu, paling banyak 50. Aplikasi memanggilnya saat dibuka (MASTER.md §7,
+        notifikasi push menyusul).
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: "#/components/schemas/MyAnnouncement" }
+  /v1/announcements/{id}/open:
+    parameters:
+      - $ref: "#/components/parameters/Id"
+    post:
+      tags: [Pengumuman]
+      summary: Catat isi pengumuman dibuka
+      description: >-
+        Permission `announcement:read`. Waktu buka dicatat sekali saja; pemanggilan berikutnya tidak memulai ulang
+        timer baca (D27). Pengumuman yang tidak tayang untuk saya dijawab 404.
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data: { $ref: "#/components/schemas/MyAnnouncement" }
+        "404": { $ref: "#/components/responses/Error" }
+  /v1/announcements/{id}/read:
+    parameters:
+      - $ref: "#/components/parameters/Id"
+    post:
+      tags: [Pengumuman]
+      summary: Tandai pengumuman sudah dibaca
+      description: >-
+        Permission `announcement:read`. Ditolak `422 READ_TOO_SOON` bila isi belum dibuka atau jeda
+        `min_read_seconds` sejak dibuka belum lewat; `details.wait_seconds` berisi sisa detik. Idempoten setelah dibaca.
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data: { $ref: "#/components/schemas/MyAnnouncement" }
+        "404": { $ref: "#/components/responses/Error" }
+        "422": { $ref: "#/components/responses/Error" }
 
   /v1/admin/dashboard/summary:
     get:
@@ -2005,6 +2088,7 @@ components:
         - CHALLENGE_EXPIRED
         - ATTENDANCE_BLOCKED
         - LEAVE_ACTIVE
+        - READ_TOO_SOON
         - ACTIVATION_INVALID
         - ACTIVATION_USED
         - ACTIVATION_EXPIRED
@@ -2330,10 +2414,17 @@ components:
         starts_at: { type: string, format: date-time }
         ends_at: { type: string, format: date-time, nullable: true }
         is_active: { type: boolean, default: true }
+        min_read_seconds:
+          type: integer
+          minimum: 0
+          maximum: 120
+          default: 10
+          description: Detik minimal antara isi dibuka di aplikasi dan "Sudah baca" diterima server (D27)
     Announcement:
       type: object
       required:
-        [id, title, body, type, image_upload_id, division_id, division_name, starts_at, ends_at, is_active, created_at]
+        [id, title, body, type, image_upload_id, division_id, division_name, starts_at, ends_at, is_active, created_at,
+         min_read_seconds, audience_count, opened_count, read_count]
       properties:
         id: { type: string, format: uuid }
         title: { type: string }
@@ -2346,6 +2437,37 @@ components:
         ends_at: { type: string, format: date-time, nullable: true }
         is_active: { type: boolean }
         created_at: { type: string, format: date-time }
+        min_read_seconds: { type: integer }
+        audience_count: { type: integer, description: Pejuang aktif di divisi tujuan, atau semua bila division_id kosong }
+        opened_count: { type: integer, description: Sasaran yang sudah membuka isi di aplikasi }
+        read_count: { type: integer, description: Sasaran yang sudah menekan "Sudah baca" }
+    MyAnnouncement:
+      type: object
+      description: Pengumuman yang sedang tayang untuk Pejuang yang masuk, beserta status bacanya
+      required: [id, title, body, type, starts_at, ends_at, min_read_seconds, opened_at, read_at, read_wait_seconds]
+      properties:
+        id: { type: string, format: uuid }
+        title: { type: string }
+        body: { type: string, description: Teks murni; tampilkan sebagai teks, bukan HTML }
+        type: { $ref: "#/components/schemas/AnnouncementType" }
+        starts_at: { type: string, format: date-time }
+        ends_at: { type: string, format: date-time, nullable: true }
+        min_read_seconds: { type: integer }
+        opened_at: { type: string, format: date-time, nullable: true, description: Pertama kali isi dibuka; tidak berubah setelahnya }
+        read_at: { type: string, format: date-time, nullable: true }
+        read_wait_seconds:
+          type: integer
+          description: Sisa detik sebelum "Sudah baca" diterima, dihitung server saat respons dibuat. Nol bila sudah dibaca.
+    AnnouncementReader:
+      type: object
+      required: [employee_id, full_name, nip, subdivision_name, opened_at, read_at]
+      properties:
+        employee_id: { type: string, format: uuid }
+        full_name: { type: string }
+        nip: { type: string }
+        subdivision_name: { type: string }
+        opened_at: { type: string, format: date-time, nullable: true }
+        read_at: { type: string, format: date-time, nullable: true }
     DashboardSummary:
       type: object
       required: [employee_count, division_count, subdivision_count, present_today, late_today, work_date]

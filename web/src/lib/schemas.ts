@@ -50,6 +50,11 @@ export const announcementSchema = z
     starts_at: required("Mulai tayang").datetime({ error: "Tanggal mulai tidak valid." }),
     ends_at: z.string().datetime({ error: "Tanggal berakhir tidak valid." }).nullable().optional(),
     is_active: z.boolean(),
+    min_read_seconds: z
+      .number({ error: "Isi jeda baca dalam detik." })
+      .int("Jeda baca berupa bilangan bulat.")
+      .min(0, "Jeda baca 0 sampai 120 detik.")
+      .max(120, "Jeda baca 0 sampai 120 detik."),
   })
   .refine((v) => !v.ends_at || v.ends_at > v.starts_at, { path: ["ends_at"], message: "Berakhir harus setelah mulai tayang." });
 

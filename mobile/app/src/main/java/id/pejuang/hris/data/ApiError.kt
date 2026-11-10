@@ -24,6 +24,7 @@ private val friendly = mapOf(
     "ATTENDANCE_BLOCKED" to "Presensi ditolak. Hubungi SDM bila ini terus terjadi.",
     "APPROVAL_SELF_FORBIDDEN" to "Pengajuan Anda sendiri diputuskan oleh atasan atau SDM.",
     "APPROVAL_NOT_YOUR_TURN" to "Belum giliran Anda. Langkah sebelumnya belum diputuskan.",
+    "READ_TOO_SOON" to "Baca dulu isinya. Tombol Sudah baca aktif setelah hitung mundur selesai.",
     "REQUEST_NOT_PENDING" to "Pengajuan ini sudah diputuskan atau dibatalkan. Muat ulang untuk melihat statusnya.",
 )
 

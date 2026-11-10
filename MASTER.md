@@ -734,7 +734,8 @@ Setiap `code` baru wajib ditambahkan di tabel ini.
 | POST | `/v1/admin/payroll/periods/{id}/generate`, `/submit` | `payroll:manage` |
 | POST | `/v1/admin/payroll/periods/{id}/finalize`, `/reject`, `/mark-paid` | `payroll:finalize` |
 | GET, POST | `/v1/admin/warnings` | `warning:manage` |
-| CRUD | `/v1/admin/announcements` | `announcement:manage` |
+| CRUD | `/v1/admin/announcements` | `announcement:manage`. Daftar dan detail memuat `audience_count`, `opened_count`, `read_count` |
+| GET | `/v1/admin/announcements/{id}/reads` | `announcement:manage`. Status baca tiap Pejuang sasaran |
 | GET | `/v1/admin/dashboard/summary`, `/v1/admin/dashboard/org-chart` | `dashboard:read` |
 | GET, PUT | `/v1/admin/approval-flows/{request_type}` | `approval_flow:manage` |
 | GET | `/v1/admin/audit-logs` | `audit:read` |
@@ -1546,8 +1547,8 @@ Estimasi untuk tim kecil; sesuaikan setelah kapasitas tim jelas.
 - [ ] Modul deteksi native
 - [ ] Kamera + liveness (gerakan dari `liveness_action`) + kirim selfie (D42). Kode ada (D44), menunggu uji HP
 - [ ] Layar presensi + rekap. Absen, riwayat, dan rekap jam kerja hari ini serta bulan berjalan ada di tab Presensi; rekap per periode cutoff menunggu D31
-- [ ] FCM, pop-up, banner
-- [ ] Timer sebelum tombol sudah baca, ditegakkan server (D27)
+- [ ] FCM, pop-up, banner. Pop-up dan banner pengumuman sudah tampil di aplikasi (diambil saat aplikasi dibuka); push FCM menunggu proyek Firebase
+- [x] Timer sebelum tombol sudah baca, ditegakkan server (D27): `min_read_seconds` per pengumuman, `READ_TOO_SOON`, rekap pembaca di web
 - [ ] Uji Android 8-14, 3 HP kelas bawah
 
 **Fase 4: Pengajuan**

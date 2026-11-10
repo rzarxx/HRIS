@@ -53,6 +53,7 @@ import androidx.compose.ui.unit.dp
 import id.pejuang.hris.BuildConfig
 import id.pejuang.hris.data.AttendanceRecord
 import id.pejuang.hris.data.Me
+import id.pejuang.hris.data.MyAnnouncement
 import id.pejuang.hris.data.PURPOSE_CLOCK_IN
 import id.pejuang.hris.data.PURPOSE_CLOCK_OUT
 import id.pejuang.hris.data.PURPOSE_FACE_ENROLL
@@ -77,6 +78,9 @@ fun HomeContent(
     onLogout: () -> Unit,
     pendingApprovals: Int = 0,
     onRequests: () -> Unit = {},
+    announcements: List<MyAnnouncement> = emptyList(),
+    onAnnouncement: (MyAnnouncement) -> Unit = {},
+    onAnnouncements: () -> Unit = {},
 ) {
     StatusBarIcons(dark = true)
     val ready = me.deviceStatus == "approved" && !me.mustChangePassword
@@ -128,6 +132,8 @@ fun HomeContent(
             }
 
             if (crash != null) CrashNotice(crash, onCopyCrash, onDismissCrash)
+            // Banner tampil sampai berakhir; yang belum dibaca lebih dulu (urutan dari server).
+            announcements.filter { it.type == "banner" }.take(2).forEach { AnnouncementBanner(it, onClick = { onAnnouncement(it) }) }
             when (me.deviceStatus) {
                 "approved" -> {}
                 "pending" -> StatusBanner(Tone.Warning, HrisIcons.Smartphone, "HP menunggu persetujuan", "SDM perlu menyetujui HP ini sebelum Anda bisa presensi. Muat ulang setelah disetujui.")
@@ -162,6 +168,11 @@ fun HomeContent(
 
             HomeSection("Layanan Pejuang", "Informasi dan riwayat kehadiran") {
                 ListRow(HrisIcons.History, "Riwayat presensi", "31 hari terakhir", onClick = onHistory)
+                RowDivider()
+                val unread = announcements.count { it.readAt == null }
+                ListRow(FigmaIcons.MessageText, "Pengumuman", if (unread > 0) "Ada yang belum Anda baca" else "Informasi dari SDM", onClick = onAnnouncements) {
+                    if (unread > 0) CountPill(unread)
+                }
                 RowDivider()
                 ListRow(FigmaIcons.NavNote, "Cuti dan izin", if (pendingApprovals > 0) "Ada yang menunggu keputusan Anda" else "Ajukan dan pantau persetujuan", onClick = onRequests) {
                     if (pendingApprovals > 0) CountPill(pendingApprovals)

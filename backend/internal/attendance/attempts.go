@@ -13,7 +13,7 @@ import (
 	"github.com/rzarxx/HRIS/backend/internal/store"
 )
 
-// AttemptItem adalah satu upaya absen, termasuk yang ditolak. Alasan dan skor hanya untuk peninjau (D8).
+// AttemptItem adalah satu upaya presensi, termasuk yang ditolak. Alasan dan skor hanya untuk peninjau (D8).
 type AttemptItem struct {
 	ID              int64    `json:"id"`
 	EmployeeID      string   `json:"employee_id"`
@@ -37,7 +37,7 @@ const (
 	OutcomeRejected = "rejected"
 )
 
-// Attempts menampilkan upaya absen pada satu tanggal kalender WIB, terbaru dulu. Tanggal kosong berarti hari ini.
+// Attempts menampilkan upaya presensi pada satu tanggal kalender WIB, terbaru dulu. Tanggal kosong berarti hari ini.
 func (s *Service) Attempts(ctx context.Context, dateRaw, outcome string, page httpx.Page) ([]AttemptItem, int64, error) {
 	fields := map[string]string{}
 	day := s.opt.Now().In(pgconv.WIB)

@@ -298,18 +298,18 @@ func TestSuperadminAllExceptFinance(t *testing.T) {
 	}
 	admin.do(http.MethodPost, "/v1/admin/devices/"+second.ID+"/approve", nil).want(t, http.StatusOK)
 
-	// Keuangan tertutup, dan gaji orang lain tidak pernah tampil.
+	// Keuangan tertutup, dan ubar orang lain tidak pernah tampil.
 	admin.do(http.MethodGet, "/v1/admin/reports/payroll-preview?year=2026&month=1", nil).wantError(t, http.StatusForbidden, "FORBIDDEN_ROLE")
 	res := admin.do(http.MethodGet, "/v1/admin/employees/"+target.employeeID, nil).want(t, http.StatusOK)
 	if strings.Contains(string(res.body), "base_salary") {
-		t.Errorf("gaji orang lain terlihat: %s", res.body)
+		t.Errorf("ubar orang lain terlihat: %s", res.body)
 	}
 	list := admin.do(http.MethodGet, "/v1/admin/employees?per_page=100", nil).want(t, http.StatusOK)
 	if got := strings.Count(string(list.body), "base_salary"); got > 1 {
-		t.Errorf("daftar memuat gaji orang lain: %d", got)
+		t.Errorf("daftar memuat ubar orang lain: %d", got)
 	}
 
-	// Mengubah Pejuang boleh, mengubah gaji tidak.
+	// Mengubah Pejuang boleh, mengubah ubar tidak.
 	updated := data[employeeShift](t, admin.do(http.MethodPatch, "/v1/admin/employees/"+target.employeeID, map[string]any{"full_name": "Nama Baru Uji"}).want(t, http.StatusOK))
 	if updated.FullName != "Nama Baru Uji" {
 		t.Errorf("ubah nama: %+v", updated)
@@ -320,10 +320,10 @@ func TestSuperadminAllExceptFinance(t *testing.T) {
 		t.Fatal(err)
 	}
 	if strings.HasPrefix(salary, "9999999") {
-		t.Errorf("gaji berubah: %s", salary)
+		t.Errorf("ubar berubah: %s", salary)
 	}
 
-	// Pejuang baru dari super admin bergaji 0, dan mengirim gaji ditolak.
+	// Pejuang baru dari super admin bergaji 0, dan mengirim ubar ditolak.
 	payload := func(email string) map[string]any {
 		return map[string]any{"full_name": "Dibuat Admin", "email": email, "subdivision_id": subdivisionID(t, "OPS-LAP")}
 	}
@@ -333,12 +333,12 @@ func TestSuperadminAllExceptFinance(t *testing.T) {
 		t.Fatal(err)
 	}
 	if !strings.HasPrefix(madeSalary, "0") {
-		t.Errorf("gaji awal: %s", madeSalary)
+		t.Errorf("ubar awal: %s", madeSalary)
 	}
 	withSalary := payload("dibuat.admin2@pejuang.id")
 	withSalary["base_salary"] = "5000000.00"
 	admin.do(http.MethodPost, "/v1/admin/employees", withSalary).wantError(t, http.StatusForbidden, "FORBIDDEN_ROLE")
-	// SDM tetap wajib mengisi gaji.
+	// SDM tetap wajib mengisi ubar.
 	sdm.do(http.MethodPost, "/v1/admin/employees", payload("dibuat.sdm@pejuang.id")).wantError(t, http.StatusBadRequest, "VALIDATION_FAILED")
 
 	// Super admin boleh mengunci akun SDM, tetapi tidak boleh mengambil alihnya lewat tautan reset.
@@ -360,7 +360,7 @@ func TestSuperadminAllExceptFinance(t *testing.T) {
 	sdm.do(http.MethodPost, "/v1/admin/employees/"+acc.employeeID+"/deactivate", nil).wantError(t, http.StatusForbidden, "FORBIDDEN_ROLE")
 	admin.do(http.MethodGet, "/v1/me", nil).want(t, http.StatusOK)
 
-	// Lokasi absen super admin hanya diubah super admin; daftarnya tetap utuh setelah SDM ditolak.
+	// Lokasi presensi super admin hanya diubah super admin; daftarnya tetap utuh setelah SDM ditolak.
 	loc := data[officeLocation](t, admin.do(http.MethodPost, "/v1/admin/office-locations", map[string]any{
 		"name": "Kantor Admin", "latitude": -6.2, "longitude": 106.8, "radius_m": 100,
 	}).want(t, http.StatusCreated))
@@ -373,11 +373,11 @@ func TestSuperadminAllExceptFinance(t *testing.T) {
 	// Pejuang biasa tetap bisa diatur SDM.
 	sdm.do(http.MethodPut, "/v1/admin/employees/"+target.employeeID+"/locations", map[string]any{"location_ids": []string{loc.ID}}).want(t, http.StatusOK)
 
-	// Role lain tetap tertutup, dan SDM tetap memegang gaji.
+	// Role lain tetap tertutup, dan SDM tetap memegang ubar.
 	login(t, srv, activeAccount(t, "pejuang", "OPS-LAP").email, seedPassword).do(http.MethodGet, "/v1/admin/devices", nil).wantError(t, http.StatusForbidden, "FORBIDDEN_ROLE")
 	sdmView := sdm.do(http.MethodGet, "/v1/admin/employees/"+target.employeeID, nil).want(t, http.StatusOK)
 	if !strings.Contains(string(sdmView.body), "base_salary") {
-		t.Error("SDM harus melihat gaji")
+		t.Error("SDM harus melihat ubar")
 	}
 }
 

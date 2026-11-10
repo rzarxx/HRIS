@@ -10,7 +10,7 @@ import (
 const (
 	// DayCutoff adalah cutoff harian (D31). Nilai awal ini menjadi pengaturan SDM di Fase 5.
 	DayCutoff = 4 * time.Hour
-	// overnightCloseGrace memberi waktu absen pulang setelah shift malam berakhir,
+	// overnightCloseGrace memberi waktu presensi pulang setelah shift malam berakhir,
 	// karena shift malam bisa berakhir melewati cutoff harian.
 	overnightCloseGrace = 4 * time.Hour
 	// earlyClockInWindow adalah batas datang lebih awal untuk shift yang dimulai sekitar tengah malam.
@@ -30,9 +30,9 @@ func at(date time.Time, offset time.Duration) time.Time {
 	return time.Date(y, m, d, 0, 0, 0, 0, pgconv.WIB).Add(offset)
 }
 
-// WorkDate menentukan tanggal kerja untuk absen masuk. Absen sebelum cutoff harian masuk ke
+// WorkDate menentukan tanggal kerja untuk presensi masuk. Presensi sebelum cutoff harian masuk ke
 // hari sebelumnya, kecuali shift-nya memang dimulai sebelum cutoff (mis. shift pukul 03.00).
-// Shift seperti itu juga menerima absen yang datang lebih awal sebelum tengah malam.
+// Shift seperti itu juga menerima presensi yang datang lebih awal sebelum tengah malam.
 func WorkDate(now time.Time, s Schedule) time.Time {
 	date := pgconv.WorkDate(now)
 	sinceMidnight := now.In(pgconv.WIB).Sub(at(date, 0))
@@ -110,8 +110,8 @@ func LateMinutes(now, date time.Time, s Schedule) int {
 	return minutes
 }
 
-// CloseDeadline adalah batas absen pulang untuk absen masuk di tanggal itu. Lewat batas ini,
-// jam kerja tidak dihitung otomatis dan SDM yang mengoreksi (D31). s kosong bila absen tanpa shift.
+// CloseDeadline adalah batas presensi pulang untuk presensi masuk di tanggal itu. Lewat batas ini,
+// jam kerja tidak dihitung otomatis dan SDM yang mengoreksi (D31). s kosong bila presensi tanpa shift.
 func CloseDeadline(date time.Time, s *Schedule) time.Time {
 	deadline := at(date.AddDate(0, 0, 1), DayCutoff)
 	if s != nil && s.End <= s.Start {
@@ -131,7 +131,7 @@ const (
 	locationJumpKmH = 120
 	clockSkewLimit  = 5 * time.Minute
 	newDeviceWindow = 24 * time.Hour
-	// Di bawah jarak ini, selisih dianggap gangguan GPS. Absen masuk dan pulang yang berdekatan
+	// Di bawah jarak ini, selisih dianggap gangguan GPS. Presensi masuk dan pulang yang berdekatan
 	// waktunya bisa terbaca sangat cepat walau Pejuang tidak berpindah.
 	locationJumpMinM = 1000
 
@@ -149,20 +149,20 @@ var softPoints = map[string]int{
 	flagFaceBorderline: 20,
 }
 
-// PointAt adalah titik absen beserta waktunya.
+// PointAt adalah titik presensi beserta waktunya.
 type PointAt struct {
 	Point Point
 	At    time.Time
 }
 
-// RiskInput adalah bahan penilaian sinyal lunak satu upaya absen.
+// RiskInput adalah bahan penilaian sinyal lunak satu upaya presensi.
 type RiskInput struct {
 	Now              time.Time
 	Point            Point
 	AccuracyM        float64
 	CapturedAt       time.Time
 	DeviceApprovedAt *time.Time
-	Previous         *PointAt // absen terakhir yang tercatat
+	Previous         *PointAt // presensi terakhir yang tercatat
 }
 
 // SoftFlags mengembalikan sinyal lunak yang menyala.

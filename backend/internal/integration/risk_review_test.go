@@ -23,7 +23,7 @@ type resolvedRow struct {
 	ReviewNote  *string `json:"review_note"`
 }
 
-// riskyBody membuat absen dengan akurasi rendah (+15) dan jam HP selisih (+20), total 35.
+// riskyBody membuat presensi dengan akurasi rendah (+15) dan jam HP selisih (+20), total 35.
 func (f clockFixture) riskyBody(challenge string, lat, lon float64) map[string]any {
 	body := f.clockBody(challenge, lat, lon)
 	body["accuracy_m"] = 80.0
@@ -65,7 +65,7 @@ func TestLowRiskIsAccepted(t *testing.T) {
 	body["accuracy_m"] = 80.0
 	in := data[clockInResp](t, f.hp.do(http.MethodPost, "/v1/attendance/clock-in", body).want(t, http.StatusCreated))
 	if in.Status != "present" || in.RequiresReview {
-		t.Errorf("absen: %+v", in)
+		t.Errorf("presensi: %+v", in)
 	}
 	if outcome, reason, score := attemptScore(t, f.account.employeeID); outcome != "accepted" || reason != "ok" || score != 15 {
 		t.Errorf("attempt: %s %s %d", outcome, reason, score)
@@ -81,7 +81,7 @@ func TestMediumRiskGoesToReview(t *testing.T) {
 	res := f.riskyClockIn(t).want(t, http.StatusCreated)
 	in := data[clockInResp](t, res)
 	if in.Status != "review" || !in.RequiresReview {
-		t.Errorf("absen: %+v", in)
+		t.Errorf("presensi: %+v", in)
 	}
 	for _, leaked := range []string{"risk_score", "risk_flags", "accuracy_low", "clock_skew"} {
 		if strings.Contains(string(res.body), leaked) {
@@ -133,7 +133,7 @@ func TestLocationJumpAtClockOut(t *testing.T) {
 	}
 }
 
-// Skor 60 ke atas ditolak dengan pesan generik, tanpa baris absen.
+// Skor 60 ke atas ditolak dengan pesan generik, tanpa baris presensi.
 func TestHighRiskIsRejected(t *testing.T) {
 	f := newClockFixture(t, options{}, "08:00", "17:00")
 	f.grant(t, map[string]any{"mode": "wfa", "starts_on": "2026-11-02", "reason": "Bekerja dari rumah"})
@@ -148,7 +148,7 @@ func TestHighRiskIsRejected(t *testing.T) {
 	if outcome, reason, score := attemptScore(t, f.account.employeeID); outcome != "rejected" || reason != "risk_too_high" || score != 75 {
 		t.Errorf("attempt: %s %s %d", outcome, reason, score)
 	}
-	// Absen masuk tetap terbuka dan statusnya tidak berubah.
+	// Presensi masuk tetap terbuka dan statusnya tidak berubah.
 	var status string
 	var closed bool
 	err := ownerPool.QueryRow(context.Background(), `SELECT status::text, clock_out_at IS NOT NULL FROM attendances WHERE employee_id = $1 AND work_date = '2026-11-02'`, f.account.employeeID).Scan(&status, &closed)
@@ -156,7 +156,7 @@ func TestHighRiskIsRejected(t *testing.T) {
 		t.Fatal(err)
 	}
 	if status != "present" || closed {
-		t.Errorf("baris absen: %s, tertutup %v", status, closed)
+		t.Errorf("baris presensi: %s, tertutup %v", status, closed)
 	}
 }
 
@@ -166,7 +166,7 @@ func TestNewDeviceSignal(t *testing.T) {
 	exec(t, `UPDATE devices SET approved_at = $1 WHERE id = $2`, f.clock.Now().Add(-time.Hour), f.deviceID)
 	in := data[clockInResp](t, f.clockIn(t).want(t, http.StatusCreated))
 	if in.RequiresReview {
-		t.Errorf("absen: %+v", in)
+		t.Errorf("presensi: %+v", in)
 	}
 	if _, _, score := attemptScore(t, f.account.employeeID); score != 10 {
 		t.Errorf("skor: %d", score)
@@ -224,12 +224,12 @@ func TestResolveReview(t *testing.T) {
 		t.Errorf("keputusan hadir: %+v", present)
 	}
 
-	// Telat tidak bisa dipilih untuk absen yang tepat waktu.
+	// Telat tidak bisa dipilih untuk presensi yang tepat waktu.
 	f.clock.Set(wibTime(4, 8, 0))
 	third := data[clockInResp](t, f.riskyClockIn(t).want(t, http.StatusCreated))
 	f.sdm.do(http.MethodPost, "/v1/admin/attendance/"+third.AttendanceID+"/resolve", map[string]any{"decision": "late"}).wantError(t, http.StatusBadRequest, "VALIDATION_FAILED")
 
-	// Tidak valid: absen pulang tidak bisa lagi dipasangkan.
+	// Tidak valid: presensi pulang tidak bisa lagi dipasangkan.
 	absent := data[resolvedRow](t, f.sdm.do(http.MethodPost, "/v1/admin/attendance/"+third.AttendanceID+"/resolve", map[string]any{"decision": "absent", "note": "Tidak hadir"}).want(t, http.StatusOK))
 	if absent.Status != "absent" || absent.LateMinutes != 0 {
 		t.Errorf("keputusan tidak valid: %+v", absent)
@@ -238,7 +238,7 @@ func TestResolveReview(t *testing.T) {
 	f.clockOut(t).wantError(t, http.StatusConflict, "NOT_CLOCKED_IN")
 }
 
-// Keputusan memengaruhi upah, jadi peninjau tidak boleh memutuskan absennya sendiri.
+// Keputusan memengaruhi ubar, jadi peninjau tidak boleh memutuskan presensinya sendiri.
 func TestResolveOwnAttendanceIsRefused(t *testing.T) {
 	f := newClockFixture(t, options{}, "08:00", "17:00")
 	admin, acc := superadminClient(t, f.srv, "IT-INF")

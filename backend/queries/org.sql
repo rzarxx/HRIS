@@ -94,3 +94,11 @@ WITH cleared AS (
   UPDATE subdivisions SET head_employee_id = NULL WHERE subdivisions.head_employee_id = @employee_id
 )
 UPDATE divisions SET head_employee_id = NULL WHERE divisions.head_employee_id = @employee_id;
+
+-- Status kepala seorang Pejuang untuk menyesuaikan role otomatis (D49).
+-- name: GetHeadRoleState :one
+SELECT u.id AS user_id, u.role,
+       EXISTS (SELECT 1 FROM divisions d WHERE d.head_employee_id = u.employee_id) AS heads_division,
+       EXISTS (SELECT 1 FROM subdivisions s WHERE s.head_employee_id = u.employee_id) AS heads_subdivision
+FROM users u
+WHERE u.employee_id = $1;

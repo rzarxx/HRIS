@@ -70,14 +70,14 @@ func TestScopeKadiv(t *testing.T) {
 	c.do(http.MethodGet, "/v1/admin/employees/"+employeeInSubdivision(t, "KEU-AKT"), nil).wantError(t, http.StatusNotFound, "NOT_FOUND")
 	inside := data[employeeRow](t, c.do(http.MethodGet, "/v1/admin/employees/"+employeeInSubdivision(t, "OPS-GDG"), nil).want(t, http.StatusOK))
 	if inside.BaseSalary != nil {
-		t.Error("gaji orang lain tidak boleh terlihat oleh kadiv")
+		t.Error("ubar orang lain tidak boleh terlihat oleh kadiv")
 	}
 	if inside.Account != nil {
 		t.Error("data akun hanya untuk pemegang user:manage")
 	}
 	self := data[employeeRow](t, c.do(http.MethodGet, "/v1/admin/employees/"+kadiv.employeeID, nil).want(t, http.StatusOK))
 	if self.BaseSalary == nil {
-		t.Error("gaji sendiri harus terlihat")
+		t.Error("ubar sendiri harus terlihat")
 	}
 
 	// Permission yang tidak dimiliki kadiv.
@@ -86,7 +86,7 @@ func TestScopeKadiv(t *testing.T) {
 	c.do(http.MethodGet, "/v1/admin/divisions", nil).wantError(t, http.StatusForbidden, "FORBIDDEN_ROLE")
 	c.do(http.MethodGet, "/v1/admin/announcements", nil).wantError(t, http.StatusForbidden, "FORBIDDEN_ROLE")
 
-	// Laporan presensi hanya divisinya; pratinjau upah memuat gaji sehingga ditolak (D15).
+	// Laporan presensi hanya divisinya; pratinjau ubar memuat ubar sehingga ditolak (D15).
 	report := data[[]struct {
 		Division string `json:"division"`
 	}](t, c.do(http.MethodGet, "/v1/admin/reports/attendance?year=2026&month=10", nil).want(t, http.StatusOK))

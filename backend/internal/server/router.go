@@ -9,11 +9,13 @@ import (
 	"github.com/go-chi/chi/v5"
 
 	"github.com/rzarxx/HRIS/backend/internal/announcement"
+	"github.com/rzarxx/HRIS/backend/internal/approval"
 	"github.com/rzarxx/HRIS/backend/internal/attendance"
 	"github.com/rzarxx/HRIS/backend/internal/auth"
 	"github.com/rzarxx/HRIS/backend/internal/dashboard"
 	"github.com/rzarxx/HRIS/backend/internal/device"
 	"github.com/rzarxx/HRIS/backend/internal/employee"
+	"github.com/rzarxx/HRIS/backend/internal/leave"
 	"github.com/rzarxx/HRIS/backend/internal/location"
 	"github.com/rzarxx/HRIS/backend/internal/org"
 	"github.com/rzarxx/HRIS/backend/internal/permission"
@@ -34,6 +36,8 @@ type Deps struct {
 	Device       *device.Handler
 	Attendance   *attendance.Handler
 	Shift        *shift.Handler
+	Approval     *approval.Handler
+	Leave        *leave.Handler
 	Signer       *auth.TokenSigner
 	SessionCheck auth.SessionChecker
 	Limiter      auth.Limiter
@@ -154,8 +158,25 @@ func routes(d Deps) []Route {
 		guarded(http.MethodGet, "/v1/admin/dashboard/summary", d.Dashboard.Summary, permission.DashboardRead),
 		guarded(http.MethodGet, "/v1/admin/dashboard/org-chart", d.Dashboard.OrgChart, permission.DashboardRead),
 
+		guarded(http.MethodGet, "/v1/leave-types", d.Leave.Types, permission.LeaveCreate),
+		guarded(http.MethodPost, "/v1/leaves", d.Leave.Create, permission.LeaveCreate),
+		guarded(http.MethodGet, "/v1/leaves", d.Leave.Mine, permission.LeaveRead),
+		guarded(http.MethodGet, "/v1/leaves/{id}", d.Leave.Get, permission.LeaveRead),
+		guarded(http.MethodPost, "/v1/leaves/{id}/cancel", d.Leave.Cancel, permission.LeaveCreate),
+		guarded(http.MethodGet, "/v1/admin/leaves", d.Leave.AdminList, permission.LeaveRead),
+		guarded(http.MethodGet, "/v1/admin/leave-types", d.Leave.AdminTypes, permission.ApprovalFlowManage),
+		guarded(http.MethodPost, "/v1/admin/leave-types", d.Leave.CreateType, permission.ApprovalFlowManage),
+		guarded(http.MethodPatch, "/v1/admin/leave-types/{id}", d.Leave.UpdateType, permission.ApprovalFlowManage),
+
+		guarded(http.MethodGet, "/v1/approvals/pending", d.Approval.Pending, permission.ApprovalAct),
+		guarded(http.MethodGet, "/v1/approvals/{id}", d.Approval.Get, permission.ApprovalAct),
+		guarded(http.MethodPost, "/v1/approvals/{id}/approve", d.Approval.Approve, permission.ApprovalAct),
+		guarded(http.MethodPost, "/v1/approvals/{id}/reject", d.Approval.Reject, permission.ApprovalAct),
+		guarded(http.MethodGet, "/v1/admin/approval-flows/{request_type}", d.Approval.Flow, permission.ApprovalFlowManage),
+		guarded(http.MethodPut, "/v1/admin/approval-flows/{request_type}", d.Approval.SetFlow, permission.ApprovalFlowManage),
+
 		guarded(http.MethodGet, "/v1/admin/reports/attendance", d.Report.Attendance, permission.AttendanceReport),
-		// Memuat gaji: base_salary hanya untuk sdm (§7.6), jadi perlu payroll:manage juga.
+		// Memuat ubar: base_salary hanya untuk sdm (§7.6), jadi perlu payroll:manage juga.
 		guarded(http.MethodGet, "/v1/admin/reports/payroll-preview", d.Report.PayrollPreview, permission.AttendanceReport, permission.PayrollManage),
 	}
 }

@@ -25,7 +25,7 @@ func main() {
 
 func run() error {
 	reset := flag.Bool("reset", false, "kosongkan semua data lalu isi ulang")
-	demo := flag.Bool("demo", false, "siapkan atau pulihkan data demo Review Absen, izin kerja, dan perangkat")
+	demo := flag.Bool("demo", false, "siapkan atau pulihkan data demo Review Presensi, izin kerja, dan perangkat")
 	flag.Parse()
 
 	if err := config.LoadDotEnv(".env"); err != nil {
@@ -53,7 +53,7 @@ func run() error {
 		if err != nil {
 			return err
 		}
-		fmt.Printf("Data demo siap untuk tanggal kerja %s: %d absen di Review Absen, %d absen hari ini, %d izin kerja, %d perangkat.\n",
+		fmt.Printf("Data demo siap untuk tanggal kerja %s: %d presensi di Review Presensi, %d presensi hari ini, %d izin kerja, %d perangkat.\n",
 			summary.WorkDate.Format("2006-01-02"), summary.Reviews, summary.Today, summary.Arrangements, summary.Devices)
 		return nil
 	}

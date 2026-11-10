@@ -12,8 +12,8 @@ import (
 	"github.com/rzarxx/HRIS/backend/internal/store"
 )
 
-// MonitorItem adalah kondisi absen satu Pejuang pada satu tanggal kerja. Status kosong berarti
-// belum ada absen. Scheduled menjawab apakah Pejuang memang dijadwalkan masuk pada tanggal itu.
+// MonitorItem adalah kondisi presensi satu Pejuang pada satu tanggal kerja. Status kosong berarti
+// belum ada presensi. Scheduled menjawab apakah Pejuang memang dijadwalkan masuk pada tanggal itu.
 type MonitorItem struct {
 	EmployeeID      string   `json:"employee_id"`
 	EmployeeName    string   `json:"employee_name"`
@@ -35,7 +35,7 @@ type MonitorItem struct {
 	OutLongitude    *float64 `json:"out_longitude"`
 }
 
-// Monitor mengembalikan semua Pejuang aktif beserta absennya pada satu tanggal kerja.
+// Monitor mengembalikan semua Pejuang aktif beserta presensinya pada satu tanggal kerja.
 // Tanggal kosong berarti tanggal kerja saat ini, mengikuti cutoff harian (D31).
 func (s *Service) Monitor(ctx context.Context, dateRaw, divisionRaw string) ([]MonitorItem, error) {
 	fields := map[string]string{}

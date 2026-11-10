@@ -388,6 +388,27 @@ func (q *Queries) GetAttendanceForUpdate(ctx context.Context, id uuid.UUID) (Att
 	return i, err
 }
 
+const getAttendanceStatusOn = `-- name: GetAttendanceStatusOn :one
+SELECT status, clock_in_at FROM attendances WHERE employee_id = $1 AND work_date = $2
+`
+
+type GetAttendanceStatusOnParams struct {
+	EmployeeID uuid.UUID
+	WorkDate   pgtype.Date
+}
+
+type GetAttendanceStatusOnRow struct {
+	Status    AttStatus
+	ClockInAt pgtype.Timestamptz
+}
+
+func (q *Queries) GetAttendanceStatusOn(ctx context.Context, arg GetAttendanceStatusOnParams) (GetAttendanceStatusOnRow, error) {
+	row := q.db.QueryRow(ctx, getAttendanceStatusOn, arg.EmployeeID, arg.WorkDate)
+	var i GetAttendanceStatusOnRow
+	err := row.Scan(&i.Status, &i.ClockInAt)
+	return i, err
+}
+
 const getEmployeeDefaultShift = `-- name: GetEmployeeDefaultShift :one
 SELECT sh.id, sh.name, sh.start_time, sh.end_time, sh.late_tolerance_minutes, sh.work_days FROM employees e JOIN shifts sh ON sh.id = e.default_shift_id WHERE e.id = $1
 `

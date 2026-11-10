@@ -170,14 +170,14 @@ func (s *Service) capture(ctx context.Context, employeeID uuid.UUID, challenge u
 	return id, nil
 }
 
-// faceResult adalah hasil pencocokan wajah pada absen.
+// faceResult adalah hasil pencocokan wajah pada presensi.
 type faceResult struct {
 	capture uuid.NullUUID
 	score   decimal.NullDecimal
 }
 
 // checkFace mencocokkan selfie dengan template aktif (F9). Selama verifikasi perangkat belum dibuat,
-// absen development boleh tanpa selfie (D36); begitu selfie dikirim, semuanya diperiksa.
+// presensi development boleh tanpa selfie (D36); begitu selfie dikirim, semuanya diperiksa.
 func (s *Service) checkFace(ctx context.Context, a *attempt, in ClockInput) (faceResult, error) {
 	if len(in.selfie) == 0 {
 		if s.opt.AllowUnverified {

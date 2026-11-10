@@ -24,7 +24,7 @@ func errTooLarge() error {
 }
 
 // readUpload membaca body multipart (bagian `payload` berisi JSON dan berkas JPEG di field) atau
-// JSON biasa. JSON biasa hanya berguna di development, tempat absen boleh tanpa selfie (D36).
+// JSON biasa. JSON biasa hanya berguna di development, tempat presensi boleh tanpa selfie (D36).
 func readUpload(r *http.Request, payload any, field string, maxFiles int) ([][]byte, error) {
 	mediaType, _, _ := mime.ParseMediaType(r.Header.Get("Content-Type"))
 	if mediaType != "multipart/form-data" {

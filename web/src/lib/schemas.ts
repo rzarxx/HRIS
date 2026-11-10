@@ -36,7 +36,7 @@ export const employeeSchema = z.object({
   subdivision_id: required("Subdiv").uuid("Pilih subdiv."),
   position: optionalText,
   join_date: optionalText.refine(blankOr((v) => /^\d{4}-\d{2}-\d{2}$/.test(v)), "Tanggal tidak valid."),
-  base_salary: required("Gaji pokok").regex(/^\d+(\.\d{1,2})?$/, "Gaji pokok harus angka.").optional(),
+  base_salary: required("Ubar pokok").regex(/^\d+(\.\d{1,2})?$/, "Ubar pokok harus angka.").optional(),
   status: z.enum(["active", "inactive"]),
   default_shift_id: z.string().uuid().nullable().optional(),
 });

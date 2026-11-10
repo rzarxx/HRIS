@@ -13,7 +13,7 @@ import { validate, workArrangementSchema } from "@/lib/schemas";
 import type { EmployeeListItem, WorkArrangement, WorkArrangementInput } from "@/lib/types";
 
 const MODE = {
-  wfa: { label: "WFA", hint: "Boleh absen dari mana saja. Tercatat wfa dan tidak terikat lokasi kantor." },
+  wfa: { label: "WFA", hint: "Boleh presensi dari mana saja. Tercatat wfa dan tidak terikat lokasi kantor." },
   hybrid: { label: "Hybrid", hint: "Di lokasi yang ditugaskan tercatat onsite. Di luar lokasi tetap sah dan tercatat field." },
 } as const;
 
@@ -95,7 +95,7 @@ export function EmployeeArrangementsModal({ employee, onClose }: { employee: Emp
         ) : list.isError ? (
           <ErrorState message={list.error.message} onRetry={() => list.refetch()} />
         ) : list.data.length === 0 ? (
-          <p className="mt-1 text-sm text-slate-500">Belum ada izin. Pejuang ini hanya bisa absen di lokasi yang ditugaskan.</p>
+          <p className="mt-1 text-sm text-slate-500">Belum ada izin. Pejuang ini hanya bisa presensi di lokasi yang ditugaskan.</p>
         ) : (
           <ul className="mt-2 divide-y divide-slate-100 rounded-md border border-slate-200">
             {list.data.map((a) => (
@@ -125,7 +125,7 @@ export function EmployeeArrangementsModal({ employee, onClose }: { employee: Emp
             <h3 className="text-sm font-medium text-slate-900 sm:col-span-2">Tambah izin</h3>
             {!employee.default_shift_name && (
               <p className="rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-800 sm:col-span-2">
-                Pejuang ini belum punya shift. Izin tetap bisa disimpan, tetapi absen ditolak sampai shift ditentukan.
+                Pejuang ini belum punya shift. Izin tetap bisa disimpan, tetapi presensi ditolak sampai shift ditentukan.
               </p>
             )}
             <Field label="Mode" htmlFor="arrangement_mode" error={errors.mode} hint={MODE[form.mode].hint} required className="sm:col-span-2">
@@ -155,7 +155,7 @@ export function EmployeeArrangementsModal({ employee, onClose }: { employee: Emp
               <Toggle checked={form.flexible_hours} onChange={(v) => set("flexible_hours", v)} className="font-medium">
                 Jam fleksibel
               </Toggle>
-              <p className="mt-1 text-xs text-slate-500">Absen di luar jam shift tetap sah dan tidak dihitung telat.</p>
+              <p className="mt-1 text-xs text-slate-500">Presensi di luar jam shift tetap sah dan tidak dihitung telat.</p>
             </div>
             <Field label="Alasan" htmlFor="arrangement_reason" error={errors.reason} required className="sm:col-span-2">
               <Textarea id="arrangement_reason" rows={2} maxLength={500} value={form.reason} onChange={(e) => set("reason", e.target.value)} invalid={!!errors.reason} />
@@ -170,7 +170,7 @@ export function EmployeeArrangementsModal({ employee, onClose }: { employee: Emp
         confirmLabel="Cabut"
         message={
           <>
-            Izin <strong className="text-slate-800">{removing && MODE[removing.mode].label}</strong> untuk {employee.full_name} langsung berhenti, termasuk untuk absen pulang hari ini. Absen yang sudah tercatat tidak berubah.
+            Izin <strong className="text-slate-800">{removing && MODE[removing.mode].label}</strong> untuk {employee.full_name} langsung berhenti, termasuk untuk presensi pulang hari ini. Presensi yang sudah tercatat tidak berubah.
           </>
         }
         loading={remove.isPending}

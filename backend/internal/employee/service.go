@@ -157,13 +157,13 @@ func (in Input) validate() (validated, error) {
 	}
 	switch {
 	case in.BaseSalary == "":
-		fields["base_salary"] = "Gaji pokok wajib diisi."
+		fields["base_salary"] = "Ubar pokok wajib diisi."
 	case !moneyPattern.MatchString(in.BaseSalary):
-		fields["base_salary"] = "Gaji pokok harus angka, contoh 4500000.00."
+		fields["base_salary"] = "Ubar pokok harus angka, contoh 4500000.00."
 	default:
 		amount, err := decimal.NewFromString(in.BaseSalary)
 		if err != nil || amount.GreaterThan(maxBaseSalary) {
-			fields["base_salary"] = "Gaji pokok terlalu besar."
+			fields["base_salary"] = "Ubar pokok terlalu besar."
 		}
 		v.BaseSalary = amount
 	}
@@ -326,7 +326,7 @@ func (s *Service) assertShift(ctx context.Context, id uuid.NullUUID) error {
 
 // Create membuat data Pejuang, akun belum aktif, dan undangan aktivasi (F3).
 func (s *Service) Create(ctx context.Context, p auth.Principal, ip audit.Entry, in Input, now time.Time) (Created, error) {
-	// Selain SDM tidak mengurus gaji: Pejuang dibuat dengan gaji 0 dan SDM yang mengisinya (D34).
+	// Selain SDM tidak mengurus ubar: Pejuang dibuat dengan ubar 0 dan SDM yang mengisinya (D34).
 	if !permission.ManagesSalary(p.Role) {
 		if in.BaseSalary != "" {
 			return Created{}, httpx.ErrForbidden()
@@ -498,7 +498,7 @@ func errSelfDeactivate() error {
 	return httpx.NewError(http.StatusConflict, "CONFLICT_SELF_ACTION", "Anda tidak dapat menonaktifkan akun sendiri.")
 }
 
-// Deactivate menonaktifkan Pejuang; riwayat presensi dan upah tetap tersimpan.
+// Deactivate menonaktifkan Pejuang; riwayat presensi dan ubar tetap tersimpan.
 func (s *Service) Deactivate(ctx context.Context, p auth.Principal, ip audit.Entry, id uuid.UUID, now time.Time) (Employee, error) {
 	if id == p.EmployeeID {
 		return Employee{}, errSelfDeactivate()

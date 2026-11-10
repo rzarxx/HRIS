@@ -30,7 +30,7 @@ export function PhonePreview({ title, body, type }: { title: string; body: strin
         <div className="mx-3 mt-3 rounded-lg border border-slate-200 bg-white p-3 text-center">
           <p className="text-[10px] text-slate-500">Shift Reguler · 08.00 - 17.00</p>
           <div className="mx-auto mt-2 flex size-16 items-center justify-center rounded-full bg-primary-600 text-[11px] font-semibold text-white">
-            Absen
+            Presensi
           </div>
           <p className="mt-2 text-[10px] text-emerald-600">Anda berada di area kantor</p>
         </div>

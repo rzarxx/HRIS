@@ -1162,7 +1162,7 @@ export interface paths {
         put?: never;
         /**
          * Nonaktifkan Pejuang
-         * @description Riwayat presensi dan upah tetap tersimpan.
+         * @description Riwayat presensi dan ubar tetap tersimpan.
          */
         post: {
             parameters: {
@@ -1381,7 +1381,7 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * Minta tantangan absen sekali pakai
+         * Minta tantangan presensi sekali pakai
          * @description Berlaku 90 detik dan terikat ke pengguna, perangkat, dan tujuan.
          */
         post: {
@@ -1431,8 +1431,8 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * Absen masuk
-         * @description Kirim multipart: bagian `payload` (JSON `ClockInput`) dan berkas `selfie`. Server mencocokkan wajah dan memverifikasi token Play jika dikonfigurasi. JSON tanpa selfie hanya diterima dengan bypass development (D36). Tanpa verifikasi atau bypass tersebut, absen ditolak `ATTENDANCE_BLOCKED`. Alasan keamanan tidak dikirim ke klien.
+         * Presensi masuk
+         * @description Kirim multipart: bagian `payload` (JSON `ClockInput`) dan berkas `selfie`. Server mencocokkan wajah dan memverifikasi token Play jika dikonfigurasi. JSON tanpa selfie hanya diterima dengan bypass development (D36). Tanpa verifikasi atau bypass tersebut, presensi ditolak `ATTENDANCE_BLOCKED`. Alasan keamanan tidak dikirim ke klien.
          */
         post: {
             parameters: {
@@ -1459,7 +1459,7 @@ export interface paths {
                 };
             };
             responses: {
-                /** @description Absen masuk tercatat */
+                /** @description Presensi masuk tercatat */
                 201: {
                     headers: {
                         [name: string]: unknown;
@@ -1495,8 +1495,8 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * Absen pulang
-         * @description Dipasangkan dengan absen masuk yang masih terbuka, sampai batas cutoff harian berikutnya (D31).
+         * Presensi pulang
+         * @description Dipasangkan dengan presensi masuk yang masih terbuka, sampai batas cutoff harian berikutnya (D31).
          */
         post: {
             parameters: {
@@ -1523,7 +1523,7 @@ export interface paths {
                 };
             };
             responses: {
-                /** @description Absen pulang tercatat */
+                /** @description Presensi pulang tercatat */
                 200: {
                     headers: {
                         [name: string]: unknown;
@@ -1557,7 +1557,7 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * Riwayat absen sendiri
+         * Riwayat presensi sendiri
          * @description Bawaannya 31 hari terakhir, rentang maksimal 92 hari. Tidak memuat skor risiko.
          */
         get: {
@@ -2522,7 +2522,7 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * Lokasi absen yang diizinkan untuk Pejuang
+         * Lokasi presensi yang diizinkan untuk Pejuang
          * @description Permission `employee:write`.
          */
         get: {
@@ -2551,8 +2551,8 @@ export interface paths {
             };
         };
         /**
-         * Tetapkan lokasi absen Pejuang
-         * @description Menggantikan seluruh daftar. Daftar kosong berarti Pejuang tidak bisa absen di mana pun. Lokasi super admin hanya bisa diubah oleh super admin (D34).
+         * Tetapkan lokasi presensi Pejuang
+         * @description Menggantikan seluruh daftar. Daftar kosong berarti Pejuang tidak bisa presensi di mana pun. Lokasi super admin hanya bisa diubah oleh super admin (D34).
          */
         put: {
             parameters: {
@@ -2646,8 +2646,8 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * Monitor absen semua Pejuang pada satu tanggal kerja
-         * @description Permission `attendance:review`. Memuat semua Pejuang aktif, termasuk yang belum absen. Tanggal kosong berarti tanggal kerja saat ini.
+         * Monitor presensi semua Pejuang pada satu tanggal kerja
+         * @description Permission `attendance:review`. Memuat semua Pejuang aktif, termasuk yang belum presensi. Tanggal kosong berarti tanggal kerja saat ini.
          */
         get: {
             parameters: {
@@ -2691,7 +2691,7 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * Antrian Review Absen
+         * Antrian Review Presensi
          * @description Permission `attendance:review`. Yang terlama lebih dulu.
          */
         get: {
@@ -2741,8 +2741,8 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * Lihat selfie untuk review absen
-         * @description Permission `attendance:review`; akses dicatat di audit. Hanya absen review dan selfie yang belum melewati retensi.
+         * Lihat selfie untuk review presensi
+         * @description Permission `attendance:review`; akses dicatat di audit. Hanya presensi review dan selfie yang belum melewati retensi.
          */
         get: {
             parameters: {
@@ -2786,7 +2786,7 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * Upaya absen pada satu tanggal, termasuk yang ditolak
+         * Upaya presensi pada satu tanggal, termasuk yang ditolak
          * @description Permission `attendance:review`. Tanggal kalender WIB dari waktu upaya, terbaru dulu. Tanggal kosong berarti hari ini.
          */
         get: {
@@ -2838,8 +2838,8 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * Putuskan absen review
-         * @description Permission `attendance:review`. `present` menghapus keterlambatan, `late` hanya untuk absen yang memang terlambat, dan `absent` wajib memakai catatan. Absen sendiri ditolak `CONFLICT_SELF_ACTION`, dan absen yang sudah diputuskan ditolak `REQUEST_NOT_PENDING`.
+         * Putuskan presensi review
+         * @description Permission `attendance:review`. `present` menghapus keterlambatan, `late` hanya untuk presensi yang memang terlambat, dan `absent` wajib memakai catatan. Presensi sendiri ditolak `CONFLICT_SELF_ACTION`, dan presensi yang sudah diputuskan ditolak `REQUEST_NOT_PENDING`.
          */
         post: {
             parameters: {
@@ -2974,7 +2974,7 @@ export interface paths {
         post?: never;
         /**
          * Cabut izin kerja
-         * @description Langsung berlaku, termasuk untuk absen pulang hari itu. Absen yang sudah tercatat tidak berubah.
+         * @description Langsung berlaku, termasuk untuk presensi pulang hari itu. Presensi yang sudah tercatat tidak berubah.
          */
         delete: {
             parameters: {
@@ -3257,6 +3257,655 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/leave-types": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Jenis cuti aktif beserta saldo tahun ini
+         * @description Permission `leave:create`. `balance` hanya ada untuk jenis bersaldo (D47): `statutory` memberi 12 hari per tahun setelah 12 bulan bekerja dari `join_date`, `custom` memakai jatah dari SDM. Hari terpakai menghitung pengajuan pending dan approved pada tahun kalender berjalan.
+         */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data: components["schemas"]["LeaveType"][];
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/leaves": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Pengajuan cuti/izin milik sendiri
+         * @description Permission `leave:read`. Terbaru dulu, paling banyak 100, lengkap dengan timeline persetujuan.
+         */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data: components["schemas"]["LeaveRequest"][];
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        /**
+         * Ajukan cuti atau izin
+         * @description Permission `leave:create`. Hari dihitung server dari hari kerja shift tanpa hari libur. Ditolak bila bertabrakan dengan pengajuan pending/approved (`DUPLICATE_REQUEST`), menutupi hari yang sudah ada presensi masuk, melewati pergantian tahun, lebih dari 92 hari, mulai lebih dari 30 hari ke belakang, atau melebihi saldo. Alur persetujuan mengikuti `approval_flows` (default kadiv lalu sdm, D46).
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["LeaveInput"];
+                };
+            };
+            responses: {
+                /** @description Dibuat */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data: components["schemas"]["LeaveRequest"];
+                        };
+                    };
+                };
+                400: components["responses"]["ValidationFailed"];
+                409: components["responses"]["Error"];
+                422: components["responses"]["Error"];
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/leaves/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        /**
+         * Detail pengajuan sendiri dengan timeline
+         * @description Permission `leave:read`. Pengajuan orang lain dijawab 404.
+         */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: components["parameters"]["Id"];
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data: components["schemas"]["LeaveRequest"];
+                        };
+                    };
+                };
+                404: components["responses"]["Error"];
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/leaves/{id}/cancel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Batalkan pengajuan yang masih menunggu
+         * @description Permission `leave:create`. Langkah yang belum diputuskan menjadi `skipped`.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: components["parameters"]["Id"];
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data: components["schemas"]["LeaveRequest"];
+                        };
+                    };
+                };
+                404: components["responses"]["Error"];
+                409: components["responses"]["Error"];
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/leaves": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Pengajuan cuti/izin dalam scope
+         * @description Permission `leave:read` dengan scope (subdiv, divisi, atau semua). Default tahun berjalan, paling banyak 500.
+         */
+        get: {
+            parameters: {
+                query?: {
+                    status?: components["schemas"]["RequestStatus"];
+                    from?: string;
+                    to?: string;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data: components["schemas"]["LeaveRequest"][];
+                        };
+                    };
+                };
+                400: components["responses"]["ValidationFailed"];
+                403: components["responses"]["Error"];
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/leave-types": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Semua jenis cuti, termasuk nonaktif
+         * @description Permission `approval_flow:manage`.
+         */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data: components["schemas"]["LeaveType"][];
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        /**
+         * Tambah jenis cuti
+         * @description Permission `approval_flow:manage`.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["LeaveTypeInput"];
+                };
+            };
+            responses: {
+                /** @description Dibuat */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data: components["schemas"]["LeaveType"];
+                        };
+                    };
+                };
+                400: components["responses"]["ValidationFailed"];
+                409: components["responses"]["Error"];
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/leave-types/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Ubah jenis cuti
+         * @description Permission `approval_flow:manage`. Kode tidak bisa diubah; kirim semua field selain `code`.
+         */
+        patch: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: components["parameters"]["Id"];
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["LeaveTypeInput"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data: components["schemas"]["LeaveType"];
+                        };
+                    };
+                };
+                400: components["responses"]["ValidationFailed"];
+                404: components["responses"]["Error"];
+            };
+        };
+        trace?: never;
+    };
+    "/v1/approvals/pending": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Langkah persetujuan yang menunggu keputusan saya
+         * @description Permission `approval:act`. Berisi langkah yang ditugaskan kepada pemanggil, ditambah pool `sdm` bila pemanggil berrole sdm. Pengajuan milik sendiri tidak pernah tampil.
+         */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data: components["schemas"]["ApprovalItem"][];
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/approvals/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        /**
+         * Detail langkah persetujuan dengan timeline pengajuan
+         * @description Permission `approval:act`. Hanya untuk approver langkah itu; selain itu 404.
+         */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: components["parameters"]["Id"];
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data: components["schemas"]["ApprovalItem"];
+                        };
+                    };
+                };
+                404: components["responses"]["Error"];
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/approvals/{id}/approve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Setujui langkah
+         * @description Permission `approval:act`. Ditolak bila pemanggil pemohon (`APPROVAL_SELF_FORBIDDEN`), bukan approver atau langkah sebelumnya belum diputuskan (`APPROVAL_NOT_YOUR_TURN`), atau sudah diputuskan (`REQUEST_NOT_PENDING`). Langkah terakhir yang disetujui menyelesaikan pengajuan; untuk cuti, hari kerjanya tercatat `leave` di presensi.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: components["parameters"]["Id"];
+                };
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": components["schemas"]["ApprovalDecision"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data: components["schemas"]["ApprovalItem"];
+                        };
+                    };
+                };
+                400: components["responses"]["ValidationFailed"];
+                403: components["responses"]["Error"];
+                404: components["responses"]["Error"];
+                409: components["responses"]["Error"];
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/approvals/{id}/reject": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Tolak langkah
+         * @description Permission `approval:act`. `note` wajib, minimal 3 karakter. Langkah tersisa menjadi `skipped`.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: components["parameters"]["Id"];
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["ApprovalDecision"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data: components["schemas"]["ApprovalItem"];
+                        };
+                    };
+                };
+                400: components["responses"]["ValidationFailed"];
+                403: components["responses"]["Error"];
+                404: components["responses"]["Error"];
+                409: components["responses"]["Error"];
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/approval-flows/{request_type}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                request_type: components["schemas"]["RequestKind"];
+            };
+            cookie?: never;
+        };
+        /**
+         * Alur persetujuan satu jenis pengajuan
+         * @description Permission `approval_flow:manage`.
+         */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    request_type: components["schemas"]["RequestKind"];
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data: components["schemas"]["ApprovalFlow"];
+                        };
+                    };
+                };
+                404: components["responses"]["Error"];
+            };
+        };
+        /**
+         * Ganti alur persetujuan
+         * @description Permission `approval_flow:manage`. 1 sampai 5 langkah, approver `subdiv`, `kadiv`, atau `sdm`, masing-masing sekali. Berlaku untuk pengajuan baru; pengajuan berjalan memakai snapshot langkahnya.
+         */
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    request_type: components["schemas"]["RequestKind"];
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["ApprovalFlowInput"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data: components["schemas"]["ApprovalFlow"];
+                        };
+                    };
+                };
+                400: components["responses"]["ValidationFailed"];
+                404: components["responses"]["Error"];
+            };
+        };
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/admin/reports/attendance": {
         parameters: {
             query?: never;
@@ -3266,7 +3915,7 @@ export interface paths {
         };
         /**
          * Rekap presensi bulanan
-         * @description Permission `attendance:report`, dibatasi scope. Filter mode hanya menghitung catatan absen masuk dengan mode tersebut; cuti dan alpha tidak disertakan.
+         * @description Permission `attendance:report`, dibatasi scope. Filter mode hanya menghitung catatan presensi masuk dengan mode tersebut; cuti dan alpha tidak disertakan.
          */
         get: {
             parameters: {
@@ -3313,7 +3962,7 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * Pratinjau upah berdasarkan presensi
+         * Pratinjau ubar berdasarkan presensi
          * @description Permission `attendance:report` dan `payroll:manage`. Rumus sementara, ada di `meta.rules`.
          */
         get: {
@@ -3369,7 +4018,7 @@ export interface components {
          * @description Registry MASTER.md §7.4
          * @enum {string}
          */
-        ErrorCode: "VALIDATION_FAILED" | "AUTH_INVALID_CREDENTIALS" | "AUTH_TOKEN_INVALID" | "AUTH_MFA_REQUIRED" | "AUTH_MFA_INVALID" | "FORBIDDEN_ROLE" | "CSRF_INVALID" | "PASSWORD_CHANGE_REQUIRED" | "MFA_SETUP_REQUIRED" | "DEVICE_NOT_REGISTERED" | "DEVICE_PENDING_APPROVAL" | "DEVICE_REVOKED" | "APPROVAL_NOT_YOUR_TURN" | "APPROVAL_SELF_FORBIDDEN" | "MAKER_CHECKER_VIOLATION" | "NOT_FOUND" | "METHOD_NOT_ALLOWED" | "ALREADY_CLOCKED_IN" | "ALREADY_CLOCKED_OUT" | "SHIFT_NOT_ASSIGNED" | "NOT_CLOCKED_IN" | "REQUEST_NOT_PENDING" | "PERIOD_LOCKED" | "DUPLICATE_REQUEST" | "CONFLICT_DUPLICATE" | "CONFLICT_HAS_DEPENDENTS" | "CONFLICT_SELF_ACTION" | "MFA_ALREADY_ENABLED" | "PAYLOAD_TOO_LARGE" | "UNSUPPORTED_MEDIA_TYPE" | "GEOFENCE_OUT" | "FACE_NOT_ENROLLED" | "FACE_MISMATCH" | "LIVENESS_FAILED" | "FACE_NOT_DETECTED" | "FACE_SERVICE_UNAVAILABLE" | "CHALLENGE_EXPIRED" | "ATTENDANCE_BLOCKED" | "ACTIVATION_INVALID" | "ACTIVATION_USED" | "ACTIVATION_EXPIRED" | "AUTH_ACCOUNT_LOCKED" | "APP_UPDATE_REQUIRED" | "RATE_LIMITED" | "API_ACCESS_DENIED" | "INTERNAL_ERROR";
+        ErrorCode: "VALIDATION_FAILED" | "AUTH_INVALID_CREDENTIALS" | "AUTH_TOKEN_INVALID" | "AUTH_MFA_REQUIRED" | "AUTH_MFA_INVALID" | "FORBIDDEN_ROLE" | "CSRF_INVALID" | "PASSWORD_CHANGE_REQUIRED" | "MFA_SETUP_REQUIRED" | "DEVICE_NOT_REGISTERED" | "DEVICE_PENDING_APPROVAL" | "DEVICE_REVOKED" | "APPROVAL_NOT_YOUR_TURN" | "APPROVAL_SELF_FORBIDDEN" | "MAKER_CHECKER_VIOLATION" | "NOT_FOUND" | "METHOD_NOT_ALLOWED" | "ALREADY_CLOCKED_IN" | "ALREADY_CLOCKED_OUT" | "SHIFT_NOT_ASSIGNED" | "NOT_CLOCKED_IN" | "REQUEST_NOT_PENDING" | "PERIOD_LOCKED" | "DUPLICATE_REQUEST" | "CONFLICT_DUPLICATE" | "CONFLICT_HAS_DEPENDENTS" | "CONFLICT_SELF_ACTION" | "MFA_ALREADY_ENABLED" | "PAYLOAD_TOO_LARGE" | "UNSUPPORTED_MEDIA_TYPE" | "GEOFENCE_OUT" | "FACE_NOT_ENROLLED" | "FACE_MISMATCH" | "LIVENESS_FAILED" | "FACE_NOT_DETECTED" | "FACE_SERVICE_UNAVAILABLE" | "CHALLENGE_EXPIRED" | "ATTENDANCE_BLOCKED" | "LEAVE_ACTIVE" | "ACTIVATION_INVALID" | "ACTIVATION_USED" | "ACTIVATION_EXPIRED" | "AUTH_ACCOUNT_LOCKED" | "APP_UPDATE_REQUIRED" | "RATE_LIMITED" | "API_ACCESS_DENIED" | "INTERNAL_ERROR";
         /**
          * @description Matriks MASTER.md §3.2
          * @enum {string}
@@ -3715,7 +4364,7 @@ export interface components {
              */
             liveness_action: "blink" | "turn_left" | "turn_right" | "smile";
         };
-        /** @description Payload absen. Skor wajah adalah kemiripan cosine SFace (D43): di bawah 0.46 ditolak `FACE_MISMATCH`, 0.46 sampai 0.50 diterima dengan sinyal `face_borderline` (+20). Selfie yang pernah dikirim ditolak `ATTENDANCE_BLOCKED`. Token Play saat ini hanya dapat diuji di development. */
+        /** @description Payload presensi. Skor wajah adalah kemiripan cosine SFace (D43): di bawah 0.46 ditolak `FACE_MISMATCH`, 0.46 sampai 0.50 diterima dengan sinyal `face_borderline` (+20). Selfie yang pernah dikirim ditolak `ATTENDANCE_BLOCKED`. Token Play saat ini hanya dapat diuji di development. */
         ClockInput: {
             /** Format: uuid */
             challenge_id: string;
@@ -3830,7 +4479,7 @@ export interface components {
             /** Format: date-time */
             clock_out_at: string | null;
             late_minutes: number;
-            /** @description Kosong bila belum atau lupa absen pulang */
+            /** @description Kosong bila belum atau lupa presensi pulang */
             worked_minutes: number | null;
             /** @enum {string} */
             work_mode: "onsite" | "wfa" | "field";
@@ -3915,7 +4564,7 @@ export interface components {
             /** @description false bila hari libur, di luar hari kerja shift, atau shift belum ditentukan */
             scheduled: boolean;
             /**
-             * @description Kosong berarti belum ada absen
+             * @description Kosong berarti belum ada presensi
              * @enum {string|null}
              */
             status: "present" | "late" | "absent" | "leave" | "review" | null;
@@ -4049,6 +4698,150 @@ export interface components {
             reason: string;
             /** Format: date-time */
             created_at: string;
+        };
+        /** @enum {string} */
+        RequestKind: "leave" | "cash_advance" | "transfer";
+        /** @enum {string} */
+        RequestStatus: "pending" | "approved" | "rejected" | "cancelled";
+        /** @enum {string} */
+        ApprovalStepStatus: "waiting" | "pending" | "approved" | "rejected" | "skipped";
+        ApprovalStep: {
+            step_order: number;
+            /** @enum {string} */
+            approver_role: "subdiv" | "kadiv" | "sdm";
+            /** @description Kosong untuk pool sdm */
+            approver_name: string | null;
+            status: components["schemas"]["ApprovalStepStatus"];
+            /** @description Catatan approver */
+            note: string | null;
+            /** Format: date-time */
+            acted_at: string | null;
+        };
+        ApprovalItem: {
+            /** Format: uuid */
+            id: string;
+            request_type: components["schemas"]["RequestKind"];
+            /** Format: uuid */
+            request_id: string;
+            step_order: number;
+            /** @enum {string} */
+            approver_role: "subdiv" | "kadiv" | "sdm";
+            status: components["schemas"]["ApprovalStepStatus"];
+            requester: {
+                /** Format: uuid */
+                employee_id: string;
+                full_name: string;
+                subdivision_name: string;
+            };
+            /** @description Ringkasan sesuai jenis. Cuti berisi leave_type, start_date, end_date, days, reason. */
+            summary: {
+                leave_type?: string;
+                /** Format: date */
+                start_date?: string;
+                /** Format: date */
+                end_date?: string;
+                days?: number;
+                reason?: string;
+            };
+            note: string | null;
+            /** Format: date-time */
+            acted_at: string | null;
+            /** Format: date-time */
+            created_at: string;
+            /** @description Hanya pada detail */
+            steps?: components["schemas"]["ApprovalStep"][];
+        };
+        ApprovalDecision: {
+            /** @description Wajib minimal 3 karakter untuk reject */
+            note?: string | null;
+        };
+        ApprovalFlow: {
+            request_type: components["schemas"]["RequestKind"];
+            steps: {
+                step_order: number;
+                /** @enum {string} */
+                approver_role: "subdiv" | "kadiv" | "sdm";
+            }[];
+        };
+        ApprovalFlowInput: {
+            steps: {
+                /** @enum {string} */
+                approver_role: "subdiv" | "kadiv" | "sdm";
+            }[];
+        };
+        LeaveBalance: {
+            year: number;
+            entitled_days: number;
+            used_days: number;
+            remaining_days: number;
+            /**
+             * Format: date
+             * @description Untuk statutory
+             */
+            eligible_from: string | null;
+        };
+        LeaveType: {
+            /** Format: uuid */
+            id: string;
+            code: string;
+            name: string;
+            paid: boolean;
+            /** @enum {string} */
+            quota_kind: "statutory" | "custom" | "none";
+            annual_quota_days: number | null;
+            is_active: boolean;
+            balance?: components["schemas"]["LeaveBalance"];
+        };
+        LeaveTypeInput: {
+            /** @description Wajib saat membuat */
+            code?: string;
+            name: string;
+            /** @default true */
+            paid: boolean;
+            /** @enum {string} */
+            quota_kind: "statutory" | "custom" | "none";
+            /** @description Wajib untuk custom */
+            annual_quota_days?: number | null;
+            /** @default true */
+            is_active: boolean;
+        };
+        LeaveInput: {
+            /** Format: uuid */
+            leave_type_id: string;
+            /** Format: date */
+            start_date: string;
+            /** Format: date */
+            end_date: string;
+            reason: string;
+        };
+        LeaveRequest: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            employee_id: string;
+            /** @description Ada pada detail dan daftar admin */
+            employee_name?: string;
+            /** @description Ada pada detail dan daftar admin */
+            subdivision_name?: string;
+            leave_type: {
+                /** Format: uuid */
+                id: string;
+                code: string;
+                name: string;
+            };
+            /** Format: date */
+            start_date: string;
+            /** Format: date */
+            end_date: string;
+            /** @description Hari kerja dalam rentang */
+            days: number;
+            reason: string;
+            status: components["schemas"]["RequestStatus"];
+            /** Format: date-time */
+            created_at: string;
+            /** Format: date-time */
+            decided_at: string | null;
+            approvals: components["schemas"]["ApprovalStep"][];
         };
         EmployeeLocationsInput: {
             location_ids: string[];

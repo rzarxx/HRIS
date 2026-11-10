@@ -56,7 +56,7 @@ export function EmployeeForm({
   const subdivisions = useSubdivisions();
   const shifts = useShifts();
   const me = useMe();
-  // Gaji hanya urusan SDM; super admin tidak melihat atau mengubahnya (D34).
+  // Ubar hanya urusan SDM; super admin tidak melihat atau mengubahnya (D34).
   const managesSalary = me.data?.role === "sdm";
   const [form, setForm] = useState<FormState>(() => initial(employee));
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -86,7 +86,7 @@ export function EmployeeForm({
     const values: EmployeeInput = managesSalary ? { ...rest, base_salary: base_salary ? `${base_salary}.00` : "" } : rest;
     const all = { ...(validate(employeeSchema, values) ?? {}) };
     if (!division_id) all.division_id = "Pilih divisi.";
-    if (managesSalary && base_salary === "") all.base_salary = "Gaji pokok wajib diisi.";
+    if (managesSalary && base_salary === "") all.base_salary = "Ubar pokok wajib diisi.";
     setErrors(all);
     if (Object.keys(all).length === 0) save.mutate(values);
   }
@@ -183,7 +183,7 @@ export function EmployeeForm({
           <Input id="join_date" type="date" value={form.join_date ?? ""} onChange={(e) => set("join_date", e.target.value)} invalid={!!errors.join_date} />
         </Field>
         {managesSalary && (
-        <Field label="Gaji pokok (Rp)" htmlFor="base_salary" error={errors.base_salary} required>
+        <Field label="Ubar pokok (Rp)" htmlFor="base_salary" error={errors.base_salary} required>
           <Input
             id="base_salary"
             inputMode="numeric"

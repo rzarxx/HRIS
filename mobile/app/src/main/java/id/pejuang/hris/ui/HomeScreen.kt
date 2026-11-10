@@ -128,12 +128,12 @@ fun HomeContent(
             if (crash != null) CrashNotice(crash, onCopyCrash, onDismissCrash)
             when (me.deviceStatus) {
                 "approved" -> {}
-                "pending" -> StatusBanner(Tone.Warning, HrisIcons.Smartphone, "HP menunggu persetujuan", "SDM perlu menyetujui HP ini sebelum Anda bisa absen. Muat ulang setelah disetujui.")
+                "pending" -> StatusBanner(Tone.Warning, HrisIcons.Smartphone, "HP menunggu persetujuan", "SDM perlu menyetujui HP ini sebelum Anda bisa presensi. Muat ulang setelah disetujui.")
                 else -> StatusBanner(Tone.Danger, HrisIcons.Smartphone, "HP tidak aktif", "HP ini sudah dicabut. Hubungi SDM.")
             }
             if (me.mustChangePassword) StatusBanner(Tone.Warning, Icons.Filled.Lock, "Ganti kata sandi dulu", "Buka menu Profil, lalu pilih Ganti kata sandi.")
             if (!me.faceEnrolled) {
-                StatusBanner(Tone.Info, HrisIcons.FaceScan, "Daftarkan wajah Anda", "Sekali saja, di lokasi kantor, sebelum absen pertama.") {
+                StatusBanner(Tone.Info, HrisIcons.FaceScan, "Daftarkan wajah Anda", "Sekali saja, di lokasi kantor, sebelum presensi pertama.") {
                     BannerAction("Daftarkan sekarang", enabled = ready) { onCapture(PURPOSE_FACE_ENROLL) }
                 }
             }
@@ -150,18 +150,18 @@ fun HomeContent(
                 Text(today?.locationName ?: today?.let { workModeLabel(it.workMode) } ?: "Presensi belum tercatat", style = MaterialTheme.typography.bodySmall, color = Hc.InkSoft)
             }
 
-            HomeSection("Absen", "Catat kehadiran sesuai jadwal kerja") {
+            HomeSection("Presensi", "Catat kehadiran sesuai jadwal kerja") {
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    HomeAction("Absen masuk", if (clockedIn) "Tercatat ${wibTime(today?.clockInAt)}" else "Mulai hari kerja", HrisIcons.ClockIn, canClock, Modifier.weight(1f)) { onCapture(PURPOSE_CLOCK_IN) }
-                    HomeAction("Absen pulang", if (clockedOut) "Tercatat ${wibTime(today?.clockOutAt)}" else "Akhiri hari kerja", HrisIcons.ClockOut, canClock, Modifier.weight(1f)) { onCapture(PURPOSE_CLOCK_OUT) }
+                    HomeAction("Presensi masuk", if (clockedIn) "Tercatat ${wibTime(today?.clockInAt)}" else "Mulai hari kerja", HrisIcons.ClockIn, canClock, Modifier.weight(1f)) { onCapture(PURPOSE_CLOCK_IN) }
+                    HomeAction("Presensi pulang", if (clockedOut) "Tercatat ${wibTime(today?.clockOutAt)}" else "Akhiri hari kerja", HrisIcons.ClockOut, canClock, Modifier.weight(1f)) { onCapture(PURPOSE_CLOCK_OUT) }
                 }
-                if (!canClock) Text("Absen aktif setelah HP disetujui dan wajah terdaftar.", style = MaterialTheme.typography.bodySmall, color = Hc.InkSoft)
+                if (!canClock) Text("Presensi aktif setelah HP disetujui dan wajah terdaftar.", style = MaterialTheme.typography.bodySmall, color = Hc.InkSoft)
             }
 
             HomeSection("Layanan Pejuang", "Informasi dan riwayat kehadiran") {
-                ListRow(HrisIcons.History, "Riwayat absen", "31 hari terakhir", onClick = onHistory)
+                ListRow(HrisIcons.History, "Riwayat presensi", "31 hari terakhir", onClick = onHistory)
                 RowDivider()
-                ListRow(HrisIcons.FaceScan, "Data wajah", "Untuk verifikasi saat absen") {
+                ListRow(HrisIcons.FaceScan, "Data wajah", "Untuk verifikasi saat presensi") {
                     if (me.faceEnrolled) StatusChip("Terdaftar", Tone.Success) else StatusChip("Belum", Tone.Warning)
                 }
                 RowDivider()

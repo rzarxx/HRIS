@@ -102,11 +102,11 @@ private fun hasPermissions(context: Context) =
 
 fun captureTitle(purpose: String) = when (purpose) {
     PURPOSE_FACE_ENROLL -> "Daftarkan wajah"
-    PURPOSE_CLOCK_IN -> "Absen masuk"
-    else -> "Absen pulang"
+    PURPOSE_CLOCK_IN -> "Presensi masuk"
+    else -> "Presensi pulang"
 }
 
-/** Alur daftar wajah (F7) dan absen masuk/pulang (F8): challenge, liveness, foto, lokasi, kirim. */
+/** Alur daftar wajah (F7) dan presensi masuk/pulang (F8): challenge, liveness, foto, lokasi, kirim. */
 @Composable
 fun CaptureScreen(purpose: String, repository: Repository, location: LocationReader, onClose: () -> Unit) {
     val context = LocalContext.current
@@ -151,7 +151,7 @@ fun CaptureScreen(purpose: String, repository: Repository, location: LocationRea
                 val fix = location.current()
                 val outcome = if (enrolling) {
                     repository.enroll(challenge, photos, fix)
-                    ClockOutcome("Wajah terdaftar", "Mulai sekarang Anda bisa absen dengan selfie.", false)
+                    ClockOutcome("Wajah terdaftar", "Mulai sekarang Anda bisa presensi dengan selfie.", false)
                 } else {
                     repository.clock(purpose, challenge, photos.first(), fix)
                 }
@@ -164,7 +164,7 @@ fun CaptureScreen(purpose: String, repository: Repository, location: LocationRea
         }
     }
 
-    // Saat mengirim, tombol kembali diabaikan agar absen tidak terputus di tengah jalan.
+    // Saat mengirim, tombol kembali diabaikan agar presensi tidak terputus di tengah jalan.
     BackHandler(enabled = step == Step.Sending) {}
 
     when (val s = step) {
@@ -237,16 +237,16 @@ fun ConsentContent(onAccept: () -> Unit, onCancel: () -> Unit) {
                 color = Hc.InkSoft,
             )
             SectionCard(padding = 4.dp) {
-                Point(HrisIcons.FaceScan, "Dipakai untuk mencocokkan wajah", "Foto wajah hanya dipakai untuk memastikan yang absen adalah Anda.")
+                Point(HrisIcons.FaceScan, "Dipakai untuk mencocokkan wajah", "Foto wajah hanya dipakai untuk memastikan yang presensi adalah Anda.")
                 RowDivider()
                 Point(Icons.Filled.Lock, "Disimpan terenkripsi", "Foto selfie dihapus otomatis paling lama 90 hari.")
                 RowDivider()
-                Point(Icons.Filled.LocationOn, "Lokasi hanya saat absen", "Lokasi diambil saat Anda menekan tombol absen, tidak dilacak terus-menerus.")
+                Point(Icons.Filled.LocationOn, "Lokasi hanya saat presensi", "Lokasi diambil saat Anda menekan tombol presensi, tidak dilacak terus-menerus.")
             }
             SectionCard(padding = 4.dp) {
                 ConsentCheck(biometric, { biometric = it }, "Saya menyetujui pemrosesan data wajah saya.")
                 HorizontalDivider(color = Hc.Line, modifier = Modifier.padding(horizontal = 16.dp))
-                ConsentCheck(locationOk, { locationOk = it }, "Saya menyetujui pengambilan lokasi saat absen.")
+                ConsentCheck(locationOk, { locationOk = it }, "Saya menyetujui pengambilan lokasi saat presensi.")
             }
         }
         Column(
@@ -336,7 +336,7 @@ fun ResultContent(outcome: ClockOutcome, at: ZonedDateTime, onClose: () -> Unit)
                     Tone.Warning,
                     Icons.Filled.Info,
                     "Perlu ditinjau SDM",
-                    "Absen tetap tercatat. SDM akan memeriksa lokasi atau verifikasi wajahnya.",
+                    "Presensi tetap tercatat. SDM akan memeriksa lokasi atau verifikasi wajahnya.",
                 )
             }
         },

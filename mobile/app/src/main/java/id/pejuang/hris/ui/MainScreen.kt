@@ -75,7 +75,7 @@ fun MainScreen(
         historyError = null
         try {
             me = repository.me()
-            // Kegagalan riwayat tidak menghalangi absen; tab Presensi menampilkan pesannya sendiri.
+            // Kegagalan riwayat tidak menghalangi presensi; tab Presensi menampilkan pesannya sendiri.
             try {
                 records = repository.history()
             } catch (e: CancellationException) {
@@ -152,7 +152,7 @@ fun MainScreen(
             FigmaPopup(
                 icon = FigmaIcons.Logout,
                 title = "Keluar dari aplikasi?",
-                body = "Anda perlu masuk lagi dengan email dan kata sandi untuk absen berikutnya.",
+                body = "Anda perlu masuk lagi dengan email dan kata sandi untuk presensi berikutnya.",
                 primary = "Ya, keluar",
                 onPrimary = { askLogout = false; logout() },
                 secondary = "Batal",
@@ -204,7 +204,7 @@ fun MainTabs(
                 MainTab.Attendance -> AttendanceContent(me, records, historyError, now, onCapture, onRetry = onRefresh)
                 MainTab.Requests -> ComingSoonContent(
                     title = "Pengajuan",
-                    subtitle = "Cuti, izin, kasbon, dan mutasi",
+                    subtitle = "Cuti, izin, pinjaman, dan mutasi",
                     body = "Pengajuan dari aplikasi sedang disiapkan. Sementara ini ajukan lewat SDM. " +
                         "Riwayat dan alur persetujuannya akan tampil di sini.",
                 )

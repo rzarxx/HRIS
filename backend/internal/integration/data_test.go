@@ -126,11 +126,11 @@ func TestEmployeeCRUD(t *testing.T) {
 		t.Errorf("PATCH: %+v", patched)
 	}
 
-	// Ubah gaji tercatat dengan nilai lama dan baru.
+	// Ubah ubar tercatat dengan nilai lama dan baru.
 	sdm.do(http.MethodPatch, "/v1/admin/employees/"+created.ID, map[string]any{"base_salary": "5000000.00"}).want(t, http.StatusOK)
 	var detail string
 	if err := ownerPool.QueryRow(context.Background(), `SELECT detail::text FROM audit_logs WHERE action = 'employee.salary_changed'`).Scan(&detail); err != nil {
-		t.Fatalf("audit ubah gaji: %v", err)
+		t.Fatalf("audit ubah ubar: %v", err)
 	}
 	if detail == "" {
 		t.Error("detail audit kosong")
@@ -169,7 +169,7 @@ func TestEmployeeListFilters(t *testing.T) {
 		t.Errorf("default per_page: %d dari %d", len(rows), total)
 	}
 	if rows[0].Account == nil || rows[0].BaseSalary == nil {
-		t.Error("SDM harus melihat gaji dan data akun")
+		t.Error("SDM harus melihat ubar dan data akun")
 	}
 	rows, _ = get("per_page=7&page=9")
 	if len(rows) != 2 {
@@ -360,7 +360,7 @@ func TestPayrollPreviewUsesAttendance(t *testing.T) {
 			continue
 		}
 		if r.BaseSalary != "5200000.00" || r.AbsentDeduction != "200000.00" || r.LateDeduction != "10000.00" || r.Net != "4990000.00" {
-			t.Errorf("upah: %+v", r)
+			t.Errorf("ubar: %+v", r)
 		}
 	}
 
@@ -412,7 +412,7 @@ func TestAttendanceReportWorkMode(t *testing.T) {
 }
 
 // Pejuang baru tidak muncul di laporan bulan sebelum bergabung, dan yang nonaktif tanpa
-// presensi tidak muncul dengan gaji penuh.
+// presensi tidak muncul dengan ubar penuh.
 func TestReportMembership(t *testing.T) {
 	srv := fresh(t, options{})
 	sdm := loginSDM(t, srv)

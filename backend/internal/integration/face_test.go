@@ -258,7 +258,7 @@ func TestFaceEnrollAndMatch(t *testing.T) {
 	}
 }
 
-// Server tanpa model wajah menolak dengan jelas, tetapi absen development tanpa selfie tetap jalan.
+// Server tanpa model wajah menolak dengan jelas, tetapi presensi development tanpa selfie tetap jalan.
 func TestFaceServiceUnavailable(t *testing.T) {
 	f := newClockFixture(t, options{noFaceEngine: true}, "08:00", "17:00")
 	f.enroll(t, enrollSamples(), nil).wantError(t, http.StatusServiceUnavailable, "FACE_SERVICE_UNAVAILABLE")

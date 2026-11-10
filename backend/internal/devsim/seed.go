@@ -213,7 +213,7 @@ func seedAll(ctx context.Context, q *store.Queries, passwordHash string, now tim
 	announcements := []store.CreateAnnouncementParams{
 		{
 			Title: "Selamat datang di HRIS Pejuang",
-			Body:  "Mulai bulan ini presensi, pengajuan cuti, dan slip upah dapat diakses lewat aplikasi HRIS Pejuang.",
+			Body:  "Mulai bulan ini presensi, pengajuan cuti, dan slip ubar dapat diakses lewat aplikasi HRIS Pejuang.",
 			Type:  store.AnnTypePopup, StartsAt: pgconv.Time(now.AddDate(0, 0, -5)), EndsAt: pgconv.Time(now.AddDate(0, 1, 0)),
 		},
 		{

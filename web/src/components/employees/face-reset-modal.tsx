@@ -46,7 +46,7 @@ export function FaceResetModal({ employee, onClose }: { employee: EmployeeListIt
     >
       <form id="face-reset-form" onSubmit={submit} noValidate className="space-y-4">
         <p className="text-sm text-slate-700">
-          Wajah <strong className="text-slate-900">{employee.full_name}</strong> tidak bisa dipakai absen lagi sampai ia mendaftar ulang dari aplikasi, di lokasi kantor atau dengan izin jarak jauh.
+          Wajah <strong className="text-slate-900">{employee.full_name}</strong> tidak bisa dipakai presensi lagi sampai ia mendaftar ulang dari aplikasi, di lokasi kantor atau dengan izin jarak jauh.
         </p>
         <Field label="Alasan" htmlFor="face_reset_reason" error={error} required>
           <Textarea

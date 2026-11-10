@@ -65,7 +65,7 @@ func newClockFixture(t *testing.T, opt options, startTime, endTime string) clock
 	opt.clock = clock.Now
 	opt.allowUnverified = !opt.strictIntegrity
 	if opt.strictIntegrity {
-		// Di luar development absen hanya diterima dari sesi aplikasi (D39).
+		// Di luar development presensi hanya diterima dari sesi aplikasi (D39).
 		_, private, err := ed25519.GenerateKey(rand.Reader)
 		if err != nil {
 			t.Fatal(err)
@@ -164,7 +164,7 @@ func TestClockInAndOut(t *testing.T) {
 
 	in := data[clockInResp](t, f.clockIn(t).want(t, http.StatusCreated))
 	if in.WorkDate != "2026-11-02" || in.Status != "present" || in.LateMinutes != 0 || in.RequiresReview || in.OfficeLocation.Name != "Kantor Pusat" {
-		t.Errorf("absen masuk: %+v", in)
+		t.Errorf("presensi masuk: %+v", in)
 	}
 	if outcome, reason, flags := lastAttempt(t, f.account.employeeID); outcome != "accepted" || reason != "ok" || !strings.Contains(flags, "unverified_integrity") {
 		t.Errorf("upaya masuk: %s %s %s", outcome, reason, flags)
@@ -179,7 +179,7 @@ func TestClockInAndOut(t *testing.T) {
 	f.clock.Set(wibTime(2, 17, 5))
 	out := data[clockOutResp](t, f.clockOut(t).want(t, http.StatusOK))
 	if out.WorkedMinutes != 545 || out.WorkDate != "2026-11-02" {
-		t.Errorf("absen pulang: %+v", out)
+		t.Errorf("presensi pulang: %+v", out)
 	}
 	f.clockOut(t).wantError(t, http.StatusConflict, "ALREADY_CLOCKED_OUT")
 
@@ -251,7 +251,7 @@ func TestOvernightShift(t *testing.T) {
 	}
 }
 
-// Lupa absen pulang tidak diberi jam kerja otomatis (D31).
+// Lupa presensi pulang tidak diberi jam kerja otomatis (D31).
 func TestMissedClockOut(t *testing.T) {
 	f := newClockFixture(t, options{}, "08:00", "17:00")
 	f.clockOut(t).wantError(t, http.StatusConflict, "NOT_CLOCKED_IN")
@@ -268,7 +268,7 @@ func TestMissedClockOut(t *testing.T) {
 		t.Errorf("jam kerja terisi otomatis: %d", *worked)
 	}
 
-	// Hari berikutnya tetap bisa absen masuk.
+	// Hari berikutnya tetap bisa presensi masuk.
 	f.clock.Set(wibTime(3, 8, 0))
 	f.clockIn(t).want(t, http.StatusCreated)
 }
@@ -306,7 +306,7 @@ func TestChallengeRules(t *testing.T) {
 }
 
 // Challenge harus tetap sekali pakai saat permintaan yang sama tiba bersamaan. Uji juga
-// percobaan yang ditolak setelah challenge dikonsumsi, bukan hanya absen yang berhasil.
+// percobaan yang ditolak setelah challenge dikonsumsi, bukan hanya presensi yang berhasil.
 func TestConcurrentChallengeReplay(t *testing.T) {
 	for _, tc := range []struct {
 		name       string
@@ -407,7 +407,7 @@ func TestClockInLocationAndShiftRules(t *testing.T) {
 	}).want(t, http.StatusCreated))
 	f.sdm.do(http.MethodPut, "/v1/admin/employees/"+f.account.employeeID+"/locations", map[string]any{"location_ids": []string{f.location, second.ID}}).want(t, http.StatusOK)
 
-	// Tanpa shift tidak bisa absen, dan pesannya jelas.
+	// Tanpa shift tidak bisa presensi, dan pesannya jelas.
 	f.sdm.do(http.MethodPatch, "/v1/admin/employees/"+f.account.employeeID, map[string]any{"default_shift_id": nil}).want(t, http.StatusOK)
 	f.clockIn(t).wantError(t, http.StatusUnprocessableEntity, "SHIFT_NOT_ASSIGNED")
 	f.sdm.do(http.MethodPatch, "/v1/admin/employees/"+f.account.employeeID, map[string]any{"default_shift_id": f.shiftID}).want(t, http.StatusOK)
@@ -450,7 +450,7 @@ func TestHardSignalsAreGeneric(t *testing.T) {
 	}
 }
 
-// Di luar development, sesi web tidak bisa absen walau mengirim perangkat miliknya sendiri (D39).
+// Di luar development, sesi web tidak bisa presensi walau mengirim perangkat miliknya sendiri (D39).
 func TestWebSessionCannotClockOutsideDevelopment(t *testing.T) {
 	f := newClockFixture(t, options{strictIntegrity: true}, "08:00", "17:00")
 	web := f.web.withHeaders(map[string]string{"X-Device-Id": f.deviceID})
@@ -468,7 +468,7 @@ func TestWebSessionCannotClockOutsideDevelopment(t *testing.T) {
 	f.clockIn(t).wantError(t, http.StatusUnprocessableEntity, "ATTENDANCE_BLOCKED")
 }
 
-// Bawaannya semua absen ditolak selama verifikasi perangkat dan wajah belum ada (D36).
+// Bawaannya semua presensi ditolak selama verifikasi perangkat dan wajah belum ada (D36).
 func TestUnverifiedAttendanceBlockedByDefault(t *testing.T) {
 	f := newClockFixture(t, options{strictIntegrity: true}, "08:00", "17:00")
 	f.clockIn(t).wantError(t, http.StatusUnprocessableEntity, "ATTENDANCE_BLOCKED")
@@ -480,11 +480,11 @@ func TestUnverifiedAttendanceBlockedByDefault(t *testing.T) {
 		t.Fatal(err)
 	}
 	if count != 0 {
-		t.Errorf("absen tersimpan: %d", count)
+		t.Errorf("presensi tersimpan: %d", count)
 	}
 }
 
-// Absen dibatasi 10 permintaan per menit, tanpa mengganggu riwayat.
+// Presensi dibatasi 10 permintaan per menit, tanpa mengganggu riwayat.
 func TestClockRateLimit(t *testing.T) {
 	f := newClockFixture(t, options{limiter: auth.NewMemoryLimiter()}, "08:00", "17:00")
 	f.hp.headers = map[string]string{"X-Device-Id": f.deviceID}
@@ -495,7 +495,7 @@ func TestClockRateLimit(t *testing.T) {
 	f.hp.do(http.MethodGet, "/v1/attendance", nil).want(t, http.StatusOK)
 }
 
-// Simulasi presensi tidak boleh menimpa jatah absen Pejuang yang sudah punya perangkat.
+// Simulasi presensi tidak boleh menimpa jatah presensi Pejuang yang sudah punya perangkat.
 func TestSimulationSkipsEmployeesWithDevice(t *testing.T) {
 	f := newClockFixture(t, options{}, "08:00", "17:00")
 	if _, err := devsim.FillAttendance(context.Background(), store.New(ownerPool), wibTime(2, 12, 0)); err != nil {

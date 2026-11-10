@@ -60,7 +60,7 @@ func TestMobileLoginBindsDevice(t *testing.T) {
 		t.Errorf("login ulang: %+v", again)
 	}
 
-	// HP kedua menunggu persetujuan (D32): boleh masuk, tetapi belum boleh absen.
+	// HP kedua menunggu persetujuan (D32): boleh masuk, tetapi belum boleh presensi.
 	second := data[mobileTokens](t, mobileLogin(anon, acc.email, seedPassword, "hp-baru").want(t, http.StatusOK))
 	if second.DeviceStatus != "pending" || second.DeviceID == first.DeviceID {
 		t.Errorf("HP kedua: %+v", second)

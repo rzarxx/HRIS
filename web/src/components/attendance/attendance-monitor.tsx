@@ -27,7 +27,7 @@ const STATE: Record<State, { label: string; tone: "green" | "amber" | "red" | "g
   review: { label: "Perlu ditinjau", tone: "red", color: "#b91c1c" },
   absent: { label: "Tidak hadir", tone: "red" },
   leave: { label: "Cuti", tone: "gray" },
-  waiting: { label: "Belum absen", tone: "gray" },
+  waiting: { label: "Belum presensi", tone: "gray" },
   off: { label: "Tidak terjadwal", tone: "gray" },
 };
 
@@ -37,7 +37,7 @@ const stateOf = (a: AttendanceMonitorItem): State => a.status ?? (a.scheduled ? 
 
 const timeOf = (iso: string | null) => (iso ? new Date(iso).toLocaleTimeString("id-ID", { timeZone: TZ, hour: "2-digit", minute: "2-digit" }) : "-");
 
-// Titik terakhir yang diketahui: titik pulang bila sudah absen pulang.
+// Titik terakhir yang diketahui: titik pulang bila sudah presensi pulang.
 function pointOf(a: AttendanceMonitorItem): MonitorPoint | null {
   const color = STATE[stateOf(a)].color;
   const latitude = a.out_latitude ?? a.in_latitude;
@@ -79,8 +79,8 @@ export function AttendanceMonitor() {
   return (
     <>
       <PageHeader
-        title="Monitor Absen"
-        description={date === today ? "Kondisi absen semua Pejuang hari ini, diperbarui otomatis tiap 60 detik." : "Kondisi absen semua Pejuang pada tanggal ini."}
+        title="Monitor Presensi"
+        description={date === today ? "Kondisi presensi semua Pejuang hari ini, diperbarui otomatis tiap 60 detik." : "Kondisi presensi semua Pejuang pada tanggal ini."}
       />
       <Card bodyClassName="">
         <div className="flex flex-wrap items-center gap-3 border-b border-slate-100 p-4">
@@ -122,7 +122,7 @@ export function AttendanceMonitor() {
               <Tile label="Hadir" value={count("present")} />
               <Tile label="Telat" value={count("late")} />
               <Tile label="Perlu ditinjau" value={count("review")} />
-              <Tile label="Belum absen" value={count("waiting")} />
+              <Tile label="Belum presensi" value={count("waiting")} />
             </div>
 
             <div className="border-b border-slate-100 p-4">
@@ -138,7 +138,7 @@ export function AttendanceMonitor() {
                 <span className="sm:hidden">Geser peta dengan dua jari.</span>
               </div>
               <p className="mt-1 text-xs text-slate-500">
-                Titik adalah lokasi saat absen terakhir, bukan posisi terkini.
+                Titik adalah lokasi saat presensi terakhir, bukan posisi terkini.
                 {noPoint > 0 && ` ${number(noPoint)} Pejuang hadir tanpa titik karena datanya simulasi.`}
               </p>
             </div>

@@ -194,7 +194,7 @@ class UiLogicTest {
     fun labelsAndGreeting() {
         assertEquals("SN", id.pejuang.hris.ui.initials("Siti Nurhaliza Rahmawati"))
         assertEquals("Terlambat", id.pejuang.hris.ui.statusLabel("late").first)
-        assertEquals("Belum absen", id.pejuang.hris.ui.statusLabel(null).first)
+        assertEquals("Belum presensi", id.pejuang.hris.ui.statusLabel(null).first)
         val morning = java.time.ZonedDateTime.of(2026, 11, 9, 7, 0, 0, 0, id.pejuang.hris.ui.Wib)
         assertEquals("Selamat pagi", id.pejuang.hris.ui.greeting(morning))
         assertEquals("Selamat malam", id.pejuang.hris.ui.greeting(morning.withHour(20)))
@@ -209,7 +209,7 @@ class UiLogicTest {
         val closed = id.pejuang.hris.data.AttendanceRecord("b", "2026-11-06", "late", "2026-11-06T01:17:00Z", "2026-11-06T10:05:00Z", 17, 528, "onsite")
         val forgot = id.pejuang.hris.data.AttendanceRecord("c", "2026-11-05", "present", "2026-11-05T00:51:00Z", workMode = "onsite")
         val lastMonth = id.pejuang.hris.data.AttendanceRecord("d", "2026-10-31", "present", workedMinutes = 480, workMode = "onsite")
-        // Absen hari ini yang belum pulang dihitung sampai sekarang; hari lalu tanpa pulang tidak dihitung.
+        // Presensi hari ini yang belum pulang dihitung sampai sekarang; hari lalu tanpa pulang tidak dihitung.
         assertEquals(120, id.pejuang.hris.ui.workedMinutesOf(open, now))
         assertEquals(528, id.pejuang.hris.ui.workedMinutesOf(closed, now))
         assertEquals(0, id.pejuang.hris.ui.workedMinutesOf(forgot, now))
@@ -233,6 +233,8 @@ class UiLogicTest {
         assertEquals(id.pejuang.hris.data.PURPOSE_FACE_ENROLL, id.pejuang.hris.ui.clockAction(me.copy(faceEnrolled = false), null).purpose)
         assertEquals(null, id.pejuang.hris.ui.clockAction(me.copy(deviceStatus = "pending"), null).purpose)
         assertEquals(null, id.pejuang.hris.ui.clockAction(me.copy(mustChangePassword = true), null).purpose)
+        val onLeave = id.pejuang.hris.data.AttendanceRecord("l", "2026-11-09", "leave", workMode = "onsite")
+        assertEquals(null, id.pejuang.hris.ui.clockAction(me, onLeave).purpose)
     }
 
     @Test

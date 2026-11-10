@@ -19,17 +19,17 @@ const OUTCOME: Record<AttendanceAttempt["outcome"], { label: string; tone: "gree
 // Kode alasan MASTER.md §6.3. Hanya untuk peninjau (D8); kode yang belum dikenal ditampilkan apa adanya.
 const REASON: Record<string, string> = {
   ok: "Lolos pemeriksaan",
-  challenge_invalid: "Tantangan absen tidak valid",
-  challenge_expired: "Tantangan absen kedaluwarsa",
+  challenge_invalid: "Tantangan presensi tidak valid",
+  challenge_expired: "Tantangan presensi kedaluwarsa",
   device_not_approved: "Perangkat belum disetujui atau bukan miliknya",
   integrity_failed: "Verifikasi perangkat gagal",
   integrity_nonce_mismatch: "Bukti integritas tidak cocok",
   hard_signal: "Fake GPS, root, atau emulator",
   geofence_out: "Di luar area kantor",
   shift_not_assigned: "Shift belum ditentukan",
-  already_clocked_in: "Sudah absen masuk",
-  already_clocked_out: "Sudah absen pulang",
-  not_clocked_in: "Belum absen masuk",
+  already_clocked_in: "Sudah presensi masuk",
+  already_clocked_out: "Sudah presensi pulang",
+  not_clocked_in: "Belum presensi masuk",
   face_not_enrolled: "Wajah belum terdaftar",
   face_not_detected: "Wajah tidak terdeteksi di selfie",
   liveness_failed: "Liveness gagal",
@@ -50,7 +50,7 @@ export function AttendanceAttempts() {
 
   return (
     <>
-      <PageHeader title="Upaya Absen" description="Semua upaya absen, termasuk yang ditolak dan tidak pernah tercatat sebagai kehadiran." />
+      <PageHeader title="Upaya Presensi" description="Semua upaya presensi, termasuk yang ditolak dan tidak pernah tercatat sebagai kehadiran." />
       <Card bodyClassName="">
         <div className="flex flex-wrap items-center gap-3 border-b border-slate-100 p-4">
           <Input
@@ -84,7 +84,7 @@ export function AttendanceAttempts() {
         ) : list.isError ? (
           <ErrorState message={list.error.message} onRetry={() => list.refetch()} />
         ) : list.data.data.length === 0 ? (
-          <EmptyState title="Tidak ada upaya absen" description="Ubah tanggal atau saringan hasil." />
+          <EmptyState title="Tidak ada upaya presensi" description="Ubah tanggal atau saringan hasil." />
         ) : (
           <>
             <Table>

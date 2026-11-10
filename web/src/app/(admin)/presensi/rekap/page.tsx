@@ -75,7 +75,7 @@ export default function AttendanceReportPage() {
             <option value="wfa">WFA</option>
             <option value="field">Dinas luar</option>
           </Select>
-          {period.work_mode && <p className="text-xs text-slate-600">Hanya absen masuk dengan mode ini yang dihitung. Cuti dan alpha tidak memiliki mode kerja yang dapat dipastikan.</p>}
+          {period.work_mode && <p className="text-xs text-slate-600">Hanya presensi masuk dengan mode ini yang dihitung. Cuti dan alpha tidak memiliki mode kerja yang dapat dipastikan.</p>}
           <div className="grid grid-cols-2 gap-3 md:grid-cols-5">
             {!period.work_mode && <Summary label="Rata-rata kehadiran" value={percent(totals.rate)} />}
             <Summary label="Total hadir" value={number(totals.present)} />

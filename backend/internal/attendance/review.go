@@ -25,7 +25,7 @@ const (
 	maxReviewNoteLen = 500
 )
 
-// ReviewItem adalah satu absen di antrian Review. Skor dan alasan risiko hanya untuk peninjau (D8).
+// ReviewItem adalah satu presensi di antrian Review. Skor dan alasan risiko hanya untuk peninjau (D8).
 type ReviewItem struct {
 	ID              string   `json:"id"`
 	EmployeeID      string   `json:"employee_id"`
@@ -57,7 +57,7 @@ func floatPtr(d decimal.NullDecimal) *float64 {
 	return &v
 }
 
-// ReviewQueue mengembalikan absen yang menunggu keputusan, yang terlama lebih dulu.
+// ReviewQueue mengembalikan presensi yang menunggu keputusan, yang terlama lebih dulu.
 func (s *Service) ReviewQueue(ctx context.Context, workMode string, page httpx.Page) ([]ReviewItem, int64, error) {
 	filter := pgtype.Text{}
 	if workMode != "" {
@@ -100,7 +100,7 @@ type ResolveInput struct {
 	Note     string `json:"note"`
 }
 
-// ResolveResult adalah absen setelah diputuskan.
+// ResolveResult adalah presensi setelah diputuskan.
 type ResolveResult struct {
 	ID          string  `json:"id"`
 	WorkDate    string  `json:"work_date"`
@@ -110,8 +110,8 @@ type ResolveResult struct {
 	ReviewedAt  string  `json:"reviewed_at"`
 }
 
-// Resolve memutuskan absen review (F11). Peninjau tidak boleh memutuskan absennya sendiri, karena
-// keputusan ini memengaruhi upah.
+// Resolve memutuskan presensi review (F11). Peninjau tidak boleh memutuskan presensinya sendiri, karena
+// keputusan ini memengaruhi ubar.
 func (s *Service) Resolve(ctx context.Context, p auth.Principal, ip *netip.Addr, id uuid.UUID, in ResolveInput) (ResolveResult, error) {
 	note := strings.TrimSpace(in.Note)
 	fields := map[string]string{}
@@ -120,7 +120,7 @@ func (s *Service) Resolve(ctx context.Context, p auth.Principal, ip *netip.Addr,
 	case store.AttStatusPresent, store.AttStatusLate:
 	case store.AttStatusAbsent:
 		if len(note) < minAbsentNoteLen {
-			fields["note"] = "Catatan wajib diisi bila absen tidak valid, minimal 3 karakter."
+			fields["note"] = "Catatan wajib diisi bila presensi tidak valid, minimal 3 karakter."
 		}
 	default:
 		fields["decision"] = "Pilih hadir, telat, atau tidak hadir."
@@ -142,15 +142,15 @@ func (s *Service) Resolve(ctx context.Context, p auth.Principal, ip *netip.Addr,
 			return err
 		}
 		if current.EmployeeID == p.EmployeeID {
-			return httpx.NewError(http.StatusConflict, "CONFLICT_SELF_ACTION", "Absen sendiri harus ditinjau peninjau lain.")
+			return httpx.NewError(http.StatusConflict, "CONFLICT_SELF_ACTION", "Presensi sendiri harus ditinjau peninjau lain.")
 		}
 		if current.Status != store.AttStatusReview {
-			return httpx.NewError(http.StatusConflict, "REQUEST_NOT_PENDING", "Absen ini sudah ditinjau.")
+			return httpx.NewError(http.StatusConflict, "REQUEST_NOT_PENDING", "Presensi ini sudah ditinjau.")
 		}
 		late := int32(0)
 		if status == store.AttStatusLate {
 			if current.LateMinutes == 0 {
-				return httpx.Validation(map[string]string{"decision": "Absen ini tidak terlambat. Pilih hadir."})
+				return httpx.Validation(map[string]string{"decision": "Presensi ini tidak terlambat. Pilih hadir."})
 			}
 			late = current.LateMinutes
 		}

@@ -83,38 +83,38 @@ Defense in depth, least privilege, zero trust ke klien, secure by default, priva
 ### 2.1 Glosarium Istilah (ID → Kode)
 | Istilah | Kode (EN) | Arti | Jangan pakai |
 |---|---|---|---|
-| Pejuang | entitas `employee`, nilai role `pejuang` | Karyawan | karyawan, staff, user (untuk entitas) |
+| Pejuang | entitas `employee`, nilai role `pejuang` | Orang yang bekerja di yayasan | karyawan, pegawai, staff, user (untuk entitas) |
 | Akun | `user` | Kredensial login, 1:1 dengan employee | account |
 | SDM / Personalia | role `sdm` | Admin personalia | hr, admin |
 | Subdiv | entitas `subdivision`, role `subdiv` | Sub divisi / atasan langsung | subvid, team |
 | Kadiv | role `kadiv` | Kepala divisi | head, manager |
 | Divisi | `division` | Divisi | department |
-| Presensi | `attendance` | Catatan kehadiran harian | absensi (di kode) |
+| Presensi | `attendance` | Catatan kehadiran harian | absen, absensi (D50: "absen" berarti tidak hadir) |
 | NIPY | `nip` | Nomor induk Pejuang | NIP |
 | Ahad | hari ke-7 pada `work_days` | Hari ketujuh | Minggu |
 | Al Bahjah | - | Penulisan sesuai akta, tanpa strip | Al-Bahjah |
-| Absen masuk / pulang | `clock_in` / `clock_out` (field), `clock-in` / `clock-out` (path) | Aksi presensi | checkin, punch |
-| Lokasi kantor (geofence) | `office_location` | Area absen yang sah | site, branch |
+| Presensi masuk / pulang | `clock_in` / `clock_out` (field), `clock-in` / `clock-out` (path) | Aksi presensi | absen masuk/pulang, checkin, punch |
+| Lokasi kantor (geofence) | `office_location` | Area presensi yang sah | site, branch |
 | Shift | `shift` | Jam kerja + toleransi | jadwal |
-| Tantangan presensi | `attendance_challenge` | Nonce sekali pakai dari server | token absen |
-| Percobaan presensi | `attendance_attempt` | Log tiap upaya, diterima maupun ditolak | log absen |
+| Tantangan presensi | `attendance_challenge` | Nonce sekali pakai dari server | token presensi |
+| Percobaan presensi | `attendance_attempt` | Log tiap upaya, diterima maupun ditolak | log presensi |
 | Skor risiko | `risk_score` | Poin kecurigaan 0-100+ | fraud_score |
 | Penanda risiko | `risk_flags` | Daftar sinyal yang terdeteksi | |
 | Perangkat | `device` | HP yang terikat ke akun | handset |
 | Template wajah | `face_template` | Embedding wajah terenkripsi | foto wajah |
 | Cuti & izin | `leave_request`, jenis `leave_type` | Pengajuan tidak masuk | |
-| Kasbon | `cash_advance` | Pinjaman gaji | loan, kasbon_request |
+| Pinjaman | `cash_advance` | Pinjaman yang dicicil dari ubar (D48) | kasbon, loan |
 | Mutasi | `transfer_request` | Pindah subdiv | mutation |
 | Persetujuan | `approval` (satu langkah), `approval_flow` (rantai) | | acc |
 | Surat Peringatan | `warning`, level `sp1`/`sp2`/`sp3` | | |
 | Pengumuman | `announcement`, tipe `popup`/`banner` | | |
-| Slip upah | `payslip` (tampilan Pejuang), `payroll` (data periode) | | |
-| Upah | `base_salary`, `gross`, `net` | "ubar" = upah/gaji | |
-| Periode upah | `payroll_period` | Bulan penggajian | |
+| Slip ubar | `payslip` (tampilan Pejuang), `payroll` (data periode) | | slip upah, slip gaji |
+| Ubar | `base_salary`, `gross`, `net` | Imbalan bulanan Pejuang | upah, gaji |
+| Periode ubar | `payroll_period` | Bulan pengubaran | periode upah/gaji |
 | Sesi | `session` | Satu login (web/mobile) | |
 | Audit | `audit_log` | Jejak aksi, tidak boleh diubah | |
 
-Teks UI memakai istilah Indonesia ("Absen", "Pengajuan"), kode memakai kolom "Kode (EN)".
+Teks UI memakai istilah Indonesia sesuai kolom "Istilah" ("Presensi", "Pengajuan", "Ubar"), kode memakai kolom "Kode (EN)". Istilah mengikuti adab yayasan (D50).
 
 ### 2.2 Aturan Penamaan
 | Objek | Aturan | Contoh |
@@ -484,7 +484,7 @@ Data biometrik tergolong data pribadi bersifat spesifik dalam UU PDP (UU 27/2022
 - Monitoring: error rate, latensi clock-in, lonjakan login gagal, lonjakan `review`.
 
 ### 5.11 Registry Event Audit
-`auth.login_success`, `auth.login_failed`, `auth.logout`, `auth.mfa_enabled`, `auth.mfa_failed`, `auth.password_changed`, `auth.session_revoked`, `auth.refresh_reuse_detected`, `org.updated`, `user.created`, `user.locked`, `user.unlocked`, `user.role_changed`, `user.password_reset`, `user.email_changed`, `auth.password_reset_requested`, `email.delivery_failed`, `employee.created`, `employee.updated`, `employee.deactivated`, `employee.salary_changed`, `device.registered`, `device.approved`, `device.revoked`, `device.integrity_tier_changed`, `employee.work_arrangement_changed`, `face.enrolled`, `face.reset`, `attendance.clock_in`, `attendance.clock_out`, `attendance.rejected`, `attendance.review_resolved`, `attendance.adjusted`, `approval.approved`, `approval.rejected`, `payroll.rules_changed`, `payroll.generated`, `payroll.submitted`, `payroll.finalized`, `payroll.paid`, `warning.issued`, `announcement.created`, `announcement.updated`, `announcement.deleted`, `settings.changed`, `data.exported`.
+`auth.login_success`, `auth.login_failed`, `auth.logout`, `auth.mfa_enabled`, `auth.mfa_failed`, `auth.password_changed`, `auth.session_revoked`, `auth.refresh_reuse_detected`, `org.updated`, `user.created`, `user.locked`, `user.unlocked`, `user.role_changed`, `user.password_reset`, `user.email_changed`, `auth.password_reset_requested`, `email.delivery_failed`, `employee.created`, `employee.updated`, `employee.deactivated`, `employee.salary_changed`, `device.registered`, `device.approved`, `device.revoked`, `device.integrity_tier_changed`, `employee.work_arrangement_changed`, `face.enrolled`, `face.reset`, `attendance.clock_in`, `attendance.clock_out`, `attendance.rejected`, `attendance.review_resolved`, `attendance.adjusted`, `approval.approved`, `approval.rejected`, `leave.requested`, `leave.cancelled`, `leave_type.changed`, `payroll.rules_changed`, `payroll.generated`, `payroll.submitted`, `payroll.finalized`, `payroll.paid`, `warning.issued`, `announcement.created`, `announcement.updated`, `announcement.deleted`, `settings.changed`, `data.exported`.
 
 Tambahan event: `face.capture_viewed` untuk akses selfie peninjauan, `face.remote_permission_granted` dan `face.remote_permission_revoked` untuk pengelolaan izin jarak jauh. Pemakaian izin dicatat pada `face.enrolled`.
 
@@ -620,6 +620,7 @@ Daftar memakai `?page=&per_page=&q=&sort=` (contoh `sort=-created_at`) dan filte
 | 409 | `REQUEST_NOT_PENDING` | Status sudah bukan `pending` |
 | 409 | `PERIOD_LOCKED` | Periode payroll terkunci |
 | 409 | `DUPLICATE_REQUEST` | Pengajuan bentrok (mis. tanggal cuti tumpang tindih) |
+| 409 | `LEAVE_ACTIVE` | Presensi ditolak karena hari itu tercatat cuti/izin yang disetujui |
 | 409 | `CONFLICT_DUPLICATE` | Nilai unik sudah dipakai, mis. kode, NIPY, email (`details.fields`) |
 | 409 | `CONFLICT_HAS_DEPENDENTS` | Data masih dirujuk data lain, mis. divisi yang masih punya subdiv |
 | 409 | `CONFLICT_SELF_ACTION` | Aksi tidak boleh dilakukan pada akun sendiri, mis. menonaktifkan diri |
@@ -1550,10 +1551,10 @@ Estimasi untuk tim kecil; sesuaikan setelah kapasitas tim jelas.
 - [ ] Uji Android 8-14, 3 HP kelas bawah
 
 **Fase 4: Pengajuan**
-- [ ] `approval_flow_steps` + mesin approval
-- [ ] Cuti/izin, kasbon, mutasi
+- [ ] `approval_flow_steps` + mesin approval. API ada (D46, D49), menunggu web dan aplikasi
+- [ ] Cuti/izin, pinjaman, mutasi. API cuti/izin dengan saldo fleksibel ada (D47); pinjaman (D48) dan mutasi menyusul
 - [ ] Timeline approval web + mobile
-- [ ] Job: leave → attendance, mutasi efektif, cicilan kasbon
+- [ ] Job: leave → attendance (sudah, saat disetujui), mutasi efektif, cicilan pinjaman
 
 **Fase 5: Payroll & SP**
 - [ ] Aturan upah diatur SDM lewat panel dan berversi (D29); hapus rumus sementara di `internal/report`
@@ -1625,24 +1626,29 @@ Estimasi untuk tim kecil; sesuaikan setelah kapasitas tim jelas.
 | D43 | Model wajah server diganti dari dlib ke detektor YuNet (MIT) dan pengenal SFace (Apache-2.0) dari OpenCV Zoo, dijalankan ONNX Runtime lewat cgo (tag build `onnx`). Skor adalah kemiripan cosine: diterima ≥ 0.50, `face_borderline` ≥ 0.46, di bawahnya ditolak; selfie pendaftaran harus saling ≥ 0.50. Gambar diperkecil agar sisi terpanjang ≤ 640 untuk deteksi. Menggantikan pilihan model dan ambang di D42; alur selfie, liveness, dan replay D42 tetap | Uji banding pada 33 foto contoh wajah Asia (`backend/tools/face-bench`): dengan tidak ada orang berbeda yang lolos, dlib menerima 0% pasangan orang sama, SFace 44%, ArcFace 89%. ArcFace terbaik tetapi model siap pakainya non-komersial. Konsekuensi: SFace jauh lebih baik dari dlib tetapi belum terbukti cukup untuk produksi; ambang wajib dikalibrasi dengan selfie Pejuang dari HP sebelum dipakai, dan bila kurang, pilihannya lisensi komersial ArcFace atau layanan verifikasi wajah komersial. Template dlib dianggap belum terdaftar. Foto harus tegak karena orientasi EXIF tidak diterapkan |
 | D44 | Aplikasi Android dibangun di repo ini (`mobile/`) dan APK debugnya dibuat CI, karena PC pengembang belum punya Android SDK. Model JSON ditulis tangan di `data/Dto.kt` dan dijaga tes kontrak backend `TestMobileDTOsMatchOpenAPI`, bukan dari generator OpenAPI. Dependensi disusun manual tanpa Hilt. Build debug memakai `applicationId` `.debug`, alamat server diisi di layar masuk, dan cleartext diizinkan ke semua alamat; build rilis HTTPS dengan alamat tetap | Generator Kotlin tidak cocok dengan beberapa skema (enum berisi `null`, objek tanpa properti, multipart dengan bagian `payload`) dan setiap kegagalan baru terlihat di CI. Tes kontrak memberi jaminan yang sama: field yang tidak ada di kontrak membuat CI merah. Konsekuensi: aplikasi belum diuji di HP sungguhan; arah toleh liveness, ambang ML Kit, rotasi foto, dan Play Integrity harus diuji sebelum Fase 2 ditutup. Hilt, ikon aplikasi, dan Gradle wrapper menyusul |
 | D45 | Distribusi Android dilakukan mandiri lewat GitHub Releases, dengan APK rilis bertanda tangan; pembaruan diperiksa dari rilis publik dan instalasi tetap membutuhkan persetujuan pengguna Android | Ini tidak mengubah syarat verifikasi perangkat: APK di luar Play tidak boleh dianggap `PLAY_RECOGNIZED`; jalur B atau jalur lain yang disetujui tetap harus diselesaikan sebelum presensi produksi. Debug memiliki applicationId dan kunci berbeda, sehingga tidak dapat diperbarui menjadi APK rilis. Kunci penandatanganan harus tetap sama pada setiap versi. |
+| D46 | Alur default cuti/izin: kadiv lalu SDM. SDM dapat mengubah alur per jenis pengajuan lewat `/v1/admin/approval-flows/{request_type}`; perubahan hanya berlaku untuk pengajuan baru | Keputusan pemilik proyek (§14.2 no. 4). Kepala divisi mengenal kebutuhan unitnya, SDM menjaga aturan dan saldo |
+| D47 | Saldo cuti fleksibel per jenis: `statutory` mengikuti UU Ketenagakerjaan (12 hari per tahun kalender setelah 12 bulan bekerja dari `join_date`), `custom` jatah per tahun dari SDM, `none` tanpa saldo. Hari dihitung server dari hari kerja shift tanpa hari libur; pengajuan pending ikut mengurangi saldo | Keputusan pemilik proyek (§14.2 no. 8). Konsekuensi: `join_date` wajib diisi agar cuti tahunan bisa diajukan; pengajuan tidak boleh melewati pergantian tahun |
+| D48 | Pinjaman (dahulu kasbon) memotong ubar otomatis lewat cicilan per periode; plafon dan maksimum cicilan diatur SDM | Keputusan pemilik proyek (§14.2 no. 3). Dikerjakan setelah cuti/izin; potongan di payroll menyusul Fase 5 |
+| D49 | Role `kadiv`/`subdiv` mengikuti penunjukan kepala divisi/subdiv dan kembali menjadi `pejuang` saat tidak lagi memimpin unit mana pun. Role `sdm` dan `superadmin` tidak pernah diubah otomatis. Migrasi 000012 menyesuaikan kepala yang sudah ada | Keputusan pemilik proyek (§14.2 no. 15). Satu tempat pengaturan; perubahan tercatat `user.role_changed` dan berlaku setelah token diperbarui |
+| D50 | Istilah mengikuti adab yayasan: "presensi" menggantikan "absen" (karena absen berarti tidak hadir), "ubar" menggantikan upah/gaji, "pinjaman" menggantikan kasbon, dan "Pejuang" menggantikan karyawan/pegawai, di aplikasi, web, pesan API, dan dokumen baru | Keputusan pemilik proyek. Nama kode, path API, dan nilai enum (mis. `absent`, `/pengajuan/kasbon`) tidak diubah agar kontrak tetap stabil |
 | D15 | `/v1/admin/reports/payroll-preview` mewajibkan `attendance:report` dan `payroll:manage` | Respons memuat gaji, sedangkan §7.6 membatasi `base_salary` untuk `sdm` dan pemilik data |
 
 ### 14.2 Pertanyaan yang Harus Dijawab (blokir pekerjaan terkait)
 1. ~~Apakah "ubar" = upah/gaji?~~ Dijawab: ya.
 2. ~~Rumus potongan telat/alpha dan lembur~~ Dijawab: diatur SDM lewat panel (D29). Nilai awalnya tetap perlu diisi SDM sebelum payroll pertama. *(blokir generate payroll, bukan pembangunan fiturnya)*
-3. Kasbon: otomatis memotong upah? Plafon dan maksimum cicilan?
-4. Alur cuti: Subdiv → SDM saja, atau sampai Kadiv?
+3. ~~Kasbon: otomatis memotong upah? Plafon dan maksimum cicilan?~~ Dijawab: D48.
+4. ~~Alur cuti: Subdiv → SDM saja, atau sampai Kadiv?~~ Dijawab: D46.
 5. Alur mutasi: apakah subdiv **tujuan** juga harus menyetujui?
 6. Ada shift rotasi? *(banyak lokasi dan WFA sudah dijawab: D23)*
 7. ~~Kebijakan HP tanpa Google Play Services~~ Dijawab: didukung lewat beberapa jalur (D24).
-8. Saldo cuti: aturan hak cuti per tahun?
+8. ~~Saldo cuti: aturan hak cuti per tahun?~~ Dijawab: D47.
 9. Apakah Kadiv boleh mengakses dashboard dan laporan divisinya?
 10. Perlu role terpisah untuk peninjau audit? *(wewenang super admin sudah dijawab: D34)*
 11. Hosting: cloud atau server sendiri? Domain apa? *(memengaruhi keamanan infrastruktur)*
 12. Retensi resmi untuk selfie, template wajah, dan data lokasi (konfirmasi legal).
 13. Ambang `face.threshold_*` dan `risk.*` (dikalibrasi lewat uji lapangan).
 14. ~~Saluran dan penyedia email~~ Dijawab: email terdaftar lewat SMTP perusahaan, diatur super admin (D30).
-15. Bagaimana role `subdiv`/`kadiv` ditetapkan: otomatis saat ditunjuk sebagai kepala, atau dipilih SDM? Belum ada endpoint ubah role di §7.5.
+15. ~~Bagaimana role `subdiv`/`kadiv` ditetapkan?~~ Dijawab: D49.
 
 ---
 

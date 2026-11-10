@@ -25,12 +25,14 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/rzarxx/HRIS/backend/internal/announcement"
+	"github.com/rzarxx/HRIS/backend/internal/approval"
 	"github.com/rzarxx/HRIS/backend/internal/attendance"
 	"github.com/rzarxx/HRIS/backend/internal/auth"
 	"github.com/rzarxx/HRIS/backend/internal/dashboard"
 	"github.com/rzarxx/HRIS/backend/internal/device"
 	"github.com/rzarxx/HRIS/backend/internal/devsim"
 	"github.com/rzarxx/HRIS/backend/internal/employee"
+	"github.com/rzarxx/HRIS/backend/internal/leave"
 	"github.com/rzarxx/HRIS/backend/internal/location"
 	"github.com/rzarxx/HRIS/backend/internal/org"
 	"github.com/rzarxx/HRIS/backend/internal/platform/database"
@@ -133,7 +135,7 @@ type options struct {
 	requireMFA bool
 	limiter    auth.Limiter
 	signer     *auth.TokenSigner
-	// clock dan izin absen tanpa verifikasi untuk tes presensi.
+	// clock dan izin presensi tanpa verifikasi untuk tes presensi.
 	clock           func() time.Time
 	allowUnverified bool
 	strictIntegrity bool
@@ -192,6 +194,13 @@ func fresh(t *testing.T, opt options) *httptest.Server {
 	}
 	authSvc.SetDeviceBinder(device.BindForLogin)
 	q := store.New(appPool)
+	approvalSvc := approval.NewService(appPool)
+	leaveSvc := leave.NewService(appPool, authSvc.ResolveScope)
+	if opt.clock != nil {
+		approvalSvc.SetClock(opt.clock)
+		leaveSvc.SetClock(opt.clock)
+	}
+	approvalSvc.Register(store.RequestKindLeave, leaveSvc)
 	srv := httptest.NewServer(server.New(server.Deps{
 		Auth:         auth.NewHandler(authSvc, false, "", limiter),
 		Org:          org.NewHandler(org.NewService(appPool)),
@@ -203,6 +212,8 @@ func fresh(t *testing.T, opt options) *httptest.Server {
 		Device:       device.NewHandler(device.NewService(appPool)),
 		Attendance:   attendance.NewHandler(attendance.NewService(appPool, attendanceOpt)),
 		Shift:        shift.NewHandler(shift.NewService(appPool)),
+		Approval:     approval.NewHandler(approvalSvc),
+		Leave:        leave.NewHandler(leaveSvc),
 		Signer:       signer,
 		SessionCheck: authSvc.SessionState,
 		Limiter:      limiter,

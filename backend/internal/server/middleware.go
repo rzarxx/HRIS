@@ -133,14 +133,14 @@ func limitByUser(limiter auth.Limiter) func(http.Handler) http.Handler {
 	}
 }
 
-// clockPaths adalah route absen dengan batas lebih ketat (MASTER.md §5.7).
+// clockPaths adalah route presensi dengan batas lebih ketat (MASTER.md §5.7).
 var clockPaths = map[string]bool{
 	"/v1/attendance/challenge": true,
 	"/v1/attendance/clock-in":  true,
 	"/v1/attendance/clock-out": true,
 }
 
-// limitClock membatasi absen per akun dan IP.
+// limitClock membatasi presensi per akun dan IP.
 func limitClock(limiter auth.Limiter) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

@@ -65,14 +65,14 @@ function ReviewSelfie({ attendanceId, purpose, label }: { attendanceId: string; 
     {error && <p className="text-sm text-slate-500">{error}</p>}
     {url && <div><p className="text-sm text-slate-600">Selfie {label}</p>{/* Blob URL privat, dihapus saat modal ditutup. */}
       {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img src={url} alt={`Selfie absen ${label}`} className="mt-1 max-h-64 max-w-full rounded-md" />
+      <img src={url} alt={`Selfie presensi ${label}`} className="mt-1 max-h-64 max-w-full rounded-md" />
     </div>}
   </div>;
 }
 
 function ReviewModal({ item, onClose }: { item: AttendanceReviewItem; onClose: () => void }) {
   const me = useMe();
-  // Keputusan memengaruhi upah, jadi server menolak bila peninjau memutuskan absennya sendiri.
+  // Keputusan memengaruhi ubar, jadi server menolak bila peninjau memutuskan presensinya sendiri.
   const isSelf = me.data?.employee_id === item.employee_id;
   const isLate = item.late_minutes > 0;
   const [decision, setDecision] = useState<AttendanceResolveInput["decision"]>(isLate ? "late" : "present");
@@ -90,7 +90,7 @@ function ReviewModal({ item, onClose }: { item: AttendanceReviewItem; onClose: (
     e.preventDefault();
     const text = note.trim();
     if (decision === "absent" && text.length < 3) {
-      setErrors({ note: "Catatan wajib diisi bila absen tidak valid, minimal 3 karakter." });
+      setErrors({ note: "Catatan wajib diisi bila presensi tidak valid, minimal 3 karakter." });
       return;
     }
     setErrors({});
@@ -101,7 +101,7 @@ function ReviewModal({ item, onClose }: { item: AttendanceReviewItem; onClose: (
     <Modal
       open
       size="lg"
-      title={`Tinjau absen ${item.employee_name}`}
+      title={`Tinjau presensi ${item.employee_name}`}
       onClose={onClose}
       footer={
         <>
@@ -133,7 +133,7 @@ function ReviewModal({ item, onClose }: { item: AttendanceReviewItem; onClose: (
           {isLate && <span className="ml-1 text-amber-800">(telat {item.late_minutes} menit)</span>}
         </dd>
         <dt className="text-slate-500">Pulang</dt>
-        <dd className="col-span-2 text-slate-800">{item.clock_out_at ? dateTime(item.clock_out_at) : "Belum absen pulang"}</dd>
+        <dd className="col-span-2 text-slate-800">{item.clock_out_at ? dateTime(item.clock_out_at) : "Belum presensi pulang"}</dd>
         <dt className="text-slate-500">Mode</dt>
         <dd className="col-span-2 text-slate-800">
           {WORK_MODE[item.work_mode]}
@@ -165,7 +165,7 @@ function ReviewModal({ item, onClose }: { item: AttendanceReviewItem; onClose: (
       )}
 
       {isSelf ? (
-        <p className="mt-4 text-sm text-slate-500">Absen Anda sendiri harus ditinjau peninjau lain.</p>
+        <p className="mt-4 text-sm text-slate-500">Presensi Anda sendiri harus ditinjau peninjau lain.</p>
       ) : (
         <form id="review-form" onSubmit={submit} noValidate className="mt-4 grid grid-cols-1 gap-4 border-t border-slate-100 pt-4">
           <Field label="Keputusan" htmlFor="review_decision" error={errors.decision} required>
@@ -192,7 +192,7 @@ export function ReviewQueue() {
 
   return (
     <>
-      <PageHeader title="Review Absen" description="Absen berisiko menunggu keputusan. Belum dihitung hadir sampai diputuskan." />
+      <PageHeader title="Review Presensi" description="Presensi berisiko menunggu keputusan. Belum dihitung hadir sampai diputuskan." />
       <Card bodyClassName="">
         <div className="border-b border-slate-100 p-4">
           <Select
@@ -215,7 +215,7 @@ export function ReviewQueue() {
         ) : list.isError ? (
           <ErrorState message={list.error.message} onRetry={() => list.refetch()} />
         ) : list.data.data.length === 0 ? (
-          <EmptyState title="Tidak ada absen yang perlu ditinjau" description="Absen berisiko akan muncul di sini." />
+          <EmptyState title="Tidak ada presensi yang perlu ditinjau" description="Presensi berisiko akan muncul di sini." />
         ) : (
           <>
             <Table actions="always">
@@ -247,7 +247,7 @@ export function ReviewQueue() {
                     </Td>
                     <Td className="min-w-48 text-xs text-slate-600">{a.risk_flags.map((f) => FLAG_LABEL[f] ?? f).join(", ")}</Td>
                     <Td align="right">
-                      <Button variant="secondary" size="sm" onClick={() => setReviewing(a)} aria-label={`Tinjau absen ${a.employee_name}, ${dateLong(a.work_date)}`}>
+                      <Button variant="secondary" size="sm" onClick={() => setReviewing(a)} aria-label={`Tinjau presensi ${a.employee_name}, ${dateLong(a.work_date)}`}>
                         Tinjau
                       </Button>
                     </Td>

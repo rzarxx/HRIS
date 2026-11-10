@@ -226,6 +226,34 @@ func (q *Queries) GetDivisionDetail(ctx context.Context, id uuid.UUID) (GetDivis
 	return i, err
 }
 
+const getHeadRoleState = `-- name: GetHeadRoleState :one
+SELECT u.id AS user_id, u.role,
+       EXISTS (SELECT 1 FROM divisions d WHERE d.head_employee_id = u.employee_id) AS heads_division,
+       EXISTS (SELECT 1 FROM subdivisions s WHERE s.head_employee_id = u.employee_id) AS heads_subdivision
+FROM users u
+WHERE u.employee_id = $1
+`
+
+type GetHeadRoleStateRow struct {
+	UserID           uuid.UUID
+	Role             UserRole
+	HeadsDivision    bool
+	HeadsSubdivision bool
+}
+
+// Status kepala seorang Pejuang untuk menyesuaikan role otomatis (D49).
+func (q *Queries) GetHeadRoleState(ctx context.Context, employeeID uuid.UUID) (GetHeadRoleStateRow, error) {
+	row := q.db.QueryRow(ctx, getHeadRoleState, employeeID)
+	var i GetHeadRoleStateRow
+	err := row.Scan(
+		&i.UserID,
+		&i.Role,
+		&i.HeadsDivision,
+		&i.HeadsSubdivision,
+	)
+	return i, err
+}
+
 const getSubdivision = `-- name: GetSubdivision :one
 SELECT id, division_id, code, name, head_employee_id, created_at FROM subdivisions WHERE id = $1
 `

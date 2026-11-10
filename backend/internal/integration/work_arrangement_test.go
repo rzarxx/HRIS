@@ -7,7 +7,7 @@ import (
 	"testing"
 )
 
-// Titik jauh dari kantor untuk uji absen di luar geofence.
+// Titik jauh dari kantor untuk uji presensi di luar geofence.
 const (
 	farLat = -7.7956
 	farLon = 110.3695
@@ -47,7 +47,7 @@ func (f clockFixture) clockOutAt(t *testing.T, lat, lon float64) response {
 	return f.hp.do(http.MethodPost, "/v1/attendance/clock-out", f.clockBody(f.challenge(t, "clock_out"), lat, lon))
 }
 
-// attendanceRow membaca baris absen yang tidak semuanya dikirim ke klien.
+// attendanceRow membaca baris presensi yang tidak semuanya dikirim ke klien.
 func attendanceRow(t *testing.T, employeeID, workDate string) (mode string, hasLocation, flexible, hasCoordinate bool) {
 	t.Helper()
 	err := ownerPool.QueryRow(context.Background(), `
@@ -76,18 +76,18 @@ func TestWFASkipsOnlyGeofence(t *testing.T) {
 	f.clock.Set(wibTime(2, 9, 0))
 	in := data[placedClockIn](t, f.clockInAt(t, officeLat, officeLon).want(t, http.StatusCreated))
 	if in.WorkMode != "wfa" || in.OfficeLocation != nil || in.LateMinutes != 60 || in.Status != "late" {
-		t.Errorf("absen WFA: %+v", in)
+		t.Errorf("presensi WFA: %+v", in)
 	}
 	mode, hasLocation, flexible, hasCoordinate := attendanceRow(t, f.account.employeeID, "2026-11-02")
 	if mode != "wfa" || hasLocation || flexible || !hasCoordinate {
-		t.Errorf("baris absen: mode %s, lokasi %v, fleksibel %v, koordinat %v", mode, hasLocation, flexible, hasCoordinate)
+		t.Errorf("baris presensi: mode %s, lokasi %v, fleksibel %v, koordinat %v", mode, hasLocation, flexible, hasCoordinate)
 	}
 
 	f.clock.Set(wibTime(2, 17, 0))
 	f.clockOutAt(t, farLat, farLon).want(t, http.StatusOK)
 }
 
-// Tanpa bukti integritas absen tetap diblokir, walau WFA.
+// Tanpa bukti integritas presensi tetap diblokir, walau WFA.
 func TestWFADoesNotBypassIntegrity(t *testing.T) {
 	f := newClockFixture(t, options{strictIntegrity: true}, "08:00", "17:00")
 	f.grant(t, map[string]any{"mode": "wfa", "starts_on": "2026-11-02", "reason": "Bekerja dari rumah"})
@@ -146,7 +146,7 @@ func TestHybridOnsiteAndField(t *testing.T) {
 	}
 }
 
-// Jam fleksibel: absen di luar jam shift sah, tidak telat, dan tidak bertanda di luar jadwal (D26).
+// Jam fleksibel: presensi di luar jam shift sah, tidak telat, dan tidak bertanda di luar jadwal (D26).
 func TestFlexibleHours(t *testing.T) {
 	f := newClockFixture(t, options{}, "08:00", "17:00")
 	f.grant(t, map[string]any{"mode": "hybrid", "flexible_hours": true, "starts_on": "2026-11-02", "reason": "Safari"})
@@ -173,7 +173,7 @@ func TestFlexibleHours(t *testing.T) {
 	f.clockInAt(t, farLat, farLon).wantError(t, http.StatusUnprocessableEntity, "SHIFT_NOT_ASSIGNED")
 }
 
-// Mencabut izin langsung berlaku, dan absen yang sudah tercatat tidak berubah.
+// Mencabut izin langsung berlaku, dan presensi yang sudah tercatat tidak berubah.
 func TestRevokeArrangementTakesEffect(t *testing.T) {
 	f := newClockFixture(t, options{}, "08:00", "17:00")
 	row := f.grant(t, map[string]any{"mode": "wfa", "starts_on": "2026-11-02", "reason": "Bekerja dari rumah"})
@@ -190,7 +190,7 @@ func TestRevokeArrangementTakesEffect(t *testing.T) {
 	f.clockOutAt(t, farLat, farLon).wantError(t, http.StatusUnprocessableEntity, "GEOFENCE_OUT")
 	f.clockOutAt(t, officeLat, officeLon).want(t, http.StatusOK)
 	if mode, _, _, _ := attendanceRow(t, f.account.employeeID, "2026-11-02"); mode != "wfa" {
-		t.Errorf("mode absen berubah: %s", mode)
+		t.Errorf("mode presensi berubah: %s", mode)
 	}
 
 	var added, removed int

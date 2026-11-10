@@ -39,6 +39,28 @@ export function dateTime(iso: string | null | undefined) {
   });
 }
 
+/** Rentang tanggal ringkas: "3–5 Januari 2027", "30 Januari – 2 Februari 2027". */
+export function dateRange(start: string, end: string) {
+  if (start === end) return dateLong(start);
+  const [ys, ms, ds] = start.split("-").map(Number);
+  const [ye, me, de] = end.split("-").map(Number);
+  if (ys === ye && ms === me) return `${ds}–${de} ${MONTHS[me - 1]} ${ye}`;
+  if (ys === ye) return `${ds} ${MONTHS[ms - 1]} – ${de} ${MONTHS[me - 1]} ${ye}`;
+  return `${dateLong(start)} – ${dateLong(end)}`;
+}
+
+/** Waktu relatif singkat untuk kotak masuk: "baru saja", "5 menit lalu", "2 hari lalu". */
+export function timeAgo(iso: string, now = Date.now()) {
+  const minutes = Math.floor((now - new Date(iso).getTime()) / 60_000);
+  if (minutes < 1) return "baru saja";
+  if (minutes < 60) return `${minutes} menit lalu`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours} jam lalu`;
+  const days = Math.floor(hours / 24);
+  if (days < 30) return `${days} hari lalu`;
+  return dateLong(iso);
+}
+
 export const MONTHS = [
   "Januari", "Februari", "Maret", "April", "Mei", "Juni",
   "Juli", "Agustus", "September", "Oktober", "November", "Desember",

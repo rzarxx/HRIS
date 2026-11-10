@@ -16,6 +16,8 @@ export interface NavChild {
   href: string;
   soon?: boolean;
   permission?: string;
+  /** Lencana jumlah yang menunggu; diisi sidebar dari query terkait. */
+  badge?: "approvals";
 }
 
 export interface NavItem {
@@ -57,9 +59,11 @@ export const NAV: NavItem[] = [
     label: "Pengajuan",
     icon: FileText,
     children: [
-      { label: "Cuti & Izin", href: "/pengajuan/cuti", soon: true },
+      { label: "Persetujuan", href: "/pengajuan/persetujuan", permission: "approval:act", badge: "approvals" },
+      { label: "Cuti & Izin", href: "/pengajuan/cuti", permission: "approval:act" },
       { label: "Pinjaman", href: "/pengajuan/kasbon", soon: true },
       { label: "Mutasi", href: "/pengajuan/mutasi", soon: true },
+      { label: "Jenis & Alur", href: "/pengajuan/pengaturan", permission: "approval_flow:manage" },
     ],
   },
   { label: "Surat Peringatan", href: "/surat-peringatan", icon: TriangleAlert, permission: "warning:manage" },

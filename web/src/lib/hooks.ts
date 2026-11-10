@@ -5,6 +5,8 @@ import { api, ApiError } from "./api-client";
 import type {
   AdminDevice,
   AnnouncementListItem,
+  ApprovalFlow,
+  ApprovalItem,
   AttendanceAttempt,
   AttendanceMonitorItem,
   AttendanceReportRow,
@@ -15,6 +17,8 @@ import type {
   EmployeeListItem,
   Holiday,
   ItemResponse,
+  LeaveRequest,
+  LeaveType,
   ListResponse,
   OfficeLocation,
   OrgChartData,
@@ -146,6 +150,46 @@ export const useAnnouncements = () =>
   useQuery({
     queryKey: ["announcements"],
     queryFn: () => api.get<Paginated<AnnouncementListItem>>("/admin/announcements", { per_page: 100 }).then((r) => r.data),
+  });
+
+export interface LeaveFilter {
+  from: string;
+  to: string;
+}
+
+/** Semua pengajuan cuti/izin dalam scope untuk rentang tanggal; status disaring di klien agar tab instan. */
+export const useAdminLeaves = (f: LeaveFilter) =>
+  useQuery({
+    queryKey: ["admin-leaves", f],
+    queryFn: () => api.get<ListResponse<LeaveRequest>>("/admin/leaves", { ...f }).then((r) => r.data),
+    placeholderData: keepPreviousData,
+  });
+
+export const useAdminLeaveTypes = () =>
+  useQuery({
+    queryKey: ["admin-leave-types"],
+    queryFn: () => api.get<ListResponse<LeaveType>>("/admin/leave-types").then((r) => r.data),
+  });
+
+export const useApprovalFlow = (kind: ApprovalFlow["request_type"]) =>
+  useQuery({
+    queryKey: ["approval-flow", kind],
+    queryFn: () => api.get<ItemResponse<ApprovalFlow>>(`/admin/approval-flows/${kind}`).then((r) => r.data),
+  });
+
+/** Kotak masuk persetujuan; diperbarui tiap menit agar lencana menu tetap segar. */
+export const usePendingApprovals = (enabled = true) =>
+  useQuery({
+    queryKey: ["approvals-pending"],
+    queryFn: () => api.get<ListResponse<ApprovalItem>>("/approvals/pending").then((r) => r.data),
+    enabled,
+    refetchInterval: 60_000,
+  });
+
+export const useApprovalDetail = (id: string) =>
+  useQuery({
+    queryKey: ["approval", id],
+    queryFn: () => api.get<ItemResponse<ApprovalItem>>(`/approvals/${id}`).then((r) => r.data),
   });
 
 export interface PeriodFilter {

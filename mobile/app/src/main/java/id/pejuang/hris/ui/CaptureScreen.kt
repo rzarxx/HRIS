@@ -323,6 +323,8 @@ fun ProgressContent(title: String, heading: String, body: String, onClose: (() -
 @Composable
 fun ResultContent(outcome: ClockOutcome, at: ZonedDateTime, onClose: () -> Unit) {
     StatusBarIcons(dark = true)
+    val haptic = rememberConfirmHaptic()
+    LaunchedEffect(outcome) { haptic() }
     CenterMessage(
         title = outcome.title,
         body = outcome.detail,

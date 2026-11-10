@@ -1,12 +1,20 @@
 package id.pejuang.hris.ui
 
 import android.app.Activity
+import android.os.Build
+import android.view.HapticFeedbackConstants
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
@@ -29,6 +37,7 @@ import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -36,8 +45,13 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
+import androidx.compose.material3.pulltorefresh.PullToRefreshDefaults
+import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -48,8 +62,11 @@ import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -352,4 +369,77 @@ fun RowDivider() {
 @Composable
 fun Dot(color: Color, size: Dp = 8.dp) {
     Box(Modifier.size(size).clip(CircleShape).background(color))
+}
+
+/** Getar singkat tanda tindakan berhasil (presensi, kirim, putuskan). Tidak ada efek di HP tanpa motor getar. */
+@Composable
+fun rememberConfirmHaptic(): () -> Unit {
+    val view = LocalView.current
+    return remember(view) {
+        val haptic: () -> Unit = {
+            val type = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) HapticFeedbackConstants.CONFIRM else HapticFeedbackConstants.VIRTUAL_KEY
+            view.performHapticFeedback(type)
+        }
+        haptic
+    }
+}
+
+/** Kotak abu-abu berdenyut pelan sebagai tanda isi sedang dimuat. */
+@Composable
+fun SkeletonBlock(modifier: Modifier = Modifier, shape: androidx.compose.ui.graphics.Shape = RoundedCornerShape(6.dp)) {
+    val pulse = rememberInfiniteTransition(label = "kerangka")
+    val level by pulse.animateFloat(
+        initialValue = 0.55f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(tween(900), RepeatMode.Reverse),
+        label = "kerangka alfa",
+    )
+    Box(modifier.graphicsLayer { alpha = level }.clip(shape).background(Fg.Gray200))
+}
+
+/** Kartu kerangka seukuran kartu daftar, untuk menggantikan spinner saat daftar dimuat. */
+@Composable
+fun SkeletonCard(modifier: Modifier = Modifier, lines: Int = 2) {
+    Column(
+        modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp)).background(Fg.Card).padding(16.dp)
+            .semantics { contentDescription = "Memuat" },
+        verticalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        SkeletonBlock(Modifier.fillMaxWidth(0.45f).height(14.dp))
+        repeat(lines) { i -> SkeletonBlock(Modifier.fillMaxWidth(if (i == lines - 1) 0.7f else 1f).height(12.dp)) }
+    }
+}
+
+/**
+ * Tarik ke bawah untuk memuat ulang. Indikator muncul di bawah status bar, di atas isi yang
+ * digulir di dalam [content].
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun RefreshBox(refreshing: Boolean, onRefresh: () -> Unit, modifier: Modifier = Modifier, content: @Composable BoxScope.() -> Unit) {
+    val state = rememberPullToRefreshState()
+    PullToRefreshBox(
+        isRefreshing = refreshing,
+        onRefresh = onRefresh,
+        modifier = modifier,
+        state = state,
+        indicator = {
+            PullToRefreshDefaults.Indicator(
+                state = state,
+                isRefreshing = refreshing,
+                color = Hc.Brand,
+                containerColor = Color.White,
+                modifier = Modifier.align(Alignment.TopCenter).statusBarsPadding(),
+            )
+        },
+        content = content,
+    )
+}
+
+/** Lingkaran inisial nama. */
+@Composable
+fun Avatar(name: String, size: Dp = 40.dp) {
+    Box(Modifier.size(size).clip(CircleShape).background(Hc.BrandSoft), contentAlignment = Alignment.Center) {
+        Text(initials(name), style = MaterialTheme.typography.titleSmall, color = Hc.BrandDeep)
+    }
 }

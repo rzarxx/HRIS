@@ -88,7 +88,13 @@ private val GlassStyle = HazeStyle(
  * Tab aktif ditandai pil hijau lembut yang bergeser dengan animasi singkat.
  */
 @Composable
-fun GlassBottomBar(selected: MainTab, onSelect: (MainTab) -> Unit, hazeState: HazeState, modifier: Modifier = Modifier) {
+fun GlassBottomBar(
+    selected: MainTab,
+    onSelect: (MainTab) -> Unit,
+    hazeState: HazeState,
+    modifier: Modifier = Modifier,
+    badges: Map<MainTab, Int> = emptyMap(),
+) {
     val shape = RoundedCornerShape(BarHeight / 2)
     // Renderer pratinjau dan Paparazzi tidak mendukung RenderEffect; pakai tint pengganti di sana.
     val preview = LocalInspectionMode.current
@@ -124,14 +130,16 @@ fun GlassBottomBar(selected: MainTab, onSelect: (MainTab) -> Unit, hazeState: Ha
                     .border(1.dp, Color.White.copy(alpha = 0.7f), RoundedCornerShape(BarHeight / 2)),
             )
             Row(Modifier.fillMaxSize(), verticalAlignment = Alignment.CenterVertically) {
-                MainTab.entries.forEach { tab -> GlassTabItem(tab, tab == selected, Modifier.weight(1f)) { onSelect(tab) } }
+                MainTab.entries.forEach { tab ->
+                    GlassTabItem(tab, tab == selected, badges[tab] ?: 0, Modifier.weight(1f)) { onSelect(tab) }
+                }
             }
         }
     }
 }
 
 @Composable
-private fun GlassTabItem(tab: MainTab, active: Boolean, modifier: Modifier, onClick: () -> Unit) {
+private fun GlassTabItem(tab: MainTab, active: Boolean, badge: Int, modifier: Modifier, onClick: () -> Unit) {
     val color by animateColorAsState(if (active) Hc.Brand else Fg.TextSecondary, tween(200), label = "warna tab")
     Column(
         modifier
@@ -143,13 +151,16 @@ private fun GlassTabItem(tab: MainTab, active: Boolean, modifier: Modifier, onCl
                 onClick = onClick,
             )
             .semantics {
-                contentDescription = tab.label
+                contentDescription = if (badge > 0) "${tab.label}, $badge menunggu" else tab.label
                 this.selected = active
             },
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center,
     ) {
-        Icon(if (active) tab.selectedIcon else tab.icon, contentDescription = null, tint = color, modifier = Modifier.size(22.dp))
+        Box {
+            Icon(if (active) tab.selectedIcon else tab.icon, contentDescription = null, tint = color, modifier = Modifier.size(22.dp))
+            if (badge > 0) CountPill(badge, Modifier.align(Alignment.TopEnd).offset(x = 10.dp, y = (-6).dp))
+        }
         Text(
             tab.label,
             style = figmaText(10, if (active) FontWeight.SemiBold else FontWeight.Medium, color).copy(lineHeight = 13.sp),

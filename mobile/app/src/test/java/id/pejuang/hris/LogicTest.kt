@@ -12,6 +12,7 @@ import id.pejuang.hris.face.LivenessState
 import id.pejuang.hris.face.LivenessTracker
 import id.pejuang.hris.face.scaledSize
 import id.pejuang.hris.location.roundCoordinate
+import id.pejuang.hris.ui.toPickerMillis
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -248,5 +249,85 @@ class UiLogicTest {
             id.pejuang.hris.data.PasswordChangeRequest("lama", "baru-panjang-1"),
         )
         assertEquals("""{"current_password":"lama","new_password":"baru-panjang-1"}""", body)
+    }
+}
+
+class RequestsLogicTest {
+    private val now = java.time.ZonedDateTime.of(2026, 11, 9, 7, 45, 0, 0, id.pejuang.hris.ui.Wib)
+
+    @Test
+    fun dateRangesAreCompact() {
+        val d = { s: String -> java.time.LocalDate.parse(s) }
+        assertEquals("16 November 2026", id.pejuang.hris.ui.dateRangeLabel(d("2026-11-16"), d("2026-11-16")))
+        assertEquals("16–18 November 2026", id.pejuang.hris.ui.dateRangeLabel(d("2026-11-16"), d("2026-11-18")))
+        assertTrue(id.pejuang.hris.ui.dateRangeLabel(d("2026-10-30"), d("2026-11-02")).matches(Regex("30 \p{L}+ – 2 \p{L}+ 2026")))
+        assertTrue(id.pejuang.hris.ui.dateRangeLabel(d("2026-12-28"), d("2027-01-02")).matches(Regex("28 \p{L}+ 2026 – 2 \p{L}+ 2027")))
+        assertEquals("x – y", id.pejuang.hris.ui.dateRangeLabel("x", "y"))
+    }
+
+    @Test
+    fun timeAgoSteps() {
+        assertEquals("baru saja", id.pejuang.hris.ui.timeAgo("2026-11-09T00:45:00Z", now))
+        assertEquals("5 menit lalu", id.pejuang.hris.ui.timeAgo("2026-11-09T00:40:00Z", now))
+        assertEquals("3 jam lalu", id.pejuang.hris.ui.timeAgo("2026-11-08T21:45:00Z", now))
+        assertEquals("2 hari lalu", id.pejuang.hris.ui.timeAgo("2026-11-07T00:45:00Z", now))
+        assertEquals("1 Oktober 2026", id.pejuang.hris.ui.timeAgo("2026-10-01T03:00:00Z", now))
+    }
+
+    @Test
+    fun pickerMillisRoundTrip() {
+        val day = java.time.LocalDate.of(2026, 11, 16)
+        assertEquals(1794787200000L, day.toPickerMillis())
+        assertEquals(day, id.pejuang.hris.ui.pickerMillisToDate(day.toPickerMillis()))
+    }
+
+    @Test
+    fun leaveFormChecksMatchServerRules() {
+        val today = java.time.LocalDate.of(2026, 11, 9)
+        val ok = id.pejuang.hris.ui.LeaveForm("t1", today.plusDays(7), today.plusDays(9), "Acara keluarga")
+        assertTrue(id.pejuang.hris.ui.validateLeave(ok, today).isEmpty())
+        val empty = id.pejuang.hris.ui.validateLeave(id.pejuang.hris.ui.LeaveForm(), today)
+        assertEquals(setOf("leave_type_id", "start_date", "reason"), empty.keys)
+        assertTrue(id.pejuang.hris.ui.validateLeave(ok.copy(end = today), today).containsKey("start_date"))
+        assertTrue(id.pejuang.hris.ui.validateLeave(ok.copy(start = java.time.LocalDate.of(2026, 12, 30), end = java.time.LocalDate.of(2027, 1, 2)), today).containsKey("start_date"))
+        assertTrue(id.pejuang.hris.ui.validateLeave(ok.copy(start = today.minusDays(31), end = today), today).containsKey("start_date"))
+        assertTrue(id.pejuang.hris.ui.validateLeave(ok.copy(reason = "  a "), today).containsKey("reason"))
+    }
+
+    @Test
+    fun progressFollowsCurrentStep() {
+        val type = id.pejuang.hris.data.LeaveTypeRef("t1", "annual", "Cuti Tahunan")
+        fun leave(status: String, steps: List<id.pejuang.hris.data.ApprovalStep>) =
+            id.pejuang.hris.data.LeaveRequest("l", "e", type, "2026-11-16", "2026-11-18", 3, "x", status, "2026-11-09T00:00:00Z", null, steps)
+        val waitingSdm = leave("pending", listOf(
+            id.pejuang.hris.data.ApprovalStep(1, "kadiv", "Umar", "approved"),
+            id.pejuang.hris.data.ApprovalStep(2, "sdm", null, "pending"),
+        ))
+        assertEquals("Menunggu SDM", id.pejuang.hris.ui.progressText(waitingSdm))
+        val atKadiv = leave("pending", listOf(id.pejuang.hris.data.ApprovalStep(1, "kadiv", "Umar", "pending")))
+        assertEquals("Menunggu Kepala Divisi · Umar", id.pejuang.hris.ui.progressText(atKadiv))
+        val rejected = leave("rejected", listOf(id.pejuang.hris.data.ApprovalStep(1, "kadiv", "Umar", "rejected", "Tanggal bentrok")))
+        assertEquals("Ditolak: Tanggal bentrok", id.pejuang.hris.ui.progressText(rejected))
+        assertEquals("Dibatalkan", id.pejuang.hris.ui.progressText(leave("cancelled", emptyList())))
+    }
+
+    @Test
+    fun fieldErrorsAreKeptPerField() {
+        val err = id.pejuang.hris.data.errorFromBody(
+            """{"error":{"code":"VALIDATION_FAILED","message":"Periksa kembali isian form.","details":{"fields":{"reason":"Alasan wajib diisi, minimal 3 karakter.","end_date":"Rentang tanggal ini tidak berisi hari kerja."}}}}""",
+        )
+        assertEquals("Alasan wajib diisi, minimal 3 karakter.", err?.fields?.get("reason"))
+        assertEquals("Rentang tanggal ini tidak berisi hari kerja.", err?.fields?.get("end_date"))
+    }
+
+    @Test
+    fun leaveInputUsesContractFields() {
+        val body = apiJson.encodeToString(
+            id.pejuang.hris.data.LeaveInput.serializer(),
+            id.pejuang.hris.data.LeaveInput("t1", "2026-11-16", "2026-11-18", "Acara keluarga"),
+        )
+        assertEquals("""{"leave_type_id":"t1","start_date":"2026-11-16","end_date":"2026-11-18","reason":"Acara keluarga"}""", body)
+        val decision = apiJson.encodeToString(id.pejuang.hris.data.ApprovalDecision.serializer(), id.pejuang.hris.data.ApprovalDecision(null))
+        assertEquals("{}", decision)
     }
 }

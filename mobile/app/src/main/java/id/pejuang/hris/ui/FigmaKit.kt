@@ -50,6 +50,7 @@ import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
@@ -98,6 +99,13 @@ object Fg {
     val Chevron = Color(0xFFB6C2D7)
     val Danger = Color(0xFFF14E4E)
     val NavBar = Color(0xFF1C2020)
+    // Tombol utama merah untuk tindakan menolak atau membatalkan.
+    val DangerTop = Color(0xFFEF5350)
+    val DangerMid = Color(0xFFDC2626)
+    val DangerBottom = Color(0xFFB91C1C)
+    val DangerBorder = Color(0xFFF7A1A1)
+    val DangerRing = Color(0xFF991B1B)
+    val DangerText = Color(0xFFB91C1C)
     val Backdrop = Color(0x992D2D2D)
 }
 
@@ -121,22 +129,24 @@ fun FigmaPrimaryButton(
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
     loading: Boolean = false,
+    danger: Boolean = false,
 ) {
     val active = enabled && !loading
     val shape = RoundedCornerShape(100.dp)
+    val ring = if (danger) Fg.DangerRing else Fg.ButtonRing
+    val gradient = if (danger) Brush.verticalGradient(0f to Fg.DangerTop, 0.2883f to Fg.DangerMid, 1f to Fg.DangerBottom)
+    else Brush.verticalGradient(0f to Fg.ButtonTop, 0.2883f to Fg.ButtonMid, 1f to Fg.ButtonBottom)
+    val edge = if (danger) Fg.DangerBorder else Fg.ButtonBorder
     Box(
         modifier
             .fillMaxWidth()
             .heightIn(min = 48.dp)
             .clip(shape)
-            .background(if (enabled || loading) Fg.ButtonRing else Fg.Gray300)
+            .background(if (enabled || loading) ring else Fg.Gray300)
             .padding(1.dp)
             .clip(shape)
-            .background(
-                if (enabled || loading) Brush.verticalGradient(0f to Fg.ButtonTop, 0.2883f to Fg.ButtonMid, 1f to Fg.ButtonBottom)
-                else SolidColor(Fg.Gray200),
-            )
-            .border(1.dp, if (enabled || loading) Fg.ButtonBorder else Fg.Gray300, shape)
+            .background(if (enabled || loading) gradient else SolidColor(Fg.Gray200))
+            .border(1.dp, if (enabled || loading) edge else Fg.Gray300, shape)
             .clickable(enabled = active, role = Role.Button, onClick = onClick)
             .padding(horizontal = 20.dp, vertical = 12.dp),
         contentAlignment = Alignment.Center,
@@ -278,6 +288,105 @@ fun FigmaInput(
                 }
             },
         )
+        if (error != null) Text(error, style = figmaText(12, color = Fg.Danger, lineHeight = 1.3f))
+    }
+}
+
+/** Isian teks banyak baris dengan gaya [FigmaInput], penghitung karakter, dan contoh isian. */
+@Composable
+fun FigmaTextArea(
+    label: String,
+    value: String,
+    onChange: (String) -> Unit,
+    modifier: Modifier = Modifier,
+    placeholder: String = "",
+    error: String? = null,
+    hint: String? = null,
+    maxLength: Int = 500,
+    required: Boolean = false,
+) {
+    val interaction = remember { MutableInteractionSource() }
+    val focused by interaction.collectIsFocusedAsState()
+    val border = when {
+        error != null -> Fg.Danger
+        focused -> Fg.Accent
+        else -> Fg.Gray400
+    }
+    Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Text(if (required) "$label *" else label, style = figmaText(12, FontWeight.Medium, Fg.TextSecondary).copy(lineHeight = 17.sp))
+        BasicTextField(
+            value = value,
+            onValueChange = { onChange(it.take(maxLength)) },
+            minLines = 3,
+            maxLines = 6,
+            textStyle = figmaText(14, color = Fg.TextPrimary, lineHeight = 1.45f),
+            keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
+            interactionSource = interaction,
+            cursorBrush = SolidColor(Fg.Accent),
+            decorationBox = { inner ->
+                Box(
+                    Modifier
+                        .fillMaxWidth()
+                        .heightIn(min = 88.dp)
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(Color.White)
+                        .border(1.dp, border, RoundedCornerShape(8.dp))
+                        .padding(12.dp),
+                ) {
+                    if (value.isEmpty() && placeholder.isNotEmpty()) {
+                        Text(placeholder, style = figmaText(14, color = Fg.Gray400, lineHeight = 1.45f))
+                    }
+                    inner()
+                }
+            },
+        )
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text(
+                (error ?: hint).orEmpty(),
+                style = figmaText(12, color = if (error != null) Fg.Danger else Fg.TextSecondary, lineHeight = 1.3f),
+                modifier = Modifier.weight(1f),
+            )
+            Text("${value.length}/$maxLength", style = figmaText(12, color = Fg.Gray500))
+        }
+    }
+}
+
+/** Kolom pilihan yang membuka dialog (mis. pemilih tanggal), tampil seperti [FigmaInput]. */
+@Composable
+fun FigmaPickerField(
+    label: String,
+    value: String?,
+    placeholder: String,
+    icon: ImageVector,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    error: String? = null,
+    required: Boolean = false,
+) {
+    Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Text(if (required) "$label *" else label, style = figmaText(12, FontWeight.Medium, Fg.TextSecondary).copy(lineHeight = 17.sp))
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .heightIn(min = 48.dp)
+                .clip(RoundedCornerShape(8.dp))
+                .background(Color.White)
+                .border(1.dp, if (error != null) Fg.Danger else Fg.Gray400, RoundedCornerShape(8.dp))
+                .clickable(role = Role.Button, onClickLabel = label, onClick = onClick)
+                .padding(12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            Icon(icon, contentDescription = null, tint = Fg.FieldIcon, modifier = Modifier.size(20.dp))
+            Text(
+                value ?: placeholder,
+                style = figmaText(14, if (value != null) FontWeight.Medium else FontWeight.Normal, if (value != null) Fg.TextPrimary else Fg.Gray400),
+                modifier = Modifier.weight(1f),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Icon(FigmaIcons.ArrowRight, contentDescription = null, tint = Fg.Chevron, modifier = Modifier.size(16.dp))
+        }
         if (error != null) Text(error, style = figmaText(12, color = Fg.Danger, lineHeight = 1.3f))
     }
 }

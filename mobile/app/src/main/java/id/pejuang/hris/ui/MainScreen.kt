@@ -211,9 +211,9 @@ fun MainTabs(
                 MainTab.Payslip -> {
                     SecureScreen()
                     ComingSoonContent(
-                        title = "Slip upah",
-                        subtitle = "Rincian upah per periode",
-                        body = "Slip upah akan tampil di sini setelah SDM menerbitkan payroll dari sistem.",
+                        title = "Slip ubar",
+                        subtitle = "Rincian ubar per periode",
+                        body = "Slip ubar akan tampil di sini setelah SDM menerbitkan payroll dari sistem.",
                     )
                 }
                 MainTab.Profile -> {

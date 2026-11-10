@@ -44,6 +44,11 @@ android {
         buildConfigField("String", "API_BASE_URL", "\"$apiBaseUrl\"")
         buildConfigField("String", "UPDATE_REPO", "\"$updateRepo\"")
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+        // Hanya prosesor ARM (semua HP Android yang dituju). Pustaka x86 hanya terpakai emulator dan
+        // menambah sekitar 20 MB.
+        ndk {
+            abiFilters += listOf("arm64-v8a", "armeabi-v7a")
+        }
     }
 
     buildTypes {
@@ -69,6 +74,10 @@ android {
 
     packaging {
         resources.excludes += "/META-INF/{AL2.0,LGPL2.1}"
+        // Pustaka native dikompresi dan diekstrak saat pemasangan, cara yang didukung semua pemasang.
+        // Diduga pemasang bawaan Infinix XOS (Android 16) menolak pustaka tanpa kompresi sebagai
+        // "paket tidak valid"; dugaan ini belum dipastikan dengan kode galat adb.
+        jniLibs.useLegacyPackaging = true
     }
 }
 

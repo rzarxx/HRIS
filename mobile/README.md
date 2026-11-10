@@ -143,6 +143,7 @@ Pustaka (Compose, Retrofit, CameraX, ML Kit, lokasi) diambil otomatis oleh Gradl
 | Compose BOM | 2024.12.01 |
 | CameraX | 1.4.1 |
 | ML Kit face detection | 16.1.7 (model dibundel) |
+| ABI | Hanya `arm64-v8a` dan `armeabi-v7a`. Pustaka native dikompresi (`useLegacyPackaging`) agar diterima pemasang bawaan OEM; skrip tanda tangan rilis menolak APK yang menyimpang. Akibatnya APK tidak bisa dipasang di emulator x86 |
 | Haze | 1.2.2, blur bottom bar kaca. Blur aktif di Android 12+; Android 8–11 dan screenshot Paparazzi memakai lapisan putih pengganti |
 
 ## Perlu dicek di HP sungguhan

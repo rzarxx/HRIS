@@ -44,7 +44,7 @@ func isWorkDay(date time.Time, workDays []int16) bool {
 
 // FillAttendance mengisi hari kerja yang belum punya baris, termasuk baris absent
 // karena alpha harus berupa baris nyata agar terhitung di laporan. Hasilnya deterministik
-// per Pejuang dan tanggal. Pejuang yang punya perangkat dilewati karena absen sungguhan.
+// per Pejuang dan tanggal. Pejuang yang punya perangkat dilewati karena presensi sungguhan.
 // Mengembalikan jumlah baris baru.
 func FillAttendance(ctx context.Context, q *store.Queries, now time.Time) (int, error) {
 	shift, err := q.GetDefaultShift(ctx)
@@ -133,7 +133,7 @@ func simulateDay(employeeID uuid.UUID, date time.Time, shiftID uuid.NullUUID, to
 	}
 	outMinute := shiftEnd + r.Intn(60)
 	if isToday && minutesNow < inMinute {
-		return nil // belum waktunya absen masuk
+		return nil // belum waktunya presensi masuk
 	}
 	base.ClockInAt = pgconv.Time(wibTime(date, inMinute))
 	if !isToday || minutesNow >= outMinute {

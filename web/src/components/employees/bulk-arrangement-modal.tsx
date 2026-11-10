@@ -11,7 +11,7 @@ import { validate, workArrangementSchema } from "@/lib/schemas";
 import type { BulkWorkArrangementInput, BulkWorkArrangementResult } from "@/lib/types";
 
 const MODE = {
-  wfa: { label: "WFA", hint: "Boleh absen dari mana saja. Tercatat wfa dan tidak terikat lokasi kantor." },
+  wfa: { label: "WFA", hint: "Boleh presensi dari mana saja. Tercatat wfa dan tidak terikat lokasi kantor." },
   hybrid: { label: "Hybrid", hint: "Di lokasi yang ditugaskan tercatat onsite. Di luar lokasi tetap sah dan tercatat field." },
 } as const;
 
@@ -161,7 +161,7 @@ export function BulkArrangementModal({ onClose }: { onClose: () => void }) {
           <Toggle checked={form.flexible_hours} onChange={(v) => set("flexible_hours", v)} className="font-medium">
             Jam fleksibel
           </Toggle>
-          <p className="mt-1 text-xs text-slate-500">Absen di luar jam shift tetap sah dan tidak dihitung telat.</p>
+          <p className="mt-1 text-xs text-slate-500">Presensi di luar jam shift tetap sah dan tidak dihitung telat.</p>
         </div>
         <Field label="Alasan" htmlFor="bulk_reason" error={errors.reason} required className="sm:col-span-2">
           <Textarea id="bulk_reason" rows={2} maxLength={500} value={form.reason} onChange={(e) => set("reason", e.target.value)} invalid={!!errors.reason} />

@@ -16,7 +16,7 @@ const COLORS = ["#15803d", "#475569"];
 const POINT_ZOOM = 16;
 
 /**
- * Peta baca saja untuk titik absen. Leaflet butuh `window`, jadi muat lewat next/dynamic dengan ssr: false.
+ * Peta baca saja untuk titik presensi. Leaflet butuh `window`, jadi muat lewat next/dynamic dengan ssr: false.
  */
 export default function AttendancePointsMap({ points }: { points: MapPoint[] }) {
   const box = useRef<HTMLDivElement>(null);
@@ -51,5 +51,5 @@ export default function AttendancePointsMap({ points }: { points: MapPoint[] }) 
     };
   }, [points]);
 
-  return <div ref={box} role="img" aria-label={`Peta titik absen: ${points.map((p) => p.label).join(", ")}`} className="h-56 w-full rounded-lg border border-slate-200" />;
+  return <div ref={box} role="img" aria-label={`Peta titik presensi: ${points.map((p) => p.label).join(", ")}`} className="h-56 w-full rounded-lg border border-slate-200" />;
 }

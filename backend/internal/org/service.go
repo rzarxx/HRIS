@@ -213,6 +213,9 @@ func (s *Service) UpdateDivision(ctx context.Context, actor audit.Entry, id uuid
 		if _, err := q.UpdateDivision(ctx, store.UpdateDivisionParams{ID: id, Code: in.Code, Name: in.Name, HeadEmployeeID: head}); err != nil {
 			return mapUnique(err, "divisi")
 		}
+		if err := syncHeadRoles(ctx, q, actor, current.HeadEmployeeID, head); err != nil {
+			return err
+		}
 		return writeOrgAudit(ctx, q, actor, "division", id, "updated")
 	})
 	if err != nil {
@@ -345,6 +348,9 @@ func (s *Service) UpdateSubdivision(ctx context.Context, actor audit.Entry, id u
 		}); err != nil {
 			return mapUnique(err, "subdiv")
 		}
+		if err := syncHeadRoles(ctx, q, actor, current.HeadEmployeeID, head); err != nil {
+			return err
+		}
 		return writeOrgAudit(ctx, q, actor, "subdivision", id, "updated")
 	})
 	if err != nil {
@@ -380,4 +386,48 @@ func writeOrgAudit(ctx context.Context, q *store.Queries, actor audit.Entry, ent
 	actor.EntityID = id
 	actor.Detail = map[string]any{"change": change, "at": time.Now().UTC().Format(time.RFC3339)}
 	return audit.Write(ctx, q, actor)
+}
+
+// syncHeadRoles menyesuaikan role kepala lama dan baru (D49): kepala divisi menjadi kadiv, kepala
+// subdiv menjadi subdiv, dan yang tidak lagi memimpin unit mana pun kembali menjadi pejuang. Role
+// sdm dan superadmin tidak pernah diubah. Sesi berjalan memakai role baru setelah token diperbarui.
+func syncHeadRoles(ctx context.Context, q *store.Queries, actor audit.Entry, before, after uuid.NullUUID) error {
+	if before == after {
+		return nil
+	}
+	for _, id := range []uuid.NullUUID{before, after} {
+		if !id.Valid {
+			continue
+		}
+		st, err := q.GetHeadRoleState(ctx, id.UUID)
+		if pgconv.IsNoRows(err) {
+			continue // Pejuang tanpa akun
+		}
+		if err != nil {
+			return err
+		}
+		if st.Role == store.UserRoleSdm || st.Role == store.UserRoleSuperadmin {
+			continue
+		}
+		want := store.UserRolePejuang
+		switch {
+		case st.HeadsDivision:
+			want = store.UserRoleKadiv
+		case st.HeadsSubdivision:
+			want = store.UserRoleSubdiv
+		}
+		if want == st.Role {
+			continue
+		}
+		if err := q.SetUserRole(ctx, store.SetUserRoleParams{ID: st.UserID, Role: want}); err != nil {
+			return err
+		}
+		e := actor
+		e.Action, e.Entity, e.EntityID = audit.UserRoleChanged, "user", st.UserID
+		e.Detail = map[string]any{"from": st.Role, "to": want, "reason": "head_assignment"}
+		if err := audit.Write(ctx, q, e); err != nil {
+			return err
+		}
+	}
+	return nil
 }

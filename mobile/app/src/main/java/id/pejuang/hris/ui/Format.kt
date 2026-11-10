@@ -42,7 +42,7 @@ fun statusLabel(status: String?): Pair<String, Tone> = when (status) {
     "absent" -> "Tidak hadir" to Tone.Danger
     "leave" -> "Cuti/izin" to Tone.Info
     "review" -> "Ditinjau SDM" to Tone.Warning
-    null -> "Belum absen" to Tone.Neutral
+    null -> "Belum presensi" to Tone.Neutral
     else -> status to Tone.Neutral
 }
 

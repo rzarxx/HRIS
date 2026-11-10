@@ -196,8 +196,8 @@ func (s *Service) CreateArrangement(ctx context.Context, p auth.Principal, ip *n
 	return presentArrangement(row), nil
 }
 
-// DeleteArrangement mencabut izin kerja dan langsung berlaku, termasuk untuk absen pulang hari itu.
-// Riwayatnya tetap ada di audit, dan absen yang sudah tercatat tidak berubah.
+// DeleteArrangement mencabut izin kerja dan langsung berlaku, termasuk untuk presensi pulang hari itu.
+// Riwayatnya tetap ada di audit, dan presensi yang sudah tercatat tidak berubah.
 func (s *Service) DeleteArrangement(ctx context.Context, p auth.Principal, ip *netip.Addr, employeeID, id uuid.UUID) error {
 	return database.InTx(ctx, s.pool, func(q *store.Queries) error {
 		if _, err := q.LockEmployeeForDevice(ctx, employeeID); err != nil {
@@ -230,7 +230,7 @@ func arrangementAudit(p auth.Principal, ip *netip.Addr, r store.EmployeeWorkArra
 	}
 }
 
-// placement adalah hasil penentuan tempat kerja satu upaya absen.
+// placement adalah hasil penentuan tempat kerja satu upaya presensi.
 type placement struct {
 	workMode string
 	location *store.ListEmployeeLocationsRow

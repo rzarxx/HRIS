@@ -50,7 +50,7 @@ func TestDemoSeed(t *testing.T) {
 		t.Errorf("izin: %+v", arrangements)
 	}
 
-	// Latihan: putuskan absen dan setujui perangkat pengganti.
+	// Latihan: putuskan presensi dan setujui perangkat pengganti.
 	sdm.do(http.MethodPost, "/v1/admin/attendance/"+queue[0].ID+"/resolve", map[string]any{"decision": "absent", "note": "Latihan demo"}).want(t, http.StatusOK)
 	for _, d := range pending {
 		sdm.do(http.MethodPost, "/v1/admin/devices/"+d.ID+"/approve", nil).want(t, http.StatusOK)

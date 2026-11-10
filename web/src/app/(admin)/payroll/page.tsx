@@ -11,7 +11,7 @@ import { MONTHS, rupiah, sumMoney } from "@/lib/format";
 import { usePayrollReport, type PeriodFilter } from "@/lib/hooks";
 
 export default function PayrollReportPage() {
-  // Laporan upah lazimnya untuk bulan yang sudah selesai
+  // Laporan ubar lazimnya untuk bulan yang sudah selesai
   const [period, setPeriod] = useState<PeriodFilter>(() => currentPeriod(-1));
   const report = usePayrollReport(period);
   const rows = useMemo(() => report.data?.data ?? [], [report.data]);
@@ -31,8 +31,8 @@ export default function PayrollReportPage() {
 
   function exportCsv() {
     downloadCsv(
-      `laporan-upah-${period.year}-${String(period.month).padStart(2, "0")}.csv`,
-      ["NIPY", "Nama", "Divisi", "Subdiv", "Gaji pokok", "Alpha (hari)", "Telat (kali)", "Potongan alpha", "Potongan telat", "Upah bersih"],
+      `laporan-ubar-${period.year}-${String(period.month).padStart(2, "0")}.csv`,
+      ["NIPY", "Nama", "Divisi", "Subdiv", "Ubar pokok", "Alpha (hari)", "Telat (kali)", "Potongan alpha", "Potongan telat", "Ubar bersih"],
       rows.map((r) => [r.nip, r.full_name, r.division, r.subdivision, r.base_salary, r.absent, r.late, r.absent_deduction, r.late_deduction, r.net]),
     );
   }
@@ -40,8 +40,8 @@ export default function PayrollReportPage() {
   return (
     <>
       <PageHeader
-        title="Laporan upah"
-        description={`Perhitungan upah berdasarkan presensi periode ${label}.`}
+        title="Laporan ubar"
+        description={`Perhitungan ubar berdasarkan presensi periode ${label}.`}
         actions={
           <Button variant="secondary" onClick={exportCsv} disabled={!rows.length}>
             <Download className="size-4" /> Ekspor Excel (CSV)
@@ -59,10 +59,10 @@ export default function PayrollReportPage() {
           <PeriodFilterBar value={period} onChange={setPeriod} />
           <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
             {[
-              ["Total gaji pokok", totals.base],
+              ["Total ubar pokok", totals.base],
               ["Potongan alpha", totals.absent],
               ["Potongan telat", totals.late],
-              ["Total upah bersih", totals.net],
+              ["Total ubar bersih", totals.net],
             ].map(([k, v]) => (
               <div key={k} className="rounded-md bg-slate-50 px-4 py-3">
                 <p className="text-xs text-slate-500">{k}</p>
@@ -84,12 +84,12 @@ export default function PayrollReportPage() {
                 <Th>NIPY</Th>
                 <Th>Nama</Th>
                 <Th>Subdiv</Th>
-                <Th align="right">Gaji pokok</Th>
+                <Th align="right">Ubar pokok</Th>
                 <Th align="right">Alpha</Th>
                 <Th align="right">Telat</Th>
                 <Th align="right">Pot. alpha</Th>
                 <Th align="right">Pot. telat</Th>
-                <Th align="right">Upah bersih</Th>
+                <Th align="right">Ubar bersih</Th>
               </tr>
             </thead>
             <tbody className={report.isPlaceholderData ? "opacity-60" : ""}>

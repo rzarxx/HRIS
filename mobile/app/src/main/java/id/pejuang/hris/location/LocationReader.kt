@@ -10,7 +10,7 @@ import com.google.android.gms.tasks.CancellationTokenSource
 import kotlinx.coroutines.tasks.await
 import kotlin.math.roundToLong
 
-/** Satu titik lokasi saat absen. Koordinat dibulatkan 6 desimal sesuai kontrak (§5.4). */
+/** Satu titik lokasi saat presensi. Koordinat dibulatkan 6 desimal sesuai kontrak (§5.4). */
 data class Fix(
     val latitude: Double,
     val longitude: Double,

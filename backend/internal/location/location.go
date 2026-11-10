@@ -1,4 +1,4 @@
-// Package location mengelola lokasi kantor dan penugasan lokasi absen per Pejuang.
+// Package location mengelola lokasi kantor dan penugasan lokasi presensi per Pejuang.
 package location
 
 import (
@@ -249,7 +249,7 @@ func (s *Service) assertEmployee(ctx context.Context, id uuid.UUID) error {
 	return nil
 }
 
-// ForEmployee mengembalikan lokasi absen yang diizinkan untuk seorang Pejuang.
+// ForEmployee mengembalikan lokasi presensi yang diizinkan untuk seorang Pejuang.
 func (s *Service) ForEmployee(ctx context.Context, employeeID uuid.UUID) ([]OfficeLocation, error) {
 	if err := s.assertEmployee(ctx, employeeID); err != nil {
 		return nil, err

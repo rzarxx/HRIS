@@ -27,6 +27,7 @@ tags:
   - name: Pengumuman
   - name: Dashboard
   - name: Laporan
+  - name: Pengajuan
   - name: Sistem
 security:
   - csrfToken: []
@@ -537,7 +538,7 @@ paths:
     post:
       tags: [Pejuang]
       summary: Nonaktifkan Pejuang
-      description: Riwayat presensi dan upah tetap tersimpan.
+      description: Riwayat presensi dan ubar tetap tersimpan.
       responses:
         "200":
           description: OK
@@ -606,7 +607,7 @@ paths:
   /v1/attendance/challenge:
     post:
       tags: [Presensi]
-      summary: Minta tantangan absen sekali pakai
+      summary: Minta tantangan presensi sekali pakai
       description: "Berlaku 90 detik dan terikat ke pengguna, perangkat, dan tujuan."
       parameters:
         - { name: X-Device-Id, in: header, required: true, description: "ID perangkat dari hasil registrasi", schema: { type: string, format: uuid } }
@@ -630,8 +631,8 @@ paths:
   /v1/attendance/clock-in:
     post:
       tags: [Presensi]
-      summary: Absen masuk
-      description: "Kirim multipart: bagian `payload` (JSON `ClockInput`) dan berkas `selfie`. Server mencocokkan wajah dan memverifikasi token Play jika dikonfigurasi. JSON tanpa selfie hanya diterima dengan bypass development (D36). Tanpa verifikasi atau bypass tersebut, absen ditolak `ATTENDANCE_BLOCKED`. Alasan keamanan tidak dikirim ke klien."
+      summary: Presensi masuk
+      description: "Kirim multipart: bagian `payload` (JSON `ClockInput`) dan berkas `selfie`. Server mencocokkan wajah dan memverifikasi token Play jika dikonfigurasi. JSON tanpa selfie hanya diterima dengan bypass development (D36). Tanpa verifikasi atau bypass tersebut, presensi ditolak `ATTENDANCE_BLOCKED`. Alasan keamanan tidak dikirim ke klien."
       parameters:
         - { name: X-Device-Id, in: header, required: true, description: "ID perangkat dari hasil registrasi", schema: { type: string, format: uuid } }
       requestBody:
@@ -651,7 +652,7 @@ paths:
             schema: { $ref: "#/components/schemas/ClockInput" }
       responses:
         "201":
-          description: Absen masuk tercatat
+          description: Presensi masuk tercatat
           content:
             application/json:
               schema:
@@ -669,8 +670,8 @@ paths:
   /v1/attendance/clock-out:
     post:
       tags: [Presensi]
-      summary: Absen pulang
-      description: "Dipasangkan dengan absen masuk yang masih terbuka, sampai batas cutoff harian berikutnya (D31)."
+      summary: Presensi pulang
+      description: "Dipasangkan dengan presensi masuk yang masih terbuka, sampai batas cutoff harian berikutnya (D31)."
       parameters:
         - { name: X-Device-Id, in: header, required: true, description: "ID perangkat dari hasil registrasi", schema: { type: string, format: uuid } }
       requestBody:
@@ -690,7 +691,7 @@ paths:
             schema: { $ref: "#/components/schemas/ClockInput" }
       responses:
         "200":
-          description: Absen pulang tercatat
+          description: Presensi pulang tercatat
           content:
             application/json:
               schema:
@@ -708,7 +709,7 @@ paths:
   /v1/attendance:
     get:
       tags: [Presensi]
-      summary: Riwayat absen sendiri
+      summary: Riwayat presensi sendiri
       description: "Bawaannya 31 hari terakhir, rentang maksimal 92 hari. Tidak memuat skor risiko."
       parameters:
         - { name: from, in: query, schema: { type: string, format: date } }
@@ -1159,7 +1160,7 @@ paths:
       - $ref: "#/components/parameters/Id"
     get:
       tags: [Pejuang]
-      summary: Lokasi absen yang diizinkan untuk Pejuang
+      summary: Lokasi presensi yang diizinkan untuk Pejuang
       description: "Permission `employee:write`."
       responses:
         "200":
@@ -1176,8 +1177,8 @@ paths:
         "404": { $ref: "#/components/responses/Error" }
     put:
       tags: [Pejuang]
-      summary: Tetapkan lokasi absen Pejuang
-      description: Menggantikan seluruh daftar. Daftar kosong berarti Pejuang tidak bisa absen di mana pun. Lokasi super admin hanya bisa diubah oleh super admin (D34).
+      summary: Tetapkan lokasi presensi Pejuang
+      description: Menggantikan seluruh daftar. Daftar kosong berarti Pejuang tidak bisa presensi di mana pun. Lokasi super admin hanya bisa diubah oleh super admin (D34).
       requestBody:
         required: true
         content:
@@ -1226,8 +1227,8 @@ paths:
   /v1/admin/attendance/monitor:
     get:
       tags: [Presensi]
-      summary: Monitor absen semua Pejuang pada satu tanggal kerja
-      description: "Permission `attendance:review`. Memuat semua Pejuang aktif, termasuk yang belum absen. Tanggal kosong berarti tanggal kerja saat ini."
+      summary: Monitor presensi semua Pejuang pada satu tanggal kerja
+      description: "Permission `attendance:review`. Memuat semua Pejuang aktif, termasuk yang belum presensi. Tanggal kosong berarti tanggal kerja saat ini."
       parameters:
         - name: date
           in: query
@@ -1251,7 +1252,7 @@ paths:
   /v1/admin/attendance/review:
     get:
       tags: [Presensi]
-      summary: Antrian Review Absen
+      summary: Antrian Review Presensi
       description: "Permission `attendance:review`. Yang terlama lebih dulu."
       parameters:
         - name: work_mode
@@ -1282,8 +1283,8 @@ paths:
         schema: { type: string, enum: [clock_in, clock_out] }
     get:
       tags: [Presensi]
-      summary: Lihat selfie untuk review absen
-      description: "Permission `attendance:review`; akses dicatat di audit. Hanya absen review dan selfie yang belum melewati retensi."
+      summary: Lihat selfie untuk review presensi
+      description: "Permission `attendance:review`; akses dicatat di audit. Hanya presensi review dan selfie yang belum melewati retensi."
       responses:
         "200":
           description: Selfie JPEG, tidak boleh disimpan di cache
@@ -1296,7 +1297,7 @@ paths:
   /v1/admin/attendance/attempts:
     get:
       tags: [Presensi]
-      summary: Upaya absen pada satu tanggal, termasuk yang ditolak
+      summary: Upaya presensi pada satu tanggal, termasuk yang ditolak
       description: "Permission `attendance:review`. Tanggal kalender WIB dari waktu upaya, terbaru dulu. Tanggal kosong berarti hari ini."
       parameters:
         - { name: date, in: query, schema: { type: string, format: date } }
@@ -1322,10 +1323,10 @@ paths:
       - $ref: "#/components/parameters/Id"
     post:
       tags: [Presensi]
-      summary: Putuskan absen review
+      summary: Putuskan presensi review
       description: >-
-        Permission `attendance:review`. `present` menghapus keterlambatan, `late` hanya untuk absen yang memang terlambat, dan
-        `absent` wajib memakai catatan. Absen sendiri ditolak `CONFLICT_SELF_ACTION`, dan absen yang sudah diputuskan ditolak `REQUEST_NOT_PENDING`.
+        Permission `attendance:review`. `present` menghapus keterlambatan, `late` hanya untuk presensi yang memang terlambat, dan
+        `absent` wajib memakai catatan. Presensi sendiri ditolak `CONFLICT_SELF_ACTION`, dan presensi yang sudah diputuskan ditolak `REQUEST_NOT_PENDING`.
       requestBody:
         required: true
         content:
@@ -1400,7 +1401,7 @@ paths:
     delete:
       tags: [Pejuang]
       summary: Cabut izin kerja
-      description: Langsung berlaku, termasuk untuk absen pulang hari itu. Absen yang sudah tercatat tidak berubah.
+      description: Langsung berlaku, termasuk untuk presensi pulang hari itu. Presensi yang sudah tercatat tidak berubah.
       responses:
         "204": { description: Izin dicabut }
         "403": { $ref: "#/components/responses/Error" }
@@ -1527,11 +1528,328 @@ paths:
                 properties:
                   data: { $ref: "#/components/schemas/OrgChart" }
 
+  /v1/leave-types:
+    get:
+      tags: [Pengajuan]
+      summary: Jenis cuti aktif beserta saldo tahun ini
+      description: >-
+        Permission `leave:create`. `balance` hanya ada untuk jenis bersaldo (D47): `statutory` memberi 12 hari per
+        tahun setelah 12 bulan bekerja dari `join_date`, `custom` memakai jatah dari SDM. Hari terpakai menghitung
+        pengajuan pending dan approved pada tahun kalender berjalan.
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: "#/components/schemas/LeaveType" }
+  /v1/leaves:
+    get:
+      tags: [Pengajuan]
+      summary: Pengajuan cuti/izin milik sendiri
+      description: "Permission `leave:read`. Terbaru dulu, paling banyak 100, lengkap dengan timeline persetujuan."
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: "#/components/schemas/LeaveRequest" }
+    post:
+      tags: [Pengajuan]
+      summary: Ajukan cuti atau izin
+      description: >-
+        Permission `leave:create`. Hari dihitung server dari hari kerja shift tanpa hari libur. Ditolak bila
+        bertabrakan dengan pengajuan pending/approved (`DUPLICATE_REQUEST`), menutupi hari yang sudah ada presensi
+        masuk, melewati pergantian tahun, lebih dari 92 hari, mulai lebih dari 30 hari ke belakang, atau melebihi
+        saldo. Alur persetujuan mengikuti `approval_flows` (default kadiv lalu sdm, D46).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/LeaveInput" }
+      responses:
+        "201":
+          description: Dibuat
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data: { $ref: "#/components/schemas/LeaveRequest" }
+        "400": { $ref: "#/components/responses/ValidationFailed" }
+        "409": { $ref: "#/components/responses/Error" }
+        "422": { $ref: "#/components/responses/Error" }
+  /v1/leaves/{id}:
+    parameters:
+      - $ref: "#/components/parameters/Id"
+    get:
+      tags: [Pengajuan]
+      summary: Detail pengajuan sendiri dengan timeline
+      description: "Permission `leave:read`. Pengajuan orang lain dijawab 404."
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data: { $ref: "#/components/schemas/LeaveRequest" }
+        "404": { $ref: "#/components/responses/Error" }
+  /v1/leaves/{id}/cancel:
+    parameters:
+      - $ref: "#/components/parameters/Id"
+    post:
+      tags: [Pengajuan]
+      summary: Batalkan pengajuan yang masih menunggu
+      description: "Permission `leave:create`. Langkah yang belum diputuskan menjadi `skipped`."
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data: { $ref: "#/components/schemas/LeaveRequest" }
+        "404": { $ref: "#/components/responses/Error" }
+        "409": { $ref: "#/components/responses/Error" }
+  /v1/admin/leaves:
+    get:
+      tags: [Pengajuan]
+      summary: Pengajuan cuti/izin dalam scope
+      description: "Permission `leave:read` dengan scope (subdiv, divisi, atau semua). Default tahun berjalan, paling banyak 500."
+      parameters:
+        - { name: status, in: query, schema: { $ref: "#/components/schemas/RequestStatus" } }
+        - { name: from, in: query, schema: { type: string, format: date } }
+        - { name: to, in: query, schema: { type: string, format: date } }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: "#/components/schemas/LeaveRequest" }
+        "400": { $ref: "#/components/responses/ValidationFailed" }
+        "403": { $ref: "#/components/responses/Error" }
+  /v1/admin/leave-types:
+    get:
+      tags: [Pengajuan]
+      summary: Semua jenis cuti, termasuk nonaktif
+      description: "Permission `approval_flow:manage`."
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: "#/components/schemas/LeaveType" }
+    post:
+      tags: [Pengajuan]
+      summary: Tambah jenis cuti
+      description: "Permission `approval_flow:manage`."
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/LeaveTypeInput" }
+      responses:
+        "201":
+          description: Dibuat
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data: { $ref: "#/components/schemas/LeaveType" }
+        "400": { $ref: "#/components/responses/ValidationFailed" }
+        "409": { $ref: "#/components/responses/Error" }
+  /v1/admin/leave-types/{id}:
+    parameters:
+      - $ref: "#/components/parameters/Id"
+    patch:
+      tags: [Pengajuan]
+      summary: Ubah jenis cuti
+      description: "Permission `approval_flow:manage`. Kode tidak bisa diubah; kirim semua field selain `code`."
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/LeaveTypeInput" }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data: { $ref: "#/components/schemas/LeaveType" }
+        "400": { $ref: "#/components/responses/ValidationFailed" }
+        "404": { $ref: "#/components/responses/Error" }
+  /v1/approvals/pending:
+    get:
+      tags: [Pengajuan]
+      summary: Langkah persetujuan yang menunggu keputusan saya
+      description: >-
+        Permission `approval:act`. Berisi langkah yang ditugaskan kepada pemanggil, ditambah pool `sdm` bila
+        pemanggil berrole sdm. Pengajuan milik sendiri tidak pernah tampil.
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: "#/components/schemas/ApprovalItem" }
+  /v1/approvals/{id}:
+    parameters:
+      - $ref: "#/components/parameters/Id"
+    get:
+      tags: [Pengajuan]
+      summary: Detail langkah persetujuan dengan timeline pengajuan
+      description: "Permission `approval:act`. Hanya untuk approver langkah itu; selain itu 404."
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data: { $ref: "#/components/schemas/ApprovalItem" }
+        "404": { $ref: "#/components/responses/Error" }
+  /v1/approvals/{id}/approve:
+    parameters:
+      - $ref: "#/components/parameters/Id"
+    post:
+      tags: [Pengajuan]
+      summary: Setujui langkah
+      description: >-
+        Permission `approval:act`. Ditolak bila pemanggil pemohon (`APPROVAL_SELF_FORBIDDEN`), bukan approver atau
+        langkah sebelumnya belum diputuskan (`APPROVAL_NOT_YOUR_TURN`), atau sudah diputuskan (`REQUEST_NOT_PENDING`).
+        Langkah terakhir yang disetujui menyelesaikan pengajuan; untuk cuti, hari kerjanya tercatat `leave` di presensi.
+      requestBody:
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ApprovalDecision" }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data: { $ref: "#/components/schemas/ApprovalItem" }
+        "400": { $ref: "#/components/responses/ValidationFailed" }
+        "403": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+        "409": { $ref: "#/components/responses/Error" }
+  /v1/approvals/{id}/reject:
+    parameters:
+      - $ref: "#/components/parameters/Id"
+    post:
+      tags: [Pengajuan]
+      summary: Tolak langkah
+      description: "Permission `approval:act`. `note` wajib, minimal 3 karakter. Langkah tersisa menjadi `skipped`."
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ApprovalDecision" }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data: { $ref: "#/components/schemas/ApprovalItem" }
+        "400": { $ref: "#/components/responses/ValidationFailed" }
+        "403": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+        "409": { $ref: "#/components/responses/Error" }
+  /v1/admin/approval-flows/{request_type}:
+    parameters:
+      - { name: request_type, in: path, required: true, schema: { $ref: "#/components/schemas/RequestKind" } }
+    get:
+      tags: [Pengajuan]
+      summary: Alur persetujuan satu jenis pengajuan
+      description: "Permission `approval_flow:manage`."
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data: { $ref: "#/components/schemas/ApprovalFlow" }
+        "404": { $ref: "#/components/responses/Error" }
+    put:
+      tags: [Pengajuan]
+      summary: Ganti alur persetujuan
+      description: >-
+        Permission `approval_flow:manage`. 1 sampai 5 langkah, approver `subdiv`, `kadiv`, atau `sdm`, masing-masing
+        sekali. Berlaku untuk pengajuan baru; pengajuan berjalan memakai snapshot langkahnya.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ApprovalFlowInput" }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data: { $ref: "#/components/schemas/ApprovalFlow" }
+        "400": { $ref: "#/components/responses/ValidationFailed" }
+        "404": { $ref: "#/components/responses/Error" }
   /v1/admin/reports/attendance:
     get:
       tags: [Laporan]
       summary: Rekap presensi bulanan
-      description: "Permission `attendance:report`, dibatasi scope. Filter mode hanya menghitung catatan absen masuk dengan mode tersebut; cuti dan alpha tidak disertakan."
+      description: "Permission `attendance:report`, dibatasi scope. Filter mode hanya menghitung catatan presensi masuk dengan mode tersebut; cuti dan alpha tidak disertakan."
       parameters:
         - $ref: "#/components/parameters/Year"
         - $ref: "#/components/parameters/Month"
@@ -1553,7 +1871,7 @@ paths:
   /v1/admin/reports/payroll-preview:
     get:
       tags: [Laporan]
-      summary: Pratinjau upah berdasarkan presensi
+      summary: Pratinjau ubar berdasarkan presensi
       description: "Permission `attendance:report` dan `payroll:manage`. Rumus sementara, ada di `meta.rules`."
       parameters:
         - $ref: "#/components/parameters/Year"
@@ -1686,6 +2004,7 @@ components:
         - FACE_SERVICE_UNAVAILABLE
         - CHALLENGE_EXPIRED
         - ATTENDANCE_BLOCKED
+        - LEAVE_ACTIVE
         - ACTIVATION_INVALID
         - ACTIVATION_USED
         - ACTIVATION_EXPIRED
@@ -1872,7 +2191,7 @@ components:
         - $ref: "#/components/schemas/EmployeePatch"
         - type: object
           required: [full_name, email, subdivision_id]
-          description: "`base_salary` wajib untuk SDM. Super admin tidak boleh mengirimnya; gaji dimulai dari 0 dan diisi SDM."
+          description: "`base_salary` wajib untuk SDM. Super admin tidak boleh mengirimnya; ubar dimulai dari 0 dan diisi SDM."
     EmployeePatch:
       type: object
       description: Pada PATCH, field yang tidak dikirim tetap nilai lamanya.
@@ -2105,7 +2424,7 @@ components:
     ClockInput:
       type: object
       required: [challenge_id, latitude, longitude, accuracy_m, captured_at]
-      description: "Payload absen. Skor wajah adalah kemiripan cosine SFace (D43): di bawah 0.46 ditolak `FACE_MISMATCH`, 0.46 sampai 0.50 diterima dengan sinyal `face_borderline` (+20). Selfie yang pernah dikirim ditolak `ATTENDANCE_BLOCKED`. Token Play saat ini hanya dapat diuji di development."
+      description: "Payload presensi. Skor wajah adalah kemiripan cosine SFace (D43): di bawah 0.46 ditolak `FACE_MISMATCH`, 0.46 sampai 0.50 diterima dengan sinyal `face_borderline` (+20). Selfie yang pernah dikirim ditolak `ATTENDANCE_BLOCKED`. Token Play saat ini hanya dapat diuji di development."
       properties:
         challenge_id: { type: string, format: uuid }
         latitude: { type: number, minimum: -90, maximum: 90, example: -6.2001 }
@@ -2203,7 +2522,7 @@ components:
         clock_in_at: { type: string, format: date-time, nullable: true }
         clock_out_at: { type: string, format: date-time, nullable: true }
         late_minutes: { type: integer }
-        worked_minutes: { type: integer, nullable: true, description: "Kosong bila belum atau lupa absen pulang" }
+        worked_minutes: { type: integer, nullable: true, description: "Kosong bila belum atau lupa presensi pulang" }
         work_mode: { type: string, enum: [onsite, wfa, field] }
         location_name: { type: string, nullable: true }
     DeviceStatus:
@@ -2298,7 +2617,7 @@ components:
         division_name: { type: string }
         shift_name: { type: string, nullable: true }
         scheduled: { type: boolean, description: "false bila hari libur, di luar hari kerja shift, atau shift belum ditentukan" }
-        status: { type: string, nullable: true, enum: [present, late, absent, leave, review], description: Kosong berarti belum ada absen }
+        status: { type: string, nullable: true, enum: [present, late, absent, leave, review], description: Kosong berarti belum ada presensi }
         clock_in_at: { type: string, format: date-time, nullable: true }
         clock_out_at: { type: string, format: date-time, nullable: true }
         late_minutes: { type: integer }
@@ -2418,6 +2737,152 @@ components:
           items: { type: integer, minimum: 1, maximum: 7 }
         reason: { type: string }
         created_at: { type: string, format: date-time }
+    RequestKind:
+      type: string
+      enum: [leave, cash_advance, transfer]
+    RequestStatus:
+      type: string
+      enum: [pending, approved, rejected, cancelled]
+    ApprovalStepStatus:
+      type: string
+      enum: [waiting, pending, approved, rejected, skipped]
+    ApprovalStep:
+      type: object
+      required: [step_order, approver_role, approver_name, status, note, acted_at]
+      properties:
+        step_order: { type: integer }
+        approver_role: { type: string, enum: [subdiv, kadiv, sdm] }
+        approver_name: { type: string, nullable: true, description: Kosong untuk pool sdm }
+        status: { $ref: "#/components/schemas/ApprovalStepStatus" }
+        note: { type: string, nullable: true, description: Catatan approver, atau alasan langkah dilewati }
+        acted_at: { type: string, format: date-time, nullable: true }
+    ApprovalItem:
+      type: object
+      required: [id, request_type, request_id, step_order, approver_role, status, requester, summary, note, acted_at, created_at]
+      properties:
+        id: { type: string, format: uuid }
+        request_type: { $ref: "#/components/schemas/RequestKind" }
+        request_id: { type: string, format: uuid }
+        step_order: { type: integer }
+        approver_role: { type: string, enum: [subdiv, kadiv, sdm] }
+        status: { $ref: "#/components/schemas/ApprovalStepStatus" }
+        requester:
+          type: object
+          required: [employee_id, full_name, subdivision_name]
+          properties:
+            employee_id: { type: string, format: uuid }
+            full_name: { type: string }
+            subdivision_name: { type: string }
+        summary:
+          type: object
+          description: Ringkasan sesuai jenis. Cuti berisi leave_type, start_date, end_date, days, reason.
+          properties:
+            leave_type: { type: string }
+            start_date: { type: string, format: date }
+            end_date: { type: string, format: date }
+            days: { type: integer }
+            reason: { type: string }
+        note: { type: string, nullable: true }
+        acted_at: { type: string, format: date-time, nullable: true }
+        created_at: { type: string, format: date-time }
+        steps:
+          type: array
+          description: Hanya pada detail
+          items: { $ref: "#/components/schemas/ApprovalStep" }
+    ApprovalDecision:
+      type: object
+      properties:
+        note: { type: string, maxLength: 500, nullable: true, description: Wajib minimal 3 karakter untuk reject }
+    ApprovalFlow:
+      type: object
+      required: [request_type, steps]
+      properties:
+        request_type: { $ref: "#/components/schemas/RequestKind" }
+        steps:
+          type: array
+          items:
+            type: object
+            required: [step_order, approver_role]
+            properties:
+              step_order: { type: integer }
+              approver_role: { type: string, enum: [subdiv, kadiv, sdm] }
+    ApprovalFlowInput:
+      type: object
+      required: [steps]
+      properties:
+        steps:
+          type: array
+          minItems: 1
+          maxItems: 5
+          items:
+            type: object
+            required: [approver_role]
+            properties:
+              approver_role: { type: string, enum: [subdiv, kadiv, sdm] }
+    LeaveBalance:
+      type: object
+      required: [year, entitled_days, used_days, remaining_days, eligible_from]
+      properties:
+        year: { type: integer }
+        entitled_days: { type: integer }
+        used_days: { type: integer }
+        remaining_days: { type: integer }
+        eligible_from: { type: string, format: date, nullable: true, description: Untuk statutory, 12 bulan setelah join_date }
+    LeaveType:
+      type: object
+      required: [id, code, name, paid, quota_kind, annual_quota_days, is_active]
+      properties:
+        id: { type: string, format: uuid }
+        code: { type: string }
+        name: { type: string }
+        paid: { type: boolean }
+        quota_kind: { type: string, enum: [statutory, custom, none] }
+        annual_quota_days: { type: integer, nullable: true }
+        is_active: { type: boolean }
+        balance: { $ref: "#/components/schemas/LeaveBalance" }
+    LeaveTypeInput:
+      type: object
+      required: [name, quota_kind]
+      properties:
+        code: { type: string, pattern: '^[a-z][a-z0-9_]{1,31}$', description: Wajib saat membuat, diabaikan saat mengubah }
+        name: { type: string, maxLength: 60 }
+        paid: { type: boolean, default: true }
+        quota_kind: { type: string, enum: [statutory, custom, none] }
+        annual_quota_days: { type: integer, minimum: 1, maximum: 366, nullable: true, description: Wajib untuk custom }
+        is_active: { type: boolean, default: true }
+    LeaveInput:
+      type: object
+      required: [leave_type_id, start_date, end_date, reason]
+      properties:
+        leave_type_id: { type: string, format: uuid }
+        start_date: { type: string, format: date }
+        end_date: { type: string, format: date }
+        reason: { type: string, minLength: 3, maxLength: 500 }
+    LeaveRequest:
+      type: object
+      required: [id, employee_id, leave_type, start_date, end_date, days, reason, status, created_at, decided_at, approvals]
+      properties:
+        id: { type: string, format: uuid }
+        employee_id: { type: string, format: uuid }
+        employee_name: { type: string, description: Ada pada detail dan daftar admin }
+        subdivision_name: { type: string, description: Ada pada detail dan daftar admin }
+        leave_type:
+          type: object
+          required: [id, code, name]
+          properties:
+            id: { type: string, format: uuid }
+            code: { type: string }
+            name: { type: string }
+        start_date: { type: string, format: date }
+        end_date: { type: string, format: date }
+        days: { type: integer, description: Hari kerja dalam rentang }
+        reason: { type: string }
+        status: { $ref: "#/components/schemas/RequestStatus" }
+        created_at: { type: string, format: date-time }
+        decided_at: { type: string, format: date-time, nullable: true }
+        approvals:
+          type: array
+          items: { $ref: "#/components/schemas/ApprovalStep" }
     EmployeeLocationsInput:
       type: object
       required: [location_ids]

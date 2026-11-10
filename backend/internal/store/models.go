@@ -56,6 +56,51 @@ func (ns NullAnnType) Value() (driver.Value, error) {
 	return string(ns.AnnType), nil
 }
 
+type ApprovalStepStatus string
+
+const (
+	ApprovalStepStatusWaiting  ApprovalStepStatus = "waiting"
+	ApprovalStepStatusPending  ApprovalStepStatus = "pending"
+	ApprovalStepStatusApproved ApprovalStepStatus = "approved"
+	ApprovalStepStatusRejected ApprovalStepStatus = "rejected"
+	ApprovalStepStatusSkipped  ApprovalStepStatus = "skipped"
+)
+
+func (e *ApprovalStepStatus) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = ApprovalStepStatus(s)
+	case string:
+		*e = ApprovalStepStatus(s)
+	default:
+		return fmt.Errorf("unsupported scan type for ApprovalStepStatus: %T", src)
+	}
+	return nil
+}
+
+type NullApprovalStepStatus struct {
+	ApprovalStepStatus ApprovalStepStatus
+	Valid              bool // Valid is true if ApprovalStepStatus is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullApprovalStepStatus) Scan(value interface{}) error {
+	if value == nil {
+		ns.ApprovalStepStatus, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.ApprovalStepStatus.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullApprovalStepStatus) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.ApprovalStepStatus), nil
+}
+
 type AttStatus string
 
 const (
@@ -144,6 +189,136 @@ func (ns NullDeviceStatus) Value() (driver.Value, error) {
 	return string(ns.DeviceStatus), nil
 }
 
+type LeaveQuotaKind string
+
+const (
+	LeaveQuotaKindStatutory LeaveQuotaKind = "statutory"
+	LeaveQuotaKindCustom    LeaveQuotaKind = "custom"
+	LeaveQuotaKindNone      LeaveQuotaKind = "none"
+)
+
+func (e *LeaveQuotaKind) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = LeaveQuotaKind(s)
+	case string:
+		*e = LeaveQuotaKind(s)
+	default:
+		return fmt.Errorf("unsupported scan type for LeaveQuotaKind: %T", src)
+	}
+	return nil
+}
+
+type NullLeaveQuotaKind struct {
+	LeaveQuotaKind LeaveQuotaKind
+	Valid          bool // Valid is true if LeaveQuotaKind is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullLeaveQuotaKind) Scan(value interface{}) error {
+	if value == nil {
+		ns.LeaveQuotaKind, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.LeaveQuotaKind.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullLeaveQuotaKind) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.LeaveQuotaKind), nil
+}
+
+type RequestKind string
+
+const (
+	RequestKindLeave       RequestKind = "leave"
+	RequestKindCashAdvance RequestKind = "cash_advance"
+	RequestKindTransfer    RequestKind = "transfer"
+)
+
+func (e *RequestKind) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = RequestKind(s)
+	case string:
+		*e = RequestKind(s)
+	default:
+		return fmt.Errorf("unsupported scan type for RequestKind: %T", src)
+	}
+	return nil
+}
+
+type NullRequestKind struct {
+	RequestKind RequestKind
+	Valid       bool // Valid is true if RequestKind is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullRequestKind) Scan(value interface{}) error {
+	if value == nil {
+		ns.RequestKind, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.RequestKind.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullRequestKind) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.RequestKind), nil
+}
+
+type RequestStatus string
+
+const (
+	RequestStatusPending   RequestStatus = "pending"
+	RequestStatusApproved  RequestStatus = "approved"
+	RequestStatusRejected  RequestStatus = "rejected"
+	RequestStatusCancelled RequestStatus = "cancelled"
+)
+
+func (e *RequestStatus) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = RequestStatus(s)
+	case string:
+		*e = RequestStatus(s)
+	default:
+		return fmt.Errorf("unsupported scan type for RequestStatus: %T", src)
+	}
+	return nil
+}
+
+type NullRequestStatus struct {
+	RequestStatus RequestStatus
+	Valid         bool // Valid is true if RequestStatus is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullRequestStatus) Scan(value interface{}) error {
+	if value == nil {
+		ns.RequestStatus, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.RequestStatus.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullRequestStatus) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.RequestStatus), nil
+}
+
 type UserRole string
 
 const (
@@ -201,6 +376,27 @@ type Announcement struct {
 	IsActive      bool
 	CreatedBy     uuid.NullUUID
 	CreatedAt     pgtype.Timestamptz
+}
+
+type Approval struct {
+	ID                  uuid.UUID
+	RequestType         RequestKind
+	RequestID           uuid.UUID
+	RequesterEmployeeID uuid.UUID
+	StepOrder           int16
+	ApproverRole        UserRole
+	AssignedEmployeeID  uuid.NullUUID
+	Status              ApprovalStepStatus
+	Note                pgtype.Text
+	ActedBy             uuid.NullUUID
+	ActedAt             pgtype.Timestamptz
+	CreatedAt           pgtype.Timestamptz
+}
+
+type ApprovalFlowStep struct {
+	RequestType  RequestKind
+	StepOrder    int16
+	ApproverRole UserRole
 }
 
 type Attendance struct {
@@ -378,6 +574,30 @@ type FaceTemplate struct {
 type Holiday struct {
 	Date pgtype.Date
 	Name string
+}
+
+type LeaveRequest struct {
+	ID          uuid.UUID
+	EmployeeID  uuid.UUID
+	LeaveTypeID uuid.UUID
+	StartDate   pgtype.Date
+	EndDate     pgtype.Date
+	Days        int16
+	Reason      string
+	Status      RequestStatus
+	CreatedAt   pgtype.Timestamptz
+	DecidedAt   pgtype.Timestamptz
+}
+
+type LeaveType struct {
+	ID              uuid.UUID
+	Code            string
+	Name            string
+	Paid            bool
+	QuotaKind       LeaveQuotaKind
+	AnnualQuotaDays pgtype.Int2
+	IsActive        bool
+	CreatedAt       pgtype.Timestamptz
 }
 
 type OfficeLocation struct {

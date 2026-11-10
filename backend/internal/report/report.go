@@ -1,4 +1,4 @@
-// Package report menyusun rekap presensi dan pratinjau upah (QUERY.sql #8 dan #9).
+// Package report menyusun rekap presensi dan pratinjau ubar (QUERY.sql #8 dan #9).
 package report
 
 import (
@@ -38,7 +38,7 @@ func currentRules() Rules {
 		Version:         rulesVersion,
 		WorkDaysDivisor: workDaysDivisor,
 		LatePenalty:     latePenalty.StringFixed(2),
-		Note:            "Rumus sementara: potongan alpha = gaji pokok / 26 per hari, potongan telat = Rp5.000 per kejadian. Menunggu keputusan SDM.",
+		Note:            "Rumus sementara: potongan alpha = ubar pokok / 26 per hari, potongan telat = Rp5.000 per kejadian. Menunggu keputusan SDM.",
 	}
 }
 
@@ -148,7 +148,7 @@ func (s *Service) PayrollPreview(ctx context.Context, p auth.Principal, period P
 	return out, nil
 }
 
-// Calculate memakai decimal, tidak pernah float (MASTER.md §11.5). Upah bersih minimum 0.
+// Calculate memakai decimal, tidak pernah float (MASTER.md §11.5). Ubar bersih minimum 0.
 func Calculate(base decimal.Decimal, absent, late int64) (absentDeduction, lateDeduction, net decimal.Decimal) {
 	absentDeduction = base.Mul(decimal.NewFromInt(absent)).Div(decimal.NewFromInt(workDaysDivisor)).Round(0)
 	lateDeduction = latePenalty.Mul(decimal.NewFromInt(late))

@@ -46,7 +46,7 @@ type demoReview struct {
 	inMinute  int
 	late      int
 	in        geoPoint
-	outMinute int // 0 berarti belum absen pulang
+	outMinute int // 0 berarti belum presensi pulang
 	out       geoPoint
 	accuracy  float64
 	score     int
@@ -62,7 +62,7 @@ var demoReviews = []demoReview{
 	{employee: 4, mode: "onsite", inMinute: 7*60 + 55, in: demoOffice, outMinute: 17*60 + 2, out: demoOffice, accuracy: 15, score: 30, flags: []string{"clock_skew", "new_device_recent"}},
 }
 
-// Absen hari ini untuk Monitor Absen. Titiknya sedikit berbeda agar tidak bertumpuk di peta.
+// Presensi hari ini untuk Monitor Presensi. Titiknya sedikit berbeda agar tidak bertumpuk di peta.
 var demoToday = []demoReview{
 	{employee: 0, mode: "wfa", inMinute: 7*60 + 50, in: demoHome, accuracy: 12},
 	{employee: 1, mode: "field", flexible: true, inMinute: 9*60 + 10, in: demoBandung, accuracy: 18},
@@ -105,7 +105,7 @@ func demoDeviceHash(employeeID uuid.UUID, label string) string {
 	return hex.EncodeToString(sum[:])
 }
 
-// lastWorkDay adalah hari kerja terakhir sebelum hari ini, jadi data demo tidak berebut dengan absen hari ini.
+// lastWorkDay adalah hari kerja terakhir sebelum hari ini, jadi data demo tidak berebut dengan presensi hari ini.
 func lastWorkDay(now time.Time) time.Time {
 	date := pgconv.WorkDate(now).AddDate(0, 0, -1)
 	for date.Weekday() == time.Saturday || date.Weekday() == time.Sunday {
@@ -114,9 +114,9 @@ func lastWorkDay(now time.Time) time.Time {
 	return date
 }
 
-// SeedDemo menyiapkan antrian Review Absen, izin kerja, dan permintaan perangkat untuk demo.
+// SeedDemo menyiapkan antrian Review Presensi, izin kerja, dan permintaan perangkat untuk demo.
 // Aman dijalankan ulang: data demo kembali ke kondisi awal, jadi demo bisa dilatih berkali-kali.
-// Data lain tidak diubah, kecuali baris absen Pejuang demo pada tanggal itu.
+// Data lain tidak diubah, kecuali baris presensi Pejuang demo pada tanggal itu.
 func SeedDemo(ctx context.Context, pool *pgxpool.Pool, now time.Time) (DemoSummary, error) {
 	summary := DemoSummary{WorkDate: lastWorkDay(now)}
 	err := pgx.BeginFunc(ctx, pool, func(tx pgx.Tx) error {
@@ -250,7 +250,7 @@ func seedDemoReviews(ctx context.Context, tx pgx.Tx, employees []uuid.UUID, shif
 	return len(demoReviews), nil
 }
 
-// seedDemoToday mengisi absen hari ini. Jam masuk tidak melewati waktu sekarang, karena absen
+// seedDemoToday mengisi presensi hari ini. Jam masuk tidak melewati waktu sekarang, karena presensi
 // yang belum terjadi akan terlihat aneh saat demo dimulai pagi.
 func seedDemoToday(ctx context.Context, tx pgx.Tx, employees []uuid.UUID, shiftID, locationID uuid.UUID, now time.Time) (int, error) {
 	date := pgconv.WorkDate(now)

@@ -17,7 +17,7 @@ func TestCalculate(t *testing.T) {
 		{"alpha satu hari", "5200000", 1, 0, "200000", "0", "5000000"},
 		{"telat dua kali", "5200000", 0, 2, "0", "10000", "5190000"},
 		{"pembulatan alpha", "4250000", 1, 1, "163462", "5000", "4081538"},
-		{"upah bersih tidak negatif", "100000", 30, 10, "115385", "50000", "0"},
+		{"ubar bersih tidak negatif", "100000", 30, 10, "115385", "50000", "0"},
 	}
 	for _, c := range cases {
 		base := decimal.RequireFromString(c.base)

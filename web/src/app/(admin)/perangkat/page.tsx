@@ -51,7 +51,7 @@ export default function DevicesPage() {
 
   return (
     <>
-      <PageHeader title="Perangkat" description="Setiap akun hanya boleh absen dari satu perangkat yang disetujui." />
+      <PageHeader title="Perangkat" description="Setiap akun hanya boleh presensi dari satu perangkat yang disetujui." />
       <Card bodyClassName="">
         <div className="border-b border-slate-100 p-4">
           <Select
@@ -132,7 +132,7 @@ export default function DevicesPage() {
         confirmLabel="Setujui"
         message={
           <>
-            <strong className="text-slate-800">{approving && deviceName(approving)}</strong> akan menjadi perangkat absen {approving?.employee_name}. Pastikan dulu permintaan ini benar dari yang bersangkutan.
+            <strong className="text-slate-800">{approving && deviceName(approving)}</strong> akan menjadi perangkat presensi {approving?.employee_name}. Pastikan dulu permintaan ini benar dari yang bersangkutan.
             Perangkat lamanya otomatis dicabut.
           </>
         }

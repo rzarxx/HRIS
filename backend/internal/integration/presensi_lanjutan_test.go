@@ -122,7 +122,7 @@ func TestBulkWorkArrangements(t *testing.T) {
 		wantError(t, http.StatusForbidden, "FORBIDDEN_ROLE")
 }
 
-// SDM bisa melihat upaya absen yang ditolak, yang tidak pernah muncul sebagai absen.
+// SDM bisa melihat upaya presensi yang ditolak, yang tidak pernah muncul sebagai presensi.
 func TestAttendanceAttempts(t *testing.T) {
 	f := newClockFixture(t, options{}, "08:00", "17:00")
 	f.clockIn(t).want(t, http.StatusCreated)

@@ -17,7 +17,7 @@ const val PURPOSE_CLOCK_IN = "clock_in"
 const val PURPOSE_CLOCK_OUT = "clock_out"
 const val PURPOSE_FACE_ENROLL = "face_enroll"
 
-/** Ringkasan hasil absen untuk layar hasil. */
+/** Ringkasan hasil presensi untuk layar hasil. */
 data class ClockOutcome(val title: String, val detail: String, val needsReview: Boolean)
 
 class Repository(private val session: Session) {
@@ -121,12 +121,12 @@ class Repository(private val session: Session) {
                 "field" -> "Di luar kantor"
                 else -> "Kantor"
             }
-            ClockOutcome("Absen masuk tercatat", "${late}Lokasi: $place.", r.requiresReview)
+            ClockOutcome("Presensi masuk tercatat", "${late}Lokasi: $place.", r.requiresReview)
         } else {
             val r = call { clockOut(jsonPart(payload), part).data }
             val hours = r.workedMinutes / 60
             val minutes = r.workedMinutes % 60
-            ClockOutcome("Absen pulang tercatat", "Jam kerja $hours jam $minutes menit.", r.requiresReview)
+            ClockOutcome("Presensi pulang tercatat", "Jam kerja $hours jam $minutes menit.", r.requiresReview)
         }
     }
 

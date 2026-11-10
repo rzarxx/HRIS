@@ -193,3 +193,6 @@ DELETE FROM face_remote_permissions WHERE employee_id = @employee_id;
 
 -- name: ConsumeRemoteFacePermission :execrows
 DELETE FROM face_remote_permissions WHERE employee_id = @employee_id AND id = @id AND expires_at > @now;
+
+-- name: GetAttendanceStatusOn :one
+SELECT status, clock_in_at FROM attendances WHERE employee_id = $1 AND work_date = $2;

@@ -19,7 +19,7 @@ const PIN_ZOOM = 16;
 const toLatLng = (p: LatLng): L.LatLngTuple => [p.latitude, p.longitude];
 
 /**
- * Peta pengatur area absen. Komponen ini hanya menggambar dan melaporkan titik yang dipilih;
+ * Peta pengatur area presensi. Komponen ini hanya menggambar dan melaporkan titik yang dipilih;
  * nilainya tetap disimpan di form agar sama dengan isian koordinat.
  * Leaflet butuh `window`, jadi muat lewat next/dynamic dengan ssr: false.
  */

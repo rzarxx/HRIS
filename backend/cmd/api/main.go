@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/rzarxx/HRIS/backend/internal/announcement"
+	"github.com/rzarxx/HRIS/backend/internal/approval"
 	"github.com/rzarxx/HRIS/backend/internal/attendance"
 	"github.com/rzarxx/HRIS/backend/internal/auth"
 	"github.com/rzarxx/HRIS/backend/internal/dashboard"
@@ -20,6 +21,7 @@ import (
 	"github.com/rzarxx/HRIS/backend/internal/devsim"
 	"github.com/rzarxx/HRIS/backend/internal/employee"
 	"github.com/rzarxx/HRIS/backend/internal/face"
+	"github.com/rzarxx/HRIS/backend/internal/leave"
 	"github.com/rzarxx/HRIS/backend/internal/location"
 	"github.com/rzarxx/HRIS/backend/internal/org"
 	"github.com/rzarxx/HRIS/backend/internal/platform/config"
@@ -90,7 +92,7 @@ func run() error {
 		attendanceOpt.Faces = engine
 		slog.Info("verifikasi wajah aktif", "model", engine.Model())
 	} else {
-		slog.Warn("FACE_MODELS_DIR kosong: daftar wajah dan absen dengan selfie dijawab FACE_SERVICE_UNAVAILABLE")
+		slog.Warn("FACE_MODELS_DIR kosong: daftar wajah dan presensi dengan selfie dijawab FACE_SERVICE_UNAVAILABLE")
 	}
 	authSvc, err := auth.NewService(pool, signer, fieldCipher, cfg.MFARequired)
 	if err != nil {
@@ -100,6 +102,9 @@ func run() error {
 	q := store.New(pool)
 	secure := cfg.CookieSecure
 	limiter := auth.NewMemoryLimiter()
+	approvalSvc := approval.NewService(pool)
+	leaveSvc := leave.NewService(pool, authSvc.ResolveScope)
+	approvalSvc.Register(store.RequestKindLeave, leaveSvc)
 
 	handler := server.New(server.Deps{
 		Auth:         auth.NewHandler(authSvc, secure, cfg.CookieDomain, limiter),
@@ -112,6 +117,8 @@ func run() error {
 		Device:       device.NewHandler(device.NewService(pool)),
 		Attendance:   attendance.NewHandler(attendance.NewService(pool, attendanceOpt)),
 		Shift:        shift.NewHandler(shift.NewService(pool)),
+		Approval:     approval.NewHandler(approvalSvc),
+		Leave:        leave.NewHandler(leaveSvc),
 		Signer:       signer,
 		SessionCheck: authSvc.SessionState,
 		Limiter:      limiter,

@@ -64,7 +64,7 @@ const (
 // RequiresMFA menjawab role mana yang wajib memakai MFA (§5.2, D25).
 func RequiresMFA(role string) bool { return role == RoleSDM || role == RoleSuperadmin }
 
-// ManagesSalary menjawab siapa yang boleh melihat dan mengubah gaji orang lain (D34).
+// ManagesSalary menjawab siapa yang boleh melihat dan mengubah ubar orang lain (D34).
 func ManagesSalary(role string) bool { return role == RoleSDM }
 
 // Permission yang dimiliki semua role, dengan scope-nya.
@@ -90,8 +90,8 @@ var base = map[string]Scope{
 // Tambahan per role; menimpa scope dari base.
 var extra = map[string]map[string]Scope{
 	RolePejuang: {},
-	// Role tertinggi: semua akses kecuali keuangan (D34). Tidak ada payroll dan kasbon orang
-	// lain, dan gaji orang lain tidak pernah tampil atau bisa diubah (lihat ManagesSalary).
+	// Role tertinggi: semua akses kecuali keuangan (D34). Tidak ada payroll dan pinjaman orang
+	// lain, dan ubar orang lain tidak pernah tampil atau bisa diubah (lihat ManagesSalary).
 	RoleSuperadmin: {
 		OrgWrite:           ScopeAll,
 		EmployeeRead:       ScopeAll,

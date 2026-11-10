@@ -38,7 +38,7 @@ func TestValidateAcceptsMinimalInput(t *testing.T) {
 		t.Fatal(err)
 	}
 	if v.BaseSalary.StringFixed(2) != "4250000.00" {
-		t.Errorf("gaji = %s", v.BaseSalary)
+		t.Errorf("ubar = %s", v.BaseSalary)
 	}
 	if v.Phone.Valid || v.JoinDate.Valid {
 		t.Error("field opsional kosong harus NULL")

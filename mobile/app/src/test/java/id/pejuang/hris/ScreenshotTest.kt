@@ -132,7 +132,7 @@ class ScreenshotTest {
     fun permissionDenied() = shot { PermissionContent(denied = true, onRequest = {}, onOpenSettings = {}, onCancel = {}) }
 
     @Test
-    fun sending() = shot { ProgressContent("Absen masuk", "Memverifikasi wajah", "Mengirim foto dan lokasi. Jangan tutup aplikasi.", null) }
+    fun sending() = shot { ProgressContent("Presensi masuk", "Memverifikasi wajah", "Mengirim foto dan lokasi. Jangan tutup aplikasi.", null) }
 
     @Test
     fun camera() = shot {
@@ -142,23 +142,23 @@ class ScreenshotTest {
                 .fillMaxSize()
                 .background(Brush.verticalGradient(listOf(Color(0xFF6B7280), Color(0xFF374151)))),
         ) {
-            CameraOverlay(title = "Absen masuk", message = message, phase = phase, gesture = "Kedipkan mata", onClose = {})
+            CameraOverlay(title = "Presensi masuk", message = message, phase = phase, gesture = "Kedipkan mata", onClose = {})
         }
     }
 
     @Test
     fun resultSuccess() = shot {
-        ResultContent(ClockOutcome("Absen masuk tercatat", "Lokasi: Kantor Pusat Cirebon.", false), now, onClose = {})
+        ResultContent(ClockOutcome("Presensi masuk tercatat", "Lokasi: Kantor Pusat Cirebon.", false), now, onClose = {})
     }
 
     @Test
     fun resultReview() = shot {
-        ResultContent(ClockOutcome("Absen pulang tercatat", "Jam kerja 8 jam 47 menit.", true), now.withHour(17), onClose = {})
+        ResultContent(ClockOutcome("Presensi pulang tercatat", "Jam kerja 8 jam 47 menit.", true), now.withHour(17), onClose = {})
     }
 
     @Test
     fun failed() = shot {
-        FailedContent("Absen masuk", "Wajah tidak cocok dengan data terdaftar. Coba lagi di tempat yang lebih terang.", onRetry = {}, onClose = {})
+        FailedContent("Presensi masuk", "Wajah tidak cocok dengan data terdaftar. Coba lagi di tempat yang lebih terang.", onRetry = {}, onClose = {})
     }
 
     private fun tabs(tab: MainTab, me: Me = this.me, rows: List<AttendanceRecord>? = history, error: String? = null, popup: Boolean = false) = shot {
@@ -170,7 +170,7 @@ class ScreenshotTest {
             if (popup) {
                 FigmaPopup(
                     icon = FigmaIcons.Logout, title = "Keluar dari aplikasi?",
-                    body = "Anda perlu masuk lagi dengan email dan kata sandi untuk absen berikutnya.",
+                    body = "Anda perlu masuk lagi dengan email dan kata sandi untuk presensi berikutnya.",
                     primary = "Ya, keluar", onPrimary = {}, secondary = "Batal", danger = true,
                 )
             }

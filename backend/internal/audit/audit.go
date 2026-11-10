@@ -50,6 +50,11 @@ const (
 	FaceCaptureViewed              = "face.capture_viewed"
 	FaceRemotePermissionGranted    = "face.remote_permission_granted"
 	FaceRemotePermissionRevoked    = "face.remote_permission_revoked"
+	ApprovalApproved               = "approval.approved"
+	ApprovalRejected               = "approval.rejected"
+	LeaveRequested                 = "leave.requested"
+	LeaveCancelled                 = "leave.cancelled"
+	LeaveTypeChanged               = "leave_type.changed"
 )
 
 // Entry adalah satu baris audit. Detail tidak boleh memuat kata sandi atau token.

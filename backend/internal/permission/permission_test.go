@@ -50,10 +50,10 @@ func TestSuperadminHasAllExceptFinance(t *testing.T) {
 		}
 	}
 	if ScopeOf(RoleSuperadmin, CashAdvanceRead) != ScopeSelf {
-		t.Error("super admin hanya boleh melihat kasbon sendiri")
+		t.Error("super admin hanya boleh melihat pinjaman sendiri")
 	}
 	if ManagesSalary(RoleSuperadmin) || !ManagesSalary(RoleSDM) {
-		t.Error("gaji orang lain hanya untuk SDM")
+		t.Error("ubar orang lain hanya untuk SDM")
 	}
 	if !RequiresMFA(RoleSuperadmin) || !RequiresMFA(RoleSDM) || RequiresMFA(RolePejuang) {
 		t.Error("MFA wajib untuk SDM dan super admin saja")

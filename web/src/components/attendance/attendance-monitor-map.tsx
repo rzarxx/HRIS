@@ -42,7 +42,7 @@ function popupOf(name: string, detail: string) {
 }
 
 /**
- * Peta titik absen. Tampilan hanya disesuaikan saat isi saringan berubah (fitKey), bukan setiap
+ * Peta titik presensi. Tampilan hanya disesuaikan saat isi saringan berubah (fitKey), bukan setiap
  * pembaruan data, agar peta yang sedang digeser tidak melompat.
  * Leaflet butuh `window`, jadi muat lewat next/dynamic dengan ssr: false.
  */
@@ -94,5 +94,5 @@ export default function AttendanceMonitorMap({ points, offices, fitKey }: { poin
     }
   }, [points, offices, fitKey]);
 
-  return <div ref={box} role="img" aria-label={`Peta titik absen, ${points.length} Pejuang`} className="h-80 w-full rounded-lg border border-slate-200" />;
+  return <div ref={box} role="img" aria-label={`Peta titik presensi, ${points.length} Pejuang`} className="h-80 w-full rounded-lg border border-slate-200" />;
 }

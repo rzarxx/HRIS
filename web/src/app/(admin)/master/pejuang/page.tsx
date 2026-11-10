@@ -182,7 +182,7 @@ function EmployeesView() {
                   <Th>Nama</Th>
                   <Th>Jabatan / Shift</Th>
                   <Th>Subdiv / Divisi</Th>
-                  {!isSuperadmin && <Th align="right">Gaji pokok</Th>}
+                  {!isSuperadmin && <Th align="right">Ubar pokok</Th>}
                   <Th>Status</Th>
                   <Th align="right">
                     <span className="sr-only">Aksi</span>
@@ -225,7 +225,7 @@ function EmployeesView() {
                         </IconButton>
                       )}
                       {canWrite && !isProtected(e) && e.status === "active" && (
-                        <IconButton label={`Lokasi absen ${e.full_name}`} onClick={() => setAssigning(e)}>
+                        <IconButton label={`Lokasi presensi ${e.full_name}`} onClick={() => setAssigning(e)}>
                           <MapPin className="size-4" />
                         </IconButton>
                       )}
@@ -317,7 +317,7 @@ function EmployeesView() {
         confirmLabel="Nonaktifkan"
         message={
           <>
-            <strong className="text-slate-800">{deleting?.full_name}</strong> ({deleting?.nip}) akan dinonaktifkan, akunnya tidak bisa masuk lagi, dan tidak lagi dihitung di grafik. Riwayat presensi dan upah tetap
+            <strong className="text-slate-800">{deleting?.full_name}</strong> ({deleting?.nip}) akan dinonaktifkan, akunnya tidak bisa masuk lagi, dan tidak lagi dihitung di grafik. Riwayat presensi dan ubar tetap
             tersimpan.
           </>
         }

@@ -46,9 +46,9 @@ export const NAV: NavItem[] = [
     icon: CalendarCheck,
     children: [
       { label: "Rekap", href: "/presensi/rekap", permission: "attendance:report" },
-      { label: "Monitor Absen", href: "/presensi/monitor", permission: "attendance:review" },
-      { label: "Review Absen", href: "/presensi/review", permission: "attendance:review" },
-      { label: "Upaya Absen", href: "/presensi/upaya", permission: "attendance:review" },
+      { label: "Monitor Presensi", href: "/presensi/monitor", permission: "attendance:review" },
+      { label: "Review Presensi", href: "/presensi/review", permission: "attendance:review" },
+      { label: "Upaya Presensi", href: "/presensi/upaya", permission: "attendance:review" },
     ],
   },
   { label: "Perangkat", href: "/perangkat", icon: Smartphone, permission: "device:review" },
@@ -58,7 +58,7 @@ export const NAV: NavItem[] = [
     icon: FileText,
     children: [
       { label: "Cuti & Izin", href: "/pengajuan/cuti", soon: true },
-      { label: "Kasbon", href: "/pengajuan/kasbon", soon: true },
+      { label: "Pinjaman", href: "/pengajuan/kasbon", soon: true },
       { label: "Mutasi", href: "/pengajuan/mutasi", soon: true },
     ],
   },

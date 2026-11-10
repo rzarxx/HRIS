@@ -7,7 +7,7 @@ const inter = Inter({ variable: "--font-inter", subsets: ["latin"] });
 
 export const metadata: Metadata = {
   title: { default: "HRIS Pejuang", template: "%s · HRIS Pejuang" },
-  description: "Sistem informasi SDM untuk Pejuang: presensi, pengajuan, dan upah.",
+  description: "Sistem informasi SDM untuk Pejuang: presensi, pengajuan, dan ubar.",
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {

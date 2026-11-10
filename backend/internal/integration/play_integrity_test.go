@@ -30,7 +30,7 @@ func TestPlayIntegrityEnforcedForEnrollment(t *testing.T) {
 	enrollmentHash := verifier.hash
 	f.faceClock(t, "clock_in", photo("1", 0.1), map[string]any{"integrity_token": "clock"}).want(t, http.StatusCreated)
 	if verifier.hash == enrollmentHash {
-		t.Fatal("hash absen harus berbeda dari hash pendaftaran")
+		t.Fatal("hash presensi harus berbeda dari hash pendaftaran")
 	}
 }
 

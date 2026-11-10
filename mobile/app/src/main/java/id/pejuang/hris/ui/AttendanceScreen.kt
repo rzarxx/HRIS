@@ -40,7 +40,7 @@ import java.time.Instant
 import java.time.LocalDate
 import java.time.ZonedDateTime
 
-/** Menit kerja satu catatan; absen hari ini yang belum pulang dihitung sampai [now]. */
+/** Menit kerja satu catatan; presensi hari ini yang belum pulang dihitung sampai [now]. */
 fun workedMinutesOf(record: AttendanceRecord, now: ZonedDateTime): Int {
     record.workedMinutes?.let { return it }
     val start = record.clockInAt?.let { runCatching { Instant.parse(it) }.getOrNull() } ?: return 0
@@ -49,7 +49,7 @@ fun workedMinutesOf(record: AttendanceRecord, now: ZonedDateTime): Int {
     return Duration.between(start, end).toMinutes().toInt().coerceAtLeast(0)
 }
 
-/** Total menit kerja pada bulan berjalan (periode upah sementara, sebelum cutoff D31). */
+/** Total menit kerja pada bulan berjalan (periode ubar sementara, sebelum cutoff D31). */
 fun monthWorkedMinutes(records: List<AttendanceRecord>, now: ZonedDateTime): Int {
     val month = now.toLocalDate().withDayOfMonth(1)
     return records.filter { r -> runCatching { !LocalDate.parse(r.workDate).isBefore(month) }.getOrDefault(false) }
@@ -60,12 +60,13 @@ fun monthWorkedMinutes(records: List<AttendanceRecord>, now: ZonedDateTime): Int
 data class ClockAction(val label: String, val purpose: String?, val note: String?)
 
 fun clockAction(me: Me, today: AttendanceRecord?): ClockAction = when {
-    me.deviceStatus == "pending" -> ClockAction("Absen masuk sekarang", null, "HP ini menunggu persetujuan SDM.")
-    me.deviceStatus != "approved" -> ClockAction("Absen masuk sekarang", null, "HP ini sudah dicabut. Hubungi SDM.")
-    me.mustChangePassword -> ClockAction("Absen masuk sekarang", null, "Ganti kata sandi dulu di menu Profil.")
-    !me.faceEnrolled -> ClockAction("Daftarkan wajah sekarang", PURPOSE_FACE_ENROLL, "Sekali saja, di lokasi kantor, sebelum absen pertama.")
-    today?.clockInAt == null -> ClockAction("Absen masuk sekarang", PURPOSE_CLOCK_IN, null)
-    today?.clockOutAt == null -> ClockAction("Absen pulang sekarang", PURPOSE_CLOCK_OUT, null)
+    me.deviceStatus == "pending" -> ClockAction("Presensi masuk sekarang", null, "HP ini menunggu persetujuan SDM.")
+    me.deviceStatus != "approved" -> ClockAction("Presensi masuk sekarang", null, "HP ini sudah dicabut. Hubungi SDM.")
+    me.mustChangePassword -> ClockAction("Presensi masuk sekarang", null, "Ganti kata sandi dulu di menu Profil.")
+    !me.faceEnrolled -> ClockAction("Daftarkan wajah sekarang", PURPOSE_FACE_ENROLL, "Sekali saja, di lokasi kantor, sebelum presensi pertama.")
+    today?.status == "leave" && today?.clockInAt == null -> ClockAction("Hari ini cuti/izin", null, "Cuti atau izin Anda hari ini sudah disetujui.")
+    today?.clockInAt == null -> ClockAction("Presensi masuk sekarang", PURPOSE_CLOCK_IN, null)
+    today?.clockOutAt == null -> ClockAction("Presensi pulang sekarang", PURPOSE_CLOCK_OUT, null)
     else -> ClockAction("Presensi hari ini selesai", null, null)
 }
 
@@ -88,8 +89,8 @@ fun AttendanceContent(
     val action = clockAction(me, today)
     val (title, subtitle) = when {
         today?.clockOutAt != null -> "Presensi selesai!" to "Terima kasih, sampai jumpa besok"
-        today?.clockInAt != null -> "Ayo absen pulang!" to "Jangan lupa absen sebelum pulang"
-        else -> "Ayo absen masuk!" to "Jangan lewatkan jadwal absen Anda"
+        today?.clockInAt != null -> "Ayo presensi pulang!" to "Jangan lupa presensi sebelum pulang"
+        else -> "Ayo presensi masuk!" to "Jangan lewatkan jadwal presensi Anda"
     }
     val past = records.orEmpty().filter { it.workDate != todayKey }
 

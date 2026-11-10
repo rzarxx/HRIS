@@ -19,7 +19,7 @@ export function EmployeeLocationsModal({ employee, onClose }: { employee: Employ
   }, [assigned.data, selected]);
 
   const save = useSave((ids: string[]) => api.put(`/admin/employees/${employee.id}/locations`, { location_ids: ids }), {
-    success: "Lokasi absen tersimpan.",
+    success: "Lokasi presensi tersimpan.",
     onDone: onClose,
   });
 
@@ -31,7 +31,7 @@ export function EmployeeLocationsModal({ employee, onClose }: { employee: Employ
   return (
     <Modal
       open
-      title={`Lokasi absen ${employee.full_name}`}
+      title={`Lokasi presensi ${employee.full_name}`}
       onClose={onClose}
       footer={
         <>
@@ -52,7 +52,7 @@ export function EmployeeLocationsModal({ employee, onClose }: { employee: Employ
         <EmptyState title="Belum ada lokasi kantor" description="Tambahkan dulu di menu Lokasi Kantor." />
       ) : (
         <>
-          <p className="mb-3 text-sm text-slate-500">Tanpa lokasi yang dipilih, Pejuang ini tidak bisa absen di mana pun.</p>
+          <p className="mb-3 text-sm text-slate-500">Tanpa lokasi yang dipilih, Pejuang ini tidak bisa presensi di mana pun.</p>
           <ul className="grid grid-cols-1 gap-2">
             {locations.data.map((l) => (
               <li key={l.id}>

@@ -23,9 +23,9 @@ type Config struct {
 	LogLevel              string
 	SeedSDMPassword       string
 	DevSimulateAttendance bool
-	// DevAllowUnverifiedAttendance mengizinkan absen tanpa verifikasi perangkat dan wajah (D36).
+	// DevAllowUnverifiedAttendance mengizinkan presensi tanpa verifikasi perangkat dan wajah (D36).
 	DevAllowUnverifiedAttendance bool
-	// ChallengeTTL adalah umur tantangan absen. Nol berarti memakai bawaan modul presensi.
+	// ChallengeTTL adalah umur tantangan presensi. Nol berarti memakai bawaan modul presensi.
 	ChallengeTTL           time.Duration
 	FieldEncryptionKeyPath string
 	// FaceModelsDir berisi yunet.onnx dan sface.onnx untuk menghitung wajah dari selfie (D43), dan

@@ -127,7 +127,7 @@ export default function OfficeLocationsPage() {
     <>
       <PageHeader
         title="Lokasi Kantor"
-        description="Batas area absen. Pejuang hanya bisa absen di lokasi yang ditugaskan kepadanya."
+        description="Batas area presensi. Pejuang hanya bisa presensi di lokasi yang ditugaskan kepadanya."
         actions={
           <Button onClick={() => open("new")}>
             <Plus className="size-4" /> Tambah lokasi
@@ -205,7 +205,7 @@ export default function OfficeLocationsPage() {
         <form id="location-form" onSubmit={submit} noValidate className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <div className="grid grid-cols-1 gap-3 sm:col-span-2">
             <PlaceSearch onSelect={setCenter} />
-            <div role="group" aria-label="Bentuk area absen" className="flex gap-2">
+            <div role="group" aria-label="Bentuk area presensi" className="flex gap-2">
               <Button type="button" variant={areaMode === "radius" ? "primary" : "secondary"} aria-pressed={areaMode === "radius"} onClick={() => changeAreaMode("radius")}>
                 Radius
               </Button>
@@ -225,8 +225,8 @@ export default function OfficeLocationsPage() {
             )}
             <p className="text-xs text-slate-500">
               {areaMode === "radius"
-                ? "Klik peta atau seret penanda untuk menentukan titik pusat. Lingkaran hijau adalah area absen."
-                : "Klik peta untuk menambah titik sudut. Area hijau adalah area absen."}
+                ? "Klik peta atau seret penanda untuk menentukan titik pusat. Lingkaran hijau adalah area presensi."
+                : "Klik peta untuk menambah titik sudut. Area hijau adalah area presensi."}
             </p>
           </div>
           <Field label="Nama lokasi" htmlFor="name" error={errors.name} required className="sm:col-span-2">

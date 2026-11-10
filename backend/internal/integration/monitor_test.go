@@ -29,7 +29,7 @@ func monitorFor(t *testing.T, c *client, query, employeeID string) monitorRow {
 	return monitorRow{}
 }
 
-// Monitor memuat semua Pejuang aktif, termasuk yang belum absen, dan mengikuti absen sungguhan.
+// Monitor memuat semua Pejuang aktif, termasuk yang belum presensi, dan mengikuti presensi sungguhan.
 func TestAttendanceMonitor(t *testing.T) {
 	f := newClockFixture(t, options{}, "08:00", "17:00")
 	ctx := context.Background()
@@ -43,10 +43,10 @@ func TestAttendanceMonitor(t *testing.T) {
 		t.Errorf("baris monitor %d, Pejuang aktif %d", len(all), active)
 	}
 
-	// Sebelum absen: terjadwal, tetapi belum ada status.
+	// Sebelum presensi: terjadwal, tetapi belum ada status.
 	before := monitorFor(t, f.sdm, "", f.account.employeeID)
 	if before.Status != nil || !before.Scheduled || before.InLatitude != nil {
-		t.Errorf("sebelum absen: %+v", before)
+		t.Errorf("sebelum presensi: %+v", before)
 	}
 
 	// Tanggal kosong memakai tanggal kerja saat ini.
@@ -54,12 +54,12 @@ func TestAttendanceMonitor(t *testing.T) {
 	f.clockIn(t).want(t, http.StatusCreated)
 	after := monitorFor(t, f.sdm, "", f.account.employeeID)
 	if after.Status == nil || *after.Status != "late" || after.LateMinutes != 30 || after.InLatitude == nil || after.WorkMode == nil || *after.WorkMode != "onsite" {
-		t.Errorf("setelah absen: %+v", after)
+		t.Errorf("setelah presensi: %+v", after)
 	}
 	if got := monitorFor(t, f.sdm, "?date=2026-11-03", f.account.employeeID); got.Status != nil {
 		t.Errorf("tanggal lain ikut terbaca: %+v", got)
 	}
-	// Absen dini hari masih tanggal kerja sebelumnya, mengikuti cutoff.
+	// Presensi dini hari masih tanggal kerja sebelumnya, mengikuti cutoff.
 	f.clock.Set(wibTime(3, 3, 0))
 	if got := monitorFor(t, f.sdm, "", f.account.employeeID); got.Status == nil {
 		t.Errorf("cutoff tidak diikuti: %+v", got)
@@ -74,7 +74,7 @@ func TestAttendanceMonitor(t *testing.T) {
 		t.Errorf("hari libur terjadwal: %+v", got)
 	}
 
-	// Saringan divisi, dan respons tidak memuat gaji atau alasan risiko.
+	// Saringan divisi, dan respons tidak memuat ubar atau alasan risiko.
 	res := f.sdm.do(http.MethodGet, "/v1/admin/attendance/monitor?division_id="+all[0].DivisionID, nil).want(t, http.StatusOK)
 	for _, r := range data[[]monitorRow](t, res) {
 		if r.DivisionID != all[0].DivisionID {

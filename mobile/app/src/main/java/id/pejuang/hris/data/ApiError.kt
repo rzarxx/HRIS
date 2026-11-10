@@ -10,7 +10,7 @@ class ApiError(val code: String, message: String, val requestId: String? = null)
 
 /** Pesan untuk kode error yang perlu penjelasan lebih dari pesan server (MASTER.md §7.4). */
 private val friendly = mapOf(
-    "DEVICE_PENDING_APPROVAL" to "HP ini menunggu persetujuan SDM. Absen bisa dilakukan setelah disetujui.",
+    "DEVICE_PENDING_APPROVAL" to "HP ini menunggu persetujuan SDM. Presensi bisa dilakukan setelah disetujui.",
     "DEVICE_REVOKED" to "HP ini sudah dicabut. Hubungi SDM.",
     "DEVICE_NOT_REGISTERED" to "HP ini belum terdaftar. Keluar lalu masuk lagi.",
     "AUTH_TOKEN_INVALID" to "Sesi berakhir. Silakan masuk lagi.",

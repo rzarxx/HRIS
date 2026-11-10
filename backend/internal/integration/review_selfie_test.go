@@ -14,7 +14,7 @@ func TestReviewSelfieAuthorizationAuditAndRetention(t *testing.T) {
 	photoBytes := photo("1", 0.1)
 	in := data[clockInResp](t, f.faceClock(t, "clock_in", photoBytes, nil).want(t, http.StatusCreated))
 	path := "/v1/admin/attendance/" + in.AttendanceID + "/selfie/clock_in"
-	// Hanya absen review dan hanya peninjau boleh melihat.
+	// Hanya presensi review dan hanya peninjau boleh melihat.
 	f.sdm.do(http.MethodGet, path, nil).wantError(t, http.StatusNotFound, "NOT_FOUND")
 	exec(t, `UPDATE attendances SET status='review' WHERE id=$1`, in.AttendanceID)
 	f.hp.do(http.MethodGet, path, nil).wantError(t, http.StatusForbidden, "FORBIDDEN_ROLE")

@@ -42,15 +42,15 @@ const (
 
 // Options mengatur Service.
 type Options struct {
-	// AllowUnverified mengizinkan absen tanpa bukti integritas perangkat dan wajah. Hanya untuk
-	// development selama verifikasinya belum dibuat; bawaannya false agar semua absen ditolak (D36).
+	// AllowUnverified mengizinkan presensi tanpa bukti integritas perangkat dan wajah. Hanya untuk
+	// development selama verifikasinya belum dibuat; bawaannya false agar semua presensi ditolak (D36).
 	AllowUnverified bool
 	ChallengeTTL    time.Duration
 	Now             func() time.Time
 	// Cipher mengenkripsi template wajah dan selfie (§5.5).
 	Cipher Cipher
 	// Faces menghitung embedding dari selfie (D42) dan Selfies menyimpan fotonya. Tanpa keduanya,
-	// pendaftaran dan absen yang membawa selfie dijawab FACE_SERVICE_UNAVAILABLE.
+	// pendaftaran dan presensi yang membawa selfie dijawab FACE_SERVICE_UNAVAILABLE.
 	Faces   face.Engine
 	Selfies SelfieStore
 	// PlayVerifier memeriksa token pada server Google; nil mempertahankan penolakan default.
@@ -102,7 +102,7 @@ func (s Signals) hardFlags() []string {
 	return flags
 }
 
-// ClockInput adalah isi absen masuk dan pulang.
+// ClockInput adalah isi presensi masuk dan pulang.
 type ClockInput struct {
 	ChallengeID    string   `json:"challenge_id"`
 	Latitude       *float64 `json:"latitude"`
@@ -185,7 +185,7 @@ func (s *Service) deviceOf(ctx context.Context, p auth.Principal, header string)
 	if err != nil {
 		return store.Device{}, httpx.NewError(http.StatusForbidden, "DEVICE_NOT_REGISTERED", "Perangkat belum terdaftar.")
 	}
-	// Absen hanya sah dari sesi aplikasi yang terikat perangkat. Sesi web tidak punya ikatan itu,
+	// Presensi hanya sah dari sesi aplikasi yang terikat perangkat. Sesi web tidak punya ikatan itu,
 	// sehingga X-Device-Id bisa diisi siapa saja yang tahu kata sandinya (D39).
 	if p.DeviceID == uuid.Nil && !s.opt.AllowUnverified {
 		return store.Device{}, httpx.NewError(http.StatusForbidden, "DEVICE_NOT_REGISTERED", "Perangkat belum terdaftar.")
@@ -249,7 +249,7 @@ func (s *Service) NewChallenge(ctx context.Context, p auth.Principal, deviceHead
 	}, nil
 }
 
-// attempt mengumpulkan data satu upaya absen untuk attendance_attempts.
+// attempt mengumpulkan data satu upaya presensi untuk attendance_attempts.
 type attempt struct {
 	p         auth.Principal
 	ip        *netip.Addr
@@ -282,7 +282,7 @@ func (a attempt) params(outcome, reason string) (store.InsertAttendanceAttemptPa
 }
 
 // reject mencatat upaya yang ditolak lalu mengembalikan error untuk klien. Pencatatan berada di
-// luar transaksi absen agar tetap tersimpan, dan alasan rinci hanya terlihat oleh SDM.
+// luar transaksi presensi agar tetap tersimpan, dan alasan rinci hanya terlihat oleh SDM.
 func (s *Service) reject(ctx context.Context, a attempt, reason string, out error) error {
 	params, err := a.params("rejected", reason)
 	if err != nil {
@@ -300,7 +300,7 @@ func (s *Service) reject(ctx context.Context, a attempt, reason string, out erro
 	return out
 }
 
-// verify menjalankan pemeriksaan yang sama untuk absen masuk dan pulang (F9). Geofence diperiksa
+// verify menjalankan pemeriksaan yang sama untuk presensi masuk dan pulang (F9). Geofence diperiksa
 // sesudahnya oleh place, karena izin kerja bergantung pada work_date.
 func (s *Service) verify(ctx context.Context, a *attempt, deviceHeader string, in ClockInput, parsed parsedClock) error {
 	device, err := s.deviceOf(ctx, a.p, deviceHeader)
@@ -318,7 +318,7 @@ func (s *Service) verify(ctx context.Context, a *attempt, deviceHeader string, i
 	})
 	if err != nil {
 		if pgconv.IsNoRows(err) {
-			return s.reject(ctx, *a, "challenge_expired", httpx.NewError(http.StatusUnprocessableEntity, "CHALLENGE_EXPIRED", "Waktu absen habis, silakan ulangi."))
+			return s.reject(ctx, *a, "challenge_expired", httpx.NewError(http.StatusUnprocessableEntity, "CHALLENGE_EXPIRED", "Waktu presensi habis, silakan ulangi."))
 		}
 		return err
 	}
@@ -347,7 +347,7 @@ func (s *Service) verify(ctx context.Context, a *attempt, deviceHeader string, i
 }
 
 // assess menilai sinyal lunak (§5.4). Skor tinggi ditolak dengan pesan generik, karena klien tidak
-// boleh tahu alasannya (D8). Skor menengah tetap tercatat dan masuk antrian Review Absen.
+// boleh tahu alasannya (D8). Skor menengah tetap tercatat dan masuk antrian Review Presensi.
 func (s *Service) assess(ctx context.Context, a *attempt, parsed parsedClock, now time.Time) error {
 	input := RiskInput{Now: now, Point: parsed.point, AccuracyM: parsed.accuracyM, CapturedAt: parsed.capturedAt}
 	if a.approvedAt.Valid {
@@ -417,7 +417,7 @@ type LocationRef struct {
 	Name string `json:"name"`
 }
 
-// ClockInResult adalah jawaban absen masuk. Skor dan alasan risiko tidak pernah dikirim ke klien.
+// ClockInResult adalah jawaban presensi masuk. Skor dan alasan risiko tidak pernah dikirim ke klien.
 type ClockInResult struct {
 	AttendanceID   string       `json:"attendance_id"`
 	WorkDate       string       `json:"work_date"`
@@ -429,7 +429,7 @@ type ClockInResult struct {
 	RequiresReview bool         `json:"requires_review"`
 }
 
-// ClockIn mencatat absen masuk.
+// ClockIn mencatat presensi masuk.
 func (s *Service) ClockIn(ctx context.Context, p auth.Principal, ip *netip.Addr, deviceHeader string, in ClockInput) (ClockInResult, error) {
 	parsed, err := in.parse()
 	if err != nil {
@@ -451,6 +451,14 @@ func (s *Service) ClockIn(ctx context.Context, p auth.Principal, ip *netip.Addr,
 	now := s.opt.Now()
 	schedule := scheduleOf(shift)
 	workDate := WorkDate(now, schedule)
+	// Cuti/izin yang disetujui sudah mencatat hari ini (F13); beri alasan yang jelas, bukan
+	// "sudah presensi masuk".
+	if day, err := s.q.GetAttendanceStatusOn(ctx, store.GetAttendanceStatusOnParams{EmployeeID: p.EmployeeID, WorkDate: pgconv.Date(workDate)}); err == nil &&
+		day.Status == store.AttStatusLeave && !day.ClockInAt.Valid {
+		return ClockInResult{}, s.reject(ctx, a, "on_leave", httpx.NewError(http.StatusConflict, "LEAVE_ACTIVE", "Hari ini Anda tercatat cuti atau izin, jadi tidak perlu presensi."))
+	} else if err != nil && !pgconv.IsNoRows(err) {
+		return ClockInResult{}, err
+	}
 	where, err := s.place(ctx, a, workDate, parsed.point)
 	if err != nil {
 		return ClockInResult{}, err
@@ -470,7 +478,7 @@ func (s *Service) ClockIn(ctx context.Context, p auth.Principal, ip *netip.Addr,
 	late := 0
 	switch {
 	case where.flexible:
-		// Jam fleksibel: absen di luar jam shift sah dan tidak dihitung telat (D26).
+		// Jam fleksibel: presensi di luar jam shift sah dan tidak dihitung telat (D26).
 	case holiday || !IsWorkDay(workDate, schedule):
 		a.flags = append(a.flags, flagOffSchedule)
 	default:
@@ -520,7 +528,7 @@ func (s *Service) ClockIn(ctx context.Context, p auth.Principal, ip *netip.Addr,
 		return ClockInResult{}, err
 	}
 	if conflict {
-		return ClockInResult{}, s.reject(ctx, a, "already_clocked_in", httpx.NewError(http.StatusConflict, "ALREADY_CLOCKED_IN", "Anda sudah absen masuk."))
+		return ClockInResult{}, s.reject(ctx, a, "already_clocked_in", httpx.NewError(http.StatusConflict, "ALREADY_CLOCKED_IN", "Anda sudah presensi masuk."))
 	}
 	return ClockInResult{
 		AttendanceID: row.ID.String(), WorkDate: workDate.Format("2006-01-02"), Status: string(row.Status),
@@ -529,7 +537,7 @@ func (s *Service) ClockIn(ctx context.Context, p auth.Principal, ip *netip.Addr,
 	}, nil
 }
 
-// ClockOutResult adalah jawaban absen pulang.
+// ClockOutResult adalah jawaban presensi pulang.
 type ClockOutResult struct {
 	AttendanceID   string `json:"attendance_id"`
 	WorkDate       string `json:"work_date"`
@@ -553,7 +561,7 @@ func (s *Service) deadlineOf(ctx context.Context, row store.Attendance) (time.Ti
 	return CloseDeadline(row.WorkDate.Time, &schedule), nil
 }
 
-// ClockOut mencatat absen pulang pada absen masuk yang masih terbuka (F10).
+// ClockOut mencatat presensi pulang pada presensi masuk yang masih terbuka (F10).
 func (s *Service) ClockOut(ctx context.Context, p auth.Principal, ip *netip.Addr, deviceHeader string, in ClockInput) (ClockOutResult, error) {
 	parsed, err := in.parse()
 	if err != nil {
@@ -573,12 +581,12 @@ func (s *Service) ClockOut(ctx context.Context, p auth.Principal, ip *netip.Addr
 				return err
 			}
 			if now.Before(deadline) {
-				return s.reject(ctx, a, "already_clocked_out", httpx.NewError(http.StatusConflict, "ALREADY_CLOCKED_OUT", "Anda sudah absen pulang."))
+				return s.reject(ctx, a, "already_clocked_out", httpx.NewError(http.StatusConflict, "ALREADY_CLOCKED_OUT", "Anda sudah presensi pulang."))
 			}
 		} else if !pgconv.IsNoRows(err) {
 			return err
 		}
-		return s.reject(ctx, a, "not_clocked_in", httpx.NewError(http.StatusConflict, "NOT_CLOCKED_IN", "Anda belum absen masuk."))
+		return s.reject(ctx, a, "not_clocked_in", httpx.NewError(http.StatusConflict, "NOT_CLOCKED_IN", "Anda belum presensi masuk."))
 	}
 
 	open, err := s.q.GetOpenAttendance(ctx, p.EmployeeID)
@@ -588,7 +596,7 @@ func (s *Service) ClockOut(ctx context.Context, p auth.Principal, ip *netip.Addr
 	if err != nil {
 		return ClockOutResult{}, err
 	}
-	// Lewat batas, absen masuk tetap terbuka tanpa jam kerja dan SDM yang mengoreksinya (D31).
+	// Lewat batas, presensi masuk tetap terbuka tanpa jam kerja dan SDM yang mengoreksinya (D31).
 	deadline, err := s.deadlineOf(ctx, open)
 	if err != nil {
 		return ClockOutResult{}, err
@@ -596,7 +604,7 @@ func (s *Service) ClockOut(ctx context.Context, p auth.Principal, ip *netip.Addr
 	if !now.Before(deadline) {
 		return ClockOutResult{}, notClockedIn()
 	}
-	// Izin dibaca dari work_date absen masuknya, jadi absen pulang lewat tengah malam tetap ikut hari itu.
+	// Izin dibaca dari work_date presensi masuknya, jadi presensi pulang lewat tengah malam tetap ikut hari itu.
 	where, err := s.place(ctx, a, open.WorkDate.Time, parsed.point)
 	if err != nil {
 		return ClockOutResult{}, err
@@ -658,7 +666,7 @@ func (s *Service) ClockOut(ctx context.Context, p auth.Principal, ip *netip.Addr
 		return ClockOutResult{}, err
 	}
 	if closedMeanwhile {
-		return ClockOutResult{}, s.reject(ctx, a, "already_clocked_out", httpx.NewError(http.StatusConflict, "ALREADY_CLOCKED_OUT", "Anda sudah absen pulang."))
+		return ClockOutResult{}, s.reject(ctx, a, "already_clocked_out", httpx.NewError(http.StatusConflict, "ALREADY_CLOCKED_OUT", "Anda sudah presensi pulang."))
 	}
 	return ClockOutResult{
 		AttendanceID: row.ID.String(), WorkDate: row.WorkDate.Time.Format("2006-01-02"),
@@ -667,7 +675,7 @@ func (s *Service) ClockOut(ctx context.Context, p auth.Principal, ip *netip.Addr
 	}, nil
 }
 
-// linkCapture mengaitkan selfie dengan absen yang tercatat, untuk ditampilkan saat ditinjau.
+// linkCapture mengaitkan selfie dengan presensi yang tercatat, untuk ditampilkan saat ditinjau.
 func linkCapture(ctx context.Context, q *store.Queries, f faceResult, attendanceID uuid.UUID) error {
 	if !f.capture.Valid {
 		return nil
@@ -690,7 +698,7 @@ func mergeFlags(raw []byte, more []string) ([]byte, error) {
 	return json.Marshal(flags)
 }
 
-// Record adalah satu baris riwayat absen sendiri.
+// Record adalah satu baris riwayat presensi sendiri.
 type Record struct {
 	ID            string  `json:"id"`
 	WorkDate      string  `json:"work_date"`
@@ -703,7 +711,7 @@ type Record struct {
 	LocationName  *string `json:"location_name"`
 }
 
-// Mine mengembalikan riwayat absen sendiri. Bawaannya 31 hari terakhir.
+// Mine mengembalikan riwayat presensi sendiri. Bawaannya 31 hari terakhir.
 func (s *Service) Mine(ctx context.Context, p auth.Principal, fromRaw, toRaw string) ([]Record, error) {
 	fields := map[string]string{}
 	to := pgconv.WorkDate(s.opt.Now())
@@ -771,7 +779,7 @@ func (h *Handler) Challenge(w http.ResponseWriter, r *http.Request) error {
 	return httpx.Data(w, http.StatusCreated, out)
 }
 
-// readClock membaca absen: multipart dengan bagian payload dan berkas selfie, atau JSON tanpa
+// readClock membaca presensi: multipart dengan bagian payload dan berkas selfie, atau JSON tanpa
 // selfie yang hanya diterima di development (D36).
 func readClock(r *http.Request) (ClockInput, error) {
 	var in ClockInput

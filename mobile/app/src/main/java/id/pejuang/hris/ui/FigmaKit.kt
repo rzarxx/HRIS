@@ -340,7 +340,7 @@ enum class MainTab(val label: String, val icon: ImageVector, val selectedIcon: I
     Home("Beranda", FigmaIcons.NavHome, FigmaIcons.NavHomeBold),
     Attendance("Presensi", FigmaIcons.NavCalendar, FigmaIcons.NavCalendarBold),
     Requests("Pengajuan", FigmaIcons.NavNote, FigmaIcons.NavNoteBold),
-    Payslip("Slip upah", FigmaIcons.NavReceipt, FigmaIcons.NavReceiptBold),
+    Payslip("Slip ubar", FigmaIcons.NavReceipt, FigmaIcons.NavReceiptBold),
     Profile("Profil", FigmaIcons.User, FigmaIcons.UserBold),
 }
 

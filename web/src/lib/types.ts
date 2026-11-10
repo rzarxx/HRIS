@@ -39,6 +39,19 @@ export type AdminDevice = Schemas["AdminDevice"];
 export type DeviceStatus = Schemas["DeviceStatus"];
 export type MfaSetup = Schemas["MfaSetup"];
 export type MfaEnabled = Schemas["MfaEnabled"];
+export type RequestKind = Schemas["RequestKind"];
+export type RequestStatus = Schemas["RequestStatus"];
+export type ApprovalStepStatus = Schemas["ApprovalStepStatus"];
+export type ApprovalStep = Schemas["ApprovalStep"];
+export type ApprovalItem = Schemas["ApprovalItem"];
+export type ApprovalDecision = Schemas["ApprovalDecision"];
+export type ApprovalFlow = Schemas["ApprovalFlow"];
+export type ApprovalFlowInput = Schemas["ApprovalFlowInput"];
+export type ApproverRole = ApprovalStep["approver_role"];
+export type LeaveType = Schemas["LeaveType"];
+export type LeaveTypeInput = Schemas["LeaveTypeInput"];
+export type LeaveQuotaKind = LeaveType["quota_kind"];
+export type LeaveRequest = Schemas["LeaveRequest"];
 
 export interface Paginated<T> {
   data: T[];

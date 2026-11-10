@@ -260,8 +260,8 @@ class RequestsLogicTest {
         val d = { s: String -> java.time.LocalDate.parse(s) }
         assertEquals("16 November 2026", id.pejuang.hris.ui.dateRangeLabel(d("2026-11-16"), d("2026-11-16")))
         assertEquals("16–18 November 2026", id.pejuang.hris.ui.dateRangeLabel(d("2026-11-16"), d("2026-11-18")))
-        assertTrue(id.pejuang.hris.ui.dateRangeLabel(d("2026-10-30"), d("2026-11-02")).matches(Regex("30 \p{L}+ – 2 \p{L}+ 2026")))
-        assertTrue(id.pejuang.hris.ui.dateRangeLabel(d("2026-12-28"), d("2027-01-02")).matches(Regex("28 \p{L}+ 2026 – 2 \p{L}+ 2027")))
+        assertTrue(id.pejuang.hris.ui.dateRangeLabel(d("2026-10-30"), d("2026-11-02")).matches(Regex("""30 \p{L}+ – 2 \p{L}+ 2026""")))
+        assertTrue(id.pejuang.hris.ui.dateRangeLabel(d("2026-12-28"), d("2027-01-02")).matches(Regex("""28 \p{L}+ 2026 – 2 \p{L}+ 2027""")))
         assertEquals("x – y", id.pejuang.hris.ui.dateRangeLabel("x", "y"))
     }
 

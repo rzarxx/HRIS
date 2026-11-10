@@ -12,6 +12,57 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const announcementReadCounts = `-- name: AnnouncementReadCounts :many
+
+SELECT a.id,
+  (SELECT count(*) FROM employees e JOIN subdivisions s ON s.id = e.subdivision_id
+   WHERE e.status = 'active' AND e.deleted_at IS NULL
+     AND (a.division_id IS NULL OR s.division_id = a.division_id))::bigint AS audience_count,
+  (SELECT count(*) FROM announcement_reads r JOIN employees e ON e.id = r.employee_id
+   JOIN subdivisions s ON s.id = e.subdivision_id
+   WHERE r.announcement_id = a.id AND e.status = 'active' AND e.deleted_at IS NULL
+     AND (a.division_id IS NULL OR s.division_id = a.division_id))::bigint AS opened_count,
+  (SELECT count(*) FROM announcement_reads r JOIN employees e ON e.id = r.employee_id
+   JOIN subdivisions s ON s.id = e.subdivision_id
+   WHERE r.announcement_id = a.id AND r.read_at IS NOT NULL AND e.status = 'active' AND e.deleted_at IS NULL
+     AND (a.division_id IS NULL OR s.division_id = a.division_id))::bigint AS read_count
+FROM announcements a
+WHERE a.id = ANY($1::uuid[])
+`
+
+type AnnouncementReadCountsRow struct {
+	ID            uuid.UUID
+	AudienceCount int64
+	OpenedCount   int64
+	ReadCount     int64
+}
+
+// Sasaran pengumuman: Pejuang aktif di divisi tujuan, atau semua bila division_id kosong.
+func (q *Queries) AnnouncementReadCounts(ctx context.Context, ids []uuid.UUID) ([]AnnouncementReadCountsRow, error) {
+	rows, err := q.db.Query(ctx, announcementReadCounts, ids)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []AnnouncementReadCountsRow{}
+	for rows.Next() {
+		var i AnnouncementReadCountsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.AudienceCount,
+			&i.OpenedCount,
+			&i.ReadCount,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const countAnnouncements = `-- name: CountAnnouncements :one
 SELECT count(*) FROM announcements
 `
@@ -24,20 +75,21 @@ func (q *Queries) CountAnnouncements(ctx context.Context) (int64, error) {
 }
 
 const createAnnouncement = `-- name: CreateAnnouncement :one
-INSERT INTO announcements (title, body, type, division_id, starts_at, ends_at, is_active, created_by)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+INSERT INTO announcements (title, body, type, division_id, starts_at, ends_at, is_active, created_by, min_read_seconds)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
 RETURNING id
 `
 
 type CreateAnnouncementParams struct {
-	Title      string
-	Body       string
-	Type       AnnType
-	DivisionID uuid.NullUUID
-	StartsAt   pgtype.Timestamptz
-	EndsAt     pgtype.Timestamptz
-	IsActive   bool
-	CreatedBy  uuid.NullUUID
+	Title          string
+	Body           string
+	Type           AnnType
+	DivisionID     uuid.NullUUID
+	StartsAt       pgtype.Timestamptz
+	EndsAt         pgtype.Timestamptz
+	IsActive       bool
+	CreatedBy      uuid.NullUUID
+	MinReadSeconds int16
 }
 
 func (q *Queries) CreateAnnouncement(ctx context.Context, arg CreateAnnouncementParams) (uuid.UUID, error) {
@@ -50,6 +102,7 @@ func (q *Queries) CreateAnnouncement(ctx context.Context, arg CreateAnnouncement
 		arg.EndsAt,
 		arg.IsActive,
 		arg.CreatedBy,
+		arg.MinReadSeconds,
 	)
 	var id uuid.UUID
 	err := row.Scan(&id)
@@ -68,26 +121,74 @@ func (q *Queries) DeleteAnnouncement(ctx context.Context, id uuid.UUID) (int64, 
 	return result.RowsAffected(), nil
 }
 
+const getActiveAnnouncementFor = `-- name: GetActiveAnnouncementFor :one
+SELECT a.id, a.title, a.body, a.type, a.starts_at, a.ends_at, a.min_read_seconds, r.opened_at, r.read_at
+FROM announcements a
+LEFT JOIN announcement_reads r ON r.announcement_id = a.id AND r.employee_id = $1
+WHERE a.id = $2
+  AND a.is_active
+  AND a.starts_at <= $3
+  AND (a.ends_at IS NULL OR a.ends_at > $3)
+  AND (a.division_id IS NULL OR a.division_id = (
+    SELECT s.division_id FROM employees e JOIN subdivisions s ON s.id = e.subdivision_id WHERE e.id = $1))
+`
+
+type GetActiveAnnouncementForParams struct {
+	EmployeeID uuid.UUID
+	ID         uuid.UUID
+	Now        pgtype.Timestamptz
+}
+
+type GetActiveAnnouncementForRow struct {
+	ID             uuid.UUID
+	Title          string
+	Body           string
+	Type           AnnType
+	StartsAt       pgtype.Timestamptz
+	EndsAt         pgtype.Timestamptz
+	MinReadSeconds int16
+	OpenedAt       pgtype.Timestamptz
+	ReadAt         pgtype.Timestamptz
+}
+
+func (q *Queries) GetActiveAnnouncementFor(ctx context.Context, arg GetActiveAnnouncementForParams) (GetActiveAnnouncementForRow, error) {
+	row := q.db.QueryRow(ctx, getActiveAnnouncementFor, arg.EmployeeID, arg.ID, arg.Now)
+	var i GetActiveAnnouncementForRow
+	err := row.Scan(
+		&i.ID,
+		&i.Title,
+		&i.Body,
+		&i.Type,
+		&i.StartsAt,
+		&i.EndsAt,
+		&i.MinReadSeconds,
+		&i.OpenedAt,
+		&i.ReadAt,
+	)
+	return i, err
+}
+
 const getAnnouncement = `-- name: GetAnnouncement :one
-SELECT a.id, a.title, a.body, a.type, a.image_upload_id, a.division_id, a.starts_at, a.ends_at, a.is_active, a.created_by, a.created_at, d.name AS division_name
+SELECT a.id, a.title, a.body, a.type, a.image_upload_id, a.division_id, a.starts_at, a.ends_at, a.is_active, a.created_by, a.created_at, a.min_read_seconds, d.name AS division_name
 FROM announcements a
 LEFT JOIN divisions d ON d.id = a.division_id
 WHERE a.id = $1
 `
 
 type GetAnnouncementRow struct {
-	ID            uuid.UUID
-	Title         string
-	Body          string
-	Type          AnnType
-	ImageUploadID uuid.NullUUID
-	DivisionID    uuid.NullUUID
-	StartsAt      pgtype.Timestamptz
-	EndsAt        pgtype.Timestamptz
-	IsActive      bool
-	CreatedBy     uuid.NullUUID
-	CreatedAt     pgtype.Timestamptz
-	DivisionName  pgtype.Text
+	ID             uuid.UUID
+	Title          string
+	Body           string
+	Type           AnnType
+	ImageUploadID  uuid.NullUUID
+	DivisionID     uuid.NullUUID
+	StartsAt       pgtype.Timestamptz
+	EndsAt         pgtype.Timestamptz
+	IsActive       bool
+	CreatedBy      uuid.NullUUID
+	CreatedAt      pgtype.Timestamptz
+	MinReadSeconds int16
+	DivisionName   pgtype.Text
 }
 
 func (q *Queries) GetAnnouncement(ctx context.Context, id uuid.UUID) (GetAnnouncementRow, error) {
@@ -105,13 +206,127 @@ func (q *Queries) GetAnnouncement(ctx context.Context, id uuid.UUID) (GetAnnounc
 		&i.IsActive,
 		&i.CreatedBy,
 		&i.CreatedAt,
+		&i.MinReadSeconds,
 		&i.DivisionName,
 	)
 	return i, err
 }
 
+const listActiveAnnouncementsFor = `-- name: ListActiveAnnouncementsFor :many
+
+SELECT a.id, a.title, a.body, a.type, a.starts_at, a.ends_at, a.min_read_seconds, r.opened_at, r.read_at
+FROM announcements a
+LEFT JOIN announcement_reads r ON r.announcement_id = a.id AND r.employee_id = $1
+WHERE a.is_active
+  AND a.starts_at <= $2
+  AND (a.ends_at IS NULL OR a.ends_at > $2)
+  AND (a.division_id IS NULL OR a.division_id = (
+    SELECT s.division_id FROM employees e JOIN subdivisions s ON s.id = e.subdivision_id WHERE e.id = $1))
+ORDER BY (r.read_at IS NOT NULL), a.starts_at DESC, a.id
+LIMIT 50
+`
+
+type ListActiveAnnouncementsForParams struct {
+	EmployeeID uuid.UUID
+	Now        pgtype.Timestamptz
+}
+
+type ListActiveAnnouncementsForRow struct {
+	ID             uuid.UUID
+	Title          string
+	Body           string
+	Type           AnnType
+	StartsAt       pgtype.Timestamptz
+	EndsAt         pgtype.Timestamptz
+	MinReadSeconds int16
+	OpenedAt       pgtype.Timestamptz
+	ReadAt         pgtype.Timestamptz
+}
+
+// Pengumuman yang sedang tayang untuk satu Pejuang, beserta catatan buka/bacanya.
+func (q *Queries) ListActiveAnnouncementsFor(ctx context.Context, arg ListActiveAnnouncementsForParams) ([]ListActiveAnnouncementsForRow, error) {
+	rows, err := q.db.Query(ctx, listActiveAnnouncementsFor, arg.EmployeeID, arg.Now)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListActiveAnnouncementsForRow{}
+	for rows.Next() {
+		var i ListActiveAnnouncementsForRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Title,
+			&i.Body,
+			&i.Type,
+			&i.StartsAt,
+			&i.EndsAt,
+			&i.MinReadSeconds,
+			&i.OpenedAt,
+			&i.ReadAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listAnnouncementReaders = `-- name: ListAnnouncementReaders :many
+SELECT e.id AS employee_id, e.full_name, e.nip, s.name AS subdivision_name, r.opened_at, r.read_at
+FROM employees e
+JOIN subdivisions s ON s.id = e.subdivision_id
+LEFT JOIN announcement_reads r ON r.employee_id = e.id AND r.announcement_id = $1
+WHERE e.status = 'active' AND e.deleted_at IS NULL
+  AND ($2::uuid IS NULL OR s.division_id = $2::uuid)
+ORDER BY (r.read_at IS NOT NULL), (r.opened_at IS NOT NULL), e.full_name, e.id
+`
+
+type ListAnnouncementReadersParams struct {
+	AnnouncementID uuid.UUID
+	DivisionID     uuid.NullUUID
+}
+
+type ListAnnouncementReadersRow struct {
+	EmployeeID      uuid.UUID
+	FullName        string
+	Nip             string
+	SubdivisionName string
+	OpenedAt        pgtype.Timestamptz
+	ReadAt          pgtype.Timestamptz
+}
+
+func (q *Queries) ListAnnouncementReaders(ctx context.Context, arg ListAnnouncementReadersParams) ([]ListAnnouncementReadersRow, error) {
+	rows, err := q.db.Query(ctx, listAnnouncementReaders, arg.AnnouncementID, arg.DivisionID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListAnnouncementReadersRow{}
+	for rows.Next() {
+		var i ListAnnouncementReadersRow
+		if err := rows.Scan(
+			&i.EmployeeID,
+			&i.FullName,
+			&i.Nip,
+			&i.SubdivisionName,
+			&i.OpenedAt,
+			&i.ReadAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listAnnouncements = `-- name: ListAnnouncements :many
-SELECT a.id, a.title, a.body, a.type, a.image_upload_id, a.division_id, a.starts_at, a.ends_at, a.is_active, a.created_by, a.created_at, d.name AS division_name
+SELECT a.id, a.title, a.body, a.type, a.image_upload_id, a.division_id, a.starts_at, a.ends_at, a.is_active, a.created_by, a.created_at, a.min_read_seconds, d.name AS division_name
 FROM announcements a
 LEFT JOIN divisions d ON d.id = a.division_id
 ORDER BY a.starts_at DESC, a.id
@@ -124,18 +339,19 @@ type ListAnnouncementsParams struct {
 }
 
 type ListAnnouncementsRow struct {
-	ID            uuid.UUID
-	Title         string
-	Body          string
-	Type          AnnType
-	ImageUploadID uuid.NullUUID
-	DivisionID    uuid.NullUUID
-	StartsAt      pgtype.Timestamptz
-	EndsAt        pgtype.Timestamptz
-	IsActive      bool
-	CreatedBy     uuid.NullUUID
-	CreatedAt     pgtype.Timestamptz
-	DivisionName  pgtype.Text
+	ID             uuid.UUID
+	Title          string
+	Body           string
+	Type           AnnType
+	ImageUploadID  uuid.NullUUID
+	DivisionID     uuid.NullUUID
+	StartsAt       pgtype.Timestamptz
+	EndsAt         pgtype.Timestamptz
+	IsActive       bool
+	CreatedBy      uuid.NullUUID
+	CreatedAt      pgtype.Timestamptz
+	MinReadSeconds int16
+	DivisionName   pgtype.Text
 }
 
 func (q *Queries) ListAnnouncements(ctx context.Context, arg ListAnnouncementsParams) ([]ListAnnouncementsRow, error) {
@@ -159,6 +375,7 @@ func (q *Queries) ListAnnouncements(ctx context.Context, arg ListAnnouncementsPa
 			&i.IsActive,
 			&i.CreatedBy,
 			&i.CreatedAt,
+			&i.MinReadSeconds,
 			&i.DivisionName,
 		); err != nil {
 			return nil, err
@@ -171,21 +388,56 @@ func (q *Queries) ListAnnouncements(ctx context.Context, arg ListAnnouncementsPa
 	return items, nil
 }
 
+const markAnnouncementRead = `-- name: MarkAnnouncementRead :exec
+UPDATE announcement_reads
+SET read_at = $1
+WHERE announcement_id = $2 AND employee_id = $3 AND read_at IS NULL
+`
+
+type MarkAnnouncementReadParams struct {
+	Now            pgtype.Timestamptz
+	AnnouncementID uuid.UUID
+	EmployeeID     uuid.UUID
+}
+
+func (q *Queries) MarkAnnouncementRead(ctx context.Context, arg MarkAnnouncementReadParams) error {
+	_, err := q.db.Exec(ctx, markAnnouncementRead, arg.Now, arg.AnnouncementID, arg.EmployeeID)
+	return err
+}
+
+const openAnnouncement = `-- name: OpenAnnouncement :exec
+INSERT INTO announcement_reads (announcement_id, employee_id, opened_at)
+VALUES ($1, $2, $3)
+ON CONFLICT (announcement_id, employee_id) DO NOTHING
+`
+
+type OpenAnnouncementParams struct {
+	AnnouncementID uuid.UUID
+	EmployeeID     uuid.UUID
+	Now            pgtype.Timestamptz
+}
+
+func (q *Queries) OpenAnnouncement(ctx context.Context, arg OpenAnnouncementParams) error {
+	_, err := q.db.Exec(ctx, openAnnouncement, arg.AnnouncementID, arg.EmployeeID, arg.Now)
+	return err
+}
+
 const updateAnnouncement = `-- name: UpdateAnnouncement :execrows
 UPDATE announcements
-SET title = $2, body = $3, type = $4, division_id = $5, starts_at = $6, ends_at = $7, is_active = $8
+SET title = $2, body = $3, type = $4, division_id = $5, starts_at = $6, ends_at = $7, is_active = $8, min_read_seconds = $9
 WHERE id = $1
 `
 
 type UpdateAnnouncementParams struct {
-	ID         uuid.UUID
-	Title      string
-	Body       string
-	Type       AnnType
-	DivisionID uuid.NullUUID
-	StartsAt   pgtype.Timestamptz
-	EndsAt     pgtype.Timestamptz
-	IsActive   bool
+	ID             uuid.UUID
+	Title          string
+	Body           string
+	Type           AnnType
+	DivisionID     uuid.NullUUID
+	StartsAt       pgtype.Timestamptz
+	EndsAt         pgtype.Timestamptz
+	IsActive       bool
+	MinReadSeconds int16
 }
 
 func (q *Queries) UpdateAnnouncement(ctx context.Context, arg UpdateAnnouncementParams) (int64, error) {
@@ -198,6 +450,7 @@ func (q *Queries) UpdateAnnouncement(ctx context.Context, arg UpdateAnnouncement
 		arg.StartsAt,
 		arg.EndsAt,
 		arg.IsActive,
+		arg.MinReadSeconds,
 	)
 	if err != nil {
 		return 0, err

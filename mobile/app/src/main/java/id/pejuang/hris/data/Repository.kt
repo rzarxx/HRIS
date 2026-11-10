@@ -178,6 +178,15 @@ class Repository(private val session: Session) {
         if (approve) approve(id, body).data else reject(id, body).data
     }
 
+    /** Pengumuman yang sedang tayang untuk Pejuang ini; belum dibaca lebih dulu. */
+    suspend fun announcements(): List<MyAnnouncement> = call { announcements().data }
+
+    /** Mencatat isi dibuka; server memulai timer baca sekali saja (D27). */
+    suspend fun openAnnouncement(id: String): MyAnnouncement = call { openAnnouncement(id).data }
+
+    /** Menandai sudah dibaca; ditolak READ_TOO_SOON bila jeda baca belum lewat. */
+    suspend fun readAnnouncement(id: String): MyAnnouncement = call { readAnnouncement(id).data }
+
     /** Mengganti kata sandi sendiri. Server mencabut sesi lain, sesi HP ini tetap aktif. */
     suspend fun changePassword(current: String, next: String) {
         call {

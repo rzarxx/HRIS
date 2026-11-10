@@ -284,6 +284,21 @@ data class ApprovalItem(
     @SerialName("steps") val steps: List<ApprovalStep>? = null,
 )
 
+// schema: MyAnnouncement
+@Serializable
+data class MyAnnouncement(
+    @SerialName("id") val id: String,
+    @SerialName("title") val title: String,
+    @SerialName("body") val body: String,
+    @SerialName("type") val type: String,
+    @SerialName("starts_at") val startsAt: String,
+    @SerialName("ends_at") val endsAt: String? = null,
+    @SerialName("min_read_seconds") val minReadSeconds: Int = 0,
+    @SerialName("opened_at") val openedAt: String? = null,
+    @SerialName("read_at") val readAt: String? = null,
+    @SerialName("read_wait_seconds") val readWaitSeconds: Int = 0,
+)
+
 // schema: ApprovalDecision
 @Serializable
 data class ApprovalDecision(

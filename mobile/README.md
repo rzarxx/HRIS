@@ -20,6 +20,9 @@ selfie (D42), jadi aplikasi tidak memuat model pengenalan wajah. Play Integrity 
 - Persetujuan untuk akun dengan izin `approval:act` (kepala subdiv, kepala divisi, SDM): antrean di tab
   Pengajuan, setujui dengan catatan atau tolak dengan alasan wajib. Jumlah yang menunggu tampil sebagai lencana
   di navigasi bawah dan di Beranda, dimuat ulang tiap tab Pengajuan dibuka (belum ada notifikasi push).
+- Pengumuman dari SDM, diambil saat aplikasi dibuka: pop-up satu per satu (bisa ditunda dengan "Nanti saja"),
+  banner di Beranda, dan daftar Pengumuman. Tombol "Sudah baca" menghitung mundur sesuai jeda yang diatur SDM;
+  server mencatat waktu buka sekali dan menolak "Sudah baca" yang terlalu cepat (D27).
 - Tarik ke bawah untuk memuat ulang di Beranda, Presensi, dan Pengajuan; kerangka abu-abu saat memuat; getar
   singkat saat presensi, pengajuan, atau keputusan berhasil; pesan singkat (snackbar) hasil tindakan.
 - Presensi: total jam kerja hari ini dan bulan berjalan, tombol absen masuk/pulang, dan riwayat 31 hari terakhir.

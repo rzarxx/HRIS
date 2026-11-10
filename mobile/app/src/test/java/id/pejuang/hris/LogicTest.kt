@@ -331,3 +331,26 @@ class RequestsLogicTest {
         assertEquals("{}", decision)
     }
 }
+
+class AnnouncementLogicTest {
+    @Test
+    fun decodesServerShape() {
+        val a = apiJson.decodeFromString(
+            id.pejuang.hris.data.MyAnnouncement.serializer(),
+            """{"id":"a1","title":"Rapat","body":"Isi","type":"popup","starts_at":"2026-11-02T01:00:00Z","ends_at":null,
+               "min_read_seconds":15,"opened_at":"2026-11-02T01:00:05Z","read_at":null,"read_wait_seconds":11}""",
+        )
+        assertEquals(15, a.minReadSeconds)
+        assertEquals(11, a.readWaitSeconds)
+        assertEquals(null, a.readAt)
+    }
+
+    @Test
+    fun readTooSoonUsesFriendlyMessage() {
+        val err = id.pejuang.hris.data.errorFromBody(
+            """{"error":{"code":"READ_TOO_SOON","message":"x","details":{"wait_seconds":5}}}""",
+        )
+        assertEquals("READ_TOO_SOON", err?.code)
+        assertTrue(err?.message.orEmpty().startsWith("Baca dulu isinya"))
+    }
+}

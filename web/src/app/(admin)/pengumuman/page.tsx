@@ -3,6 +3,7 @@
 import { Eye, Pencil, Plus, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { PhonePreview } from "@/components/announcements/phone-preview";
+import { ReadersModal, ReadProgress } from "@/components/announcements/readers";
 import { AnnouncementStatusBadge } from "@/components/announcements/status";
 import { Button, IconButton } from "@/components/ui/button";
 import { Field, Input, Select, Textarea, Toggle } from "@/components/ui/form";
@@ -23,6 +24,7 @@ interface FormState {
   starts_at: string; // datetime-local WIB
   ends_at: string;
   is_active: boolean;
+  min_read_seconds: string;
 }
 
 const blank = (): FormState => ({
@@ -33,6 +35,7 @@ const blank = (): FormState => ({
   starts_at: toWibInput(new Date().toISOString()),
   ends_at: "",
   is_active: true,
+  min_read_seconds: "10",
 });
 
 export default function AnnouncementsPage() {
@@ -43,6 +46,7 @@ export default function AnnouncementsPage() {
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [previewing, setPreviewing] = useState<AnnouncementListItem | null>(null);
   const [deleting, setDeleting] = useState<AnnouncementListItem | null>(null);
+  const [reading, setReading] = useState<AnnouncementListItem | null>(null);
 
   const set = <K extends keyof FormState>(k: K, v: FormState[K]) => {
     setForm((f) => ({ ...f, [k]: v }));
@@ -72,6 +76,7 @@ export default function AnnouncementsPage() {
             starts_at: toWibInput(a.starts_at),
             ends_at: toWibInput(a.ends_at),
             is_active: a.is_active,
+            min_read_seconds: String(a.min_read_seconds),
           },
     );
     setEditing(a);
@@ -87,6 +92,7 @@ export default function AnnouncementsPage() {
       starts_at: fromWibInput(form.starts_at) ?? "",
       ends_at: fromWibInput(form.ends_at),
       is_active: form.is_active,
+      min_read_seconds: form.min_read_seconds.trim() === "" ? Number.NaN : Number(form.min_read_seconds),
     };
     const fieldErrors = validate(announcementSchema, values);
     setErrors(fieldErrors ?? {});
@@ -120,6 +126,7 @@ export default function AnnouncementsPage() {
                 <Th>Target</Th>
                 <Th>Jadwal tayang (WIB)</Th>
                 <Th>Status</Th>
+                <Th>Dibaca</Th>
                 <Th align="right">
                   <span className="sr-only">Aksi</span>
                 </Th>
@@ -141,6 +148,9 @@ export default function AnnouncementsPage() {
                   </Td>
                   <Td>
                     <AnnouncementStatusBadge a={a} />
+                  </Td>
+                  <Td>
+                    <ReadProgress a={a} onOpen={() => setReading(a)} />
                   </Td>
                   <Td align="right" className="whitespace-nowrap">
                     <IconButton label={`Pratinjau ${a.title}`} onClick={() => setPreviewing(a)}>
@@ -206,20 +216,41 @@ export default function AnnouncementsPage() {
             <Field label="Berakhir (WIB)" htmlFor="ends_at" error={errors.ends_at} hint="Kosongkan bila tanpa batas.">
               <Input id="ends_at" type="datetime-local" value={form.ends_at} onChange={(e) => set("ends_at", e.target.value)} invalid={!!errors.ends_at} />
             </Field>
+            <Field
+              label="Jeda sebelum Sudah baca (detik)"
+              htmlFor="min_read_seconds"
+              error={errors.min_read_seconds}
+              hint="0 sampai 120. Tombol Sudah baca di aplikasi aktif setelah hitung mundur ini, dan server menolak yang lebih cepat."
+              className="sm:col-span-2"
+            >
+              <Input
+                id="min_read_seconds"
+                type="number"
+                inputMode="numeric"
+                min={0}
+                max={120}
+                value={form.min_read_seconds}
+                onChange={(e) => set("min_read_seconds", e.target.value)}
+                invalid={!!errors.min_read_seconds}
+                className="sm:max-w-40"
+              />
+            </Field>
             <Toggle checked={form.is_active} onChange={(v) => set("is_active", v)} className="sm:col-span-2">
               Aktif
             </Toggle>
           </form>
           <div>
             <p className="mb-2 text-center text-xs font-medium text-slate-500">Pratinjau di aplikasi</p>
-            <PhonePreview title={form.title} body={form.body} type={form.type} />
+            <PhonePreview title={form.title} body={form.body} type={form.type} minRead={Number(form.min_read_seconds) || 0} />
           </div>
         </div>
       </Modal>
 
       <Modal open={previewing !== null} title="Pratinjau pengumuman" size="sm" onClose={() => setPreviewing(null)}>
-        {previewing && <PhonePreview title={previewing.title} body={previewing.body} type={previewing.type} />}
+        {previewing && <PhonePreview title={previewing.title} body={previewing.body} type={previewing.type} minRead={previewing.min_read_seconds} />}
       </Modal>
+
+      <ReadersModal a={reading} onClose={() => setReading(null)} />
 
       <ConfirmDialog
         open={deleting !== null}

@@ -18,6 +18,7 @@ export type EmployeeCreated = Schemas["EmployeeCreated"];
 export type Activation = Schemas["Activation"];
 export type CurrentUser = Schemas["Me"];
 export type AnnouncementListItem = Schemas["Announcement"];
+export type AnnouncementReader = Schemas["AnnouncementReader"];
 export type DashboardSummary = Schemas["DashboardSummary"];
 export type OrgChartData = Schemas["OrgChart"];
 export type AttendanceReportRow = Schemas["AttendanceReportRow"];

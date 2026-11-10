@@ -34,6 +34,7 @@ import androidx.compose.ui.unit.dp
 import id.pejuang.hris.BuildConfig
 import id.pejuang.hris.data.AttendanceRecord
 import id.pejuang.hris.data.Me
+import id.pejuang.hris.data.MyAnnouncement
 import id.pejuang.hris.data.Repository
 import id.pejuang.hris.data.toApiError
 import kotlinx.coroutines.CancellationException
@@ -71,6 +72,11 @@ fun MainScreen(
     var openLeaveId by rememberSaveable { mutableStateOf<String?>(null) }
     var leaveForm by rememberSaveable { mutableStateOf(false) }
     var deciding by remember { mutableStateOf<Decision?>(null) }
+    val announcements = remember(repository) { AnnouncementsController(repository, scope) }
+    var openAnnouncementId by rememberSaveable { mutableStateOf<String?>(null) }
+    var announcementList by rememberSaveable { mutableStateOf(false) }
+    // Pop-up yang ditunda ("Nanti saja") tidak muncul lagi sampai aplikasi dibuka ulang.
+    var postponed by remember { mutableStateOf(setOf<String>()) }
     val snackbar = remember { SnackbarHostState() }
     val notify: (String) -> Unit = { message -> scope.launch { snackbar.showSnackbar(message) } }
 
@@ -142,12 +148,20 @@ fun MainScreen(
     val canApprove = "approval:act" in current.permissions
     // Data pengajuan dimuat bersama profil, lalu diperbarui setiap tab Pengajuan dibuka (lencana
     // persetujuan ikut segar tanpa notifikasi push).
-    LaunchedEffect(reload, current.employeeId) { requests.refresh(canApprove) }
+    LaunchedEffect(reload, current.employeeId) {
+        requests.refresh(canApprove)
+        announcements.refresh()
+    }
     LaunchedEffect(tab) { if (tab == MainTab.Requests) requests.refresh(canApprove) }
 
     if (tab != MainTab.Home) BackHandler { tab = MainTab.Home }
     val now = ZonedDateTime.now(Wib)
     val openLeave = openLeaveId?.let { id -> requests.data.leaves?.firstOrNull { it.id == id } }
+    val openAnnouncement = openAnnouncementId?.let { id -> announcements.items?.firstOrNull { it.id == id } }
+    val onSubPage = openLeave != null || openAnnouncement != null || announcementList
+    // Pop-up pengumuman muncul satu per satu saat aplikasi dibuka, di atas halaman tab.
+    val popup = if (onSubPage || leaveForm || deciding != null || askLogout) null
+    else announcements.items?.firstOrNull { it.type == "popup" && it.readAt == null && it.id !in postponed }
     Box(Modifier.fillMaxSize()) {
         if (openLeave != null) {
             BackHandler { openLeaveId = null }
@@ -157,6 +171,17 @@ fun MainScreen(
                 onBack = { openLeaveId = null },
                 onMessage = { openLeaveId = null; notify(it) },
             )
+        } else if (openAnnouncement != null) {
+            BackHandler { openAnnouncementId = null }
+            AnnouncementDetailScreen(
+                controller = announcements,
+                item = openAnnouncement,
+                onBack = { openAnnouncementId = null },
+                onMessage = notify,
+            )
+        } else if (announcementList) {
+            BackHandler { announcementList = false }
+            AnnouncementListContent(announcements.items, onBack = { announcementList = false }, onOpen = { openAnnouncementId = it.id })
         } else MainTabs(
             tab = tab,
             onTab = { tab = it },
@@ -183,7 +208,15 @@ fun MainScreen(
                 onDecide = { deciding = it },
                 onRefresh = { requests.refresh(canApprove) },
             ),
+            announcements = announcements.items.orEmpty(),
+            onAnnouncement = { openAnnouncementId = it.id },
+            onAnnouncements = { announcementList = true },
         )
+        if (popup != null) {
+            AnnouncementPopup(announcements, popup) { read ->
+                if (read) notify("Terima kasih, pengumuman ditandai sudah dibaca.") else postponed = postponed + popup.id
+            }
+        }
         if (leaveForm) {
             LeaveFormSheet(
                 controller = requests,
@@ -205,7 +238,7 @@ fun MainScreen(
             snackbar,
             Modifier.align(Alignment.BottomCenter).then(
                 // glassBarSpace sudah termasuk navigation bar sistem.
-                if (openLeave == null) Modifier.padding(bottom = glassBarSpace()) else Modifier.navigationBarsPadding().padding(bottom = 16.dp),
+                if (!onSubPage) Modifier.padding(bottom = glassBarSpace()) else Modifier.navigationBarsPadding().padding(bottom = 16.dp),
             ),
         )
         if (askLogout) {
@@ -243,6 +276,9 @@ fun MainTabs(
     onChangePassword: () -> Unit,
     onLogout: () -> Unit,
     requests: RequestsUi = RequestsUi(),
+    announcements: List<MyAnnouncement> = emptyList(),
+    onAnnouncement: (MyAnnouncement) -> Unit = {},
+    onAnnouncements: () -> Unit = {},
 ) {
     // Isi tab menjadi sumber blur; bottom bar kaca mengambang di atasnya.
     val haze = remember { HazeState() }
@@ -268,6 +304,9 @@ fun MainTabs(
                         onLogout = onLogout,
                         pendingApprovals = pending,
                         onRequests = { onTab(MainTab.Requests) },
+                        announcements = announcements,
+                        onAnnouncement = onAnnouncement,
+                        onAnnouncements = onAnnouncements,
                     )
                 }
                 MainTab.Attendance -> RefreshBox(refreshing && records != null, onRefresh, Modifier.fillMaxSize()) {

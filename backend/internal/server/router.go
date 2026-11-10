@@ -154,6 +154,10 @@ func routes(d Deps) []Route {
 		guarded(http.MethodGet, "/v1/admin/announcements/{id}", d.Announcement.Get, permission.AnnouncementManage),
 		guarded(http.MethodPatch, "/v1/admin/announcements/{id}", d.Announcement.Update, permission.AnnouncementManage),
 		guarded(http.MethodDelete, "/v1/admin/announcements/{id}", d.Announcement.Delete, permission.AnnouncementManage),
+		guarded(http.MethodGet, "/v1/admin/announcements/{id}/reads", d.Announcement.Readers, permission.AnnouncementManage),
+		guarded(http.MethodGet, "/v1/announcements/active", d.Announcement.Active, permission.AnnouncementRead),
+		guarded(http.MethodPost, "/v1/announcements/{id}/open", d.Announcement.Open, permission.AnnouncementRead),
+		guarded(http.MethodPost, "/v1/announcements/{id}/read", d.Announcement.Read, permission.AnnouncementRead),
 
 		guarded(http.MethodGet, "/v1/admin/dashboard/summary", d.Dashboard.Summary, permission.DashboardRead),
 		guarded(http.MethodGet, "/v1/admin/dashboard/org-chart", d.Dashboard.OrgChart, permission.DashboardRead),

@@ -196,16 +196,18 @@ func fresh(t *testing.T, opt options) *httptest.Server {
 	q := store.New(appPool)
 	approvalSvc := approval.NewService(appPool)
 	leaveSvc := leave.NewService(appPool, authSvc.ResolveScope)
+	announcementSvc := announcement.NewService(appPool)
 	if opt.clock != nil {
 		approvalSvc.SetClock(opt.clock)
 		leaveSvc.SetClock(opt.clock)
+		announcementSvc.SetClock(opt.clock)
 	}
 	approvalSvc.Register(store.RequestKindLeave, leaveSvc)
 	srv := httptest.NewServer(server.New(server.Deps{
 		Auth:         auth.NewHandler(authSvc, false, "", limiter),
 		Org:          org.NewHandler(org.NewService(appPool)),
 		Employee:     employee.NewHandler(employee.NewService(appPool, authSvc.ResolveScope)),
-		Announcement: announcement.NewHandler(announcement.NewService(appPool)),
+		Announcement: announcement.NewHandler(announcementSvc),
 		Dashboard:    dashboard.NewHandler(q),
 		Report:       report.NewHandler(report.NewService(q, authSvc.ResolveScope)),
 		Location:     location.NewHandler(location.NewService(appPool)),

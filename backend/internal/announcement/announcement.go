@@ -23,9 +23,18 @@ import (
 type Service struct {
 	pool *pgxpool.Pool
 	q    *store.Queries
+	now  func() time.Time
 }
 
-func NewService(pool *pgxpool.Pool) *Service { return &Service{pool: pool, q: store.New(pool)} }
+func NewService(pool *pgxpool.Pool) *Service {
+	return &Service{pool: pool, q: store.New(pool), now: time.Now}
+}
+
+// SetClock mengganti sumber waktu, untuk tes timer baca.
+func (s *Service) SetClock(now func() time.Time) { s.now = now }
+
+// defaultMinReadSeconds adalah jeda awal sebelum tombol "Sudah baca" aktif (D27).
+const defaultMinReadSeconds = 10
 
 // Announcement adalah objek baku (MASTER.md §7.6).
 type Announcement struct {
@@ -40,19 +49,26 @@ type Announcement struct {
 	EndsAt        *string `json:"ends_at"`
 	IsActive      bool    `json:"is_active"`
 	CreatedAt     *string `json:"created_at"`
+	// Detik minimal antara isi dibuka dan "Sudah baca" diterima server (D27).
+	MinReadSeconds int `json:"min_read_seconds"`
+	// Rekap sasaran: Pejuang aktif di divisi tujuan (atau semua), yang sudah membuka, dan yang sudah membaca.
+	AudienceCount int64 `json:"audience_count"`
+	OpenedCount   int64 `json:"opened_count"`
+	ReadCount     int64 `json:"read_count"`
 }
 
 // Input juga dipakai untuk PATCH: field yang tidak dikirim tetap nilai lamanya.
 // image_upload_id diterima sesuai kontrak; modul unggah menyusul sehingga hanya boleh null.
 type Input struct {
-	Title         string  `json:"title"`
-	Body          string  `json:"body"`
-	Type          string  `json:"type"`
-	ImageUploadID *string `json:"image_upload_id"`
-	DivisionID    *string `json:"division_id"`
-	StartsAt      string  `json:"starts_at"`
-	EndsAt        *string `json:"ends_at"`
-	IsActive      *bool   `json:"is_active"`
+	Title          string  `json:"title"`
+	Body           string  `json:"body"`
+	Type           string  `json:"type"`
+	ImageUploadID  *string `json:"image_upload_id"`
+	DivisionID     *string `json:"division_id"`
+	StartsAt       string  `json:"starts_at"`
+	EndsAt         *string `json:"ends_at"`
+	IsActive       *bool   `json:"is_active"`
+	MinReadSeconds *int    `json:"min_read_seconds"`
 }
 
 type validated struct {
@@ -63,6 +79,7 @@ type validated struct {
 	StartsAt   pgtype.Timestamptz
 	EndsAt     pgtype.Timestamptz
 	IsActive   bool
+	MinRead    int16
 }
 
 // cleanText membuang karakter kontrol; isi pengumuman selalu teks murni (MASTER.md T11).
@@ -78,7 +95,14 @@ func cleanText(s string) string {
 
 func (in Input) validate(ctx context.Context, q *store.Queries) (validated, error) {
 	fields := map[string]string{}
-	v := validated{Title: cleanText(in.Title), Body: cleanText(in.Body), IsActive: in.IsActive == nil || *in.IsActive}
+	v := validated{Title: cleanText(in.Title), Body: cleanText(in.Body), IsActive: in.IsActive == nil || *in.IsActive, MinRead: defaultMinReadSeconds}
+	if in.MinReadSeconds != nil {
+		if *in.MinReadSeconds < 0 || *in.MinReadSeconds > 120 {
+			fields["min_read_seconds"] = "Jeda baca 0 sampai 120 detik."
+		} else {
+			v.MinRead = int16(*in.MinReadSeconds)
+		}
+	}
 	switch {
 	case v.Title == "":
 		fields["title"] = "Judul wajib diisi."
@@ -141,7 +165,33 @@ func toResponse(r store.GetAnnouncementRow) Announcement {
 		DivisionID:    pgconv.UUIDPtr(r.DivisionID), DivisionName: pgconv.TextPtr(r.DivisionName),
 		StartsAt: pgconv.TimeString(r.StartsAt), EndsAt: pgconv.TimeString(r.EndsAt),
 		IsActive: r.IsActive, CreatedAt: pgconv.TimeString(r.CreatedAt),
+		MinReadSeconds: int(r.MinReadSeconds),
 	}
+}
+
+// withCounts mengisi rekap pembaca untuk daftar atau detail pengumuman.
+func (s *Service) withCounts(ctx context.Context, items []Announcement) error {
+	if len(items) == 0 {
+		return nil
+	}
+	ids := make([]uuid.UUID, 0, len(items))
+	for _, a := range items {
+		ids = append(ids, uuid.MustParse(a.ID))
+	}
+	rows, err := s.q.AnnouncementReadCounts(ctx, ids)
+	if err != nil {
+		return err
+	}
+	by := make(map[string]store.AnnouncementReadCountsRow, len(rows))
+	for _, r := range rows {
+		by[r.ID.String()] = r
+	}
+	for i := range items {
+		if c, ok := by[items[i].ID]; ok {
+			items[i].AudienceCount, items[i].OpenedCount, items[i].ReadCount = c.AudienceCount, c.OpenedCount, c.ReadCount
+		}
+	}
+	return nil
 }
 
 func (s *Service) List(ctx context.Context, page httpx.Page) ([]Announcement, int64, error) {
@@ -157,6 +207,9 @@ func (s *Service) List(ctx context.Context, page httpx.Page) ([]Announcement, in
 	for _, r := range rows {
 		out = append(out, toResponse(store.GetAnnouncementRow(r)))
 	}
+	if err := s.withCounts(ctx, out); err != nil {
+		return nil, 0, err
+	}
 	return out, total, nil
 }
 
@@ -168,7 +221,11 @@ func (s *Service) Get(ctx context.Context, id uuid.UUID) (Announcement, error) {
 	if err != nil {
 		return Announcement{}, err
 	}
-	return toResponse(r), nil
+	out := []Announcement{toResponse(r)}
+	if err := s.withCounts(ctx, out); err != nil {
+		return Announcement{}, err
+	}
+	return out[0], nil
 }
 
 func (s *Service) Create(ctx context.Context, entry audit.Entry, in Input) (Announcement, error) {
@@ -181,7 +238,7 @@ func (s *Service) Create(ctx context.Context, entry audit.Entry, in Input) (Anno
 		var err error
 		id, err = q.CreateAnnouncement(ctx, store.CreateAnnouncementParams{
 			Title: v.Title, Body: v.Body, Type: v.Type, DivisionID: v.DivisionID,
-			StartsAt: v.StartsAt, EndsAt: v.EndsAt, IsActive: v.IsActive, CreatedBy: entry.UserID,
+			StartsAt: v.StartsAt, EndsAt: v.EndsAt, IsActive: v.IsActive, CreatedBy: entry.UserID, MinReadSeconds: v.MinRead,
 		})
 		if err != nil {
 			return err
@@ -210,6 +267,8 @@ func (s *Service) Update(ctx context.Context, entry audit.Entry, id uuid.UUID, d
 		DivisionID: pgconv.UUIDPtr(current.DivisionID), StartsAt: *starts,
 		EndsAt: pgconv.TimeString(current.EndsAt), IsActive: &isActive,
 	}
+	minRead := int(current.MinReadSeconds)
+	in.MinReadSeconds = &minRead
 	if err := decode(&in); err != nil {
 		return Announcement{}, err
 	}
@@ -220,7 +279,7 @@ func (s *Service) Update(ctx context.Context, entry audit.Entry, id uuid.UUID, d
 	err = database.InTx(ctx, s.pool, func(q *store.Queries) error {
 		affected, err := q.UpdateAnnouncement(ctx, store.UpdateAnnouncementParams{
 			ID: id, Title: v.Title, Body: v.Body, Type: v.Type, DivisionID: v.DivisionID,
-			StartsAt: v.StartsAt, EndsAt: v.EndsAt, IsActive: v.IsActive,
+			StartsAt: v.StartsAt, EndsAt: v.EndsAt, IsActive: v.IsActive, MinReadSeconds: v.MinRead,
 		})
 		if err != nil {
 			return err

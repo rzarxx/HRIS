@@ -365,17 +365,25 @@ func (ns NullUserRole) Value() (driver.Value, error) {
 }
 
 type Announcement struct {
-	ID            uuid.UUID
-	Title         string
-	Body          string
-	Type          AnnType
-	ImageUploadID uuid.NullUUID
-	DivisionID    uuid.NullUUID
-	StartsAt      pgtype.Timestamptz
-	EndsAt        pgtype.Timestamptz
-	IsActive      bool
-	CreatedBy     uuid.NullUUID
-	CreatedAt     pgtype.Timestamptz
+	ID             uuid.UUID
+	Title          string
+	Body           string
+	Type           AnnType
+	ImageUploadID  uuid.NullUUID
+	DivisionID     uuid.NullUUID
+	StartsAt       pgtype.Timestamptz
+	EndsAt         pgtype.Timestamptz
+	IsActive       bool
+	CreatedBy      uuid.NullUUID
+	CreatedAt      pgtype.Timestamptz
+	MinReadSeconds int16
+}
+
+type AnnouncementRead struct {
+	AnnouncementID uuid.UUID
+	EmployeeID     uuid.UUID
+	OpenedAt       pgtype.Timestamptz
+	ReadAt         pgtype.Timestamptz
 }
 
 type Approval struct {

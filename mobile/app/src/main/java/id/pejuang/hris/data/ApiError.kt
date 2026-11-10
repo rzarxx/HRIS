@@ -6,7 +6,13 @@ import retrofit2.HttpException
 import java.io.IOException
 
 /** Kegagalan API yang sudah diterjemahkan untuk ditampilkan ke Pejuang. */
-class ApiError(val code: String, message: String, val requestId: String? = null) : Exception(message)
+class ApiError(
+    val code: String,
+    message: String,
+    val requestId: String? = null,
+    /** Pesan per kolom dari VALIDATION_FAILED, untuk ditampilkan di bawah kolomnya. */
+    val fields: Map<String, String> = emptyMap(),
+) : Exception(message)
 
 /** Pesan untuk kode error yang perlu penjelasan lebih dari pesan server (MASTER.md §7.4). */
 private val friendly = mapOf(
@@ -16,6 +22,9 @@ private val friendly = mapOf(
     "AUTH_TOKEN_INVALID" to "Sesi berakhir. Silakan masuk lagi.",
     "FACE_SERVICE_UNAVAILABLE" to "Verifikasi wajah di server sedang tidak tersedia. Coba lagi nanti.",
     "ATTENDANCE_BLOCKED" to "Presensi ditolak. Hubungi SDM bila ini terus terjadi.",
+    "APPROVAL_SELF_FORBIDDEN" to "Pengajuan Anda sendiri diputuskan oleh atasan atau SDM.",
+    "APPROVAL_NOT_YOUR_TURN" to "Belum giliran Anda. Langkah sebelumnya belum diputuskan.",
+    "REQUEST_NOT_PENDING" to "Pengajuan ini sudah diputuskan atau dibatalkan. Muat ulang untuk melihat statusnya.",
 )
 
 fun Throwable.toApiError(): ApiError = when (this) {
@@ -38,15 +47,16 @@ fun Throwable.toApiError(): ApiError = when (this) {
  */
 fun errorFromBody(body: String): ApiError? {
     val error = runCatching { apiJson.decodeFromString(ErrorEnvelope.serializer(), body).error }.getOrNull() ?: return null
-    val fields = (error.details?.get("fields") as? JsonObject)
-        ?.values
-        ?.mapNotNull { (it as? JsonPrimitive)?.takeIf { p -> p.isString }?.content }
+    val byField = (error.details?.get("fields") as? JsonObject)
+        ?.mapNotNull { (key, value) -> (value as? JsonPrimitive)?.takeIf { it.isString }?.let { key to it.content } }
+        ?.toMap()
         .orEmpty()
+    val fields = byField.values.toList()
     val base = friendly[error.code] ?: error.message
     val message = when {
         fields.isNotEmpty() -> fields.joinToString("\n")
         error.code == "INTERNAL_ERROR" && error.requestId != null -> "$base (kode: ${error.requestId})"
         else -> base
     }
-    return ApiError(error.code, message, error.requestId)
+    return ApiError(error.code, message, error.requestId, byField)
 }

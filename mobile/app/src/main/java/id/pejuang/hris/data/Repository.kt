@@ -157,6 +157,27 @@ class Repository(private val session: Session) {
 
     suspend fun history(): List<AttendanceRecord> = call { history().data }
 
+    /** Jenis cuti aktif beserta saldo tahun ini. */
+    suspend fun leaveTypes(): List<LeaveType> = call { leaveTypes().data }
+
+    /** Pengajuan cuti/izin milik sendiri, terbaru dulu, lengkap dengan timeline. */
+    suspend fun leaves(): List<LeaveRequest> = call { leaves().data }
+
+    suspend fun createLeave(input: LeaveInput): LeaveRequest = call { createLeave(input).data }
+
+    suspend fun cancelLeave(id: String): LeaveRequest = call { cancelLeave(id).data }
+
+    /** Langkah persetujuan yang menunggu keputusan akun ini (izin approval:act). */
+    suspend fun pendingApprovals(): List<ApprovalItem> = call { pendingApprovals().data }
+
+    /** Detail langkah persetujuan beserta seluruh langkahnya. */
+    suspend fun approval(id: String): ApprovalItem = call { approval(id).data }
+
+    suspend fun decide(id: String, approve: Boolean, note: String?): ApprovalItem = call {
+        val body = ApprovalDecision(note?.trim()?.takeIf { it.isNotEmpty() })
+        if (approve) approve(id, body).data else reject(id, body).data
+    }
+
     /** Mengganti kata sandi sendiri. Server mencabut sesi lain, sesi HP ini tetap aktif. */
     suspend fun changePassword(current: String, next: String) {
         call {

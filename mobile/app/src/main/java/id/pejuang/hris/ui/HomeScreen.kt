@@ -75,6 +75,8 @@ fun HomeContent(
     onHistory: () -> Unit,
     onRefresh: () -> Unit,
     onLogout: () -> Unit,
+    pendingApprovals: Int = 0,
+    onRequests: () -> Unit = {},
 ) {
     StatusBarIcons(dark = true)
     val ready = me.deviceStatus == "approved" && !me.mustChangePassword
@@ -160,6 +162,10 @@ fun HomeContent(
 
             HomeSection("Layanan Pejuang", "Informasi dan riwayat kehadiran") {
                 ListRow(HrisIcons.History, "Riwayat presensi", "31 hari terakhir", onClick = onHistory)
+                RowDivider()
+                ListRow(FigmaIcons.NavNote, "Cuti dan izin", "Ajukan dan pantau persetujuan", onClick = onRequests) {
+                    if (pendingApprovals > 0) StatusChip("$pendingApprovals menunggu Anda", Tone.Warning)
+                }
                 RowDivider()
                 ListRow(HrisIcons.FaceScan, "Data wajah", "Untuk verifikasi saat presensi") {
                     if (me.faceEnrolled) StatusChip("Terdaftar", Tone.Success) else StatusChip("Belum", Tone.Warning)

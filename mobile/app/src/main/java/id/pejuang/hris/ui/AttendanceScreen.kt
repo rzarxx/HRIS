@@ -18,7 +18,6 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -121,11 +120,7 @@ fun AttendanceContent(
                         FigmaSecondaryButton("Coba lagi", onRetry)
                     }
                 }
-                records == null -> item {
-                    Box(ContentWidth.fillMaxWidth().padding(24.dp), contentAlignment = Alignment.Center) {
-                        CircularProgressIndicator(color = Fg.Accent, strokeWidth = 3.dp, modifier = Modifier.size(32.dp))
-                    }
-                }
+                records == null -> items(3) { SkeletonCard(ContentWidth, lines = 2) }
                 past.isEmpty() -> item {
                     FigmaCard(ContentWidth, title = "Belum ada riwayat", subtitle = "Presensi 31 hari terakhir akan muncul di sini.") {}
                 }

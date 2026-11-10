@@ -19,6 +19,7 @@ import retrofit2.http.GET
 import retrofit2.http.Multipart
 import retrofit2.http.POST
 import retrofit2.http.Part
+import retrofit2.http.Path
 import retrofit2.http.Query
 import java.util.concurrent.TimeUnit
 
@@ -58,6 +59,30 @@ interface HrisApi {
 
     @POST("v1/consents")
     suspend fun consent(@Body body: ConsentInput): retrofit2.Response<Unit>
+
+    @GET("v1/leave-types")
+    suspend fun leaveTypes(): DataResponse<List<LeaveType>>
+
+    @GET("v1/leaves")
+    suspend fun leaves(): DataResponse<List<LeaveRequest>>
+
+    @POST("v1/leaves")
+    suspend fun createLeave(@Body body: LeaveInput): DataResponse<LeaveRequest>
+
+    @POST("v1/leaves/{id}/cancel")
+    suspend fun cancelLeave(@Path("id") id: String): DataResponse<LeaveRequest>
+
+    @GET("v1/approvals/pending")
+    suspend fun pendingApprovals(): DataResponse<List<ApprovalItem>>
+
+    @GET("v1/approvals/{id}")
+    suspend fun approval(@Path("id") id: String): DataResponse<ApprovalItem>
+
+    @POST("v1/approvals/{id}/approve")
+    suspend fun approve(@Path("id") id: String, @Body body: ApprovalDecision): DataResponse<ApprovalItem>
+
+    @POST("v1/approvals/{id}/reject")
+    suspend fun reject(@Path("id") id: String, @Body body: ApprovalDecision): DataResponse<ApprovalItem>
 }
 
 /** Dipakai terpisah dari [HrisApi] agar perpanjangan sesi tidak memicu dirinya sendiri. */

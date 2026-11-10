@@ -13,14 +13,22 @@ selfie (D42), jadi aplikasi tidak memuat model pengenalan wajah. Play Integrity 
 - Persetujuan biometrik dan lokasi, lalu daftar wajah: challenge `face_enroll`, gerakan liveness, 3 selfie.
 - Absen masuk dan pulang: challenge, gerakan liveness, selfie, lokasi GPS, kirim multipart.
 - Navigasi bawah lima menu sesuai MASTER.md §10.2 dan UI kit Figma: Beranda, Presensi, Pengajuan, Slip upah,
-  dan Profil. Pengajuan dan Slip upah masih menampilkan "Segera tersedia" sampai API Fase 4 dan 5 ada.
+  dan Profil. Slip upah masih menampilkan "Segera tersedia" sampai API Fase 5 ada.
+- Pengajuan cuti/izin: saldo per jenis (UU, diatur SDM, atau tanpa saldo), riwayat dengan status, detail dengan
+  timeline persetujuan, batalkan selama menunggu, dan form di lembar bawah dengan pemilih rentang tanggal.
+  Galat dari server tampil di bawah kolomnya.
+- Persetujuan untuk akun dengan izin `approval:act` (kepala subdiv, kepala divisi, SDM): antrean di tab
+  Pengajuan, setujui dengan catatan atau tolak dengan alasan wajib. Jumlah yang menunggu tampil sebagai lencana
+  di navigasi bawah dan di Beranda, dimuat ulang tiap tab Pengajuan dibuka (belum ada notifikasi push).
+- Tarik ke bawah untuk memuat ulang di Beranda, Presensi, dan Pengajuan; kerangka abu-abu saat memuat; getar
+  singkat saat presensi, pengajuan, atau keputusan berhasil; pesan singkat (snackbar) hasil tindakan.
 - Presensi: total jam kerja hari ini dan bulan berjalan, tombol absen masuk/pulang, dan riwayat 31 hari terakhir.
 - Profil: kontak, data pribadi (hanya baca), status HP dan wajah, ganti kata sandi
   (`POST /v1/auth/password/change`), versi aplikasi, dan keluar. Layar Profil, Data pribadi, Ganti kata sandi,
   dan Slip upah memakai `FLAG_SECURE`.
 
 Belum: Play Integrity (butuh akun Play Console), deteksi root/emulator/fake GPS app selain `isMock`,
-notifikasi FCM, pengajuan, dan slip upah.
+notifikasi FCM, pinjaman, mutasi, dan slip upah.
 
 Bila aplikasi tertutup tiba-tiba, ringkasan galatnya (tanpa token atau data pribadi) muncul saat aplikasi dibuka
 lagi, dengan tombol **Salin laporan** untuk dikirim ke tim.

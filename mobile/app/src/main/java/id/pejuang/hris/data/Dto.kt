@@ -182,6 +182,114 @@ data class AttendanceRecord(
     @SerialName("location_name") val locationName: String? = null,
 )
 
+// schema: LeaveBalance
+@Serializable
+data class LeaveBalance(
+    @SerialName("year") val year: Int,
+    @SerialName("entitled_days") val entitledDays: Int,
+    @SerialName("used_days") val usedDays: Int,
+    @SerialName("remaining_days") val remainingDays: Int,
+    @SerialName("eligible_from") val eligibleFrom: String? = null,
+)
+
+// schema: LeaveType
+@Serializable
+data class LeaveType(
+    @SerialName("id") val id: String,
+    @SerialName("code") val code: String,
+    @SerialName("name") val name: String,
+    @SerialName("paid") val paid: Boolean = true,
+    @SerialName("quota_kind") val quotaKind: String,
+    @SerialName("annual_quota_days") val annualQuotaDays: Int? = null,
+    @SerialName("is_active") val isActive: Boolean = true,
+    @SerialName("balance") val balance: LeaveBalance? = null,
+)
+
+// schema: LeaveRequest.leave_type
+@Serializable
+data class LeaveTypeRef(
+    @SerialName("id") val id: String,
+    @SerialName("code") val code: String,
+    @SerialName("name") val name: String,
+)
+
+// schema: ApprovalStep
+@Serializable
+data class ApprovalStep(
+    @SerialName("step_order") val stepOrder: Int,
+    @SerialName("approver_role") val approverRole: String,
+    @SerialName("approver_name") val approverName: String? = null,
+    @SerialName("status") val status: String,
+    @SerialName("note") val note: String? = null,
+    @SerialName("acted_at") val actedAt: String? = null,
+)
+
+// schema: LeaveRequest
+@Serializable
+data class LeaveRequest(
+    @SerialName("id") val id: String,
+    @SerialName("employee_id") val employeeId: String,
+    @SerialName("leave_type") val leaveType: LeaveTypeRef,
+    @SerialName("start_date") val startDate: String,
+    @SerialName("end_date") val endDate: String,
+    @SerialName("days") val days: Int,
+    @SerialName("reason") val reason: String,
+    @SerialName("status") val status: String,
+    @SerialName("created_at") val createdAt: String,
+    @SerialName("decided_at") val decidedAt: String? = null,
+    @SerialName("approvals") val approvals: List<ApprovalStep> = emptyList(),
+)
+
+// schema: LeaveInput
+@Serializable
+data class LeaveInput(
+    @SerialName("leave_type_id") val leaveTypeId: String,
+    @SerialName("start_date") val startDate: String,
+    @SerialName("end_date") val endDate: String,
+    @SerialName("reason") val reason: String,
+)
+
+// schema: ApprovalItem.requester
+@Serializable
+data class ApprovalRequester(
+    @SerialName("employee_id") val employeeId: String,
+    @SerialName("full_name") val fullName: String,
+    @SerialName("subdivision_name") val subdivisionName: String = "",
+)
+
+// schema: ApprovalItem.summary
+@Serializable
+data class ApprovalSummary(
+    @SerialName("leave_type") val leaveType: String? = null,
+    @SerialName("start_date") val startDate: String? = null,
+    @SerialName("end_date") val endDate: String? = null,
+    @SerialName("days") val days: Int? = null,
+    @SerialName("reason") val reason: String? = null,
+)
+
+// schema: ApprovalItem
+@Serializable
+data class ApprovalItem(
+    @SerialName("id") val id: String,
+    @SerialName("request_type") val requestType: String,
+    @SerialName("request_id") val requestId: String,
+    @SerialName("step_order") val stepOrder: Int,
+    @SerialName("approver_role") val approverRole: String,
+    @SerialName("status") val status: String,
+    @SerialName("requester") val requester: ApprovalRequester,
+    @SerialName("summary") val summary: ApprovalSummary = ApprovalSummary(),
+    @SerialName("note") val note: String? = null,
+    @SerialName("acted_at") val actedAt: String? = null,
+    @SerialName("created_at") val createdAt: String,
+    @SerialName("steps") val steps: List<ApprovalStep>? = null,
+)
+
+// schema: ApprovalDecision
+@Serializable
+data class ApprovalDecision(
+    @SerialName("note") val note: String? = null,
+)
+
 // Bentuk error dari MASTER.md §7.3.
 @Serializable
 data class ErrorEnvelope(val error: ErrorBody)

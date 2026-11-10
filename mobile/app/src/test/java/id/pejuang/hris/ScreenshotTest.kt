@@ -9,10 +9,28 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import app.cash.paparazzi.DeviceConfig
 import app.cash.paparazzi.Paparazzi
+import id.pejuang.hris.data.ApprovalItem
+import id.pejuang.hris.data.ApprovalRequester
+import id.pejuang.hris.data.ApprovalStep
+import id.pejuang.hris.data.ApprovalSummary
 import id.pejuang.hris.data.AttendanceRecord
 import id.pejuang.hris.data.ClockOutcome
+import id.pejuang.hris.data.LeaveBalance
+import id.pejuang.hris.data.LeaveRequest
+import id.pejuang.hris.data.LeaveType
+import id.pejuang.hris.data.LeaveTypeRef
 import id.pejuang.hris.data.Me
 import id.pejuang.hris.data.Ref
+import id.pejuang.hris.ui.Decision
+import id.pejuang.hris.ui.DecisionContent
+import id.pejuang.hris.ui.LeaveDetailContent
+import id.pejuang.hris.ui.LeaveForm
+import id.pejuang.hris.ui.LeaveFormContent
+import id.pejuang.hris.ui.RequestsData
+import id.pejuang.hris.ui.RequestsUi
+import id.pejuang.hris.ui.RequestsView
+import id.pejuang.hris.ui.SheetPreview
+import java.time.LocalDate
 import id.pejuang.hris.face.LivenessState
 import id.pejuang.hris.face.cameraMessage
 import id.pejuang.hris.ui.CameraOverlay
@@ -77,6 +95,57 @@ class ScreenshotTest {
         AttendanceRecord("a4", "2026-11-03", "absent", null, null, 0, null, "onsite", null),
         AttendanceRecord("a5", "2026-10-31", "leave", null, null, 0, null, "onsite", null),
     )
+
+    private val types = listOf(
+        LeaveType("t1", "annual", "Cuti Tahunan", true, "statutory", null, true, LeaveBalance(2026, 12, 4, 8, "2025-07-01")),
+        LeaveType("t2", "sick", "Sakit", true, "none", null, true),
+        LeaveType("t3", "permit", "Izin", false, "none", null, true),
+        LeaveType("t4", "maternity", "Cuti Melahirkan", true, "custom", 90, true, LeaveBalance(2026, 90, 0, 90)),
+    )
+
+    private fun step(order: Int, role: String, name: String?, status: String, note: String? = null, at: String? = null) =
+        ApprovalStep(order, role, name, status, note, at)
+
+    private val leaves = listOf(
+        LeaveRequest(
+            "l1", "e1", LeaveTypeRef("t1", "annual", "Cuti Tahunan"), "2026-11-16", "2026-11-18", 3,
+            "Menghadiri pernikahan saudara di Cirebon.", "pending", "2026-11-09T00:10:00Z", null,
+            listOf(step(1, "kadiv", "Umar Said", "approved", "Silakan, tugas sudah diserahkan.", "2026-11-09T00:30:00Z"), step(2, "sdm", null, "pending")),
+        ),
+        LeaveRequest(
+            "l2", "e1", LeaveTypeRef("t2", "sick", "Sakit"), "2026-10-27", "2026-10-28", 2,
+            "Demam, surat dokter terlampir di SDM.", "approved", "2026-10-27T01:00:00Z", "2026-10-27T06:00:00Z",
+            listOf(step(1, "kadiv", "Umar Said", "approved", null, "2026-10-27T02:00:00Z"), step(2, "sdm", "Siti Aminah", "approved", "Semoga lekas sembuh.", "2026-10-27T06:00:00Z")),
+        ),
+        LeaveRequest(
+            "l3", "e1", LeaveTypeRef("t3", "permit", "Izin"), "2026-09-14", "2026-09-14", 1,
+            "Mengurus dokumen kependudukan.", "rejected", "2026-09-10T03:00:00Z", "2026-09-11T04:00:00Z",
+            listOf(
+                step(1, "kadiv", "Umar Said", "rejected", "Bertepatan dengan acara Maulid, mohon ajukan tanggal lain.", "2026-09-11T04:00:00Z"),
+                step(2, "sdm", null, "skipped", "Pengajuan sudah ditolak."),
+            ),
+        ),
+        LeaveRequest(
+            "l4", "e1", LeaveTypeRef("t1", "annual", "Cuti Tahunan"), "2026-08-28", "2026-09-02", 4,
+            "Libur keluarga.", "cancelled", "2026-08-01T03:00:00Z", "2026-08-02T03:00:00Z",
+            listOf(step(1, "kadiv", null, "skipped", "Pengajuan dibatalkan."), step(2, "sdm", null, "skipped", "Pengajuan dibatalkan.")),
+        ),
+    )
+
+    private val pending = listOf(
+        ApprovalItem(
+            "p1", "leave", "x1", 1, "kadiv", "pending", ApprovalRequester("e7", "Ahmad Fauzi", "Pengajaran"),
+            ApprovalSummary("Cuti Tahunan", "2026-11-23", "2026-11-25", 3, "Umrah bersama orang tua, sudah koordinasi dengan wali kelas pengganti."),
+            createdAt = "2026-11-08T02:00:00Z",
+        ),
+        ApprovalItem(
+            "p2", "leave", "x2", 1, "kadiv", "pending", ApprovalRequester("e8", "Nur Aisyah", "Keuangan"),
+            ApprovalSummary("Sakit", "2026-11-09", "2026-11-09", 1, "Demam sejak semalam."),
+            createdAt = "2026-11-09T00:20:00Z",
+        ),
+    )
+
+    private val requestsData = RequestsData(types = types, leaves = leaves)
 
     private fun shot(content: @Composable () -> Unit) = paparazzi.snapshot { HrisTheme { content() } }
 
@@ -161,11 +230,19 @@ class ScreenshotTest {
         FailedContent("Presensi masuk", "Wajah tidak cocok dengan data terdaftar. Coba lagi di tempat yang lebih terang.", onRetry = {}, onClose = {})
     }
 
-    private fun tabs(tab: MainTab, me: Me = this.me, rows: List<AttendanceRecord>? = history, error: String? = null, popup: Boolean = false) = shot {
+    private fun tabs(
+        tab: MainTab,
+        me: Me = this.me,
+        rows: List<AttendanceRecord>? = history,
+        error: String? = null,
+        popup: Boolean = false,
+        requests: RequestsUi = RequestsUi(data = requestsData),
+    ) = shot {
         Box(Modifier.fillMaxSize()) {
             MainTabs(
                 tab = tab, onTab = {}, me = me, records = rows, historyError = error, now = now, refreshing = false, crash = null,
                 onCopyCrash = {}, onDismissCrash = {}, onCapture = {}, onRefresh = {}, onPersonalData = {}, onChangePassword = {}, onLogout = {},
+                requests = requests,
             )
             if (popup) {
                 FigmaPopup(
@@ -191,6 +268,98 @@ class ScreenshotTest {
 
     @Test
     fun tabRequests() = tabs(MainTab.Requests)
+
+    @Test
+    fun tabRequestsLoading() = tabs(MainTab.Requests, requests = RequestsUi(data = RequestsData(refreshing = true)))
+
+    @Test
+    fun tabRequestsEmptyNewEmployee() = tabs(
+        MainTab.Requests,
+        requests = RequestsUi(
+            data = RequestsData(
+                types = listOf(types[0].copy(balance = LeaveBalance(2026, 0, 0, 0, "2027-07-01")), types[1], types[2]),
+                leaves = emptyList(),
+            ),
+        ),
+    )
+
+    @Test
+    fun tabRequestsError() = tabs(
+        MainTab.Requests,
+        requests = RequestsUi(data = RequestsData(error = "Tidak bisa terhubung ke server. Periksa koneksi internet.")),
+    )
+
+    @Test
+    fun tabRequestsApproverMine() = tabs(
+        MainTab.Requests,
+        requests = RequestsUi(data = requestsData.copy(pending = pending), canApprove = true),
+    )
+
+    @Test
+    fun tabRequestsInbox() = tabs(
+        MainTab.Requests,
+        requests = RequestsUi(data = requestsData.copy(pending = pending), canApprove = true, view = RequestsView.Inbox),
+    )
+
+    @Test
+    fun tabRequestsInboxEmpty() = tabs(
+        MainTab.Requests,
+        requests = RequestsUi(data = requestsData.copy(pending = emptyList()), canApprove = true, view = RequestsView.Inbox),
+    )
+
+    @Test
+    fun tabHomeApprover() = tabs(MainTab.Home, requests = RequestsUi(data = requestsData.copy(pending = pending), canApprove = true))
+
+    @Test
+    fun leaveDetailPending() = shot { LeaveDetailContent(leaves[0], "Anda", cancelling = false, onBack = {}, onCancel = {}) }
+
+    @Test
+    fun leaveDetailRejected() = shot { LeaveDetailContent(leaves[2], "Anda", cancelling = false, onBack = {}, onCancel = {}) }
+
+    @Test
+    fun leaveFormFilled() = shot {
+        SheetPreview {
+            LeaveFormContent(
+                form = LeaveForm(typeId = "t1", start = LocalDate.of(2026, 11, 16), end = LocalDate.of(2026, 11, 18), reason = "Menghadiri pernikahan saudara di Cirebon."),
+                types = types, onType = {}, onPickDates = {}, onReason = {}, onSubmit = {}, onCancel = {},
+            )
+        }
+    }
+
+    @Test
+    fun leaveFormErrors() = shot {
+        SheetPreview {
+            LeaveFormContent(
+                form = LeaveForm(
+                    typeId = "t1", start = LocalDate.of(2026, 11, 16), end = LocalDate.of(2026, 11, 27),
+                    errors = mapOf("leave_type_id" to "Sisa Cuti Tahunan tahun 2026 tinggal 8 hari, pengajuan ini 10 hari kerja.", "reason" to "Alasan wajib diisi, minimal 3 karakter."),
+                ),
+                types = types, onType = {}, onPickDates = {}, onReason = {}, onSubmit = {}, onCancel = {},
+            )
+        }
+    }
+
+    @Test
+    fun decisionReject() = shot {
+        SheetPreview {
+            DecisionContent(
+                decision = Decision(pending[0], approve = false), note = "", busy = false,
+                error = "Tulis alasan penolakan, minimal 3 karakter. Alasan ini dibaca pemohon.",
+                steps = listOf(step(1, "kadiv", "Hasan Basri", "pending"), step(2, "sdm", null, "waiting")),
+                onNote = {}, onSubmit = {}, onSwitch = {}, onCancel = {},
+            )
+        }
+    }
+
+    @Test
+    fun decisionApprove() = shot {
+        SheetPreview {
+            DecisionContent(
+                decision = Decision(pending[1], approve = true), note = "Semoga lekas sembuh.", busy = false, error = null,
+                steps = null, onNote = {}, onSubmit = {}, onSwitch = {}, onCancel = {},
+            )
+        }
+    }
 
     @Test
     fun tabProfile() = tabs(MainTab.Profile)

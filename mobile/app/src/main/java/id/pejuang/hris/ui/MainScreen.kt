@@ -1,14 +1,19 @@
 package id.pejuang.hris.ui
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.animation.Crossfade
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Warning
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
@@ -61,6 +66,13 @@ fun MainScreen(
     var error by remember { mutableStateOf<String?>(null) }
     var loading by remember { mutableStateOf(true) }
     var reload by remember { mutableIntStateOf(0) }
+    val requests = remember(repository) { RequestsController(repository, scope) }
+    var requestsView by rememberSaveable { mutableStateOf(RequestsView.Mine) }
+    var openLeaveId by rememberSaveable { mutableStateOf<String?>(null) }
+    var leaveForm by rememberSaveable { mutableStateOf(false) }
+    var deciding by remember { mutableStateOf<Decision?>(null) }
+    val snackbar = remember { SnackbarHostState() }
+    val notify: (String) -> Unit = { message -> scope.launch { snackbar.showSnackbar(message) } }
 
     val logout: () -> Unit = {
         scope.launch {
@@ -127,10 +139,25 @@ fun MainScreen(
         null -> Unit
     }
 
+    val canApprove = "approval:act" in current.permissions
+    // Data pengajuan dimuat bersama profil, lalu diperbarui setiap tab Pengajuan dibuka (lencana
+    // persetujuan ikut segar tanpa notifikasi push).
+    LaunchedEffect(reload, current.employeeId) { requests.refresh(canApprove) }
+    LaunchedEffect(tab) { if (tab == MainTab.Requests) requests.refresh(canApprove) }
+
     if (tab != MainTab.Home) BackHandler { tab = MainTab.Home }
     val now = ZonedDateTime.now(Wib)
+    val openLeave = openLeaveId?.let { id -> requests.data.leaves?.firstOrNull { it.id == id } }
     Box(Modifier.fillMaxSize()) {
-        MainTabs(
+        if (openLeave != null) {
+            BackHandler { openLeaveId = null }
+            LeaveDetailScreen(
+                controller = requests,
+                leave = openLeave,
+                onBack = { openLeaveId = null },
+                onMessage = { openLeaveId = null; notify(it) },
+            )
+        } else MainTabs(
             tab = tab,
             onTab = { tab = it },
             me = current,
@@ -146,6 +173,40 @@ fun MainScreen(
             onPersonalData = { sub = SubPage.PersonalData },
             onChangePassword = { sub = SubPage.Password },
             onLogout = { askLogout = true },
+            requests = RequestsUi(
+                data = requests.data,
+                canApprove = canApprove,
+                view = requestsView,
+                onView = { requestsView = it },
+                onNew = { leaveForm = true },
+                onOpen = { openLeaveId = it.id },
+                onDecide = { deciding = it },
+                onRefresh = { requests.refresh(canApprove) },
+            ),
+        )
+        if (leaveForm) {
+            LeaveFormSheet(
+                controller = requests,
+                today = now.toLocalDate(),
+                onDismiss = { leaveForm = false },
+                onSent = { leaveForm = false; requestsView = RequestsView.Mine; notify(it) },
+            )
+        }
+        deciding?.let { d ->
+            DecisionSheet(
+                controller = requests,
+                decision = d,
+                onSwitch = { deciding = it },
+                onDismiss = { deciding = null },
+                onDone = { deciding = null; notify(it) },
+            )
+        }
+        SnackbarHost(
+            snackbar,
+            Modifier.align(Alignment.BottomCenter).then(
+                // glassBarSpace sudah termasuk navigation bar sistem.
+                if (openLeave == null) Modifier.padding(bottom = glassBarSpace()) else Modifier.navigationBarsPadding().padding(bottom = 16.dp),
+            ),
         )
         if (askLogout) {
             BackHandler { askLogout = false }
@@ -181,33 +242,38 @@ fun MainTabs(
     onPersonalData: () -> Unit,
     onChangePassword: () -> Unit,
     onLogout: () -> Unit,
+    requests: RequestsUi = RequestsUi(),
 ) {
     // Isi tab menjadi sumber blur; bottom bar kaca mengambang di atasnya.
     val haze = remember { HazeState() }
+    val pending = if (requests.canApprove) requests.data.pending?.size ?: 0 else 0
     Box(Modifier.fillMaxSize().background(Fg.Page)) {
         Box(Modifier.fillMaxSize().hazeSource(haze)) {
           CompositionLocalProvider(LocalBottomBarSpace provides glassBarSpace()) {
-            when (tab) {
-                MainTab.Home -> HomeContent(
-                    me = me,
-                    today = records?.firstOrNull { it.workDate == now.toLocalDate().toString() },
-                    now = now,
-                    refreshing = refreshing,
-                    crash = crash,
-                    onCopyCrash = onCopyCrash,
-                    onDismissCrash = onDismissCrash,
-                    onCapture = onCapture,
-                    onHistory = { onTab(MainTab.Attendance) },
-                    onRefresh = onRefresh,
-                    onLogout = onLogout,
-                )
-                MainTab.Attendance -> AttendanceContent(me, records, historyError, now, onCapture, onRetry = onRefresh)
-                MainTab.Requests -> ComingSoonContent(
-                    title = "Pengajuan",
-                    subtitle = "Cuti, izin, pinjaman, dan mutasi",
-                    body = "Pengajuan dari aplikasi sedang disiapkan. Sementara ini ajukan lewat SDM. " +
-                        "Riwayat dan alur persetujuannya akan tampil di sini.",
-                )
+            // Peralihan tab singkat agar perpindahan tidak terasa melompat (MASTER.md §10.2: minim animasi).
+            Crossfade(targetState = tab, animationSpec = tween(160), label = "tab") { shown ->
+            when (shown) {
+                MainTab.Home -> RefreshBox(refreshing, onRefresh, Modifier.fillMaxSize()) {
+                    HomeContent(
+                        me = me,
+                        today = records?.firstOrNull { it.workDate == now.toLocalDate().toString() },
+                        now = now,
+                        refreshing = refreshing,
+                        crash = crash,
+                        onCopyCrash = onCopyCrash,
+                        onDismissCrash = onDismissCrash,
+                        onCapture = onCapture,
+                        onHistory = { onTab(MainTab.Attendance) },
+                        onRefresh = onRefresh,
+                        onLogout = onLogout,
+                        pendingApprovals = pending,
+                        onRequests = { onTab(MainTab.Requests) },
+                    )
+                }
+                MainTab.Attendance -> RefreshBox(refreshing && records != null, onRefresh, Modifier.fillMaxSize()) {
+                    AttendanceContent(me, records, historyError, now, onCapture, onRetry = onRefresh)
+                }
+                MainTab.Requests -> RequestsContent(requests, now)
                 MainTab.Payslip -> {
                     SecureScreen()
                     ComingSoonContent(
@@ -229,9 +295,10 @@ fun MainTabs(
                     )
                 }
             }
+            }
           }
         }
-        GlassBottomBar(tab, onTab, haze, Modifier.align(Alignment.BottomCenter))
+        GlassBottomBar(tab, onTab, haze, Modifier.align(Alignment.BottomCenter), badges = mapOf(MainTab.Requests to pending))
     }
 }
 

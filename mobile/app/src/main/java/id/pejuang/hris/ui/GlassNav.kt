@@ -36,6 +36,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalInspectionMode
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
@@ -155,9 +156,12 @@ private fun GlassTabItem(tab: MainTab, active: Boolean, badge: Int, modifier: Mo
             Icon(if (active) tab.selectedIcon else tab.icon, contentDescription = null, tint = color, modifier = Modifier.size(22.dp))
             if (badge > 0) CountPill(badge, Modifier.align(Alignment.TopEnd).offset(x = 10.dp, y = (-6).dp))
         }
+        // Tinggi bar tetap, jadi label dibatasi 1,15x agar "Pengajuan" tidak terpotong di ukuran huruf besar.
+        val scale = LocalDensity.current.fontScale
+        val labelSize = 11f * minOf(scale, 1.15f) / scale
         Text(
             tab.label,
-            style = figmaText(11, if (active) FontWeight.SemiBold else FontWeight.Medium, color).copy(lineHeight = 14.sp),
+            style = figmaText(11, if (active) FontWeight.SemiBold else FontWeight.Medium, color).copy(fontSize = labelSize.sp, lineHeight = (labelSize + 3f).sp),
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier.padding(top = 3.dp, start = 2.dp, end = 2.dp),

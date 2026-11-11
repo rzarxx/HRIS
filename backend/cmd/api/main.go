@@ -13,7 +13,6 @@ import (
 	"time"
 
 	"github.com/rzarxx/HRIS/backend/internal/announcement"
-	"github.com/rzarxx/HRIS/backend/internal/settings"
 	"github.com/rzarxx/HRIS/backend/internal/approval"
 	"github.com/rzarxx/HRIS/backend/internal/attendance"
 	"github.com/rzarxx/HRIS/backend/internal/auth"
@@ -31,6 +30,7 @@ import (
 	"github.com/rzarxx/HRIS/backend/internal/platform/integrity"
 	"github.com/rzarxx/HRIS/backend/internal/report"
 	"github.com/rzarxx/HRIS/backend/internal/server"
+	"github.com/rzarxx/HRIS/backend/internal/settings"
 	"github.com/rzarxx/HRIS/backend/internal/shift"
 	"github.com/rzarxx/HRIS/backend/internal/store"
 )

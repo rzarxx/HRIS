@@ -9,7 +9,6 @@ import (
 	"github.com/go-chi/chi/v5"
 
 	"github.com/rzarxx/HRIS/backend/internal/announcement"
-	"github.com/rzarxx/HRIS/backend/internal/settings"
 	"github.com/rzarxx/HRIS/backend/internal/approval"
 	"github.com/rzarxx/HRIS/backend/internal/attendance"
 	"github.com/rzarxx/HRIS/backend/internal/auth"
@@ -22,6 +21,7 @@ import (
 	"github.com/rzarxx/HRIS/backend/internal/permission"
 	"github.com/rzarxx/HRIS/backend/internal/platform/httpx"
 	"github.com/rzarxx/HRIS/backend/internal/report"
+	"github.com/rzarxx/HRIS/backend/internal/settings"
 	"github.com/rzarxx/HRIS/backend/internal/shift"
 )
 

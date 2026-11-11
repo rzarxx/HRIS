@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
@@ -138,7 +139,7 @@ class RequestsController(private val repository: Repository, private val scope: 
     suspend fun submit(input: LeaveInput): LeaveRequest {
         val created = repository.createLeave(input)
         data = data.copy(leaves = listOf(created) + data.leaves.orEmpty().filterNot { it.id == created.id })
-        // Saldo berubah setelah pengajuan baru.
+        // Sisa cuti berubah setelah pengajuan baru.
         attempt { repository.leaveTypes() }.getOrNull()?.let { data = data.copy(types = it) }
         return created
     }
@@ -183,7 +184,7 @@ fun RequestsContent(ui: RequestsUi, now: ZonedDateTime, modifier: Modifier = Mod
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
                 item(key = "judul") { PageHeader("Pengajuan", "Cuti dan izin, serta persetujuannya.", ContentWidth) }
-                item(key = "saldo") {
+                item(key = "hak_cuti") {
                     Column(ContentWidth) { BalanceCard(d.types, now.toLocalDate(), ui.onNew) }
                 }
                 if (ui.canApprove) {
@@ -264,13 +265,13 @@ private fun EmptyCard(title: String, body: String, modifier: Modifier, done: Boo
     }
 }
 
-/** Kartu saldo cuti per jenis bersaldo dan tombol pengajuan. */
+/** Kartu hak cuti per jenis yang memiliki batas dan tombol pengajuan. */
 @Composable
 private fun BalanceCard(types: List<LeaveType>?, today: LocalDate, onNew: () -> Unit) {
     val balanced = types.orEmpty().filter { it.balance != null }
     val year = balanced.firstOrNull()?.balance?.year ?: today.year
     FigmaCard(
-        title = if (types == null || balanced.isNotEmpty()) "Saldo cuti $year" else "Ajukan cuti atau izin",
+        title = if (types == null || balanced.isNotEmpty()) "Hak cuti $year" else "Ajukan cuti atau izin",
         subtitle = "Hari kerja; akhir pekan dan hari libur tidak dihitung.",
         gap = 16.dp,
     ) {
@@ -313,8 +314,8 @@ private fun BalanceTile(type: LeaveType, modifier: Modifier) {
         Text(
             when {
                 waiting -> "Berhak mulai ${dateLabel(eligible!!)}"
-                b.usedDays > 0 -> "Terpakai ${b.usedDays} hari, termasuk yang menunggu"
-                else -> "Belum terpakai"
+                b.usedDays > 0 -> "Sisa cuti; ${b.usedDays} hari terpakai, termasuk yang menunggu"
+                else -> "Sisa cuti; belum terpakai"
             },
             style = figmaText(11, color = if (waiting) Tone.Warning.content else Hc.InkSoft, lineHeight = 1.35f),
         )
@@ -573,7 +574,7 @@ fun LeaveDetailContent(leave: LeaveRequest, requester: String, cancelling: Boole
                 Column(ContentWidth.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     FigmaPrimaryButton("Batalkan pengajuan", onCancel, loading = cancelling, danger = true)
                     Text(
-                        "Pembatalan hanya bisa selama belum diputuskan. Saldo cuti kembali setelah dibatalkan.",
+                        "Pembatalan hanya bisa selama belum diputuskan. Jika menggunakan hak cuti, sisa cuti akan dikembalikan setelah dibatalkan.",
                         style = figmaText(12, color = Fg.TextSecondary, lineHeight = 1.4f),
                         textAlign = TextAlign.Center,
                         modifier = Modifier.fillMaxWidth(),
@@ -748,7 +749,7 @@ private fun TypeOption(type: LeaveType, selected: Boolean, onClick: () -> Unit) 
     val b = type.balance
     val right = when {
         b != null -> "Sisa ${b.remainingDays} hari"
-        type.quotaKind == "none" -> "Tanpa saldo"
+        type.quotaKind == "none" -> "Tidak mengurangi hak cuti"
         else -> ""
     }
     Row(
@@ -774,7 +775,12 @@ private fun TypeOption(type: LeaveType, selected: Boolean, onClick: () -> Unit) 
             Text(if (type.paid) "Tetap dibayar" else "Tidak dibayar", style = figmaText(12, color = Fg.TextSecondary))
         }
         if (right.isNotEmpty()) {
-            Text(right, style = figmaText(12, FontWeight.Medium, if (b != null && b.remainingDays == 0) Tone.Warning.content else Fg.TextSecondary))
+            Text(
+                right,
+                modifier = Modifier.widthIn(max = 120.dp),
+                style = figmaText(12, FontWeight.Medium, if (b != null && b.remainingDays == 0) Tone.Warning.content else Fg.TextSecondary),
+                textAlign = TextAlign.End,
+            )
         }
     }
 }

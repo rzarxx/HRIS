@@ -22,7 +22,7 @@ const ROLE_HINT: Record<ApproverRole, string> = {
 export function RequestSettings() {
   return (
     <>
-      <PageHeader title="Jenis & Alur Pengajuan" description="Atur jenis cuti/izin beserta saldonya, dan siapa saja yang menyetujui." />
+      <PageHeader title="Jenis & Alur Pengajuan" description="Atur jenis cuti/izin beserta hak cuti, dan siapa saja yang menyetujui." />
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-5">
         <div className="xl:col-span-3">
           <LeaveTypesCard />
@@ -59,7 +59,7 @@ function LeaveTypesCard() {
           <thead>
             <tr>
               <Th>Jenis</Th>
-              <Th>Saldo</Th>
+              <Th>Hak cuti</Th>
               <Th>Ubar</Th>
               <Th>Status</Th>
               <Th>
@@ -163,7 +163,7 @@ function LeaveTypeModal({ value, onClose }: { value: LeaveType | null; onClose: 
           />
         </Field>
         <fieldset className="sm:col-span-2">
-          <legend className="mb-1.5 text-sm font-medium text-slate-700">Saldo</legend>
+          <legend className="mb-1.5 text-sm font-medium text-slate-700">Hak cuti</legend>
           <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
             {(Object.keys(QUOTA_KIND) as LeaveQuotaKind[]).map((k) => {
               const active = form.quota_kind === k;
@@ -185,7 +185,7 @@ function LeaveTypeModal({ value, onClose }: { value: LeaveType | null; onClose: 
           </div>
         </fieldset>
         {form.quota_kind === "custom" && (
-          <Field label="Jatah per tahun (hari)" htmlFor="lt_days" error={errors.annual_quota_days} required>
+          <Field label="Hak cuti per tahun (hari)" htmlFor="lt_days" error={errors.annual_quota_days} required>
             <Input
               id="lt_days"
               type="number"

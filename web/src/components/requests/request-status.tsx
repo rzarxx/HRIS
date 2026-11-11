@@ -22,13 +22,13 @@ export const QUOTA_KIND: Record<LeaveQuotaKind, { label: string; description: st
     description: "12 hari per tahun, berlaku setelah 12 bulan bekerja sejak tanggal bergabung.",
   },
   custom: { label: "Diatur SDM", description: "Jatah hari per tahun ditentukan SDM untuk semua Pejuang." },
-  none: { label: "Tanpa saldo", description: "Tidak memotong saldo, misalnya sakit atau izin keperluan keluarga." },
+  none: { label: "Tidak mengurangi hak cuti", description: "Tidak mengurangi hak cuti, misalnya sakit atau izin keperluan keluarga." },
 };
 
 export function quotaSummary(t: Pick<LeaveType, "quota_kind" | "annual_quota_days">) {
   if (t.quota_kind === "statutory") return "12 hari/tahun (UU)";
   if (t.quota_kind === "custom") return `${t.annual_quota_days ?? 0} hari/tahun`;
-  return "Tanpa saldo";
+  return "Tidak mengurangi hak cuti";
 }
 
 export function RequestStatusBadge({ status }: { status: RequestStatus }) {

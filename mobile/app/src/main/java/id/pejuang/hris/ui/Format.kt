@@ -141,6 +141,9 @@ fun requestKindLabel(kind: String): String = when (kind) {
     else -> kind
 }
 
+/** Footer bawaan sebelum footer dari server termuat; sama dengan teks bawaan di backend. */
+fun defaultFooter(year: Int = ZonedDateTime.now(Wib).year): String = "© $year PUTI (Pusat Teknologi Informasi) Al Bahjah"
+
 /** Tanggal kalender ke milidetik UTC tengah malam, format yang dipakai DatePicker Material3. */
 fun LocalDate.toPickerMillis(): Long = atStartOfDay(java.time.ZoneOffset.UTC).toInstant().toEpochMilli()
 

@@ -6,6 +6,7 @@ import type {
   AdminDevice,
   AnnouncementListItem,
   AnnouncementReader,
+  Branding,
   ApprovalFlow,
   ApprovalItem,
   AttendanceAttempt,
@@ -151,6 +152,18 @@ export const useAnnouncements = () =>
   useQuery({
     queryKey: ["announcements"],
     queryFn: () => api.get<Paginated<AnnouncementListItem>>("/admin/announcements", { per_page: 100 }).then((r) => r.data),
+  });
+
+/** Teks bawaan bila footer belum termuat; tahun mengikuti jam perangkat. */
+export const defaultFooter = () => `© ${new Date().getFullYear()} PUTI (Pusat Teknologi Informasi) Al Bahjah`;
+
+/** Footer dan merek; tanpa login, dipakai juga di halaman masuk. */
+export const useBranding = () =>
+  useQuery({
+    queryKey: ["branding"],
+    queryFn: () => api.get<ItemResponse<Branding>>("/branding").then((r) => r.data),
+    staleTime: 60 * 60 * 1000,
+    retry: 1,
   });
 
 /** Status baca tiap Pejuang sasaran satu pengumuman; dimuat saat dialog rekap dibuka. */

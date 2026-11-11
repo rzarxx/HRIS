@@ -108,7 +108,7 @@ fun UpdatePrompt(allowDialog: Boolean) {
         UpdateUi.Hidden -> Unit
         is UpdateUi.Available -> AlertDialog(
             onDismissRequest = { ui = UpdateUi.Hidden }, title = { Text("Pembaruan tersedia") },
-            text = { Text("Versi ${state.info.tag} tersedia. Unduh untuk memperbarui HRIS Pejuang.") },
+            text = { Text("Versi ${state.info.tag} tersedia. Unduh untuk memperbarui HRIS Yayasan Al Bahjah.") },
             confirmButton = { TextButton(onClick = {
                 try { downloads.start(state.info); ui = UpdateUi.Downloading(null) }
                 catch (e: Exception) { ui = UpdateUi.Error(e.message ?: "Unduhan tidak dapat dimulai") }

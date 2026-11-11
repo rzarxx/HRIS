@@ -13,15 +13,16 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
-import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.statusBars
-import androidx.compose.foundation.layout.windowInsetsTopHeight
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.selection.selectableGroup
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
@@ -45,6 +46,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import id.pejuang.hris.data.FontSize
 import id.pejuang.hris.data.Me
 
 /** Melarang tangkapan layar selama layar berisi data pribadi tampil (MASTER.md §10.2). */
@@ -58,7 +60,8 @@ fun SecureScreen() {
     }
 }
 
-/** Tab Profil, mengikuti frame "MyProfile" di kit Figma. */
+/** Tab Profil: avatar, nama, lalu kelompok Kontak, Akun, dan Pengaturan dalam kartu lembut. */
+@Suppress("UNUSED_PARAMETER")
 @Composable
 fun ProfileContent(
     me: Me,
@@ -69,83 +72,64 @@ fun ProfileContent(
     onCheckUpdate: (() -> Unit)?,
     onLogout: () -> Unit,
     modifier: Modifier = Modifier,
+    fontSize: FontSize = FontSize.Normal,
+    onFontSize: () -> Unit = {},
+    footer: String? = null,
 ) {
-    StatusBarIcons(dark = false)
+    StatusBarIcons(dark = true)
     val verified = me.deviceStatus == "approved" && me.faceEnrolled
-    Box(modifier.fillMaxSize().background(Color.White)) {
     Column(
-        Modifier
-            .fillMaxSize()
-            .verticalScroll(rememberScrollState()),
+        modifier.fillMaxSize().background(Hc.Canvas).verticalScroll(rememberScrollState()).statusBarsPadding()
+            .padding(start = 16.dp, end = 16.dp, top = 8.dp, bottom = bottomContentSpace(20.dp)),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Box(Modifier.fillMaxWidth()) {
-            // Header hijau setinggi 179dp (termasuk status bar) dan lembar putih bersudut 12dp.
-            Column(Modifier.fillMaxWidth().background(Fg.Accent).statusBarsPadding()) {
-                Box(Modifier.fillMaxWidth().padding(horizontal = 15.dp).padding(top = 14.dp).height(32.dp)) {
-                    Box(Modifier.align(Alignment.CenterStart)) {
-                        FigmaCircleButton(FigmaIcons.ArrowLeft, "Kembali ke beranda", Color.White, Fg.Accent, onBack)
-                    }
-                    Text("Profil Saya", style = figmaText(18, FontWeight.SemiBold, Color.White, tracking = -0.5f), modifier = Modifier.align(Alignment.Center))
-                }
-                Spacer(Modifier.height(89.dp))
-                Box(Modifier.fillMaxWidth().height(12.dp).clip(RoundedCornerShape(topStart = 12.dp, topEnd = 12.dp)).background(Color.White))
-            }
-            Column(
-                Modifier.fillMaxWidth().statusBarsPadding().padding(top = 72.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
-            ) {
-                Box(
-                    Modifier.size(120.dp).clip(RoundedCornerShape(12.dp)).background(Hc.BrandSoft)
-                        .border(2.dp, Color.White, RoundedCornerShape(12.dp)),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Text(initials(me.fullName), style = figmaText(40, FontWeight.SemiBold, Hc.BrandDeep))
-                }
-                Spacer(Modifier.height(12.dp))
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp), modifier = Modifier.padding(horizontal = 24.dp)) {
+        Column(ContentWidth.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(20.dp)) {
+            PageHeader("Profil")
+            Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
+                Avatar(me.fullName, size = 88.dp)
+                Spacer(Modifier.height(14.dp))
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.padding(horizontal = 24.dp)) {
                     Text(
                         me.fullName,
-                        style = figmaText(18, FontWeight.SemiBold, tracking = -0.5f),
+                        style = figmaText(20, FontWeight.Bold, tracking = -0.2f),
                         textAlign = TextAlign.Center,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                         modifier = Modifier.weight(1f, fill = false),
                     )
-                    if (verified) Icon(FigmaIcons.Verified, contentDescription = "Terverifikasi", tint = Fg.Accent, modifier = Modifier.size(20.dp))
+                    if (verified) Icon(FigmaIcons.Verified, contentDescription = "Terverifikasi", tint = Hc.Brand, modifier = Modifier.size(20.dp))
                 }
                 Spacer(Modifier.height(4.dp))
                 Text(
-                    me.position ?: "Pejuang Yayasan",
-                    style = figmaText(13, FontWeight.Medium, Fg.Accent, tracking = -0.5f),
+                    listOfNotNull(me.position, me.subdivision.name).joinToString(" · ").ifBlank { "Pejuang Yayasan" },
+                    style = figmaText(14, color = Hc.InkSoft),
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
             }
-        }
-
-        Column(
-            ContentWidth.fillMaxWidth().padding(start = 15.dp, end = 15.dp, top = 12.dp, bottom = bottomContentSpace(16.dp)),
-            verticalArrangement = Arrangement.spacedBy(20.dp),
-        ) {
-            ProfileGroup("KONTAK") {
+            ProfileGroup("Kontak") {
                 ProfileRow(FigmaIcons.Sms, me.email.ifBlank { "Email belum tercatat" })
+                RowDivider()
                 ProfileRow(FigmaIcons.LocationTick, "${me.subdivision.name} · ${me.division.name}")
             }
-            ProfileGroup("AKUN") {
+            ProfileGroup("Akun") {
                 ProfileRow(FigmaIcons.UserBold, "Data pribadi", onClick = onPersonalData)
+                RowDivider()
                 ProfileRow(HrisIcons.Smartphone, "Perangkat ini", trailing = deviceText(me.deviceStatus))
+                RowDivider()
                 ProfileRow(HrisIcons.FaceScan, "Data wajah", trailing = if (me.faceEnrolled) "Terdaftar" else "Belum terdaftar")
             }
-            ProfileGroup("PENGATURAN") {
+            ProfileGroup("Pengaturan") {
+                ProfileRow(FigmaIcons.Keyboard, "Ukuran huruf", onClick = onFontSize, trailing = fontSize.label)
+                RowDivider()
                 ProfileRow(FigmaIcons.Setting, "Ganti kata sandi", onClick = onChangePassword, trailing = if (me.mustChangePassword) "Wajib" else null)
+                RowDivider()
                 ProfileRow(FigmaIcons.Scroll, "Versi aplikasi", onClick = onCheckUpdate, trailing = "v$version")
-                ProfileRow(FigmaIcons.Logout, "Keluar", onClick = onLogout, iconTint = Fg.Danger)
+                RowDivider()
+                ProfileRow(FigmaIcons.Logout, "Keluar", onClick = onLogout, danger = true)
             }
+            AppFooter(footer)
         }
-    }
-    // Status bar tetap hijau saat digulir, agar isi putih tidak menembus jam dan ikon sistem.
-    Box(Modifier.fillMaxWidth().windowInsetsTopHeight(WindowInsets.statusBars).background(Fg.Accent))
     }
 }
 
@@ -158,10 +142,8 @@ private fun deviceText(status: String?) = when (status) {
 @Composable
 private fun ProfileGroup(label: String, content: @Composable () -> Unit) {
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text(label, style = figmaText(12, FontWeight.SemiBold, Fg.TextBody, tracking = -0.5f))
-        Column(
-            Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(Fg.PageProfile).padding(vertical = 14.dp),
-        ) { content() }
+        Text(label, style = figmaText(14, FontWeight.SemiBold, Hc.InkSoft), modifier = Modifier.padding(start = 4.dp))
+        SectionCard(padding = 4.dp) { content() }
     }
 }
 
@@ -171,22 +153,31 @@ private fun ProfileRow(
     text: String,
     onClick: (() -> Unit)? = null,
     trailing: String? = null,
-    iconTint: Color = Fg.Accent,
+    danger: Boolean = false,
 ) {
     Row(
         Modifier
             .fillMaxWidth()
+            .clip(RoundedCornerShape(16.dp))
             .then(if (onClick != null) Modifier.clickable(role = Role.Button, onClick = onClick) else Modifier)
-            .padding(horizontal = 16.dp, vertical = 6.dp),
+            .heightIn(min = 56.dp)
+            .padding(horizontal = 16.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        horizontalArrangement = Arrangement.spacedBy(14.dp),
     ) {
-        Icon(icon, contentDescription = null, tint = iconTint, modifier = Modifier.size(18.dp))
-        Text(text, style = figmaText(11, FontWeight.Medium, Fg.RowText).copy(lineHeight = 20.sp), modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
-        if (trailing != null) Text(trailing, style = figmaText(11, FontWeight.Medium, Fg.Gray500).copy(lineHeight = 20.sp), maxLines = 1)
-        if (onClick != null) Icon(FigmaIcons.ArrowRight, contentDescription = null, tint = Fg.Chevron, modifier = Modifier.size(16.dp))
+        SoftIconTile(icon, 40.dp, if (danger) Tone.Danger else null)
+        Text(
+            text,
+            style = figmaText(15, FontWeight.Medium, if (danger) Fg.Danger else Hc.Ink),
+            modifier = Modifier.weight(1f),
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+        if (trailing != null) Text(trailing, style = figmaText(13, color = Hc.InkSoft), maxLines = 1)
+        if (onClick != null && !danger) Icon(FigmaIcons.ArrowRight, contentDescription = null, tint = Fg.Chevron, modifier = Modifier.size(16.dp))
     }
 }
+
 
 /** Data pribadi, mengikuti frame "MyProfile/PersonalData". Hanya-baca; perubahan lewat SDM. */
 @Composable
@@ -199,7 +190,7 @@ fun PersonalDataContent(me: Me, onBack: () -> Unit) {
             FigmaCard(title = "Data pribadi saya", subtitle = "Diubah oleh SDM bila ada yang tidak sesuai", top = 24.dp, bottom = 24.dp, gap = 16.dp) {
                 Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
                     Box(
-                        Modifier.size(100.dp).clip(RoundedCornerShape(12.dp)).background(Hc.BrandSoft).border(2.dp, Color.White, RoundedCornerShape(12.dp)),
+                        Modifier.size(88.dp).clip(CircleShape).background(Hc.BrandSoft),
                         contentAlignment = Alignment.Center,
                     ) { Text(initials(me.fullName), style = figmaText(34, FontWeight.SemiBold, Hc.BrandDeep)) }
                 }
@@ -290,3 +281,69 @@ fun ChangePasswordContent(
     }
 }
 
+
+/**
+ * Pilihan ukuran huruf aplikasi. Perubahan langsung berlaku di seluruh aplikasi dan tersimpan di HP
+ * ini; dikalikan dengan ukuran huruf sistem HP.
+ */
+@Composable
+fun FontSizeContent(current: FontSize, onPick: (FontSize) -> Unit, onBack: () -> Unit) {
+    Column(Modifier.fillMaxSize().background(Hc.Canvas)) {
+        FigmaHeader("Ukuran huruf", onBack)
+        Column(
+            Modifier.weight(1f).verticalScroll(rememberScrollState()).navigationBarsPadding().padding(horizontal = 16.dp, vertical = 12.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            Column(ContentWidth.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                FigmaCard(gap = 8.dp) {
+                    Text("Pratinjau", style = figmaText(12, FontWeight.SemiBold, Hc.InkSoft))
+                    Text("Presensi hari ini", style = figmaText(16, FontWeight.SemiBold))
+                    Text(
+                        "Tulisan di seluruh aplikasi mengikuti ukuran ini. Pilih yang paling nyaman dibaca.",
+                        style = figmaText(14, color = Hc.InkSoft, lineHeight = 1.5f),
+                    )
+                }
+                Column(Modifier.selectableGroup(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    FontSize.entries.forEach { size ->
+                        FontSizeOption(size, size == current) { onPick(size) }
+                    }
+                }
+                Text(
+                    "Disimpan di HP ini. Ukuran huruf di pengaturan HP tetap ikut berlaku.",
+                    style = figmaText(12, color = Hc.InkSoft, lineHeight = 1.4f),
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun FontSizeOption(size: FontSize, selected: Boolean, onClick: () -> Unit) {
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .heightIn(min = 64.dp)
+            .softShadow(RoundedCornerShape(18.dp), 6.dp)
+            .clip(RoundedCornerShape(18.dp))
+            .background(if (selected) Hc.BrandSoft else Hc.Surface)
+            .then(if (selected) Modifier.border(2.dp, Hc.Brand, RoundedCornerShape(18.dp)) else Modifier)
+            .selectable(selected = selected, role = Role.RadioButton, onClick = onClick)
+            .padding(horizontal = 16.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(14.dp),
+    ) {
+        // Contoh huruf memakai ukuran tetap agar perbedaan antarpilihan terlihat.
+        Box(Modifier.size(44.dp), contentAlignment = Alignment.Center) {
+            Text("Aa", style = figmaText(10, FontWeight.Bold, if (selected) Hc.BrandDeep else Hc.Ink).copy(fontSize = (16 * size.scale).sp), maxLines = 1)
+        }
+        Text(size.label, style = figmaText(15, FontWeight.Medium, Hc.Ink), modifier = Modifier.weight(1f))
+        Box(
+            Modifier.size(22.dp).clip(CircleShape).border(2.dp, if (selected) Hc.Brand else Fg.Gray300, CircleShape),
+            contentAlignment = Alignment.Center,
+        ) {
+            if (selected) Box(Modifier.size(11.dp).clip(CircleShape).background(Hc.Brand))
+        }
+    }
+}

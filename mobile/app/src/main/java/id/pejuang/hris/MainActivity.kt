@@ -22,7 +22,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.navigation.NavBackStackEntry
@@ -31,11 +31,11 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
-import id.pejuang.hris.ui.BrandGradient
 import id.pejuang.hris.ui.CaptureScreen
 import id.pejuang.hris.ui.HrisTheme
 import id.pejuang.hris.ui.LoginScreen
-import id.pejuang.hris.ui.LogoMark
+import id.pejuang.hris.ui.AppLogo
+import id.pejuang.hris.ui.Hc
 import id.pejuang.hris.ui.MainScreen
 import id.pejuang.hris.ui.StatusBarIcons
 import id.pejuang.hris.update.UpdatePrompt
@@ -46,7 +46,7 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         val app = application as HrisApp
         setContent {
-            HrisTheme {
+            HrisTheme(fontScale = app.prefs.fontScale) {
                 var crash by remember { mutableStateOf(app.lastCrash) }
                 val dismissCrash = {
                     crash = null
@@ -94,17 +94,17 @@ private fun NavBackStackEntry.isActive() = lifecycle.currentState.isAtLeast(Life
 
 @Composable
 private fun Splash() {
-    StatusBarIcons(dark = false)
+    StatusBarIcons(dark = true)
     Column(
-        Modifier.fillMaxSize().background(BrandGradient),
+        Modifier.fillMaxSize().background(Hc.Canvas),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center,
     ) {
-        LogoMark(size = 84.dp)
-        Spacer(Modifier.height(20.dp))
-        Text("HRIS Pejuang", style = MaterialTheme.typography.headlineMedium, color = Color.White)
+        AppLogo(size = 112.dp)
+        Spacer(Modifier.height(24.dp))
+        Text(stringResource(R.string.app_name), style = MaterialTheme.typography.headlineSmall, color = Hc.Ink)
         Spacer(Modifier.height(32.dp))
-        CircularProgressIndicator(color = Color.White, strokeWidth = 2.dp, modifier = Modifier.size(24.dp))
+        CircularProgressIndicator(color = Hc.Brand, strokeWidth = 2.dp, modifier = Modifier.size(24.dp))
     }
 }
 

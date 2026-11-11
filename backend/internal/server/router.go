@@ -21,6 +21,7 @@ import (
 	"github.com/rzarxx/HRIS/backend/internal/permission"
 	"github.com/rzarxx/HRIS/backend/internal/platform/httpx"
 	"github.com/rzarxx/HRIS/backend/internal/report"
+	"github.com/rzarxx/HRIS/backend/internal/settings"
 	"github.com/rzarxx/HRIS/backend/internal/shift"
 )
 
@@ -30,6 +31,7 @@ type Deps struct {
 	Org          *org.Handler
 	Employee     *employee.Handler
 	Announcement *announcement.Handler
+	Settings     *settings.Handler
 	Dashboard    *dashboard.Handler
 	Report       *report.Handler
 	Location     *location.Handler
@@ -75,6 +77,8 @@ func routes(d Deps) []Route {
 		{http.MethodPost, "/v1/auth/mobile/refresh", Public, nil, d.Auth.MobileRefresh},
 		{http.MethodPost, "/v1/auth/activate", Public, nil, d.Auth.Activate},
 		{http.MethodPost, "/v1/auth/activate/check", Public, nil, d.Auth.CheckActivation},
+		// Footer dan merek tampil di layar masuk web dan aplikasi, sebelum login.
+		{http.MethodGet, "/v1/branding", Public, nil, d.Settings.Branding},
 		{http.MethodPost, "/v1/auth/logout", AnyUser, nil, d.Auth.Logout},
 		{http.MethodPost, "/v1/auth/password/change", AnyUser, nil, d.Auth.ChangePassword},
 		{http.MethodGet, "/v1/auth/sessions", AnyUser, nil, d.Auth.ListSessions},
@@ -158,6 +162,9 @@ func routes(d Deps) []Route {
 		guarded(http.MethodGet, "/v1/announcements/active", d.Announcement.Active, permission.AnnouncementRead),
 		guarded(http.MethodPost, "/v1/announcements/{id}/open", d.Announcement.Open, permission.AnnouncementRead),
 		guarded(http.MethodPost, "/v1/announcements/{id}/read", d.Announcement.Read, permission.AnnouncementRead),
+
+		guarded(http.MethodGet, "/v1/admin/settings/footer", d.Settings.Branding, permission.SettingsManage),
+		guarded(http.MethodPut, "/v1/admin/settings/footer", d.Settings.SetFooter, permission.SettingsManage),
 
 		guarded(http.MethodGet, "/v1/admin/dashboard/summary", d.Dashboard.Summary, permission.DashboardRead),
 		guarded(http.MethodGet, "/v1/admin/dashboard/org-chart", d.Dashboard.OrgChart, permission.DashboardRead),

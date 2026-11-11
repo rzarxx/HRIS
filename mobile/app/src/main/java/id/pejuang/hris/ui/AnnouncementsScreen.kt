@@ -35,7 +35,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.heading
@@ -174,20 +173,18 @@ fun BoxScope.AnnouncementPopupContent(
             .then(ContentWidth)
             .padding(20.dp)
             .fillMaxWidth()
-            .clip(RoundedCornerShape(16.dp))
-            .background(Color.White)
-            .padding(20.dp),
+            .clip(RoundedCornerShape(24.dp))
+            .background(Hc.Surface)
+            .padding(24.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            Box(Modifier.size(40.dp).clip(CircleShape).background(Hc.BrandSoft), contentAlignment = Alignment.Center) {
-                Icon(FigmaIcons.MessageText, contentDescription = null, tint = Hc.Brand, modifier = Modifier.size(20.dp))
-            }
-            Text("Pengumuman", style = figmaText(13, FontWeight.Medium, Hc.BrandDark), modifier = Modifier.weight(1f))
+            SoftIconTile(FigmaIcons.MessageText, 40.dp)
+            Text("Pengumuman", style = figmaText(13, FontWeight.SemiBold, Hc.BrandDark), modifier = Modifier.weight(1f))
         }
-        Text(item.title, style = figmaText(18, FontWeight.SemiBold, lineHeight = 1.3f), modifier = Modifier.semantics { heading() })
+        Text(item.title, style = figmaText(20, FontWeight.Bold, lineHeight = 1.3f), modifier = Modifier.semantics { heading() })
         Column(Modifier.heightIn(max = 320.dp).verticalScroll(rememberScrollState())) {
-            Text(item.body, style = figmaText(14, color = Fg.TextBody, lineHeight = 1.5f))
+            Text(item.body, style = figmaText(15, color = Fg.TextBody, lineHeight = 1.55f))
         }
         if (error != null) Text(error, style = figmaText(12, color = Fg.Danger, lineHeight = 1.3f))
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -199,12 +196,7 @@ fun BoxScope.AnnouncementPopupContent(
                 enabled = wait != null && w == 0,
                 loading = busy,
             )
-            Text(
-                "Nanti saja",
-                style = figmaText(14, FontWeight.Medium, Fg.TextSecondary),
-                textAlign = TextAlign.Center,
-                modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp)).clickable(onClick = onLater).heightIn(min = 48.dp).padding(14.dp),
-            )
+            FigmaSecondaryButton("Nanti saja", onLater, color = Hc.Ink)
         }
     }
 }
@@ -227,37 +219,40 @@ fun BoxScope.AnnouncementPopup(controller: AnnouncementsController, item: MyAnno
 // ---------------------------------------------------------------------------------------------
 // Banner di Beranda
 
-/** Kartu banner pengumuman di Beranda; ketuk untuk membaca selengkapnya. */
+/** Kartu banner pengumuman di Beranda: latar mint lembut, ketuk untuk membaca selengkapnya. */
 @Composable
 fun AnnouncementBanner(item: MyAnnouncement, onClick: () -> Unit, modifier: Modifier = Modifier) {
-    Column(
+    Row(
         modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(12.dp))
-            .background(Brush.verticalGradient(listOf(Hc.Brand, Hc.BrandDark)))
+            .clip(CardShape)
+            .background(Hc.BrandSoft)
             .clickable(onClickLabel = "Baca pengumuman", onClick = onClick)
             .padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(4.dp),
+        horizontalArrangement = Arrangement.spacedBy(14.dp),
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            Icon(FigmaIcons.MessageText, contentDescription = null, tint = Color.White, modifier = Modifier.size(16.dp))
-            Text("Pengumuman", style = figmaText(12, FontWeight.Medium, Color.White.copy(alpha = 0.9f)), modifier = Modifier.weight(1f))
-            if (item.readAt == null) NewChip(onDark = true)
+        Box(Modifier.size(40.dp).clip(CircleShape).background(Hc.Surface), contentAlignment = Alignment.Center) {
+            Icon(FigmaIcons.MessageText, contentDescription = null, tint = Hc.Brand, modifier = Modifier.size(20.dp))
         }
-        Text(item.title, style = figmaText(16, FontWeight.SemiBold, Color.White, lineHeight = 1.3f), maxLines = 2, overflow = TextOverflow.Ellipsis)
-        Text(item.body, style = figmaText(13, color = Color.White.copy(alpha = 0.92f), lineHeight = 1.4f), maxLines = 2, overflow = TextOverflow.Ellipsis)
-        Text("Ketuk untuk membaca", style = figmaText(12, FontWeight.Medium, Fg.OnHeaderSoft), modifier = Modifier.padding(top = 2.dp))
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                Text("Pengumuman", style = figmaText(12, FontWeight.SemiBold, Hc.BrandDeep), modifier = Modifier.weight(1f))
+                if (item.readAt == null) NewChip()
+            }
+            Text(item.title, style = figmaText(15, FontWeight.SemiBold, Hc.Ink, lineHeight = 1.3f), maxLines = 2, overflow = TextOverflow.Ellipsis)
+            Text(item.body, style = figmaText(13, color = Hc.InkSoft, lineHeight = 1.4f), maxLines = 2, overflow = TextOverflow.Ellipsis)
+        }
     }
 }
 
 @Composable
-private fun NewChip(onDark: Boolean = false) {
+private fun NewChip() {
     Box(
         Modifier.clip(RoundedCornerShape(100.dp))
-            .background(if (onDark) Color.White else Tone.Warning.content)
+            .background(Hc.Danger)
             .padding(horizontal = 8.dp, vertical = 2.dp),
     ) {
-        Text("Baru", style = figmaText(11, FontWeight.SemiBold, if (onDark) Hc.BrandDark else Color.White))
+        Text("Baru", style = figmaText(11, FontWeight.Bold, Color.White))
     }
 }
 
@@ -285,7 +280,7 @@ fun AnnouncementListContent(list: List<MyAnnouncement>?, onBack: () -> Unit, onO
                     FigmaCard(ContentWidth, title = "Belum ada pengumuman", subtitle = "Pengumuman dari SDM yang sedang tayang tampil di sini.") {}
                 }
                 else -> items(list, key = { it.id }) { a ->
-                    FigmaCard(ContentWidth.clip(RoundedCornerShape(8.dp)).clickable(onClickLabel = "Baca pengumuman") { onOpen(a) }, gap = 6.dp) {
+                    FigmaCard(ContentWidth, gap = 6.dp, onClick = { onOpen(a) }, onClickLabel = "Baca pengumuman") {
                         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                             Text(if (a.type == "popup") "Pop-up" else "Banner", style = figmaText(12, FontWeight.Medium, Fg.TextSecondary), modifier = Modifier.weight(1f))
                             if (a.readAt == null) NewChip() else StatusChip("Sudah dibaca", Tone.Success)
@@ -318,8 +313,8 @@ fun AnnouncementDetailContent(item: MyAnnouncement, wait: Int?, busy: Boolean, e
             Column(ContentWidth.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 if (item.readAt != null) {
                     Row(
-                        Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).background(Tone.Success.container)
-                            .border(1.dp, Tone.Success.content.copy(alpha = 0.2f), RoundedCornerShape(10.dp)).padding(12.dp),
+                        Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(Tone.Success.container)
+                            .padding(14.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         Text("Sudah dibaca ${wibDateTime(item.readAt)}", style = figmaText(13, FontWeight.Medium, Tone.Success.content))

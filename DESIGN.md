@@ -161,6 +161,27 @@ Bottom navigation: **Beranda · Presensi · Pengajuan · Slip · Profil**.
 - Pengajuan: tab Cuti, Kasbon, Mutasi, dengan status approval berbentuk timeline.
 - Aksesibilitas HP kelas bawah: animasi minimal, ukuran gambar kecil, pesan error jelas.
 
+**Gaya (Clean Minimalist / Soft UI, sejak v0.7):** latar halaman abu sangat muda `#F7F8FA`, kartu putih bersudut 20dp
+dengan bayangan lembut tanpa garis, kontrol bersudut 14dp, judul halaman berupa teks besar tanpa blok warna atau ilustrasi.
+Satu sumber token di `mobile/.../ui/Theme.kt` (`Hc`, `Tone`, `softShadow`).
+
+| Peran | Warna | Catatan |
+|---|---|---|
+| Isi tombol utama | `#22C55E` | teks di atasnya `#052E16` (6,5:1) |
+| Ikon, garis kemajuan | `#16A34A` | bukan untuk teks |
+| Teks/tautan hijau | `#15803D` di putih, `#166534` di mint | ≥ 5:1 |
+| Latar lembut (chip, ubin ikon, banner) | `#ECFDF3`, `#DCFCE7` | |
+| Teks | `#101828`, `#475467`, placeholder `#667085` | |
+| Isian | latar `#F2F4F7` tanpa garis, cincin hijau 2dp saat fokus | |
+| Status | sukses `#067647`/`#ECFDF3`, peringatan `#B54708`/`#FFFAEB`, bahaya `#B42318`/`#FEF3F2`, info `#175CD3`/`#EFF8FF` | |
+| Tombol merah | `#D92D20` dengan teks putih (4,8:1) | tolak, batalkan, keluar |
+
+Huruf **Plus Jakarta Sans** (OFL, `res/font`, 4 bobot) dibundel agar sama di semua HP; pengguna bisa memilih ukuran
+huruf di Profil (0,9× sampai 1,3×, dikalikan ukuran huruf sistem). Nama aplikasi **HRIS Yayasan Al Bahjah**, ikon logo
+PUTI Al Bahjah. Footer semua halaman web dan aplikasi: teks dari super admin (bawaan
+`© {tahun} PUTI (Pusat Teknologi Informasi) Al Bahjah`, tahun otomatis). Semua pasangan teks dan latar
+dicek ≥ 4,5:1. Web admin masih memakai aksen `#15803D`; menyamakan aksen web dengan aplikasi menjadi tindak lanjut terpisah.
+
 ## 9. Keamanan & Privasi
 - HTTPS, CORS ketat, rate limit login dan absen.
 - Password argon2id/bcrypt; refresh token di-hash.

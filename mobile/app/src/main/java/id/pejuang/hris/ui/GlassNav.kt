@@ -4,7 +4,6 @@ import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
@@ -36,8 +35,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalInspectionMode
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
@@ -74,18 +73,18 @@ fun bottomContentSpace(extra: Dp = 0.dp): Dp {
 @Composable
 fun glassBarSpace(): Dp = BarHeight + BarMargin * 2 + WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
 
+// Putih hampir pekat dengan blur tipis di belakangnya: bersih seperti kartu, tetap terbaca di atas isi apa pun.
 private val GlassStyle = HazeStyle(
-    backgroundColor = Fg.Page,
-    tint = HazeTint(Color.White.copy(alpha = 0.55f)),
-    blurRadius = 24.dp,
-    noiseFactor = 0.04f,
-    // Android 8–11 tidak punya RenderEffect: pakai putih hampir pekat agar teks tetap terbaca.
-    fallbackTint = HazeTint(Color.White.copy(alpha = 0.92f)),
+    backgroundColor = Hc.Canvas,
+    tint = HazeTint(Color.White.copy(alpha = 0.9f)),
+    blurRadius = 20.dp,
+    noiseFactor = 0f,
+    fallbackTint = HazeTint(Color.White.copy(alpha = 0.97f)),
 )
 
 /**
- * Bottom bar kapsul mengambang bergaya kaca (glassmorphism), mengaburkan isi di belakangnya.
- * Tab aktif ditandai pil hijau lembut yang bergeser dengan animasi singkat.
+ * Bottom bar kapsul putih mengambang dengan bayangan lembut (Soft UI). Tab aktif ditandai pil mint
+ * yang bergeser dengan animasi singkat.
  */
 @Composable
 fun GlassBottomBar(
@@ -110,12 +109,9 @@ fun GlassBottomBar(
                 .widthIn(max = 480.dp)
                 .fillMaxWidth()
                 .height(BarHeight)
-                .shadow(18.dp, shape, ambientColor = Color(0x14101828), spotColor = Color(0x29101828))
+                .shadow(20.dp, shape, ambientColor = Hc.Shadow.copy(alpha = 0.06f), spotColor = Hc.Shadow.copy(alpha = 0.12f))
                 .clip(shape)
-                .hazeEffect(hazeState, GlassStyle) { if (preview) blurEnabled = false }
-                // Kilau kaca: lebih terang di atas, memudar ke bawah.
-                .background(Brush.verticalGradient(listOf(Color.White.copy(alpha = 0.35f), Color.White.copy(alpha = 0.06f))))
-                .border(1.dp, Brush.verticalGradient(listOf(Color.White.copy(alpha = 0.95f), Color.White.copy(alpha = 0.35f))), shape),
+                .hazeEffect(hazeState, GlassStyle) { if (preview) blurEnabled = false },
         ) {
             val itemWidth = maxWidth / MainTab.entries.size
             val indicatorX by animateDpAsState(itemWidth * selected.ordinal, tween(280), label = "indikator tab")
@@ -124,10 +120,9 @@ fun GlassBottomBar(
                     .offset(x = indicatorX)
                     .width(itemWidth)
                     .fillMaxHeight()
-                    .padding(5.dp)
+                    .padding(6.dp)
                     .clip(RoundedCornerShape(BarHeight / 2))
-                    .background(Hc.Brand.copy(alpha = 0.12f))
-                    .border(1.dp, Color.White.copy(alpha = 0.7f), RoundedCornerShape(BarHeight / 2)),
+                    .background(Hc.BrandSoftStrong),
             )
             Row(Modifier.fillMaxSize(), verticalAlignment = Alignment.CenterVertically) {
                 MainTab.entries.forEach { tab ->
@@ -140,7 +135,7 @@ fun GlassBottomBar(
 
 @Composable
 private fun GlassTabItem(tab: MainTab, active: Boolean, badge: Int, modifier: Modifier, onClick: () -> Unit) {
-    val color by animateColorAsState(if (active) Hc.Brand else Fg.TextSecondary, tween(200), label = "warna tab")
+    val color by animateColorAsState(if (active) Hc.BrandDeep else Hc.InkSoft, tween(200), label = "warna tab")
     Column(
         modifier
             .fillMaxHeight()
@@ -161,9 +156,12 @@ private fun GlassTabItem(tab: MainTab, active: Boolean, badge: Int, modifier: Mo
             Icon(if (active) tab.selectedIcon else tab.icon, contentDescription = null, tint = color, modifier = Modifier.size(22.dp))
             if (badge > 0) CountPill(badge, Modifier.align(Alignment.TopEnd).offset(x = 10.dp, y = (-6).dp))
         }
+        // Tinggi bar tetap, jadi label dibatasi 1,15x agar "Pengajuan" tidak terpotong di ukuran huruf besar.
+        val scale = LocalDensity.current.fontScale
+        val labelSize = 11f * minOf(scale, 1.15f) / scale
         Text(
             tab.label,
-            style = figmaText(10, if (active) FontWeight.SemiBold else FontWeight.Medium, color).copy(lineHeight = 13.sp),
+            style = figmaText(11, if (active) FontWeight.SemiBold else FontWeight.Medium, color).copy(fontSize = labelSize.sp, lineHeight = (labelSize + 3f).sp),
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier.padding(top = 3.dp, start = 2.dp, end = 2.dp),

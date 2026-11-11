@@ -15,6 +15,7 @@ import id.pejuang.hris.data.ApprovalStep
 import id.pejuang.hris.data.ApprovalSummary
 import id.pejuang.hris.data.AttendanceRecord
 import id.pejuang.hris.data.ClockOutcome
+import id.pejuang.hris.data.FontSize
 import id.pejuang.hris.data.LeaveBalance
 import id.pejuang.hris.data.LeaveRequest
 import id.pejuang.hris.data.LeaveType
@@ -26,6 +27,7 @@ import id.pejuang.hris.ui.AnnouncementDetailContent
 import id.pejuang.hris.ui.AnnouncementListContent
 import id.pejuang.hris.ui.AnnouncementPopupContent
 import id.pejuang.hris.ui.Decision
+import id.pejuang.hris.ui.FontSizeContent
 import id.pejuang.hris.ui.DecisionContent
 import id.pejuang.hris.ui.LeaveDetailContent
 import id.pejuang.hris.ui.LeaveForm
@@ -170,7 +172,9 @@ class ScreenshotTest {
         ),
     )
 
-    private fun shot(content: @Composable () -> Unit) = paparazzi.snapshot { HrisTheme { content() } }
+    private val footer = "© 2026 PUTI (Pusat Teknologi Informasi) Al Bahjah"
+
+    private fun shot(fontScale: Float = 1f, content: @Composable () -> Unit) = paparazzi.snapshot { HrisTheme(fontScale) { content() } }
 
     @Test
     fun login() = shot {
@@ -179,7 +183,7 @@ class ScreenshotTest {
             showServer = false,
             version = "0.4.0",
             crash = null,
-            onCopyCrash = {}, onDismissCrash = {}, onServer = {}, onEmail = {}, onPassword = {}, onMfa = {}, onSubmit = {},
+            onCopyCrash = {}, onDismissCrash = {}, onServer = {}, onEmail = {}, onPassword = {}, onMfa = {}, onSubmit = {}, footer = footer,
         )
     }
 
@@ -196,7 +200,7 @@ class ScreenshotTest {
             showServer = true,
             version = "0.4.0",
             crash = "2026-11-09 07:40:00 WIB · v0.2.0\njava.lang.IllegalStateException: contoh",
-            onCopyCrash = {}, onDismissCrash = {}, onServer = {}, onEmail = {}, onPassword = {}, onMfa = {}, onSubmit = {},
+            onCopyCrash = {}, onDismissCrash = {}, onServer = {}, onEmail = {}, onPassword = {}, onMfa = {}, onSubmit = {}, footer = footer,
         )
     }
 
@@ -329,6 +333,31 @@ class ScreenshotTest {
         MainTab.Requests,
         requests = RequestsUi(data = requestsData.copy(pending = emptyList()), canApprove = true, view = RequestsView.Inbox),
     )
+
+    @Test
+    fun fontSizeScreen() = shot { FontSizeContent(FontSize.Large, onPick = {}, onBack = {}) }
+
+    @Test
+    fun homeExtraLargeFont() = shot(FontSize.ExtraLarge.scale) {
+        Box(Modifier.fillMaxSize()) {
+            MainTabs(
+                tab = MainTab.Home, onTab = {}, me = me, records = history, historyError = null, now = now, refreshing = false, crash = null,
+                onCopyCrash = {}, onDismissCrash = {}, onCapture = {}, onRefresh = {}, onPersonalData = {}, onChangePassword = {}, onLogout = {},
+                announcements = announcements, footer = footer,
+            )
+        }
+    }
+
+    @Test
+    fun profileSmallFont() = shot(FontSize.Small.scale) {
+        Box(Modifier.fillMaxSize()) {
+            MainTabs(
+                tab = MainTab.Profile, onTab = {}, me = me, records = history, historyError = null, now = now, refreshing = false, crash = null,
+                onCopyCrash = {}, onDismissCrash = {}, onCapture = {}, onRefresh = {}, onPersonalData = {}, onChangePassword = {}, onLogout = {},
+                footer = footer, fontSize = FontSize.Small,
+            )
+        }
+    }
 
     @Test
     fun homeWithAnnouncements() = shot {

@@ -30,6 +30,7 @@ import (
 	"github.com/rzarxx/HRIS/backend/internal/platform/integrity"
 	"github.com/rzarxx/HRIS/backend/internal/report"
 	"github.com/rzarxx/HRIS/backend/internal/server"
+	"github.com/rzarxx/HRIS/backend/internal/settings"
 	"github.com/rzarxx/HRIS/backend/internal/shift"
 	"github.com/rzarxx/HRIS/backend/internal/store"
 )
@@ -111,6 +112,7 @@ func run() error {
 		Org:          org.NewHandler(org.NewService(pool)),
 		Employee:     employee.NewHandler(employee.NewService(pool, authSvc.ResolveScope)),
 		Announcement: announcement.NewHandler(announcement.NewService(pool)),
+		Settings:     settings.NewHandler(settings.NewService(pool)),
 		Dashboard:    dashboard.NewHandler(q),
 		Report:       report.NewHandler(report.NewService(q, authSvc.ResolveScope)),
 		Location:     location.NewHandler(location.NewService(pool)),

@@ -24,6 +24,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -86,60 +87,62 @@ fun AttendanceContent(
     val todayKey = now.toLocalDate().toString()
     val today = records?.firstOrNull { it.workDate == todayKey }
     val action = clockAction(me, today)
-    val (title, subtitle) = when {
-        today?.clockOutAt != null -> "Presensi selesai!" to "Terima kasih, sampai jumpa besok"
-        today?.clockInAt != null -> "Ayo presensi pulang!" to "Jangan lupa presensi sebelum pulang"
-        else -> "Ayo presensi masuk!" to "Jangan lewatkan jadwal presensi Anda"
+    val subtitle = when {
+        today?.clockOutAt != null -> "Presensi hari ini selesai. Sampai jumpa besok."
+        today?.clockInAt != null -> "Jangan lupa presensi pulang."
+        else -> "Catat kehadiran sesuai jadwal kerja."
     }
     val past = records.orEmpty().filter { it.workDate != todayKey }
 
-    Box(modifier.fillMaxSize().background(Fg.Page)) {
-        FigmaTabHeader(title, subtitle)
-        // Daftar dimulai di bawah status bar agar kartu yang digulir tidak menembus jam dan ikon sistem.
-        LazyColumn(
-            Modifier.fillMaxSize().statusBarsPadding(),
-            contentPadding = PaddingValues(start = 12.dp, end = 12.dp, bottom = bottomContentSpace(16.dp)),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-        ) {
-            item {
-                // Kartu menimpa header: 144dp dari atas frame, yaitu 100dp di bawah status bar.
-                Column(ContentWidth.padding(top = 100.dp)) {
-                        WorkingHourCard(
-                            todayMinutes = today?.let { workedMinutesOf(it, now) } ?: 0,
-                            periodMinutes = records?.let { monthWorkedMinutes(it, now) } ?: 0,
-                            period = monthPeriodLabel(now.toLocalDate()),
-                            action = action,
-                            onCapture = onCapture,
-                        )
+    LazyColumn(
+        modifier.fillMaxSize().background(Hc.Canvas).statusBarsPadding(),
+        contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = bottomContentSpace(20.dp)),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        item(key = "judul") { PageHeader("Presensi", subtitle, ContentWidth) }
+        item(key = "jam") {
+            WorkingHourCard(
+                todayMinutes = today?.let { workedMinutesOf(it, now) } ?: 0,
+                periodMinutes = records?.let { monthWorkedMinutes(it, now) } ?: 0,
+                period = monthPeriodLabel(now.toLocalDate()),
+                action = action,
+                onCapture = onCapture,
+                modifier = ContentWidth,
+            )
+        }
+        item(key = "judul-riwayat") {
+            Text(
+                "Riwayat 31 hari",
+                style = figmaText(16, FontWeight.SemiBold),
+                modifier = ContentWidth.fillMaxWidth().padding(start = 4.dp, top = 12.dp, bottom = 2.dp),
+            )
+        }
+        when {
+            error != null -> item {
+                FigmaCard(ContentWidth, title = "Riwayat belum bisa dimuat", subtitle = error) {
+                    FigmaSecondaryButton("Coba lagi", onRetry)
                 }
             }
-            when {
-                error != null -> item {
-                    FigmaCard(ContentWidth, title = "Riwayat belum bisa dimuat", subtitle = error) {
-                        FigmaSecondaryButton("Coba lagi", onRetry)
-                    }
-                }
-                records == null -> items(3) { SkeletonCard(ContentWidth, lines = 2) }
-                past.isEmpty() -> item {
-                    FigmaCard(ContentWidth, title = "Belum ada riwayat", subtitle = "Presensi 31 hari terakhir akan muncul di sini.") {}
-                }
-                else -> items(past, key = { it.id }) { AttendanceHistoryCard(it, now, ContentWidth) }
+            records == null -> items(3) { SkeletonCard(ContentWidth, lines = 1) }
+            past.isEmpty() -> item {
+                FigmaCard(ContentWidth, title = "Belum ada riwayat", subtitle = "Presensi 31 hari terakhir akan muncul di sini.") {}
             }
+            else -> items(past, key = { it.id }) { AttendanceHistoryCard(it, now, ContentWidth) }
         }
     }
 }
 
 @Composable
-private fun WorkingHourCard(todayMinutes: Int, periodMinutes: Int, period: String, action: ClockAction, onCapture: (String) -> Unit) {
-    FigmaCard(title = "Total jam kerja", subtitle = "Periode $period", bottom = 16.dp) {
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            HourTile("Hari ini", "${hourMinute(todayMinutes)} Jam", Modifier.weight(1f))
-            HourTile("Periode ini", "${hourMinute(periodMinutes)} Jam", Modifier.weight(1f))
+private fun WorkingHourCard(todayMinutes: Int, periodMinutes: Int, period: String, action: ClockAction, onCapture: (String) -> Unit, modifier: Modifier) {
+    FigmaCard(modifier, title = "Total jam kerja", subtitle = "Periode $period", gap = 16.dp) {
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            HourTile("Hari ini", hourMinute(todayMinutes), Modifier.weight(1f))
+            HourTile("Periode ini", hourMinute(periodMinutes), Modifier.weight(1f))
         }
         FigmaPrimaryButton(action.label, onClick = { action.purpose?.let(onCapture) }, enabled = action.purpose != null)
         if (action.note != null) {
-            Text(action.note, style = figmaText(12, color = Fg.TextSecondary, lineHeight = 1.4f), textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
+            Text(action.note, style = figmaText(12, color = Hc.InkSoft, lineHeight = 1.4f), textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
         }
     }
 }
@@ -148,57 +151,62 @@ private fun WorkingHourCard(todayMinutes: Int, periodMinutes: Int, period: Strin
 private fun HourTile(label: String, value: String, modifier: Modifier) {
     Column(
         modifier
-            .heightIn(min = 72.dp)
-            .clip(RoundedCornerShape(8.dp))
-            .background(androidx.compose.ui.graphics.Color(0xFFF9F9F9))
-            .border(1.dp, Fg.Gray50, RoundedCornerShape(8.dp))
-            .padding(start = 11.dp, end = 8.dp, top = 11.dp, bottom = 8.dp),
-        verticalArrangement = Arrangement.spacedBy(4.dp),
+            .clip(RoundedCornerShape(16.dp))
+            .background(Hc.Field)
+            .padding(horizontal = 16.dp, vertical = 14.dp)
+            .semantics(mergeDescendants = true) {},
+        verticalArrangement = Arrangement.spacedBy(2.dp),
     ) {
-        Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-            Icon(FigmaIcons.ClockBold, contentDescription = null, tint = Fg.Gray300, modifier = Modifier.size(16.dp))
-            Text(label, style = figmaText(12, FontWeight.Medium, Fg.TextSecondary, tracking = -0.5f))
+        Text(label, style = figmaText(12, FontWeight.Medium, Hc.InkSoft))
+        Row(verticalAlignment = Alignment.Bottom) {
+            Text(value, style = figmaText(24, FontWeight.Bold, Hc.Ink, tracking = -0.3f).copy(lineHeight = 30.sp), maxLines = 1)
+            Text(" jam", style = figmaText(13, color = Hc.InkSoft), modifier = Modifier.padding(bottom = 4.dp))
         }
-        Text(
-            value,
-            style = figmaText(22, color = Fg.TextStrong).copy(lineHeight = 28.sp),
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-        )
     }
 }
 
-/** Kartu riwayat ("Attendant/Attendant History"). */
+/** Baris riwayat ringkas: tanggal di kiri, jam masuk dan pulang serta total jam, chip bila bukan hadir. */
 @Composable
 fun AttendanceHistoryCard(record: AttendanceRecord, now: ZonedDateTime, modifier: Modifier = Modifier) {
     val date = runCatching { LocalDate.parse(record.workDate) }.getOrNull()
     val (status, tone) = statusLabel(record.status)
-    FigmaCard(modifier) {
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-            Icon(FigmaIcons.CalendarOutline, contentDescription = null, tint = Fg.Accent, modifier = Modifier.size(16.dp))
-            Text(date?.let(::dateLabel) ?: record.workDate, style = figmaText(14, FontWeight.SemiBold, lineHeight = 1.4f), modifier = Modifier.weight(1f))
-            if (record.status != "present") StatusChip(status, tone)
-        }
-        Row(
-            Modifier
-                .fillMaxWidth()
-                .clip(RoundedCornerShape(12.dp))
-                .background(Fg.Gray100)
-                .border(1.dp, Fg.Gray200, RoundedCornerShape(12.dp))
-                .padding(12.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically,
+    val worked = workedMinutesOf(record, now)
+    Row(
+        modifier
+            .fillMaxWidth()
+            .softShadow(RoundedCornerShape(18.dp), 6.dp)
+            .clip(RoundedCornerShape(18.dp))
+            .background(Hc.Surface)
+            .padding(14.dp)
+            .semantics(mergeDescendants = true) {},
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(14.dp),
+    ) {
+        Column(
+            Modifier.size(52.dp).clip(RoundedCornerShape(14.dp)).background(Hc.Field),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center,
         ) {
-            HistoryValue("Total jam", "${hourMinute(workedMinutesOf(record, now))}:00 jam", Modifier.weight(1f))
-            HistoryValue("Masuk & pulang", "${wibTime(record.clockInAt)}  — ${wibTime(record.clockOutAt)}")
+            Text(date?.let(::shortDay) ?: "", style = figmaText(11, FontWeight.Medium, Hc.InkSoft).copy(lineHeight = 14.sp))
+            Text(date?.dayOfMonth?.toString() ?: "?", style = figmaText(18, FontWeight.Bold, Hc.Ink).copy(lineHeight = 22.sp))
         }
-    }
-}
-
-@Composable
-private fun HistoryValue(label: String, value: String, modifier: Modifier = Modifier) {
-    Column(modifier, verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        Text(label, style = figmaText(12, FontWeight.Medium, Fg.TextSecondary, tracking = -0.5f))
-        Text(value, style = figmaText(16, FontWeight.Medium, Fg.TextBody, tracking = -0.5f), maxLines = 1, overflow = TextOverflow.Ellipsis)
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Text(
+                if (record.clockInAt == null) "Tidak ada presensi" else "${wibTime(record.clockInAt)} – ${wibTime(record.clockOutAt)}",
+                style = figmaText(15, FontWeight.SemiBold, if (record.clockInAt == null) Hc.InkSoft else Hc.Ink),
+                maxLines = 1,
+            )
+            Text(
+                listOfNotNull(
+                    date?.let { "${it.dayOfMonth} ${shortMonth(it)}" },
+                    durationLabel(worked).takeIf { worked > 0 },
+                    record.locationName ?: workModeLabel(record.workMode).takeIf { record.clockInAt != null },
+                ).joinToString(" · "),
+                style = figmaText(12, color = Hc.InkSoft),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+        if (record.status != "present") StatusChip(status, tone)
     }
 }

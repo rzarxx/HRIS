@@ -39,6 +39,7 @@ import (
 	"github.com/rzarxx/HRIS/backend/internal/platform/fieldcrypt"
 	"github.com/rzarxx/HRIS/backend/internal/report"
 	"github.com/rzarxx/HRIS/backend/internal/server"
+	"github.com/rzarxx/HRIS/backend/internal/settings"
 	"github.com/rzarxx/HRIS/backend/internal/shift"
 	"github.com/rzarxx/HRIS/backend/internal/store"
 )
@@ -197,10 +198,12 @@ func fresh(t *testing.T, opt options) *httptest.Server {
 	approvalSvc := approval.NewService(appPool)
 	leaveSvc := leave.NewService(appPool, authSvc.ResolveScope)
 	announcementSvc := announcement.NewService(appPool)
+	settingsSvc := settings.NewService(appPool)
 	if opt.clock != nil {
 		approvalSvc.SetClock(opt.clock)
 		leaveSvc.SetClock(opt.clock)
 		announcementSvc.SetClock(opt.clock)
+		settingsSvc.SetClock(opt.clock)
 	}
 	approvalSvc.Register(store.RequestKindLeave, leaveSvc)
 	srv := httptest.NewServer(server.New(server.Deps{
@@ -208,6 +211,7 @@ func fresh(t *testing.T, opt options) *httptest.Server {
 		Org:          org.NewHandler(org.NewService(appPool)),
 		Employee:     employee.NewHandler(employee.NewService(appPool, authSvc.ResolveScope)),
 		Announcement: announcement.NewHandler(announcementSvc),
+		Settings:     settings.NewHandler(settingsSvc),
 		Dashboard:    dashboard.NewHandler(q),
 		Report:       report.NewHandler(report.NewService(q, authSvc.ResolveScope)),
 		Location:     location.NewHandler(location.NewService(appPool)),

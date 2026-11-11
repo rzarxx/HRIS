@@ -4,6 +4,7 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.animation.Crossfade
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
@@ -14,6 +15,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.Text
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
@@ -33,6 +36,7 @@ import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.unit.dp
 import id.pejuang.hris.BuildConfig
 import id.pejuang.hris.data.AttendanceRecord
+import id.pejuang.hris.data.FontSize
 import id.pejuang.hris.data.Me
 import id.pejuang.hris.data.MyAnnouncement
 import id.pejuang.hris.data.Repository
@@ -42,7 +46,7 @@ import kotlinx.coroutines.launch
 import java.time.ZonedDateTime
 
 /** Halaman di atas tab yang dibuka dari Profil. */
-private enum class SubPage { PersonalData, Password }
+private enum class SubPage { PersonalData, Password, FontSize }
 
 /**
  * Kerangka aplikasi setelah masuk: memuat profil dan presensi sekali, lalu menampilkan lima tab
@@ -142,6 +146,11 @@ fun MainScreen(
             ChangePasswordScreen(repository, onBack = { sub = null }, onChanged = { sub = null; reload++ })
             return
         }
+        SubPage.FontSize -> {
+            BackHandler { sub = null }
+            FontSizeContent(repository.prefs.fontSize, onPick = repository.prefs::updateFontSize, onBack = { sub = null })
+            return
+        }
         null -> Unit
     }
 
@@ -151,6 +160,7 @@ fun MainScreen(
     LaunchedEffect(reload, current.employeeId) {
         requests.refresh(canApprove)
         announcements.refresh()
+        repository.refreshBranding()
     }
     LaunchedEffect(tab) { if (tab == MainTab.Requests) requests.refresh(canApprove) }
 
@@ -198,6 +208,9 @@ fun MainScreen(
             onPersonalData = { sub = SubPage.PersonalData },
             onChangePassword = { sub = SubPage.Password },
             onLogout = { askLogout = true },
+            footer = repository.prefs.footer,
+            fontSize = repository.prefs.fontSize,
+            onFontSize = { sub = SubPage.FontSize },
             requests = RequestsUi(
                 data = requests.data,
                 canApprove = canApprove,
@@ -279,6 +292,9 @@ fun MainTabs(
     announcements: List<MyAnnouncement> = emptyList(),
     onAnnouncement: (MyAnnouncement) -> Unit = {},
     onAnnouncements: () -> Unit = {},
+    footer: String? = null,
+    fontSize: FontSize = FontSize.Normal,
+    onFontSize: () -> Unit = {},
 ) {
     // Isi tab menjadi sumber blur; bottom bar kaca mengambang di atasnya.
     val haze = remember { HazeState() }
@@ -307,6 +323,8 @@ fun MainTabs(
                         announcements = announcements,
                         onAnnouncement = onAnnouncement,
                         onAnnouncements = onAnnouncements,
+                        onPayslip = { onTab(MainTab.Payslip) },
+                        footer = footer,
                     )
                 }
                 MainTab.Attendance -> RefreshBox(refreshing && records != null, onRefresh, Modifier.fillMaxSize()) {
@@ -331,12 +349,17 @@ fun MainTabs(
                         onChangePassword = onChangePassword,
                         onCheckUpdate = null,
                         onLogout = onLogout,
+                        fontSize = fontSize,
+                        onFontSize = onFontSize,
+                        footer = footer,
                     )
                 }
             }
             }
           }
         }
+        // Isi yang digulir tidak menembus jam dan ikon status bar.
+        StatusBarScrim()
         GlassBottomBar(tab, onTab, haze, Modifier.align(Alignment.BottomCenter), badges = mapOf(MainTab.Requests to pending))
     }
 }
@@ -344,10 +367,17 @@ fun MainTabs(
 /** Tab yang fiturnya belum tersedia di server (MASTER.md Fase 4 dan 5). */
 @Composable
 fun ComingSoonContent(title: String, subtitle: String, body: String) {
-    Box(Modifier.fillMaxSize().background(Fg.Page)) {
-        FigmaTabHeader(title, subtitle, illustration = false)
-        Column(Modifier.align(Alignment.TopCenter).statusBarsPadding().then(ContentWidth).padding(start = 12.dp, end = 12.dp, top = 100.dp)) {
-            FigmaCard(title = "Segera tersedia", subtitle = body, top = 16.dp, bottom = 16.dp) {}
+    Box(Modifier.fillMaxSize().background(Hc.Canvas)) {
+        Column(
+            Modifier.align(Alignment.TopCenter).statusBarsPadding().then(ContentWidth).padding(start = 16.dp, end = 16.dp, top = 8.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            PageHeader(title, subtitle)
+            FigmaCard {
+                SoftIconTile(FigmaIcons.NavReceipt, 56.dp)
+                Text("Segera tersedia", style = figmaText(16, FontWeight.SemiBold))
+                Text(body, style = figmaText(14, color = Hc.InkSoft, lineHeight = 1.5f))
+            }
         }
     }
 }

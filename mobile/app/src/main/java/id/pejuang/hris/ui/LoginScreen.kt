@@ -10,12 +10,8 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
-import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.statusBars
-import androidx.compose.foundation.layout.windowInsetsTopHeight
 import androidx.compose.ui.Alignment
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -34,6 +30,7 @@ import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.rememberCoroutineScope
@@ -79,7 +76,10 @@ fun LoginScreen(repository: Repository, crash: String?, onDismissCrash: () -> Un
     var busy by rememberSaveable { mutableStateOf(false) }
     var error by rememberSaveable { mutableStateOf<String?>(null) }
 
+    // Footer bisa diubah super admin; dimuat tanpa login dan disimpan untuk tampilan luring.
+    LaunchedEffect(Unit) { repository.refreshBranding() }
     LoginContent(
+        footer = repository.prefs.footer,
         form = LoginForm(server, email, password, mfa, askMfa, busy, error),
         showServer = BuildConfig.SERVER_EDITABLE,
         version = BuildConfig.VERSION_NAME,
@@ -123,8 +123,9 @@ fun LoginContent(
     onPassword: (String) -> Unit,
     onMfa: (String) -> Unit,
     onSubmit: () -> Unit,
+    footer: String? = null,
 ) {
-    StatusBarIcons(dark = false)
+    StatusBarIcons(dark = true)
     var showPassword by rememberSaveable { mutableStateOf(false) }
     val canSubmit = form.email.isNotBlank() && form.password.isNotEmpty() &&
         (!showServer || form.server.isNotBlank()) && (!form.askMfa || form.mfa.length == 6)
@@ -134,48 +135,25 @@ fun LoginContent(
         Modifier
             .fillMaxSize()
             .imePadding()
-            .verticalScroll(rememberScrollState()),
+            .verticalScroll(rememberScrollState())
+            .statusBarsPadding(),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Box(
-            Modifier
-                .fillMaxWidth()
-                .background(BrandGradient)
-                .statusBarsPadding()
-                .padding(start = 32.dp, end = 32.dp, top = 24.dp, bottom = 28.dp),
-        ) {
-            Column {
-                LogoMark(size = 60.dp)
-                Spacer(Modifier.height(20.dp))
-                Text("HRIS Pejuang", style = MaterialTheme.typography.headlineMedium, color = Color.White)
-                Spacer(Modifier.height(4.dp))
-                Text(
-                    "Presensi dengan verifikasi wajah dan lokasi.",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = Color.White.copy(alpha = 0.82f),
-                )
-            }
-        }
-
         Column(
-            ContentWidth.fillMaxWidth()
-                .offset(y = (-24).dp)
-                .clip(RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp))
-                .background(Hc.Surface)
-                .padding(start = 32.dp, end = 32.dp, top = 40.dp, bottom = 24.dp),
+            ContentWidth.fillMaxWidth().padding(start = 24.dp, end = 24.dp, top = 48.dp, bottom = 24.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             Column {
-                Text("Masuk", style = MaterialTheme.typography.headlineSmall, color = Hc.Ink, modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center)
-                Spacer(Modifier.height(4.dp))
+                AppLogo(size = 72.dp)
+                Spacer(Modifier.height(28.dp))
+                Text("Selamat datang", style = MaterialTheme.typography.headlineMedium, color = Hc.Ink)
+                Spacer(Modifier.height(6.dp))
                 Text(
-                    "Masuk ke akun Pejuang Anda",
-                    style = MaterialTheme.typography.bodyMedium,
+                    "Masuk ke HRIS Yayasan Al Bahjah untuk presensi, pengajuan, dan slip ubar.",
+                    style = MaterialTheme.typography.bodyLarge,
                     color = Hc.InkSoft,
-                    modifier = Modifier.fillMaxWidth(),
-                    textAlign = TextAlign.Center,
                 )
-                Spacer(Modifier.height(20.dp))
+                Spacer(Modifier.height(32.dp))
                 Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
                     Field(
                         value = form.email,
@@ -197,7 +175,7 @@ fun LoginContent(
                         onDone = { if (canSubmit) onSubmit() },
                         trailing = {
                             TextButton(onClick = { showPassword = !showPassword }) {
-                                Text(if (showPassword) "Sembunyikan" else "Lihat", color = Hc.Brand)
+                                Text(if (showPassword) "Sembunyikan" else "Lihat", color = Hc.BrandDark)
                             }
                         },
                     )
@@ -219,8 +197,7 @@ fun LoginContent(
                         onClick = onSubmit,
                         enabled = canSubmit,
                         loading = form.busy,
-                        modifier = Modifier.padding(top = 4.dp),
-                        shape = RoundedCornerShape(100.dp),
+                        modifier = Modifier.padding(top = 8.dp),
                     )
                 }
             }
@@ -250,14 +227,14 @@ fun LoginContent(
             Text(
                 "Versi $version · Data Anda dilindungi sesuai UU PDP",
                 style = MaterialTheme.typography.labelSmall,
-                color = Hc.InkMuted,
+                color = Fg.Gray500,
                 textAlign = TextAlign.Center,
-                modifier = Modifier.fillMaxWidth().navigationBarsPadding().padding(top = 8.dp),
+                modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
             )
+            AppFooter(footer, Modifier.navigationBarsPadding())
         }
     }
-    // Status bar tetap hijau saat formulir digulir, agar isian tidak menembus jam dan ikon sistem.
-    Box(Modifier.fillMaxWidth().windowInsetsTopHeight(WindowInsets.statusBars).background(Hc.Brand))
+    StatusBarScrim(Hc.Surface)
     }
 }
 
@@ -278,8 +255,8 @@ private fun Field(
         value = value,
         onValueChange = onChange,
         label = { Text(label) },
-        placeholder = { if (placeholder != null) Text(placeholder, color = Hc.InkMuted) },
-        leadingIcon = { Icon(icon, contentDescription = null, tint = Hc.InkMuted) },
+        placeholder = { if (placeholder != null) Text(placeholder, color = Fg.Gray500) },
+        leadingIcon = { Icon(icon, contentDescription = null, tint = Hc.InkSoft) },
         trailingIcon = trailing,
         singleLine = true,
         visualTransformation = if (hidden) PasswordVisualTransformation() else VisualTransformation.None,
@@ -288,11 +265,12 @@ private fun Field(
         shape = MaterialTheme.shapes.medium,
         colors = OutlinedTextFieldDefaults.colors(
             focusedBorderColor = Hc.Brand,
-            unfocusedBorderColor = Hc.Line,
-            focusedLabelColor = Hc.Brand,
+            unfocusedBorderColor = Color.Transparent,
+            focusedLabelColor = Hc.BrandDark,
+            unfocusedLabelColor = Hc.InkSoft,
             cursorColor = Hc.Brand,
             focusedContainerColor = Hc.Surface,
-            unfocusedContainerColor = Hc.Surface,
+            unfocusedContainerColor = Hc.Field,
         ),
         modifier = Modifier.fillMaxWidth(),
     )

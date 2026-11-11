@@ -1,6 +1,5 @@
 package id.pejuang.hris.ui
 
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -12,13 +11,12 @@ import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBarsPadding
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -37,16 +35,12 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.shadow
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.graphics.SolidColor
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -56,72 +50,55 @@ import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import id.pejuang.hris.R
 
 /**
- * Warna UI kit Figma. Ungu di kit diganti hijau aplikasi (#15803D) dengan peran yang sama; abu-abu
- * dan teks tetap mengikuti kit.
+ * Nama warna lama dari kit Figma, kini menunjuk ke token Soft UI di [Hc] agar aplikasi hanya punya
+ * satu palet. Pakai [Hc] untuk kode baru.
  */
 object Fg {
-    // Pengganti purple-500 (#7A5AF8) dan aksen ungu lain.
     val Accent = Hc.Brand
-    // Pengganti gradasi header #795FFC → #7155FF.
-    val HeaderTop = Color(0xFF168540)
-    val HeaderBottom = Color(0xFF117A39)
-    // Pengganti purple-200 (#D9D6FE) untuk teks dan bintang di atas header.
-    val OnHeaderSoft = Color(0xFFBBF7D0)
-    // Pengganti gradasi tombol utama #8862F2 → #7544FC → #5B2ED4, garis #A787FF, cincin #6938EF.
-    val ButtonTop = Color(0xFF22A355)
-    val ButtonMid = Color(0xFF178A42)
-    val ButtonBottom = Color(0xFF0E6430)
-    val ButtonBorder = Color(0xFF6CCB8E)
-    val ButtonRing = Color(0xFF0E6430)
-    val ButtonShadow = Color(0xFF07361A)
-    // Pengganti ikon isian #9B8AFB.
-    val FieldIcon = Color(0xFF5DB67F)
+    val OnHeaderSoft = Hc.BrandSoftStrong
+    val FieldIcon = Hc.InkMuted
 
-    val Page = Color(0xFFF1F3F8)
-    val PageProfile = Color(0xFFF4F6F9)
-    val Card = Color(0xFFFEFEFE)
-    val Gray50 = Color(0xFFEBECEE)
+    val Page = Hc.Canvas
+    val PageProfile = Hc.Canvas
+    val Card = Hc.Surface
+    val Gray50 = Hc.Line
     val Gray100 = Color(0xFFF9FAFB)
-    val Gray200 = Color(0xFFEAECF0)
+    val Gray200 = Hc.Line
     val Gray300 = Color(0xFFD0D5DD)
-    val Gray400 = Color(0xFF98A2B3)
+    val Gray400 = Hc.InkMuted
     val Gray500 = Color(0xFF667085)
-    val TextPrimary = Color(0xFF101828)
-    val TextSecondary = Color(0xFF475467)
+    val TextPrimary = Hc.Ink
+    val TextSecondary = Hc.InkSoft
     val TextBody = Color(0xFF344054)
-    val TextStrong = Color(0xFF161B23)
-    val RowText = Color(0xFF4F5464)
-    val Chevron = Color(0xFFB6C2D7)
-    val Danger = Color(0xFFF14E4E)
-    val NavBar = Color(0xFF1C2020)
-    // Tombol utama merah untuk tindakan menolak atau membatalkan.
-    val DangerTop = Color(0xFFEF5350)
-    val DangerMid = Color(0xFFDC2626)
-    val DangerBottom = Color(0xFFB91C1C)
-    val DangerBorder = Color(0xFFF7A1A1)
-    val DangerRing = Color(0xFF991B1B)
-    val DangerText = Color(0xFFB91C1C)
-    val Backdrop = Color(0x992D2D2D)
+    val TextStrong = Hc.Ink
+    val RowText = Color(0xFF344054)
+    val Chevron = Color(0xFFD0D5DD)
+    /** Teks galat di bawah isian (5,7:1 di atas putih). */
+    val Danger = Color(0xFFB42318)
+    val DangerText = Color(0xFFB42318)
+    val Backdrop = Color(0x660C111D)
 }
 
-val FigmaHeaderGradient = Brush.verticalGradient(listOf(Fg.HeaderTop, Fg.HeaderBottom))
-
-/** Teks Figma: Inter di kit, font sistem di aplikasi. */
-fun figmaText(size: Int, weight: FontWeight = FontWeight.Normal, color: Color = Fg.TextPrimary, lineHeight: Float? = null, tracking: Float = 0f) =
+/** Gaya teks dengan Plus Jakarta Sans. [lineHeight] adalah kelipatan ukuran huruf. */
+fun figmaText(size: Int, weight: FontWeight = FontWeight.Normal, color: Color = Hc.Ink, lineHeight: Float? = null, tracking: Float = 0f) =
     TextStyle(
+        fontFamily = Jakarta,
         fontSize = size.sp,
         fontWeight = weight,
         color = color,
-        lineHeight = lineHeight?.let { (size * it).sp } ?: androidx.compose.ui.unit.TextUnit.Unspecified,
+        lineHeight = lineHeight?.let { (size * it).sp } ?: TextUnit.Unspecified,
         letterSpacing = tracking.sp,
     )
 
-/** Tombol utama Figma: pil 48dp, gradasi, garis terang, dan cincin luar 1dp. */
+/**
+ * Tombol utama: datar, hijau terang dengan teks gelap (6,5:1), sudut 14dp, tinggi 52dp. Varian
+ * [danger] merah dengan teks putih untuk menolak, membatalkan, atau keluar.
+ */
 @Composable
 fun FigmaPrimaryButton(
     text: String,
@@ -132,110 +109,163 @@ fun FigmaPrimaryButton(
     danger: Boolean = false,
 ) {
     val active = enabled && !loading
-    val shape = RoundedCornerShape(100.dp)
-    val ring = if (danger) Fg.DangerRing else Fg.ButtonRing
-    val gradient = if (danger) Brush.verticalGradient(0f to Fg.DangerTop, 0.2883f to Fg.DangerMid, 1f to Fg.DangerBottom)
-    else Brush.verticalGradient(0f to Fg.ButtonTop, 0.2883f to Fg.ButtonMid, 1f to Fg.ButtonBottom)
-    val edge = if (danger) Fg.DangerBorder else Fg.ButtonBorder
+    val fill = when {
+        !enabled && !loading -> Hc.Field
+        danger -> Hc.Danger
+        else -> Hc.Primary
+    }
+    val ink = when {
+        !enabled && !loading -> Hc.InkMuted
+        danger -> Color.White
+        else -> Hc.OnPrimary
+    }
     Box(
         modifier
             .fillMaxWidth()
-            .heightIn(min = 48.dp)
-            .clip(shape)
-            .background(if (enabled || loading) ring else Fg.Gray300)
-            .padding(1.dp)
-            .clip(shape)
-            .background(if (enabled || loading) gradient else SolidColor(Fg.Gray200))
-            .border(1.dp, if (enabled || loading) edge else Fg.Gray300, shape)
+            .heightIn(min = 52.dp)
+            .clip(ControlShape)
+            .background(fill)
             .clickable(enabled = active, role = Role.Button, onClick = onClick)
-            .padding(horizontal = 20.dp, vertical = 12.dp),
+            .padding(horizontal = 20.dp, vertical = 14.dp),
         contentAlignment = Alignment.Center,
     ) {
         if (loading) {
-            CircularProgressIndicator(color = Color.White, strokeWidth = 2.dp, modifier = Modifier.size(20.dp))
+            CircularProgressIndicator(color = ink, strokeWidth = 2.dp, modifier = Modifier.size(20.dp))
         } else {
-            Text(
-                text,
-                style = figmaText(14, FontWeight.Medium, if (enabled) Color.White else Fg.Gray400, tracking = 0.1f).copy(
-                    lineHeight = 20.sp,
-                    shadow = if (enabled) Shadow(Fg.ButtonShadow, blurRadius = 16f, offset = androidx.compose.ui.geometry.Offset(0f, 1f)) else null,
-                ),
-                maxLines = 1,
-            )
+            Text(text, style = figmaText(15, FontWeight.SemiBold, ink).copy(lineHeight = 20.sp), maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
     }
 }
 
-/** Tombol kedua Figma: pil bergaris warna aksen. */
+/**
+ * Tombol kedua: tonal lembut tanpa garis. Mint untuk aksi hijau (bawaan), merah muda bila [color]
+ * adalah [Fg.DangerText] (mis. "Tolak"), abu untuk warna lain (mis. "Batal").
+ */
 @Composable
-fun FigmaSecondaryButton(text: String, onClick: () -> Unit, modifier: Modifier = Modifier, color: Color = Fg.ButtonBottom) {
+fun FigmaSecondaryButton(text: String, onClick: () -> Unit, modifier: Modifier = Modifier, color: Color = Hc.BrandDeep) {
+    val fill = when (color) {
+        Fg.DangerText -> Tone.Danger.container
+        Hc.BrandDeep -> Hc.BrandSoft
+        else -> Hc.Field
+    }
     Box(
         modifier
             .fillMaxWidth()
-            .heightIn(min = 48.dp)
-            .clip(RoundedCornerShape(100.dp))
-            .border(BorderStroke(1.dp, color), RoundedCornerShape(100.dp))
+            .heightIn(min = 52.dp)
+            .clip(ControlShape)
+            .background(fill)
             .clickable(role = Role.Button, onClick = onClick)
-            .padding(horizontal = 20.dp, vertical = 12.dp),
+            .padding(horizontal = 20.dp, vertical = 14.dp),
         contentAlignment = Alignment.Center,
     ) {
-        Text(text, style = figmaText(14, FontWeight.Medium, color, tracking = 0.1f).copy(lineHeight = 20.sp), maxLines = 1)
+        Text(text, style = figmaText(15, FontWeight.SemiBold, color).copy(lineHeight = 20.sp), maxLines = 1, overflow = TextOverflow.Ellipsis)
     }
 }
 
-/** Tombol bundar 32dp di header, berisi ikon 16dp. */
+/** Tombol bundar 44dp berisi ikon 20dp, untuk kembali atau aksi di header. */
 @Composable
 fun FigmaCircleButton(icon: ImageVector, description: String, background: Color, tint: Color, onClick: () -> Unit) {
     Box(
-        Modifier.size(32.dp).clip(CircleShape).background(background).clickable(role = Role.Button, onClick = onClick)
+        Modifier.size(44.dp).softShadow(CircleShape, 6.dp).clip(CircleShape).background(background)
+            .clickable(role = Role.Button, onClick = onClick)
             .semantics { contentDescription = description },
         contentAlignment = Alignment.Center,
     ) {
-        Icon(icon, contentDescription = null, tint = tint, modifier = Modifier.size(16.dp))
+        Icon(icon, contentDescription = null, tint = tint, modifier = Modifier.size(20.dp))
     }
 }
 
-/** Header putih layar turunan (komponen "Header" di kit): tombol kembali, judul di tengah. */
+/** Header halaman turunan: tombol kembali bulat putih dan judul di tengah, di atas latar halaman. */
 @Composable
 fun FigmaHeader(title: String, onBack: () -> Unit) {
     StatusBarIcons(dark = true)
-    Column(Modifier.fillMaxWidth().background(Fg.Card).statusBarsPadding()) {
-        Box(Modifier.fillMaxWidth().padding(horizontal = 23.5.dp).padding(top = 12.dp, bottom = 16.dp).heightIn(min = 32.dp)) {
-            Box(Modifier.align(Alignment.CenterStart)) {
-                FigmaCircleButton(FigmaIcons.ArrowLeftOutline, "Kembali", Fg.PageProfile, Fg.Accent, onBack)
-            }
-            Text(title, style = figmaText(18, FontWeight.SemiBold), modifier = Modifier.align(Alignment.Center), maxLines = 1)
+    Box(
+        Modifier.fillMaxWidth().background(Hc.Canvas).statusBarsPadding()
+            .padding(horizontal = 16.dp).padding(top = 8.dp, bottom = 8.dp).heightIn(min = 48.dp),
+    ) {
+        Box(Modifier.align(Alignment.CenterStart)) {
+            FigmaCircleButton(FigmaIcons.ArrowLeftOutline, "Kembali", Hc.Surface, Hc.Ink, onBack)
         }
-        Box(Modifier.fillMaxWidth().height(1.dp).background(Fg.Gray200))
+        Text(
+            title,
+            style = figmaText(17, FontWeight.SemiBold),
+            modifier = Modifier.align(Alignment.Center).padding(horizontal = 56.dp).semantics { heading() },
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
     }
 }
 
-/** Kartu putih Figma: sudut 8dp, padding 16dp, judul dan keterangan. */
+/**
+ * Judul halaman tab: teks besar di atas latar halaman, tanpa blok warna (Clean Minimalist).
+ * Dipakai sebagai item pertama daftar agar ikut tergulir.
+ */
+@Composable
+fun PageHeader(title: String, subtitle: String? = null, modifier: Modifier = Modifier, trailing: (@Composable RowScope.() -> Unit)? = null) {
+    StatusBarIcons(dark = true)
+    Row(
+        modifier.fillMaxWidth().padding(start = 4.dp, end = 4.dp, top = 20.dp, bottom = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Text(title, style = figmaText(26, FontWeight.Bold, tracking = -0.3f).copy(lineHeight = 32.sp), modifier = Modifier.semantics { heading() })
+            if (subtitle != null) Text(subtitle, style = figmaText(14, color = Hc.InkSoft, lineHeight = 1.4f))
+        }
+        trailing?.invoke(this)
+    }
+}
+
+/** Kartu putih lembut: sudut 20dp, bayangan tipis, tanpa garis. [onClick] membuat seluruh kartu bisa diketuk. */
 @Composable
 fun FigmaCard(
     modifier: Modifier = Modifier,
     title: String? = null,
     subtitle: String? = null,
-    top: Dp = 12.dp,
-    bottom: Dp = 12.dp,
-    gap: Dp = 12.dp,
+    top: Dp = 20.dp,
+    bottom: Dp = 20.dp,
+    gap: Dp = 14.dp,
+    onClick: (() -> Unit)? = null,
+    onClickLabel: String? = null,
     content: @Composable ColumnScope.() -> Unit,
 ) {
     Column(
-        modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp)).background(Fg.Card).padding(start = 16.dp, end = 16.dp, top = top, bottom = bottom),
+        modifier
+            .fillMaxWidth()
+            .softShadow()
+            .clip(CardShape)
+            .background(Hc.Surface)
+            .then(if (onClick != null) Modifier.clickable(onClickLabel = onClickLabel, onClick = onClick) else Modifier)
+            .padding(start = 20.dp, end = 20.dp, top = top, bottom = bottom),
         verticalArrangement = Arrangement.spacedBy(gap),
     ) {
         if (title != null) {
-            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                Text(title, style = figmaText(14, FontWeight.SemiBold, lineHeight = 1.4f))
-                if (subtitle != null) Text(subtitle, style = figmaText(12, color = Fg.TextSecondary, lineHeight = 1.4f))
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text(title, style = figmaText(16, FontWeight.SemiBold, lineHeight = 1.35f))
+                if (subtitle != null) Text(subtitle, style = figmaText(13, color = Hc.InkSoft, lineHeight = 1.45f))
             }
         }
         content()
     }
 }
 
-/** Kolom isian Figma ("Input Field/Text & Icon"): label 12, kotak 44dp, ikon 20dp. */
+/** Bingkai isian terisi: abu lembut tanpa garis, cincin hijau saat fokus, cincin merah saat galat. */
+private fun Modifier.fieldFrame(focused: Boolean, error: Boolean, readOnly: Boolean = false): Modifier {
+    val ring = when {
+        error -> Fg.Danger
+        focused && !readOnly -> Hc.Brand
+        else -> null
+    }
+    return clip(ControlShape)
+        .background(if (focused && !readOnly) Hc.Surface else Hc.Field)
+        .then(if (ring != null) Modifier.border(if (error) 1.5.dp else 2.dp, ring, ControlShape) else Modifier)
+}
+
+@Composable
+private fun FieldLabel(label: String, required: Boolean = false) {
+    Text(if (required) "$label *" else label, style = figmaText(13, FontWeight.Medium, Hc.InkSoft).copy(lineHeight = 18.sp))
+}
+
+/** Isian satu baris dengan ikon. */
 @Composable
 fun FigmaInput(
     label: String,
@@ -251,48 +281,35 @@ fun FigmaInput(
 ) {
     val interaction = remember { MutableInteractionSource() }
     val focused by interaction.collectIsFocusedAsState()
-    val border = when {
-        error != null -> Fg.Danger
-        focused && !readOnly -> Fg.Accent
-        readOnly -> Fg.Gray300
-        else -> Fg.Gray400
-    }
-    Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        Text(label, style = figmaText(12, FontWeight.Medium, Fg.TextSecondary).copy(lineHeight = 17.sp))
+    Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        FieldLabel(label)
         BasicTextField(
             value = value,
             onValueChange = onChange,
             readOnly = readOnly,
             singleLine = true,
-            textStyle = figmaText(14, color = Fg.TextPrimary).copy(lineHeight = 17.sp),
+            textStyle = figmaText(15, color = if (readOnly) Hc.InkSoft else Hc.Ink).copy(lineHeight = 20.sp),
             visualTransformation = if (password) PasswordVisualTransformation() else VisualTransformation.None,
             keyboardOptions = keyboard,
             keyboardActions = KeyboardActions(onDone = { onDone?.invoke() }),
             interactionSource = interaction,
-            cursorBrush = SolidColor(Fg.Accent),
+            cursorBrush = SolidColor(Hc.Brand),
             decorationBox = { inner ->
                 Row(
-                    Modifier
-                        .fillMaxWidth()
-                        .heightIn(min = 44.dp)
-                        .shadow(1.dp, RoundedCornerShape(8.dp), ambientColor = Color(0x0D101828), spotColor = Color(0x0D101828))
-                        .clip(RoundedCornerShape(8.dp))
-                        .background(Color.White)
-                        .border(1.dp, border, RoundedCornerShape(8.dp))
-                        .padding(12.dp),
+                    Modifier.fillMaxWidth().heightIn(min = 52.dp).fieldFrame(focused, error != null, readOnly).padding(horizontal = 14.dp),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(10.dp),
                 ) {
-                    Icon(icon, contentDescription = null, tint = Fg.FieldIcon, modifier = Modifier.size(20.dp))
+                    Icon(icon, contentDescription = null, tint = if (focused) Hc.Brand else Hc.InkMuted, modifier = Modifier.size(20.dp))
                     Box(Modifier.weight(1f)) { inner() }
                 }
             },
         )
-        if (error != null) Text(error, style = figmaText(12, color = Fg.Danger, lineHeight = 1.3f))
+        if (error != null) Text(error, style = figmaText(12, color = Fg.Danger, lineHeight = 1.35f))
     }
 }
 
-/** Isian teks banyak baris dengan gaya [FigmaInput], penghitung karakter, dan contoh isian. */
+/** Isian teks banyak baris dengan penghitung karakter dan contoh isian. */
 @Composable
 fun FigmaTextArea(
     label: String,
@@ -307,34 +324,21 @@ fun FigmaTextArea(
 ) {
     val interaction = remember { MutableInteractionSource() }
     val focused by interaction.collectIsFocusedAsState()
-    val border = when {
-        error != null -> Fg.Danger
-        focused -> Fg.Accent
-        else -> Fg.Gray400
-    }
-    Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        Text(if (required) "$label *" else label, style = figmaText(12, FontWeight.Medium, Fg.TextSecondary).copy(lineHeight = 17.sp))
+    Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        FieldLabel(label, required)
         BasicTextField(
             value = value,
             onValueChange = { onChange(it.take(maxLength)) },
             minLines = 3,
             maxLines = 6,
-            textStyle = figmaText(14, color = Fg.TextPrimary, lineHeight = 1.45f),
+            textStyle = figmaText(15, color = Hc.Ink, lineHeight = 1.45f),
             keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
             interactionSource = interaction,
-            cursorBrush = SolidColor(Fg.Accent),
+            cursorBrush = SolidColor(Hc.Brand),
             decorationBox = { inner ->
-                Box(
-                    Modifier
-                        .fillMaxWidth()
-                        .heightIn(min = 88.dp)
-                        .clip(RoundedCornerShape(8.dp))
-                        .background(Color.White)
-                        .border(1.dp, border, RoundedCornerShape(8.dp))
-                        .padding(12.dp),
-                ) {
+                Box(Modifier.fillMaxWidth().heightIn(min = 96.dp).fieldFrame(focused, error != null).padding(14.dp)) {
                     if (value.isEmpty() && placeholder.isNotEmpty()) {
-                        Text(placeholder, style = figmaText(14, color = Fg.Gray400, lineHeight = 1.45f))
+                        Text(placeholder, style = figmaText(15, color = Fg.Gray500, lineHeight = 1.45f))
                     }
                     inner()
                 }
@@ -343,7 +347,7 @@ fun FigmaTextArea(
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Text(
                 (error ?: hint).orEmpty(),
-                style = figmaText(12, color = if (error != null) Fg.Danger else Fg.TextSecondary, lineHeight = 1.3f),
+                style = figmaText(12, color = if (error != null) Fg.Danger else Hc.InkSoft, lineHeight = 1.35f),
                 modifier = Modifier.weight(1f),
             )
             Text("${value.length}/$maxLength", style = figmaText(12, color = Fg.Gray500))
@@ -363,38 +367,44 @@ fun FigmaPickerField(
     error: String? = null,
     required: Boolean = false,
 ) {
-    Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        Text(if (required) "$label *" else label, style = figmaText(12, FontWeight.Medium, Fg.TextSecondary).copy(lineHeight = 17.sp))
+    Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        FieldLabel(label, required)
         Row(
             Modifier
                 .fillMaxWidth()
-                .heightIn(min = 48.dp)
-                .clip(RoundedCornerShape(8.dp))
-                .background(Color.White)
-                .border(1.dp, if (error != null) Fg.Danger else Fg.Gray400, RoundedCornerShape(8.dp))
+                .heightIn(min = 52.dp)
+                .fieldFrame(focused = false, error = error != null)
                 .clickable(role = Role.Button, onClickLabel = label, onClick = onClick)
-                .padding(12.dp),
+                .padding(horizontal = 14.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(10.dp),
         ) {
-            Icon(icon, contentDescription = null, tint = Fg.FieldIcon, modifier = Modifier.size(20.dp))
+            Icon(icon, contentDescription = null, tint = if (value != null) Hc.Brand else Hc.InkMuted, modifier = Modifier.size(20.dp))
             Text(
                 value ?: placeholder,
-                style = figmaText(14, if (value != null) FontWeight.Medium else FontWeight.Normal, if (value != null) Fg.TextPrimary else Fg.Gray400),
+                style = figmaText(15, if (value != null) FontWeight.Medium else FontWeight.Normal, if (value != null) Hc.Ink else Fg.Gray500),
                 modifier = Modifier.weight(1f),
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
             Icon(FigmaIcons.ArrowRight, contentDescription = null, tint = Fg.Chevron, modifier = Modifier.size(16.dp))
         }
-        if (error != null) Text(error, style = figmaText(12, color = Fg.Danger, lineHeight = 1.3f))
+        if (error != null) Text(error, style = figmaText(12, color = Fg.Danger, lineHeight = 1.35f))
     }
 }
 
-/**
- * Popup pesan Figma ("Popup Message"): latar gelap, lembar putih dari bawah, ubin ikon 100dp yang
- * menonjol di atas lembar.
- */
+/** Ubin ikon bulat lembut (mint, atau merah muda untuk peringatan). */
+@Composable
+fun SoftIconTile(icon: ImageVector, size: Dp = 48.dp, tone: Tone? = null) {
+    Box(
+        Modifier.size(size).clip(CircleShape).background(tone?.container ?: Hc.BrandSoft),
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(icon, contentDescription = null, tint = tone?.content ?: Hc.BrandDeep, modifier = Modifier.size(size * 0.46f))
+    }
+}
+
+/** Lembar konfirmasi dari bawah: latar redup, ubin ikon, judul, isi, dan tombol. */
 @Composable
 fun BoxScope.FigmaPopup(
     icon: ImageVector,
@@ -411,35 +421,27 @@ fun BoxScope.FigmaPopup(
         Modifier.matchParentSize().background(Fg.Backdrop)
             .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null, onClick = onDismiss),
     )
-    Box(Modifier.align(Alignment.BottomCenter).fillMaxWidth()) {
-        Column(
-            Modifier
-                .padding(top = 53.dp)
-                .fillMaxWidth()
-                .clip(RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp))
-                .background(Color.White)
-                .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) {}
-                .navigationBarsPadding()
-                .padding(start = 31.dp, end = 31.dp, top = 85.dp, bottom = 32.dp),
-            verticalArrangement = Arrangement.spacedBy(24.dp),
-        ) {
-            Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                Text(title, style = figmaText(20, FontWeight.SemiBold), textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
-                Text(body, style = figmaText(13, FontWeight.Medium, Fg.TextSecondary, lineHeight = 1.3f), modifier = Modifier.fillMaxWidth())
-            }
-            Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                FigmaPrimaryButton(primary, onPrimary)
-                if (secondary != null) FigmaSecondaryButton(secondary, onSecondary)
-            }
+    Column(
+        Modifier
+            .align(Alignment.BottomCenter)
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp))
+            .background(Hc.Surface)
+            .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) {}
+            .navigationBarsPadding()
+            .padding(start = 24.dp, end = 24.dp, top = 12.dp, bottom = 24.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(16.dp),
+    ) {
+        Box(Modifier.width(36.dp).height(4.dp).clip(RoundedCornerShape(2.dp)).background(Fg.Gray300))
+        SoftIconTile(icon, 56.dp, if (danger) Tone.Danger else null)
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text(title, style = figmaText(20, FontWeight.Bold, lineHeight = 1.3f), textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
+            Text(body, style = figmaText(14, color = Hc.InkSoft, lineHeight = 1.5f), textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
         }
-        val tile = if (danger) Fg.Danger else Fg.Accent
-        Box(Modifier.align(Alignment.TopCenter).offset(y = 95.dp).width(58.dp).height(11.dp).shadow(12.dp, RoundedCornerShape(6.dp), spotColor = tile, ambientColor = tile))
-        Box(
-            Modifier.align(Alignment.TopCenter).size(100.dp).clip(RoundedCornerShape(16.dp)).background(tile)
-                .border(1.dp, if (danger) Color(0xFFF7A1A1) else Fg.ButtonBorder, RoundedCornerShape(16.dp)),
-            contentAlignment = Alignment.Center,
-        ) {
-            Icon(icon, contentDescription = null, tint = Color.White, modifier = Modifier.size(48.dp))
+        Column(Modifier.padding(top = 4.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            FigmaPrimaryButton(primary, onPrimary, danger = danger)
+            if (secondary != null) FigmaSecondaryButton(secondary, onSecondary, color = Hc.Ink)
         }
     }
 }
@@ -451,56 +453,6 @@ enum class MainTab(val label: String, val icon: ImageVector, val selectedIcon: I
     Requests("Pengajuan", FigmaIcons.NavNote, FigmaIcons.NavNoteBold),
     Payslip("Slip ubar", FigmaIcons.NavReceipt, FigmaIcons.NavReceiptBold),
     Profile("Profil", FigmaIcons.User, FigmaIcons.UserBold),
-}
-
-/** Bintang empat sudut dari header Figma, berputar sesuai desain. */
-@Composable
-fun FigmaStar(x: Dp, y: Dp, size: Dp, rotation: Float, large: Boolean = false, color: Color = Fg.OnHeaderSoft) {
-    Icon(
-        if (large) FigmaIcons.StarInner else FigmaIcons.StarThin,
-        contentDescription = null,
-        tint = color,
-        modifier = Modifier.offset(x = x, y = y).size(size).graphicsLayer(rotationZ = rotation),
-    )
-}
-
-/**
- * Header hijau layar tab ("Attendant/Bg Header"): tinggi 189dp di bawah status bar, sudut bawah
- * 24dp, judul dan keterangan, serta ilustrasi jam bersayap.
- */
-@Composable
-fun FigmaTabHeader(title: String, subtitle: String, illustration: Boolean = true, extraHeight: Dp = 0.dp) {
-    StatusBarIcons(dark = false)
-    Box(
-        Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(bottomStart = 24.dp, bottomEnd = 24.dp))
-            .background(FigmaHeaderGradient)
-            .statusBarsPadding()
-            .height(189.dp + extraHeight),
-    ) {
-        Column(Modifier.padding(start = 28.dp, top = 27.dp, end = 104.dp), verticalArrangement = Arrangement.spacedBy(1.dp)) {
-            Text(title, style = figmaText(24, FontWeight.SemiBold, Color(0xFFFEFEFE)).copy(lineHeight = 32.sp), maxLines = 1, overflow = TextOverflow.Ellipsis)
-            Text(subtitle, style = figmaText(14, FontWeight.Medium, Fg.OnHeaderSoft, tracking = 0.1f).copy(lineHeight = 20.sp), maxLines = 1, overflow = TextOverflow.Ellipsis)
-        }
-        if (illustration) {
-            // Koordinat dari frame 390dp, dihitung dari tepi kanan agar tetap di kanan pada layar lain.
-            Box(Modifier.align(Alignment.TopEnd).width(102.dp).height(120.dp)) {
-                FigmaStar(x = 2.45.dp, y = 24.65.dp, size = 10.7.dp, rotation = 19.21f)
-                FigmaStar(x = 4.4.dp + 0.9.dp, y = 65.8.dp + 0.9.dp, size = 7.15.dp, rotation = -18.39f)
-                FigmaStar(x = 42.dp + 0.5.dp, y = 14.7.dp + 0.5.dp, size = 7.15.dp, rotation = 8.77f)
-                FigmaStar(x = 2.7.dp + 0.5.dp, y = 51.3.dp + 0.5.dp, size = 3.56.dp, rotation = 19.89f)
-                FigmaStar(x = 40.3.dp + 0.5.dp, y = 61.7.dp + 0.5.dp, size = 3.56.dp, rotation = 19.89f)
-                FigmaStar(x = 36.dp + 0.5.dp, y = 25.dp + 0.5.dp, size = 3.56.dp, rotation = 19.89f)
-                androidx.compose.foundation.Image(
-                    painter = androidx.compose.ui.res.painterResource(R.drawable.figma_clock_wing),
-                    contentDescription = null,
-                    modifier = Modifier.offset(x = 16.4.dp, y = 23.25.dp).width(68.65.dp).height(57.3.dp),
-                )
-                FigmaStar(x = 49.dp + 3.75.dp, y = 12.dp + 3.75.dp, size = 20.5.dp, rotation = -30.21f, large = true)
-            }
-        }
-    }
 }
 
 @Composable

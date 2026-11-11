@@ -354,3 +354,28 @@ class AnnouncementLogicTest {
         assertTrue(err?.message.orEmpty().startsWith("Baca dulu isinya"))
     }
 }
+
+class BrandingLogicTest {
+    @Test
+    fun fontSizeSnapsToNearestOption() {
+        assertEquals(id.pejuang.hris.data.FontSize.Normal, id.pejuang.hris.data.FontSize.of(1f))
+        assertEquals(id.pejuang.hris.data.FontSize.Large, id.pejuang.hris.data.FontSize.of(1.12f))
+        assertEquals(id.pejuang.hris.data.FontSize.ExtraLarge, id.pejuang.hris.data.FontSize.of(9f))
+        assertEquals(id.pejuang.hris.data.FontSize.Small, id.pejuang.hris.data.FontSize.of(0.1f))
+    }
+
+    @Test
+    fun defaultFooterMatchesServer() {
+        assertEquals("© 2027 PUTI (Pusat Teknologi Informasi) Al Bahjah", id.pejuang.hris.ui.defaultFooter(2027))
+    }
+
+    @Test
+    fun brandingDecodes() {
+        val b = apiJson.decodeFromString(
+            id.pejuang.hris.data.Branding.serializer(),
+            """{"footer":"© 2026 PUTI","footer_template":"© {tahun} PUTI","is_default":false,"updated_at":"2026-11-11T01:00:00Z"}""",
+        )
+        assertEquals("© 2026 PUTI", b.footer)
+        assertFalse(b.isDefault)
+    }
+}

@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <color name="brand">#15803D</color>
-    <color name="brand_deep">#0A4A23</color>
-    <color name="ic_launcher_background">#15803D</color>
+    <!-- Sama dengan Hc.Canvas: latar jendela pertama agar tidak ada kilatan warna sebelum layar pembuka. -->
+    <color name="page">#F7F8FA</color>
+    <!-- Latar ikon peluncur di belakang logo PUTI Al Bahjah. -->
+    <color name="ic_launcher_background">#FFFFFF</color>
 </resources>

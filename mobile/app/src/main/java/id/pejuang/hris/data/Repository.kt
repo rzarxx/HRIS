@@ -157,7 +157,7 @@ class Repository(private val session: Session, val prefs: AppPrefs) {
 
     suspend fun history(): List<AttendanceRecord> = call { history().data }
 
-    /** Jenis cuti aktif beserta saldo tahun ini. */
+    /** Jenis cuti aktif beserta hak cuti tahun ini. */
     suspend fun leaveTypes(): List<LeaveType> = call { leaveTypes().data }
 
     /** Pengajuan cuti/izin milik sendiri, terbaru dulu, lengkap dengan timeline. */

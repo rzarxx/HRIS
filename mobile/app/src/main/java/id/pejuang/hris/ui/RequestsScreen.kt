@@ -174,17 +174,17 @@ suspend fun <T> attempt(block: suspend () -> T): Result<T> = try {
 fun RequestsContent(ui: RequestsUi, now: ZonedDateTime, modifier: Modifier = Modifier) {
     val d = ui.data
     val view = if (ui.canApprove) ui.view else RequestsView.Mine
-    Box(modifier.fillMaxSize().background(Fg.Page)) {
-        FigmaTabHeader("Pengajuan", "Cuti dan izin, serta persetujuannya", illustration = false)
+    Box(modifier.fillMaxSize().background(Hc.Canvas)) {
         RefreshBox(refreshing = d.refreshing && d.leaves != null, onRefresh = ui.onRefresh, modifier = Modifier.fillMaxSize()) {
             LazyColumn(
                 Modifier.fillMaxSize().statusBarsPadding(),
-                contentPadding = PaddingValues(start = 12.dp, end = 12.dp, bottom = bottomContentSpace(16.dp)),
+                contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = bottomContentSpace(20.dp)),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
+                item(key = "judul") { PageHeader("Pengajuan", "Cuti dan izin, serta persetujuannya.", ContentWidth) }
                 item(key = "saldo") {
-                    Column(ContentWidth.padding(top = 100.dp)) { BalanceCard(d.types, now.toLocalDate(), ui.onNew) }
+                    Column(ContentWidth) { BalanceCard(d.types, now.toLocalDate(), ui.onNew) }
                 }
                 if (ui.canApprove) {
                     item(key = "pilihan") { ViewSwitch(view, d.pending?.size ?: 0, ui.onView, ContentWidth) }
@@ -242,11 +242,11 @@ fun RequestsContent(ui: RequestsUi, now: ZonedDateTime, modifier: Modifier = Mod
 @Composable
 private fun SectionTitle(title: String, subtitle: String, modifier: Modifier) {
     Row(
-        modifier.fillMaxWidth().padding(start = 4.dp, end = 4.dp, top = 4.dp),
+        modifier.fillMaxWidth().padding(start = 4.dp, end = 4.dp, top = 12.dp, bottom = 2.dp),
         verticalAlignment = Alignment.Bottom,
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        Text(title, style = figmaText(14, FontWeight.SemiBold), modifier = Modifier.weight(1f).semantics { heading() })
+        Text(title, style = figmaText(16, FontWeight.SemiBold), modifier = Modifier.weight(1f).semantics { heading() })
         Text(subtitle, style = figmaText(12, color = Fg.TextSecondary), maxLines = 1)
     }
 }
@@ -254,13 +254,11 @@ private fun SectionTitle(title: String, subtitle: String, modifier: Modifier) {
 @Composable
 private fun EmptyCard(title: String, body: String, modifier: Modifier, done: Boolean = false) {
     Column(
-        modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp)).background(Fg.Card).padding(horizontal = 24.dp, vertical = 28.dp),
+        modifier.fillMaxWidth().softShadow().clip(CardShape).background(Hc.Surface).padding(horizontal = 24.dp, vertical = 32.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        Box(Modifier.size(56.dp).clip(CircleShape).background(Hc.BrandSoft), contentAlignment = Alignment.Center) {
-            Icon(if (done) Icons.Filled.Check else FigmaIcons.NavNote, contentDescription = null, tint = Hc.Brand, modifier = Modifier.size(28.dp))
-        }
+        SoftIconTile(if (done) Icons.Filled.Check else FigmaIcons.NavNote, 64.dp)
         Text(title, style = figmaText(16, FontWeight.SemiBold), textAlign = TextAlign.Center)
         Text(body, style = figmaText(13, color = Fg.TextSecondary, lineHeight = 1.4f), textAlign = TextAlign.Center)
     }
@@ -274,14 +272,14 @@ private fun BalanceCard(types: List<LeaveType>?, today: LocalDate, onNew: () -> 
     FigmaCard(
         title = if (types == null || balanced.isNotEmpty()) "Saldo cuti $year" else "Ajukan cuti atau izin",
         subtitle = "Hari kerja; akhir pekan dan hari libur tidak dihitung.",
-        bottom = 16.dp,
+        gap = 16.dp,
     ) {
         when {
-            types == null -> Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                repeat(2) { SkeletonBlock(Modifier.weight(1f).height(84.dp), RoundedCornerShape(8.dp)) }
+            types == null -> Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                repeat(2) { SkeletonBlock(Modifier.weight(1f).height(96.dp), RoundedCornerShape(16.dp)) }
             }
             balanced.isNotEmpty() -> balanced.chunked(2).forEach { row ->
-                Row(Modifier.fillMaxWidth().height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Row(Modifier.fillMaxWidth().height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     row.forEach { BalanceTile(it, Modifier.weight(1f).fillMaxHeight()) }
                     if (row.size == 1) Spacer(Modifier.weight(1f))
                 }
@@ -301,17 +299,16 @@ private fun BalanceTile(type: LeaveType, modifier: Modifier) {
     val waiting = b.entitledDays == 0 && eligible != null
     Column(
         modifier
-            .clip(RoundedCornerShape(8.dp))
-            .background(Color(0xFFF9F9F9))
-            .border(1.dp, Fg.Gray50, RoundedCornerShape(8.dp))
-            .padding(start = 11.dp, end = 8.dp, top = 11.dp, bottom = 10.dp)
+            .clip(RoundedCornerShape(16.dp))
+            .background(if (b.remainingDays > 0) Hc.BrandSoft else Hc.Field)
+            .padding(horizontal = 14.dp, vertical = 14.dp)
             .semantics(mergeDescendants = true) {},
         verticalArrangement = Arrangement.spacedBy(2.dp),
     ) {
-        Text(type.name, style = figmaText(12, FontWeight.Medium, Fg.TextSecondary), maxLines = 1, overflow = TextOverflow.Ellipsis)
+        Text(type.name, style = figmaText(12, FontWeight.Medium, if (b.remainingDays > 0) Hc.BrandDeep else Hc.InkSoft), maxLines = 1, overflow = TextOverflow.Ellipsis)
         Row(verticalAlignment = Alignment.Bottom) {
-            Text("${b.remainingDays}", style = figmaText(26, FontWeight.SemiBold, if (b.remainingDays > 0) Fg.TextStrong else Fg.Gray500).copy(lineHeight = 32.sp))
-            Text(" / ${b.entitledDays} hari", style = figmaText(13, color = Fg.TextSecondary), modifier = Modifier.padding(bottom = 4.dp))
+            Text("${b.remainingDays}", style = figmaText(28, FontWeight.Bold, if (b.remainingDays > 0) Hc.Ink else Fg.Gray500, tracking = -0.4f).copy(lineHeight = 34.sp))
+            Text(" / ${b.entitledDays} hari", style = figmaText(13, color = Hc.InkSoft), modifier = Modifier.padding(bottom = 5.dp))
         }
         Text(
             when {
@@ -319,7 +316,7 @@ private fun BalanceTile(type: LeaveType, modifier: Modifier) {
                 b.usedDays > 0 -> "Terpakai ${b.usedDays} hari, termasuk yang menunggu"
                 else -> "Belum terpakai"
             },
-            style = figmaText(11, color = if (waiting) Tone.Warning.content else Fg.TextSecondary, lineHeight = 1.3f),
+            style = figmaText(11, color = if (waiting) Tone.Warning.content else Hc.InkSoft, lineHeight = 1.35f),
         )
     }
 }
@@ -328,7 +325,7 @@ private fun BalanceTile(type: LeaveType, modifier: Modifier) {
 @Composable
 private fun ViewSwitch(view: RequestsView, pending: Int, onView: (RequestsView) -> Unit, modifier: Modifier) {
     Row(
-        modifier.fillMaxWidth().clip(RoundedCornerShape(100.dp)).background(Fg.Gray200).padding(4.dp).selectableGroup(),
+        modifier.fillMaxWidth().clip(RoundedCornerShape(100.dp)).background(Hc.Line).padding(4.dp).selectableGroup(),
         horizontalArrangement = Arrangement.spacedBy(4.dp),
     ) {
         SwitchItem("Pengajuan saya", null, view == RequestsView.Mine, Modifier.weight(1f)) { onView(RequestsView.Mine) }
@@ -341,8 +338,9 @@ private fun SwitchItem(label: String, count: Int?, selected: Boolean, modifier: 
     Row(
         modifier
             .heightIn(min = 44.dp)
+            .then(if (selected) Modifier.softShadow(RoundedCornerShape(100.dp), 4.dp) else Modifier)
             .clip(RoundedCornerShape(100.dp))
-            .background(if (selected) Color.White else Color.Transparent)
+            .background(if (selected) Hc.Surface else Color.Transparent)
             .selectable(selected = selected, role = Role.Tab, onClick = onClick)
             .padding(horizontal = 12.dp),
         horizontalArrangement = Arrangement.Center,
@@ -356,14 +354,14 @@ private fun SwitchItem(label: String, count: Int?, selected: Boolean, modifier: 
     }
 }
 
-/** Angka kecil berlatar oranye tua, kontras cukup dengan teks putih. */
+/** Angka kecil berlatar merah, kontras cukup dengan teks putih (4,9:1). */
 @Composable
 fun CountPill(count: Int, modifier: Modifier = Modifier) {
     Box(
-        modifier.heightIn(min = 18.dp).clip(RoundedCornerShape(100.dp)).background(Tone.Warning.content).padding(horizontal = 6.dp),
+        modifier.heightIn(min = 20.dp).clip(RoundedCornerShape(100.dp)).background(Hc.Danger).padding(horizontal = 6.dp),
         contentAlignment = Alignment.Center,
     ) {
-        Text(if (count > 99) "99+" else "$count", style = figmaText(11, FontWeight.SemiBold, Color.White).copy(lineHeight = 16.sp))
+        Text(if (count > 99) "99+" else "$count", style = figmaText(11, FontWeight.Bold, Color.White).copy(lineHeight = 16.sp))
     }
 }
 
@@ -383,10 +381,7 @@ fun progressText(leave: LeaveRequest): String {
 @Composable
 private fun LeaveCard(leave: LeaveRequest, now: ZonedDateTime, onClick: () -> Unit, modifier: Modifier) {
     val (status, tone) = requestStatusLabel(leave.status)
-    FigmaCard(
-        modifier.clip(RoundedCornerShape(8.dp)).clickable(onClickLabel = "Lihat detail", onClick = onClick),
-        gap = 8.dp,
-    ) {
+    FigmaCard(modifier, gap = 8.dp, onClick = onClick, onClickLabel = "Lihat detail") {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             Icon(FigmaIcons.CalendarOutline, contentDescription = null, tint = Fg.Accent, modifier = Modifier.size(16.dp))
             Text(leave.leaveType.name, style = figmaText(13, FontWeight.Medium, Fg.TextSecondary), modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
@@ -395,7 +390,7 @@ private fun LeaveCard(leave: LeaveRequest, now: ZonedDateTime, onClick: () -> Un
         Text(dateRangeLabel(leave.startDate, leave.endDate), style = figmaText(16, FontWeight.SemiBold, Fg.TextStrong, lineHeight = 1.3f))
         Text("${leave.days} hari kerja · diajukan ${timeAgo(leave.createdAt, now)}", style = figmaText(12, color = Fg.TextSecondary))
         Row(
-            Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp)).background(Fg.Gray100).padding(horizontal = 10.dp, vertical = 8.dp),
+            Modifier.fillMaxWidth().padding(top = 4.dp).clip(RoundedCornerShape(12.dp)).background(Hc.Field).padding(horizontal = 12.dp, vertical = 10.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
@@ -410,9 +405,9 @@ private fun LeaveCard(leave: LeaveRequest, now: ZonedDateTime, onClick: () -> Un
 private fun ApprovalCard(item: ApprovalItem, now: ZonedDateTime, onDecide: (Boolean) -> Unit, modifier: Modifier) {
     val s = item.summary
     val name = item.requester.fullName
-    FigmaCard(modifier, top = 16.dp, bottom = 16.dp) {
+    FigmaCard(modifier) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            Avatar(name)
+            Avatar(name, size = 44.dp)
             Column(Modifier.weight(1f)) {
                 Text(name, style = figmaText(14, FontWeight.SemiBold), maxLines = 1, overflow = TextOverflow.Ellipsis)
                 Text(
@@ -498,7 +493,7 @@ private fun TimelineRow(status: String, title: String, subtitle: String?, detail
             if (!last) {
                 Box(
                     Modifier.padding(vertical = 2.dp).width(2.dp).weight(1f).clip(RoundedCornerShape(1.dp))
-                        .background(if (status == "approved" || status == "submitted") Hc.Brand.copy(alpha = 0.5f) else Fg.Gray200),
+                        .background(if (status == "approved" || status == "submitted") Hc.Brand.copy(alpha = 0.45f) else Hc.Line),
                 )
             }
         }
@@ -516,7 +511,7 @@ private fun TimelineRow(status: String, title: String, subtitle: String?, detail
                     if (skipped) note else "“$note”",
                     style = figmaText(13, color = if (skipped) Fg.Gray500 else Fg.TextBody, lineHeight = 1.4f),
                     modifier = Modifier.padding(top = 4.dp).then(
-                        if (skipped) Modifier else Modifier.clip(RoundedCornerShape(8.dp)).background(Fg.Gray100).padding(horizontal = 10.dp, vertical = 6.dp),
+                        if (skipped) Modifier else Modifier.clip(RoundedCornerShape(12.dp)).background(Hc.Field).padding(horizontal = 12.dp, vertical = 8.dp),
                     ),
                 )
             }
@@ -551,7 +546,7 @@ private fun StepMarker(status: String, color: Color) {
 @Composable
 fun LeaveDetailContent(leave: LeaveRequest, requester: String, cancelling: Boolean, onBack: () -> Unit, onCancel: () -> Unit) {
     val (status, tone) = requestStatusLabel(leave.status)
-    Column(Modifier.fillMaxSize().background(Fg.PageProfile)) {
+    Column(Modifier.fillMaxSize().background(Hc.Canvas)) {
         FigmaHeader("Detail pengajuan", onBack)
         Column(
             Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState())
@@ -566,7 +561,7 @@ fun LeaveDetailContent(leave: LeaveRequest, requester: String, cancelling: Boole
                 }
                 Text(dateRangeLabel(leave.startDate, leave.endDate), style = figmaText(20, FontWeight.SemiBold, Fg.TextStrong, lineHeight = 1.3f))
                 Text("${leave.days} hari kerja", style = figmaText(13, color = Fg.TextSecondary))
-                Box(Modifier.fillMaxWidth().padding(vertical = 4.dp).height(1.dp).background(Fg.Gray200))
+                Box(Modifier.fillMaxWidth().padding(vertical = 4.dp).height(1.dp).background(Hc.Line))
                 DetailValue("Alasan", leave.reason)
                 DetailValue("Diajukan", wibDateTime(leave.createdAt))
                 if (leave.decidedAt != null) DetailValue(if (leave.status == "cancelled") "Dibatalkan" else "Diputuskan", wibDateTime(leave.decidedAt))
@@ -744,7 +739,7 @@ private fun InfoBox(text: String, warning: Boolean) {
     Text(
         text,
         style = figmaText(12, FontWeight.Medium, tone.content, lineHeight = 1.45f),
-        modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp)).background(tone.container).padding(horizontal = 12.dp, vertical = 10.dp),
+        modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(tone.container).padding(horizontal = 14.dp, vertical = 12.dp),
     )
 }
 
@@ -760,9 +755,9 @@ private fun TypeOption(type: LeaveType, selected: Boolean, onClick: () -> Unit) 
         Modifier
             .fillMaxWidth()
             .heightIn(min = 52.dp)
-            .clip(RoundedCornerShape(10.dp))
-            .background(if (selected) Hc.BrandSoft else Color.White)
-            .border(if (selected) 1.5.dp else 1.dp, if (selected) Hc.Brand else Fg.Gray300, RoundedCornerShape(10.dp))
+            .clip(RoundedCornerShape(14.dp))
+            .background(if (selected) Hc.BrandSoft else Hc.Field)
+            .then(if (selected) Modifier.border(2.dp, Hc.Brand, RoundedCornerShape(14.dp)) else Modifier)
             .selectable(selected = selected, role = Role.RadioButton, onClick = onClick)
             .padding(horizontal = 12.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -918,7 +913,7 @@ fun DecisionContent(
             modifier = Modifier.semantics { heading() },
         )
         Column(
-            Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).background(Fg.Gray100).border(1.dp, Fg.Gray200, RoundedCornerShape(10.dp)).padding(12.dp),
+            Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(Hc.Field).padding(14.dp),
             verticalArrangement = Arrangement.spacedBy(2.dp),
         ) {
             Text(listOfNotNull(requestKindLabel(item.requestType), s.leaveType).joinToString(" · "), style = figmaText(12, FontWeight.Medium, Fg.TextSecondary))

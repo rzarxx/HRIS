@@ -1,6 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <color name="brand">#15803D</color>
-    <color name="brand_deep">#0A4A23</color>
-    <color name="ic_launcher_background">#15803D</color>
+    <!-- Sama dengan Hc.Canvas: latar jendela pertama agar tidak ada kilatan warna sebelum layar pembuka. -->
+    <color name="page">#F7F8FA</color>
+    <!-- Ikon peluncur: hijau terang dengan tanda gelap, seperti tombol utama (kontras 6,5:1). -->
+    <color name="ic_launcher_background">#22C55E</color>
+    <color name="ic_launcher_foreground">#052E16</color>
 </resources>

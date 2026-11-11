@@ -25,6 +25,10 @@ selfie (D42), jadi aplikasi tidak memuat model pengenalan wajah. Play Integrity 
   server mencatat waktu buka sekali dan menolak "Sudah baca" yang terlalu cepat (D27).
 - Tarik ke bawah untuk memuat ulang di Beranda, Presensi, dan Pengajuan; kerangka abu-abu saat memuat; getar
   singkat saat presensi, pengajuan, atau keputusan berhasil; pesan singkat (snackbar) hasil tindakan.
+- Tampilan Clean Minimalist / Soft UI (DESIGN.md §8): latar terang, kartu putih dengan bayangan lembut, hijau terang
+  dengan teks gelap, huruf Plus Jakarta Sans (dibundel, lisensi OFL di `OFL-PlusJakartaSans.txt`). Beranda berisi
+  satu kartu presensi hari ini dengan satu tombol besar dan akses cepat ke Riwayat, Cuti dan izin, Pengumuman, dan
+  Slip ubar.
 - Presensi: total jam kerja hari ini dan bulan berjalan, tombol absen masuk/pulang, dan riwayat 31 hari terakhir.
 - Profil: kontak, data pribadi (hanya baca), status HP dan wajah, ganti kata sandi
   (`POST /v1/auth/password/change`), versi aplikasi, dan keluar. Layar Profil, Data pribadi, Ganti kata sandi,

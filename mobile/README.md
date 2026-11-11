@@ -14,7 +14,7 @@ selfie (D42), jadi aplikasi tidak memuat model pengenalan wajah. Play Integrity 
 - Absen masuk dan pulang: challenge, gerakan liveness, selfie, lokasi GPS, kirim multipart.
 - Navigasi bawah lima menu sesuai MASTER.md §10.2 dan UI kit Figma: Beranda, Presensi, Pengajuan, Slip upah,
   dan Profil. Slip upah masih menampilkan "Segera tersedia" sampai API Fase 5 ada.
-- Pengajuan cuti/izin: saldo per jenis (UU, diatur SDM, atau tanpa saldo), riwayat dengan status, detail dengan
+- Pengajuan cuti/izin: hak cuti per jenis (UU, diatur SDM, atau tidak mengurangi hak cuti), riwayat dengan status, detail dengan
   timeline persetujuan, batalkan selama menunggu, dan form di lembar bawah dengan pemilih rentang tanggal.
   Galat dari server tampil di bawah kolomnya.
 - Persetujuan untuk akun dengan izin `approval:act` (kepala subdiv, kepala divisi, SDM): antrean di tab

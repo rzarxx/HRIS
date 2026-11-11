@@ -85,8 +85,8 @@ export function ErrorState({ message, onRetry }: { message: string; onRetry?: ()
   );
 }
 
-/** Halaman menu yang dijadwalkan di fase berikutnya (ROADMAP.md). */
-export function ComingSoon({ title, phase, items }: { title: string; phase: string; items: string[] }) {
+/** Halaman menu yang fiturnya belum tersedia. Tanpa tanggal agar tidak menjadi janji jadwal. */
+export function ComingSoon({ title, items }: { title: string; items: string[] }) {
   return (
     <>
       <PageHeader title={title} />
@@ -96,7 +96,7 @@ export function ComingSoon({ title, phase, items }: { title: string; phase: stri
             <Construction className="size-6 text-primary-600" aria-hidden />
           </div>
           <p className="text-base font-semibold text-slate-900">Dalam pengembangan</p>
-          <p className="mt-1 text-sm text-slate-500">Modul ini dijadwalkan pada {phase}.</p>
+          <p className="mt-1 text-sm text-slate-500">Modul ini sedang disiapkan. Rencana fiturnya:</p>
           <ul className="mt-5 grid grid-cols-1 gap-2 text-left text-sm text-slate-600 sm:grid-cols-2">
             {items.map((i) => (
               <li key={i} className="flex items-start gap-2">

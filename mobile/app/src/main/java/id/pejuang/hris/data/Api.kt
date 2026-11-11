@@ -84,6 +84,9 @@ interface HrisApi {
     @POST("v1/approvals/{id}/reject")
     suspend fun reject(@Path("id") id: String, @Body body: ApprovalDecision): DataResponse<ApprovalItem>
 
+    @GET("v1/branding")
+    suspend fun branding(): DataResponse<Branding>
+
     @GET("v1/announcements/active")
     suspend fun announcements(): DataResponse<List<MyAnnouncement>>
 

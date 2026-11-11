@@ -20,7 +20,7 @@ const val PURPOSE_FACE_ENROLL = "face_enroll"
 /** Ringkasan hasil presensi untuk layar hasil. */
 data class ClockOutcome(val title: String, val detail: String, val needsReview: Boolean)
 
-class Repository(private val session: Session) {
+class Repository(private val session: Session, val prefs: AppPrefs) {
     @Volatile
     private var client: ApiClient? = null
 
@@ -186,6 +186,20 @@ class Repository(private val session: Session) {
 
     /** Menandai sudah dibaca; ditolak READ_TOO_SOON bila jeda baca belum lewat. */
     suspend fun readAnnouncement(id: String): MyAnnouncement = call { readAnnouncement(id).data }
+
+    /**
+     * Memuat footer dari server dan menyimpannya untuk tampilan luring. Gagal dimuat tidak masalah:
+     * footer terakhir atau teks bawaan tetap tampil.
+     */
+    suspend fun refreshBranding() {
+        try {
+            prefs.saveFooter(call { branding().data }.footer)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            // Abaikan: bukan fitur inti.
+        }
+    }
 
     /** Mengganti kata sandi sendiri. Server mencabut sesi lain, sesi HP ini tetap aktif. */
     suspend fun changePassword(current: String, next: String) {

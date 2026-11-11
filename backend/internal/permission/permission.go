@@ -59,6 +59,8 @@ const (
 	DashboardRead      = "dashboard:read"
 	ApprovalFlowManage = "approval_flow:manage"
 	AuditRead          = "audit:read"
+	// Pengaturan aplikasi (footer, SMTP): hanya super admin.
+	SettingsManage = "settings:manage"
 )
 
 // RequiresMFA menjawab role mana yang wajib memakai MFA (§5.2, D25).
@@ -113,6 +115,7 @@ var extra = map[string]map[string]Scope{
 		DashboardRead:      ScopeAll,
 		ApprovalFlowManage: ScopeAll,
 		AuditRead:          ScopeAll,
+		SettingsManage:     ScopeAll,
 	},
 	RoleSubdiv: {
 		EmployeeRead:    ScopeSubdivision,

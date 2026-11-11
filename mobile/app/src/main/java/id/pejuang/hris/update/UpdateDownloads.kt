@@ -37,7 +37,7 @@ class UpdateDownloads(private val context: Context) {
         if (!target.parentFile!!.exists() && !target.parentFile!!.mkdirs()) throw IOException("Penyimpanan unduhan tidak tersedia")
         if (target.exists() && !target.delete()) throw IOException("Tidak dapat membersihkan unduhan lama")
         val request = DownloadManager.Request(Uri.parse(info.url))
-            .setTitle("Pembaruan HRIS Pejuang")
+            .setTitle("Pembaruan HRIS Yayasan Al Bahjah")
             .setDescription("Mengunduh ${info.tag}")
             .setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
             .setDestinationInExternalFilesDir(context, null, "updates/release.apk")

@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Suspense } from "react";
 import { Logo } from "@/components/logo";
+import { SiteFooter } from "@/components/shell/site-footer";
 import { ActivationForm } from "./activation-form";
 
 export const metadata: Metadata = { title: "Aktivasi akun", robots: { index: false } };
@@ -17,6 +18,7 @@ export default function ActivationPage() {
             <ActivationForm />
           </Suspense>
         </div>
+        <SiteFooter className="mt-2" />
       </div>
     </main>
   );

@@ -8,6 +8,7 @@ import { api } from "@/lib/api-client";
 import { useMe } from "@/lib/hooks";
 import { Header } from "./header";
 import { Sidebar } from "./sidebar";
+import { SiteFooter } from "./site-footer";
 
 const IDLE_LIMIT_MS = 30 * 60 * 1000; // MASTER.md §5.8
 
@@ -79,9 +80,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         </div>
       )}
 
-      <div className="lg:pl-64">
+      <div className="flex min-h-screen flex-col lg:pl-64">
         <Header onMenu={() => setMobileOpen(true)} />
-        <main className="mx-auto max-w-7xl p-4 sm:p-6">{children}</main>
+        <main className="mx-auto w-full max-w-7xl flex-1 p-4 sm:p-6">{children}</main>
+        <SiteFooter className="border-t border-slate-200" />
       </div>
     </div>
   );

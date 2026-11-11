@@ -1,4 +1,4 @@
-# Aplikasi Android HRIS Pejuang
+# Aplikasi Android HRIS Yayasan Al Bahjah
 
 Aplikasi untuk Pejuang: login, absen dengan lokasi dan wajah, riwayat, pengajuan, dan slip upah. Acuannya tetap
 `MASTER.md` (§10.2 Mobile, §5.9 Kontrol Mobile, F5 Login Mobile). Stack: Kotlin, Jetpack Compose, Retrofit/OkHttp,
@@ -29,6 +29,11 @@ selfie (D42), jadi aplikasi tidak memuat model pengenalan wajah. Play Integrity 
   dengan teks gelap, huruf Plus Jakarta Sans (dibundel, lisensi OFL di `OFL-PlusJakartaSans.txt`). Beranda berisi
   satu kartu presensi hari ini dengan satu tombol besar dan akses cepat ke Riwayat, Cuti dan izin, Pengumuman, dan
   Slip ubar.
+- Nama aplikasi **HRIS Yayasan Al Bahjah** dengan ikon logo PUTI Al Bahjah (dari `logoputi.png`, ikon adaptif berlatar
+  putih). Footer "© {tahun} PUTI (Pusat Teknologi Informasi) Al Bahjah" di Beranda, Profil, dan layar masuk; teksnya
+  diambil dari `/v1/branding` (diatur super admin di web) dan disimpan untuk tampilan luring.
+- Ukuran huruf bisa dipilih di Profil → Ukuran huruf (Kecil, Normal, Besar, Sangat besar), tersimpan di HP dan
+  dikalikan dengan ukuran huruf sistem.
 - Presensi: total jam kerja hari ini dan bulan berjalan, tombol absen masuk/pulang, dan riwayat 31 hari terakhir.
 - Profil: kontak, data pribadi (hanya baca), status HP dan wajah, ganti kata sandi
   (`POST /v1/auth/password/change`), versi aplikasi, dan keluar. Layar Profil, Data pribadi, Ganti kata sandi,

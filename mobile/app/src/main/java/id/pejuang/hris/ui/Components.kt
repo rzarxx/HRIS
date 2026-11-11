@@ -8,7 +8,7 @@ import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
-import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -54,15 +54,12 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.Path
-import androidx.compose.ui.graphics.StrokeCap
-import androidx.compose.ui.graphics.StrokeJoin
-import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.res.painterResource
+import id.pejuang.hris.R
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
@@ -83,37 +80,10 @@ fun StatusBarIcons(dark: Boolean) {
     }
 }
 
-/** Logo aplikasi: bingkai pindai wajah dengan tanda centang, sama dengan ikon peluncur. */
+/** Logo PUTI Al Bahjah, dipakai di layar pembuka dan layar masuk. */
 @Composable
-fun LogoMark(size: Dp = 56.dp, background: Color = Hc.Primary, foreground: Color = Hc.OnPrimary) {
-    Canvas(Modifier.size(size)) {
-        val s = this.size.minDimension
-        drawRoundRect(background, cornerRadius = CornerRadius(s * 0.28f))
-        val stroke = Stroke(width = s * 0.075f, cap = StrokeCap.Round, join = StrokeJoin.Round)
-        val a = s * 0.24f
-        val b = s * 0.76f
-        val arm = s * 0.13f
-        val r = s * 0.07f
-        fun corner(x: Float, y: Float, dx: Float, dy: Float) {
-            val p = Path().apply {
-                moveTo(x, y + dy * arm)
-                lineTo(x, y + dy * r)
-                quadraticTo(x, y, x + dx * r, y)
-                lineTo(x + dx * arm, y)
-            }
-            drawPath(p, foreground, style = stroke)
-        }
-        corner(a, a, 1f, 1f)
-        corner(b, a, -1f, 1f)
-        corner(b, b, -1f, -1f)
-        corner(a, b, 1f, -1f)
-        val check = Path().apply {
-            moveTo(s * 0.37f, s * 0.51f)
-            lineTo(s * 0.46f, s * 0.60f)
-            lineTo(s * 0.64f, s * 0.42f)
-        }
-        drawPath(check, foreground, style = Stroke(width = s * 0.085f, cap = StrokeCap.Round, join = StrokeJoin.Round))
-    }
+fun AppLogo(size: Dp = 64.dp) {
+    Image(painterResource(R.drawable.logo_albahjah), contentDescription = "Logo PUTI Al Bahjah", modifier = Modifier.size(size))
 }
 
 /** Bilah judul putih untuk layar turunan. */
@@ -434,5 +404,16 @@ fun RefreshBox(refreshing: Boolean, onRefresh: () -> Unit, modifier: Modifier = 
 fun Avatar(name: String, size: Dp = 40.dp) {
     Box(Modifier.size(size).clip(CircleShape).background(Hc.BrandSoft), contentAlignment = Alignment.Center) {
         Text(initials(name), style = MaterialTheme.typography.titleSmall, color = Hc.BrandDeep)
+    }
+}
+
+/** Footer aplikasi: teks dari super admin (lewat /v1/branding), atau teks bawaan selama belum termuat. */
+@Composable
+fun AppFooter(text: String?, modifier: Modifier = Modifier, version: String? = null) {
+    Column(modifier.fillMaxWidth().padding(vertical = 8.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+        Text(text ?: defaultFooter(), style = MaterialTheme.typography.labelSmall, color = Fg.Gray500, textAlign = TextAlign.Center)
+        if (version != null) {
+            Text("Versi $version", style = MaterialTheme.typography.labelSmall, color = Fg.Gray500, textAlign = TextAlign.Center)
+        }
     }
 }

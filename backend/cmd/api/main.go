@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/rzarxx/HRIS/backend/internal/announcement"
+	"github.com/rzarxx/HRIS/backend/internal/settings"
 	"github.com/rzarxx/HRIS/backend/internal/approval"
 	"github.com/rzarxx/HRIS/backend/internal/attendance"
 	"github.com/rzarxx/HRIS/backend/internal/auth"
@@ -111,6 +112,7 @@ func run() error {
 		Org:          org.NewHandler(org.NewService(pool)),
 		Employee:     employee.NewHandler(employee.NewService(pool, authSvc.ResolveScope)),
 		Announcement: announcement.NewHandler(announcement.NewService(pool)),
+		Settings:     settings.NewHandler(settings.NewService(pool)),
 		Dashboard:    dashboard.NewHandler(q),
 		Report:       report.NewHandler(report.NewService(q, authSvc.ResolveScope)),
 		Location:     location.NewHandler(location.NewService(pool)),

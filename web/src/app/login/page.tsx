@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Suspense } from "react";
 import { Logo } from "@/components/logo";
+import { SiteFooter } from "@/components/shell/site-footer";
 import { LoginForm } from "./login-form";
 
 export const metadata: Metadata = { title: "Masuk" };
@@ -19,7 +20,7 @@ export default function LoginPage() {
             <LoginForm />
           </Suspense>
         </div>
-        <p className="mt-6 text-center text-xs text-slate-400">© 2026 HRIS Pejuang</p>
+        <SiteFooter className="mt-2" />
       </div>
     </main>
   );

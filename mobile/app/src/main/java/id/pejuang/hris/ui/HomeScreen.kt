@@ -68,6 +68,7 @@ fun HomeContent(
     onAnnouncement: (MyAnnouncement) -> Unit = {},
     onAnnouncements: () -> Unit = {},
     onPayslip: () -> Unit = {},
+    footer: String? = null,
 ) {
     StatusBarIcons(dark = true)
     val ready = me.deviceStatus == "approved" && !me.mustChangePassword
@@ -134,13 +135,7 @@ fun HomeContent(
                 }
             }
         }
-        Text(
-            "HRIS Pejuang · versi ${BuildConfig.VERSION_NAME}",
-            style = MaterialTheme.typography.labelSmall,
-            color = Fg.Gray500,
-            modifier = Modifier.fillMaxWidth(),
-            textAlign = TextAlign.Center,
-        )
+        AppFooter(footer, version = BuildConfig.VERSION_NAME)
       }
     }
 }

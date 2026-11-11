@@ -20,6 +20,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
@@ -44,6 +46,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import id.pejuang.hris.data.FontSize
 import id.pejuang.hris.data.Me
 
 /** Melarang tangkapan layar selama layar berisi data pribadi tampil (MASTER.md §10.2). */
@@ -69,6 +72,9 @@ fun ProfileContent(
     onCheckUpdate: (() -> Unit)?,
     onLogout: () -> Unit,
     modifier: Modifier = Modifier,
+    fontSize: FontSize = FontSize.Normal,
+    onFontSize: () -> Unit = {},
+    footer: String? = null,
 ) {
     StatusBarIcons(dark = true)
     val verified = me.deviceStatus == "approved" && me.faceEnrolled
@@ -114,12 +120,15 @@ fun ProfileContent(
                 ProfileRow(HrisIcons.FaceScan, "Data wajah", trailing = if (me.faceEnrolled) "Terdaftar" else "Belum terdaftar")
             }
             ProfileGroup("Pengaturan") {
+                ProfileRow(FigmaIcons.Keyboard, "Ukuran huruf", onClick = onFontSize, trailing = fontSize.label)
+                RowDivider()
                 ProfileRow(FigmaIcons.Setting, "Ganti kata sandi", onClick = onChangePassword, trailing = if (me.mustChangePassword) "Wajib" else null)
                 RowDivider()
                 ProfileRow(FigmaIcons.Scroll, "Versi aplikasi", onClick = onCheckUpdate, trailing = "v$version")
                 RowDivider()
                 ProfileRow(FigmaIcons.Logout, "Keluar", onClick = onLogout, danger = true)
             }
+            AppFooter(footer)
         }
     }
 }
@@ -272,3 +281,69 @@ fun ChangePasswordContent(
     }
 }
 
+
+/**
+ * Pilihan ukuran huruf aplikasi. Perubahan langsung berlaku di seluruh aplikasi dan tersimpan di HP
+ * ini; dikalikan dengan ukuran huruf sistem HP.
+ */
+@Composable
+fun FontSizeContent(current: FontSize, onPick: (FontSize) -> Unit, onBack: () -> Unit) {
+    Column(Modifier.fillMaxSize().background(Hc.Canvas)) {
+        FigmaHeader("Ukuran huruf", onBack)
+        Column(
+            Modifier.weight(1f).verticalScroll(rememberScrollState()).navigationBarsPadding().padding(horizontal = 16.dp, vertical = 12.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            Column(ContentWidth.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                FigmaCard(gap = 8.dp) {
+                    Text("Pratinjau", style = figmaText(12, FontWeight.SemiBold, Hc.InkSoft))
+                    Text("Presensi hari ini", style = figmaText(16, FontWeight.SemiBold))
+                    Text(
+                        "Tulisan di seluruh aplikasi mengikuti ukuran ini. Pilih yang paling nyaman dibaca.",
+                        style = figmaText(14, color = Hc.InkSoft, lineHeight = 1.5f),
+                    )
+                }
+                Column(Modifier.selectableGroup(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    FontSize.entries.forEach { size ->
+                        FontSizeOption(size, size == current) { onPick(size) }
+                    }
+                }
+                Text(
+                    "Disimpan di HP ini. Ukuran huruf di pengaturan HP tetap ikut berlaku.",
+                    style = figmaText(12, color = Hc.InkSoft, lineHeight = 1.4f),
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun FontSizeOption(size: FontSize, selected: Boolean, onClick: () -> Unit) {
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .heightIn(min = 64.dp)
+            .softShadow(RoundedCornerShape(18.dp), 6.dp)
+            .clip(RoundedCornerShape(18.dp))
+            .background(if (selected) Hc.BrandSoft else Hc.Surface)
+            .then(if (selected) Modifier.border(2.dp, Hc.Brand, RoundedCornerShape(18.dp)) else Modifier)
+            .selectable(selected = selected, role = Role.RadioButton, onClick = onClick)
+            .padding(horizontal = 16.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(14.dp),
+    ) {
+        // Contoh huruf memakai ukuran tetap agar perbedaan antarpilihan terlihat.
+        Box(Modifier.size(44.dp), contentAlignment = Alignment.Center) {
+            Text("Aa", style = figmaText(10, FontWeight.Bold, if (selected) Hc.BrandDeep else Hc.Ink).copy(fontSize = (16 * size.scale).sp), maxLines = 1)
+        }
+        Text(size.label, style = figmaText(15, FontWeight.Medium, Hc.Ink), modifier = Modifier.weight(1f))
+        Box(
+            Modifier.size(22.dp).clip(CircleShape).border(2.dp, if (selected) Hc.Brand else Fg.Gray300, CircleShape),
+            contentAlignment = Alignment.Center,
+        ) {
+            if (selected) Box(Modifier.size(11.dp).clip(CircleShape).background(Hc.Brand))
+        }
+    }
+}

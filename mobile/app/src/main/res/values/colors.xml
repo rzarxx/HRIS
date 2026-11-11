@@ -2,7 +2,6 @@
 <resources>
     <!-- Sama dengan Hc.Canvas: latar jendela pertama agar tidak ada kilatan warna sebelum layar pembuka. -->
     <color name="page">#F7F8FA</color>
-    <!-- Ikon peluncur: hijau terang dengan tanda gelap, seperti tombol utama (kontras 6,5:1). -->
-    <color name="ic_launcher_background">#22C55E</color>
-    <color name="ic_launcher_foreground">#052E16</color>
+    <!-- Latar ikon peluncur di belakang logo PUTI Al Bahjah. -->
+    <color name="ic_launcher_background">#FFFFFF</color>
 </resources>

@@ -30,6 +30,7 @@ import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.rememberCoroutineScope
@@ -75,7 +76,10 @@ fun LoginScreen(repository: Repository, crash: String?, onDismissCrash: () -> Un
     var busy by rememberSaveable { mutableStateOf(false) }
     var error by rememberSaveable { mutableStateOf<String?>(null) }
 
+    // Footer bisa diubah super admin; dimuat tanpa login dan disimpan untuk tampilan luring.
+    LaunchedEffect(Unit) { repository.refreshBranding() }
     LoginContent(
+        footer = repository.prefs.footer,
         form = LoginForm(server, email, password, mfa, askMfa, busy, error),
         showServer = BuildConfig.SERVER_EDITABLE,
         version = BuildConfig.VERSION_NAME,
@@ -119,6 +123,7 @@ fun LoginContent(
     onPassword: (String) -> Unit,
     onMfa: (String) -> Unit,
     onSubmit: () -> Unit,
+    footer: String? = null,
 ) {
     StatusBarIcons(dark = true)
     var showPassword by rememberSaveable { mutableStateOf(false) }
@@ -139,12 +144,12 @@ fun LoginContent(
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             Column {
-                LogoMark(size = 64.dp)
+                AppLogo(size = 72.dp)
                 Spacer(Modifier.height(28.dp))
                 Text("Selamat datang", style = MaterialTheme.typography.headlineMedium, color = Hc.Ink)
                 Spacer(Modifier.height(6.dp))
                 Text(
-                    "Masuk ke HRIS Pejuang untuk presensi, pengajuan, dan slip ubar.",
+                    "Masuk ke HRIS Yayasan Al Bahjah untuk presensi, pengajuan, dan slip ubar.",
                     style = MaterialTheme.typography.bodyLarge,
                     color = Hc.InkSoft,
                 )
@@ -224,8 +229,9 @@ fun LoginContent(
                 style = MaterialTheme.typography.labelSmall,
                 color = Fg.Gray500,
                 textAlign = TextAlign.Center,
-                modifier = Modifier.fillMaxWidth().navigationBarsPadding().padding(top = 8.dp),
+                modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
             )
+            AppFooter(footer, Modifier.navigationBarsPadding())
         }
     }
     StatusBarScrim(Hc.Surface)

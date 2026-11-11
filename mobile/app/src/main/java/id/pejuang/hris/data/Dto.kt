@@ -299,6 +299,15 @@ data class MyAnnouncement(
     @SerialName("read_wait_seconds") val readWaitSeconds: Int = 0,
 )
 
+// schema: Branding
+@Serializable
+data class Branding(
+    @SerialName("footer") val footer: String,
+    @SerialName("footer_template") val footerTemplate: String = "",
+    @SerialName("is_default") val isDefault: Boolean = true,
+    @SerialName("updated_at") val updatedAt: String? = null,
+)
+
 // schema: ApprovalDecision
 @Serializable
 data class ApprovalDecision(

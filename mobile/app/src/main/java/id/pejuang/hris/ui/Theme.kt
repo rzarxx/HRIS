@@ -12,14 +12,17 @@ import androidx.compose.material3.Shapes
 import androidx.compose.material3.Typography
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -135,7 +138,14 @@ private val shapes = Shapes(
     extraLarge = RoundedCornerShape(28.dp),
 )
 
+/**
+ * Tema aplikasi. [fontScale] adalah ukuran huruf pilihan pengguna di Profil, dikalikan dengan
+ * ukuran huruf sistem HP sehingga pengaturan aksesibilitas HP tetap berlaku.
+ */
 @Composable
-fun HrisTheme(content: @Composable () -> Unit) {
-    MaterialTheme(colorScheme = colors, typography = typography, shapes = shapes, content = content)
+fun HrisTheme(fontScale: Float = 1f, content: @Composable () -> Unit) {
+    val base = LocalDensity.current
+    CompositionLocalProvider(LocalDensity provides Density(base.density, base.fontScale * fontScale)) {
+        MaterialTheme(colorScheme = colors, typography = typography, shapes = shapes, content = content)
+    }
 }

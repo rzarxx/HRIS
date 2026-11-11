@@ -181,6 +181,7 @@ Role `superadmin` (D34) adalah role tertinggi dan tidak ditulis sebagai kolom di
 - SDM tetap bisa menyetujui perangkat baru super admin, karena perangkat sendiri harus disetujui peninjau lain. Bila HP super admin hilang, super admin sendiri yang mencabutnya; SDM tidak bisa menggantikan.
 - MFA wajib. Role diberikan lewat `hris-superadmin grant --email ...` di server, pada akun Pejuang biasa. Bila akun belum aktif, tautan aktivasi tampil di terminal, karena SMTP baru bisa diatur setelah akun itu ada.
 - Penampil audit yang dibuat nanti wajib menyembunyikan nilai `employee.salary_changed` dari super admin.
+- `settings:manage` (pengaturan aplikasi: footer web dan aplikasi, SMTP) **hanya milik super admin**, tidak dimiliki SDM.
 
 | Permission key | pejuang | subdiv | kadiv | sdm |
 |---|---|---|---|---|
@@ -505,6 +506,7 @@ DDL dasar ada di `QUERY.sql`; perubahan di **Lampiran A** (yang berlaku). Beriku
 | `employees` | `id`, `nip`, `full_name`, `email`, `phone`, `subdivision_id`, `position`, `join_date`, `exit_date`, `base_salary`, `default_shift_id`, `status`, `deleted_at` | Soft delete |
 | `users` | `id`, `employee_id`, `email`, `password_hash`, `role`, `is_active`, `failed_login_count`, `locked_until`, `must_change_password` | 1:1 employee |
 | `user_mfa` | `user_id`, `secret_enc`, `enabled_at`, `recovery_hashes` | |
+| `app_settings` | `key`, `value`, `updated_by`, `updated_at` | Kunci-nilai; `footer_template` untuk footer web dan aplikasi, tanpa baris berarti teks bawaan |
 | `mail_settings` | `host`, `port`, `username`, `password_enc`, `key_id`, `from_address`, `from_name`, `verified_at`, `updated_by` | Satu baris aktif, D30 |
 | `user_invites` | `id`, `user_id`, `purpose` (`activation`/`password_reset`/`email_change`), `token_hash`, `expires_at`, `used_at` | D30 |
 | `sessions` | `id`, `user_id`, `client`, `device_id`, `refresh_hash`, `prev_refresh_hash`, `idle_expires_at`, `absolute_expires_at`, `revoked_at` | |
@@ -721,6 +723,8 @@ Setiap `code` baru wajib ditambahkan di tabel ini.
 | GET, PUT | `/v1/admin/employees/{id}/locations` | `employee:write` |
 | GET, POST | `/v1/admin/employees/{id}/work-arrangements` | `employee:write` |
 | DELETE | `/v1/admin/employees/{id}/work-arrangements/{arrangement_id}` | `employee:write` |
+| GET | `/v1/branding` | Tanpa login. Footer jadi (`{tahun}` diganti tahun berjalan WIB) untuk layar masuk, web, dan aplikasi |
+| GET, PUT | `/v1/admin/settings/footer` | `settings:manage`. Teks bawaan: `© {tahun} PUTI (Pusat Teknologi Informasi) Al Bahjah` |
 | GET, PUT | `/v1/admin/settings/mail` | `settings:manage` |
 | POST | `/v1/admin/settings/mail/test` | `settings:manage` |
 | GET | `/v1/admin/attendance/review?work_mode=` | `attendance:review` |

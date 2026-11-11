@@ -177,6 +177,24 @@ paths:
         "400": { $ref: "#/components/responses/ValidationFailed" }
         "422": { $ref: "#/components/responses/Error" }
         "429": { $ref: "#/components/responses/Error" }
+  /v1/branding:
+    get:
+      tags: [Sistem]
+      summary: Teks merek dan footer untuk web admin dan aplikasi
+      description: >-
+        Tanpa login, karena footer juga tampil di layar masuk. `footer` sudah jadi dengan `{tahun}` diganti tahun
+        berjalan (WIB); `footer_template` adalah teks yang diatur super admin.
+      security: []
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data: { $ref: "#/components/schemas/Branding" }
   /v1/auth/activate/check:
     post:
       tags: [Auth]
@@ -1581,6 +1599,45 @@ paths:
         "404": { $ref: "#/components/responses/Error" }
         "422": { $ref: "#/components/responses/Error" }
 
+  /v1/admin/settings/footer:
+    get:
+      tags: [Sistem]
+      summary: Footer saat ini
+      description: Permission `settings:manage` (hanya super admin).
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data: { $ref: "#/components/schemas/Branding" }
+    put:
+      tags: [Sistem]
+      summary: Ubah footer web admin dan aplikasi
+      description: >-
+        Permission `settings:manage` (hanya super admin). Teks murni satu baris, paling banyak 200 karakter; `{tahun}`
+        diganti tahun berjalan. Null atau kosong mengembalikan teks bawaan. Dicatat sebagai `settings.changed`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/FooterInput" }
+            example:
+              footer_template: "© {tahun} PUTI (Pusat Teknologi Informasi) Al Bahjah"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data: { $ref: "#/components/schemas/Branding" }
+        "400": { $ref: "#/components/responses/ValidationFailed" }
   /v1/admin/dashboard/summary:
     get:
       tags: [Dashboard]
@@ -2136,6 +2193,7 @@ components:
         - "dashboard:read"
         - "approval_flow:manage"
         - "audit:read"
+        - "settings:manage"
     EmployeeStatus:
       type: string
       enum: [active, inactive]
@@ -2441,6 +2499,18 @@ components:
         audience_count: { type: integer, description: Pejuang aktif di divisi tujuan, atau semua bila division_id kosong }
         opened_count: { type: integer, description: Sasaran yang sudah membuka isi di aplikasi }
         read_count: { type: integer, description: Sasaran yang sudah menekan "Sudah baca" }
+    Branding:
+      type: object
+      required: [footer, footer_template, is_default, updated_at]
+      properties:
+        footer: { type: string, description: Footer jadi, tahun sudah diganti, mis. "© 2026 PUTI (Pusat Teknologi Informasi) Al Bahjah" }
+        footer_template: { type: string, description: "Teks yang diatur; {tahun} diganti tahun berjalan (WIB)" }
+        is_default: { type: boolean, description: True bila super admin belum mengubah footer }
+        updated_at: { type: string, format: date-time, nullable: true }
+    FooterInput:
+      type: object
+      properties:
+        footer_template: { type: string, maxLength: 200, nullable: true, description: "Null atau kosong mengembalikan teks bawaan" }
     MyAnnouncement:
       type: object
       description: Pengumuman yang sedang tayang untuk Pejuang yang masuk, beserta status bacanya

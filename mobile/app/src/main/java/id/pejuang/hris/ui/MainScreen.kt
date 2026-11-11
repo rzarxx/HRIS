@@ -36,6 +36,7 @@ import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.unit.dp
 import id.pejuang.hris.BuildConfig
 import id.pejuang.hris.data.AttendanceRecord
+import id.pejuang.hris.data.FontSize
 import id.pejuang.hris.data.Me
 import id.pejuang.hris.data.MyAnnouncement
 import id.pejuang.hris.data.Repository
@@ -45,7 +46,7 @@ import kotlinx.coroutines.launch
 import java.time.ZonedDateTime
 
 /** Halaman di atas tab yang dibuka dari Profil. */
-private enum class SubPage { PersonalData, Password }
+private enum class SubPage { PersonalData, Password, FontSize }
 
 /**
  * Kerangka aplikasi setelah masuk: memuat profil dan presensi sekali, lalu menampilkan lima tab
@@ -145,6 +146,11 @@ fun MainScreen(
             ChangePasswordScreen(repository, onBack = { sub = null }, onChanged = { sub = null; reload++ })
             return
         }
+        SubPage.FontSize -> {
+            BackHandler { sub = null }
+            FontSizeContent(repository.prefs.fontSize, onPick = repository.prefs::updateFontSize, onBack = { sub = null })
+            return
+        }
         null -> Unit
     }
 
@@ -154,6 +160,7 @@ fun MainScreen(
     LaunchedEffect(reload, current.employeeId) {
         requests.refresh(canApprove)
         announcements.refresh()
+        repository.refreshBranding()
     }
     LaunchedEffect(tab) { if (tab == MainTab.Requests) requests.refresh(canApprove) }
 
@@ -201,6 +208,9 @@ fun MainScreen(
             onPersonalData = { sub = SubPage.PersonalData },
             onChangePassword = { sub = SubPage.Password },
             onLogout = { askLogout = true },
+            footer = repository.prefs.footer,
+            fontSize = repository.prefs.fontSize,
+            onFontSize = { sub = SubPage.FontSize },
             requests = RequestsUi(
                 data = requests.data,
                 canApprove = canApprove,
@@ -282,6 +292,9 @@ fun MainTabs(
     announcements: List<MyAnnouncement> = emptyList(),
     onAnnouncement: (MyAnnouncement) -> Unit = {},
     onAnnouncements: () -> Unit = {},
+    footer: String? = null,
+    fontSize: FontSize = FontSize.Normal,
+    onFontSize: () -> Unit = {},
 ) {
     // Isi tab menjadi sumber blur; bottom bar kaca mengambang di atasnya.
     val haze = remember { HazeState() }
@@ -311,6 +324,7 @@ fun MainTabs(
                         onAnnouncement = onAnnouncement,
                         onAnnouncements = onAnnouncements,
                         onPayslip = { onTab(MainTab.Payslip) },
+                        footer = footer,
                     )
                 }
                 MainTab.Attendance -> RefreshBox(refreshing && records != null, onRefresh, Modifier.fillMaxSize()) {
@@ -335,6 +349,9 @@ fun MainTabs(
                         onChangePassword = onChangePassword,
                         onCheckUpdate = null,
                         onLogout = onLogout,
+                        fontSize = fontSize,
+                        onFontSize = onFontSize,
+                        footer = footer,
                     )
                 }
             }

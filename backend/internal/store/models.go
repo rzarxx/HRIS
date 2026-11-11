@@ -386,6 +386,13 @@ type AnnouncementRead struct {
 	ReadAt         pgtype.Timestamptz
 }
 
+type AppSetting struct {
+	Key       string
+	Value     string
+	UpdatedBy uuid.NullUUID
+	UpdatedAt pgtype.Timestamptz
+}
+
 type Approval struct {
 	ID                  uuid.UUID
 	RequestType         RequestKind

@@ -390,6 +390,47 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/branding": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Teks merek dan footer untuk web admin dan aplikasi
+         * @description Tanpa login, karena footer juga tampil di layar masuk. `footer` sudah jadi dengan `{tahun}` diganti tahun berjalan (WIB); `footer_template` adalah teks yang diatur super admin.
+         */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data: components["schemas"]["Branding"];
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/auth/activate/check": {
         parameters: {
             query?: never;
@@ -3358,6 +3399,82 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/admin/settings/footer": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Footer saat ini
+         * @description Permission `settings:manage` (hanya super admin).
+         */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data: components["schemas"]["Branding"];
+                        };
+                    };
+                };
+            };
+        };
+        /**
+         * Ubah footer web admin dan aplikasi
+         * @description Permission `settings:manage` (hanya super admin). Teks murni satu baris, paling banyak 200 karakter; `{tahun}` diganti tahun berjalan. Null atau kosong mengembalikan teks bawaan. Dicatat sebagai `settings.changed`.
+         */
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    /**
+                     * @example {
+                     *       "footer_template": "© {tahun} PUTI (Pusat Teknologi Informasi) Al Bahjah"
+                     *     }
+                     */
+                    "application/json": components["schemas"]["FooterInput"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data: components["schemas"]["Branding"];
+                        };
+                    };
+                };
+                400: components["responses"]["ValidationFailed"];
+            };
+        };
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/admin/dashboard/summary": {
         parameters: {
             query?: never;
@@ -4203,7 +4320,7 @@ export interface components {
          * @description Matriks MASTER.md §3.2
          * @enum {string}
          */
-        Permission: "profile:read" | "profile:update" | "org:read" | "org:write" | "employee:read" | "employee:write" | "user:manage" | "user:reset" | "device:register" | "device:review" | "face:enroll" | "face:reset" | "attendance:clock" | "attendance:read" | "attendance:review" | "attendance:report" | "location:manage" | "shift:manage" | "leave:create" | "cash_advance:create" | "transfer:create" | "leave:read" | "cash_advance:read" | "transfer:read" | "approval:act" | "payslip:read" | "payroll:manage" | "payroll:finalize" | "warning:read" | "warning:manage" | "announcement:read" | "announcement:manage" | "dashboard:read" | "approval_flow:manage" | "audit:read";
+        Permission: "profile:read" | "profile:update" | "org:read" | "org:write" | "employee:read" | "employee:write" | "user:manage" | "user:reset" | "device:register" | "device:review" | "face:enroll" | "face:reset" | "attendance:clock" | "attendance:read" | "attendance:review" | "attendance:report" | "location:manage" | "shift:manage" | "leave:create" | "cash_advance:create" | "transfer:create" | "leave:read" | "cash_advance:read" | "transfer:read" | "approval:act" | "payslip:read" | "payroll:manage" | "payroll:finalize" | "warning:read" | "warning:manage" | "announcement:read" | "announcement:manage" | "dashboard:read" | "approval_flow:manage" | "audit:read" | "settings:manage";
         /** @enum {string} */
         EmployeeStatus: "active" | "inactive";
         /** @enum {string} */
@@ -4490,6 +4607,20 @@ export interface components {
             opened_count: number;
             /** @description Sasaran yang sudah menekan "Sudah baca" */
             read_count: number;
+        };
+        Branding: {
+            /** @description Footer jadi */
+            footer: string;
+            /** @description Teks yang diatur; {tahun} diganti tahun berjalan (WIB) */
+            footer_template: string;
+            /** @description True bila super admin belum mengubah footer */
+            is_default: boolean;
+            /** Format: date-time */
+            updated_at: string | null;
+        };
+        FooterInput: {
+            /** @description Null atau kosong mengembalikan teks bawaan */
+            footer_template?: string | null;
         };
         /** @description Pengumuman yang sedang tayang untuk Pejuang yang masuk, beserta status bacanya */
         MyAnnouncement: {

@@ -1,0 +1,18 @@
+[Unit]
+Description=HRIS Pejuang: catat alpha untuk hari kerja tanpa presensi (mark_absent)
+After=network.target postgresql.service
+
+[Service]
+Type=oneshot
+User=hris
+Group=hris
+WorkingDirectory=/opt/hris
+# Membaca /opt/hris/.env sendiri, sama seperti API. Memeriksa 7 hari kerja terakhir yang sudah
+# tertutup, jadi hari yang terlewat saat server mati ikut tercatat; baris yang sudah ada tidak diubah.
+ExecStart=/opt/hris/hris-mark-absent -days 7
+TimeoutStartSec=15min
+
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true

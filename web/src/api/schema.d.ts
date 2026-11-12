@@ -4227,7 +4227,7 @@ export interface paths {
         };
         /**
          * Rekap presensi bulanan
-         * @description Permission `attendance:report`, dibatasi scope. Filter mode hanya menghitung catatan presensi masuk dengan mode tersebut; cuti dan alpha tidak disertakan.
+         * @description Permission `attendance:report`, dibatasi scope. Filter mode hanya menghitung catatan presensi masuk dengan mode tersebut; cuti dan alpha tidak disertakan. Rekap per periode cutoff ubar dan aturan upah (D29/D31) menyusul di Fase 5.
          */
         get: {
             parameters: {
@@ -4698,13 +4698,41 @@ export interface components {
             full_name: string;
             division: string;
             subdivision: string;
+            /** @description Hadir, menunggu review, cuti, dan alpha */
             work_days: number;
             /** @description Hadir termasuk telat */
             present: number;
             late: number;
+            /** @description Hari berstatus cuti/izin; sama dengan leave_quota + leave_non_quota + leave_other */
             leave: number;
+            /** @description Hari cuti dari jenis bersaldo (quota_kind statutory/custom) */
+            leave_quota: number;
+            /** @description Hari cuti dari jenis tanpa saldo (quota_kind none) */
+            leave_non_quota: number;
+            /** @description Hari cuti tanpa pengajuan disetujui yang mencakup tanggalnya */
+            leave_other: number;
+            /** @description Hari cuti dari jenis yang tidak dibayar (paid false) */
+            leave_unpaid: number;
+            /** @description Rincian per jenis cuti dari pengajuan yang disetujui. Kosong bila filter work_mode dipakai. */
+            leave_by_type: components["schemas"]["AttendanceReportLeaveType"][];
             absent: number;
+            /** @description Presensi yang menunggu keputusan Review Presensi, belum dihitung hadir */
+            review: number;
             late_minutes: number;
+            /** @description Total menit kerja dari presensi yang sudah pulang */
+            worked_minutes: number;
+            /** @description Hari dengan presensi masuk tanpa presensi pulang yang batasnya (cutoff 04.00 esok hari, atau akhir shift malam + 4 jam) sudah lewat. Alpha hasil Review Presensi tidak dihitung. */
+            missed_clock_out: number;
+        };
+        AttendanceReportLeaveType: {
+            /** Format: uuid */
+            leave_type_id: string;
+            code: string;
+            name: string;
+            /** @enum {string} */
+            quota_kind: "statutory" | "custom" | "none";
+            paid: boolean;
+            days: number;
         };
         PayrollPreviewRow: {
             /** Format: uuid */

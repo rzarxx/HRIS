@@ -208,6 +208,26 @@ Menjalankan sekali secara manual:
 systemctl start hris-purge-selfies
 ```
 
+## Catat alpha harian (mark_absent)
+
+`hris-mark-absent.timer` dipasang dan diaktifkan `deploy.sh`. Setiap hari pukul 04.20 WIB (setelah
+cutoff 04.00, ditambah jeda acak sampai 10 menit) job ini mencatat `absent` untuk Pejuang aktif
+berakun yang punya shift, pada hari kerja shift yang bukan hari libur, tanpa presensi dan tanpa cuti
+yang disetujui, sejak `join_date` dan sampai `exit_date`. Izin WFA/hybrid tidak membebaskan presensi.
+Job memeriksa 7 hari tertutup terakhir, jadi hari yang terlewat saat server mati ikut tercatat;
+baris yang sudah ada tidak pernah diubah. Cuti yang disetujui belakangan tetap menimpa alpha.
+
+```bash
+systemctl list-timers hris-mark-absent.timer
+journalctl -u hris-mark-absent -n 20 --no-pager
+```
+
+Menjalankan sekali secara manual, mis. mengejar 30 hari:
+
+```bash
+cd /opt/hris && runuser -u hris -- ./hris-mark-absent -days 30
+```
+
 ## Super admin
 
 Super admin adalah role tertinggi: semua akses kecuali keuangan. Role diberikan lewat server, pada

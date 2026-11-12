@@ -17,6 +17,15 @@ Perubahan penting yang terlihat oleh Pejuang, SDM, atau pengelola server. Keputu
   meminta challenge, menampilkan pesan yang jelas, dan mengirim hasilnya sebagai `signals`.
 - Wajah harus pas di oval sebelum liveness dan foto (PR #90): pesan arahan, oval hijau dengan cincin kemajuan,
   pemeriksaan ulang foto hasil jepretan, dan server menolak wajah utama yang terlalu kecil atau tidak di tengah.
+- **Job `mark_absent` (MASTER.md §11.3).** Setiap hari pukul 04.20 WIB, setelah cutoff, server mencatat alpha
+  untuk Pejuang aktif berakun aktif pada hari kerja shift yang bukan hari libur, tanpa presensi dan tanpa cuti
+  yang disetujui, sejak `join_date` sampai `exit_date`. Job mengejar 7 hari terakhir yang sudah tertutup dan tidak
+  mengubah baris yang sudah ada; cuti yang disetujui belakangan tetap menimpa alpha. Kolom Alpha di rekap dan
+  potongan alpha di pratinjau ubar kini terisi dari data nyata.
+- **Rekap presensi lebih rinci.** Kolom baru `review` (presensi yang menunggu Review Presensi), cuti per jenis
+  (`leave_by_type`) beserta ringkasan bersaldo, tanpa saldo, tanpa pengajuan, dan tidak dibayar, total jam kerja
+  (`worked_minutes`), dan jumlah hari lupa presensi pulang (`missed_clock_out`). Semuanya tampil di halaman Rekap
+  presensi dan ikut diekspor ke CSV, termasuk satu kolom per jenis cuti.
 
 ### Diubah
 - Challenge hanya meminta `turn_left`/`turn_right`; `blink` dan `smile` tidak diminta lagi karena tidak bisa
@@ -24,6 +33,8 @@ Perubahan penting yang terlihat oleh Pejuang, SDM, atau pengelola server. Keputu
 - Sampel daftar wajah harus menghadap lurus; sampel yang menoleh ditolak `FACE_NOT_DETECTED`.
 - Serialisasi `request_hash` presensi dan pendaftaran wajah menambahkan `gesture_sha256` di akhir (contoh baru di
   `MASTER.md` §5.4).
+- Hari kerja di rekap kini menghitung presensi yang menunggu Review Presensi. Sebelumnya presensi `review` tidak
+  masuk ke kolom mana pun.
 
 ### Diperbaiki
 - Tes integrasi cuti tidak lagi gagal saat tanggal ujinya sama dengan hari ini.
@@ -35,3 +46,7 @@ Perubahan penting yang terlihat oleh Pejuang, SDM, atau pengelola server. Keputu
   awal dari geometri wajah. Kalibrasi dengan foto dari HP Android 10 sungguhan sebelum pilot.
 - Liveness ini menolak foto diam (cetak atau layar), tetapi video wajah yang diputar ulang masih bisa lolos.
   Verifikasi perangkat di server (jalur B, Key Attestation) masih dikerjakan terpisah.
+- `deploy.sh` membangun `hris-mark-absent` dan memasang `hris-mark-absent.timer`. Saat pertama aktif, job mencatat
+  alpha untuk 7 hari kerja terakhir; pastikan presensi lewat aplikasi memang sudah dipakai. Untuk mengejar lebih
+  jauh jalankan `./hris-mark-absent -days 30` (maks 62).
+- Rekap per periode cutoff ubar dan aturan upah (D29/D31) belum termasuk; menyusul di Fase 5.

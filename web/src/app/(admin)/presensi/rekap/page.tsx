@@ -20,6 +20,16 @@ function Summary({ label, value }: { label: string; value: string }) {
   );
 }
 
+/** Menit kerja sebagai "8 j 30 m" untuk tabel. */
+function hours(minutes: number) {
+  const h = Math.floor(minutes / 60);
+  const m = minutes % 60;
+  return m ? `${number(h)} j ${m} m` : `${number(h)} j`;
+}
+
+/** Menit kerja sebagai jam desimal berkoma untuk Excel berlokal Indonesia. */
+const hoursCsv = (minutes: number) => (minutes / 60).toFixed(2).replace(".", ",");
+
 export default function AttendanceReportPage() {
   const [period, setPeriod] = useState<AttendanceReportFilter>(() => currentPeriod());
   const report = useAttendanceReport(period);
@@ -27,27 +37,48 @@ export default function AttendanceReportPage() {
 
   const totals = useMemo(() => {
     const t = rows.reduce(
-      (a, r) => ({ days: a.days + r.work_days, present: a.present + r.present, late: a.late + r.late, leave: a.leave + r.leave, absent: a.absent + r.absent }),
-      { days: 0, present: 0, late: 0, leave: 0, absent: 0 },
+      (a, r) => ({
+        days: a.days + r.work_days, present: a.present + r.present, late: a.late + r.late, leave: a.leave + r.leave,
+        absent: a.absent + r.absent, review: a.review + r.review, worked: a.worked + r.worked_minutes, missed: a.missed + r.missed_clock_out,
+      }),
+      { days: 0, present: 0, late: 0, leave: 0, absent: 0, review: 0, worked: 0, missed: 0 },
     );
     return { ...t, rate: t.days ? t.present / t.days : 0 };
+  }, [rows]);
+
+  // Jenis cuti yang muncul di periode ini, untuk kolom ekspor per jenis.
+  const leaveTypes = useMemo(() => {
+    const types = new Map<string, string>();
+    for (const r of rows) for (const t of r.leave_by_type) types.set(t.code, t.name);
+    return [...types].sort((a, b) => a[1].localeCompare(b[1], "id"));
   }, [rows]);
 
   const label = `${MONTHS[period.month - 1]} ${period.year}`;
 
   function exportCsv() {
+    const base = `rekap-presensi-${period.year}-${String(period.month).padStart(2, "0")}`;
     if (period.work_mode) {
       downloadCsv(
-        `rekap-presensi-${period.year}-${String(period.month).padStart(2, "0")}-${period.work_mode}.csv`,
-        ["NIPY", "Nama", "Divisi", "Subdiv", "Hadir", "Telat", "Total menit telat"],
-        rows.map((r) => [r.nip, r.full_name, r.division, r.subdivision, r.present, r.late, r.late_minutes]),
+        `${base}-${period.work_mode}.csv`,
+        ["NIPY", "Nama", "Divisi", "Subdiv", "Hadir", "Telat", "Perlu ditinjau", "Lupa presensi pulang", "Jam kerja", "Total menit telat"],
+        rows.map((r) => [r.nip, r.full_name, r.division, r.subdivision, r.present, r.late, r.review, r.missed_clock_out, hoursCsv(r.worked_minutes), r.late_minutes]),
       );
       return;
     }
     downloadCsv(
-      `rekap-presensi-${period.year}-${String(period.month).padStart(2, "0")}${period.work_mode ? `-${period.work_mode}` : ""}.csv`,
-      ["NIPY", "Nama", "Divisi", "Subdiv", "Hari kerja", "Hadir", "Telat", "Cuti/Izin", "Alpha", "Total menit telat", "Kehadiran (%)"],
-      rows.map((r) => [r.nip, r.full_name, r.division, r.subdivision, r.work_days, r.present, r.late, r.leave, r.absent, r.late_minutes, (r.work_days ? (r.present / r.work_days) * 100 : 0).toFixed(1).replace(".", ",")]),
+      `${base}.csv`,
+      [
+        "NIPY", "Nama", "Divisi", "Subdiv", "Hari kerja", "Hadir", "Telat", "Perlu ditinjau", "Cuti/Izin",
+        "Cuti bersaldo", "Cuti tanpa saldo", "Cuti lainnya", "Cuti tidak dibayar", ...leaveTypes.map(([, name]) => `Cuti: ${name}`),
+        "Alpha", "Lupa presensi pulang", "Jam kerja", "Total menit telat", "Kehadiran (%)",
+      ],
+      rows.map((r) => [
+        r.nip, r.full_name, r.division, r.subdivision, r.work_days, r.present, r.late, r.review, r.leave,
+        r.leave_quota, r.leave_non_quota, r.leave_other, r.leave_unpaid,
+        ...leaveTypes.map(([code]) => r.leave_by_type.find((t) => t.code === code)?.days ?? 0),
+        r.absent, r.missed_clock_out, hoursCsv(r.worked_minutes), r.late_minutes,
+        (r.work_days ? (r.present / r.work_days) * 100 : 0).toFixed(1).replace(".", ","),
+      ]),
     );
   }
 
@@ -76,12 +107,16 @@ export default function AttendanceReportPage() {
             <option value="field">Dinas luar</option>
           </Select>
           {period.work_mode && <p className="text-xs text-slate-600">Hanya presensi masuk dengan mode ini yang dihitung. Cuti dan alpha tidak memiliki mode kerja yang dapat dipastikan.</p>}
-          <div className="grid grid-cols-2 gap-3 md:grid-cols-5">
+          {totals.review > 0 && <p className="text-xs text-slate-600">Presensi yang perlu ditinjau tetap dihitung sebagai hari kerja, tetapi belum dihitung hadir sampai diputuskan di Review Presensi.</p>}
+          <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
             {!period.work_mode && <Summary label="Rata-rata kehadiran" value={percent(totals.rate)} />}
             <Summary label="Total hadir" value={number(totals.present)} />
             <Summary label="Total telat" value={number(totals.late)} />
+            <Summary label="Perlu ditinjau" value={number(totals.review)} />
             {!period.work_mode && <Summary label="Total cuti/izin" value={number(totals.leave)} />}
             {!period.work_mode && <Summary label="Total alpha" value={number(totals.absent)} />}
+            <Summary label="Lupa presensi pulang" value={number(totals.missed)} />
+            <Summary label="Total jam kerja" value={hours(totals.worked)} />
           </div>
         </div>
         {report.isPending || report.isPlaceholderData ? (
@@ -100,8 +135,11 @@ export default function AttendanceReportPage() {
                 {!period.work_mode && <Th align="right">Hari kerja</Th>}
                 <Th align="right">Hadir</Th>
                 <Th align="right">Telat</Th>
+                <Th align="right">Perlu ditinjau</Th>
                 {!period.work_mode && <Th align="right">Cuti/Izin</Th>}
                 {!period.work_mode && <Th align="right">Alpha</Th>}
+                <Th align="right">Lupa pulang</Th>
+                <Th align="right">Jam kerja</Th>
                 <Th align="right">Menit telat</Th>
                 {!period.work_mode && <Th align="right">Kehadiran</Th>}
               </tr>
@@ -118,8 +156,20 @@ export default function AttendanceReportPage() {
                   {!period.work_mode && <Td align="right" className="tabular-nums">{r.work_days}</Td>}
                   <Td align="right" className="tabular-nums">{r.present}</Td>
                   <Td align="right" className={`tabular-nums ${r.late > 3 ? "font-medium text-amber-700" : ""}`}>{r.late}</Td>
-                  {!period.work_mode && <Td align="right" className="tabular-nums">{r.leave}</Td>}
+                  <Td align="right" className={`tabular-nums ${r.review > 0 ? "font-medium text-amber-700" : ""}`}>{r.review}</Td>
+                  {!period.work_mode && (
+                    <Td align="right" className="tabular-nums whitespace-nowrap">
+                      {r.leave}
+                      {r.leave > 0 && (
+                        <span className="block text-xs text-slate-500" title="Bersaldo / tanpa saldo / tanpa pengajuan disetujui">
+                          {r.leave_quota} saldo · {r.leave_non_quota} non · {r.leave_other} lain
+                        </span>
+                      )}
+                    </Td>
+                  )}
                   {!period.work_mode && <Td align="right" className={`tabular-nums ${r.absent > 0 ? "font-medium text-red-700" : ""}`}>{r.absent}</Td>}
+                  <Td align="right" className={`tabular-nums ${r.missed_clock_out > 0 ? "font-medium text-amber-700" : ""}`}>{r.missed_clock_out}</Td>
+                  <Td align="right" className="tabular-nums whitespace-nowrap">{hours(r.worked_minutes)}</Td>
                   <Td align="right" className="tabular-nums">{number(r.late_minutes)}</Td>
                   {!period.work_mode && <Td align="right" className="tabular-nums">{r.work_days ? percent(r.present / r.work_days) : "-"}</Td>}
                 </tr>

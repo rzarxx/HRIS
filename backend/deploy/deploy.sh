@@ -52,7 +52,7 @@ echo "    $COMMIT"
 echo "==> Build API"
 BUILD_DIR="$APP_DIR/build-home/dist"
 as_builder mkdir -p "$BUILD_DIR"
-for program in migrate seed superadmin purge-selfies; do
+for program in migrate seed superadmin purge-selfies mark-absent; do
   as_builder bash -c "cd '$SRC_DIR/backend' && go build -o '$BUILD_DIR/hris-$program' ./cmd/$program"
 done
 # Mesin wajah ONNX butuh cgo dan pustaka dari setup-face.sh (D43). Tanpanya API tetap jalan, tetapi
@@ -76,7 +76,7 @@ echo "==> Build web"
 as_builder bash -c "cd '$SRC_DIR/web' && npm ci --ignore-scripts --no-audit --no-fund && npm run build"
 
 echo "==> Memasang"
-for program in api migrate seed superadmin purge-selfies; do
+for program in api migrate seed superadmin purge-selfies mark-absent; do
   install -o hris -g hris -m 750 "$BUILD_DIR/hris-$program" "$APP_DIR/hris-$program.new"
   mv -f "$APP_DIR/hris-$program.new" "$APP_DIR/hris-$program"
 done
@@ -107,6 +107,14 @@ install -m 644 "$SRC_DIR/backend/deploy/hris-purge-selfies.timer" /etc/systemd/s
 systemctl daemon-reload
 systemctl enable --now hris-purge-selfies.timer >/dev/null
 systemctl list-timers hris-purge-selfies.timer --no-pager || true
+
+echo "==> Jadwal catat alpha"
+# Timer harian mark_absent (MASTER.md §11.3), dipasang ulang setiap deploy seperti purge-selfies.
+install -m 644 "$SRC_DIR/backend/deploy/hris-mark-absent.service" /etc/systemd/system/hris-mark-absent.service
+install -m 644 "$SRC_DIR/backend/deploy/hris-mark-absent.timer" /etc/systemd/system/hris-mark-absent.timer
+systemctl daemon-reload
+systemctl enable --now hris-mark-absent.timer >/dev/null
+systemctl list-timers hris-mark-absent.timer --no-pager || true
 
 echo "==> Menyalin web ke $WEB_ROOT"
 # Web disalin terakhir agar tidak mendahului API. File milik aaPanel tidak ikut dihapus.

@@ -1,0 +1,12 @@
+[Unit]
+Description=HRIS Pejuang: jadwal harian catat alpha setelah cutoff 04.00 WIB
+
+[Timer]
+# Setelah cutoff harian 04.00 WIB (MASTER.md §11.3), saat semua presensi masuk kemarin sudah lewat
+# batasnya. Zona ditulis eksplisit agar tidak bergantung pada zona waktu server.
+OnCalendar=*-*-* 04:20:00 Asia/Jakarta
+RandomizedDelaySec=10min
+Persistent=true
+
+[Install]
+WantedBy=timers.target

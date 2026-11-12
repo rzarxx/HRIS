@@ -1221,6 +1221,40 @@ func (q *Queries) LockReviewSelfie(ctx context.Context, arg LockReviewSelfiePara
 	return i, err
 }
 
+const markAbsentBetween = `-- name: MarkAbsentBetween :execrows
+INSERT INTO attendances (employee_id, work_date, shift_id, status)
+SELECT e.id, d.day, sh.id, 'absent'
+FROM generate_series($1::date, $2::date, interval '1 day') AS g(ts)
+CROSS JOIN LATERAL (SELECT g.ts::date AS day) d
+JOIN employees e ON e.deleted_at IS NULL AND e.status = 'active'
+  AND (e.join_date IS NULL OR e.join_date <= d.day)
+  AND (e.exit_date IS NULL OR e.exit_date >= d.day)
+JOIN users u ON u.employee_id = e.id AND u.is_active
+JOIN shifts sh ON sh.id = e.default_shift_id
+WHERE extract(isodow FROM d.day)::smallint = ANY (sh.work_days)
+  AND NOT EXISTS (SELECT 1 FROM holidays h WHERE h.date = d.day)
+  AND NOT EXISTS (SELECT 1 FROM attendances a WHERE a.employee_id = e.id AND a.work_date = d.day)
+  AND NOT EXISTS (SELECT 1 FROM leave_requests lr WHERE lr.employee_id = e.id AND lr.status = 'approved'
+    AND d.day BETWEEN lr.start_date AND lr.end_date)
+ON CONFLICT (employee_id, work_date) DO NOTHING
+`
+
+type MarkAbsentBetweenParams struct {
+	FromDate pgtype.Date
+	ToDate   pgtype.Date
+}
+
+// Job mark_absent (MASTER.md §11.3). Hari kerja shift yang tidak libur, tidak ada presensi atau cuti,
+// dan Pejuang aktif berakun sudah bergabung dan belum keluar, dicatat alpha. Izin WFA/hybrid tidak
+// membebaskan presensi (§5.4.2), jadi tidak dikecualikan. Aman diulang: baris yang sudah ada tidak diubah.
+func (q *Queries) MarkAbsentBetween(ctx context.Context, arg MarkAbsentBetweenParams) (int64, error) {
+	result, err := q.db.Exec(ctx, markAbsentBetween, arg.FromDate, arg.ToDate)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const markFaceCaptureDeleted = `-- name: MarkFaceCaptureDeleted :exec
 UPDATE face_captures SET selfie_deleted_at = now() WHERE id = $1
 `

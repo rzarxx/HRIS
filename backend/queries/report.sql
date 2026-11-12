@@ -25,23 +25,52 @@ ORDER BY d.name;
 
 -- name: AttendanceReport :many
 -- Masuk periode bila punya presensi, atau aktif dan sudah bergabung sebelum akhir bulan.
+-- missed_clock_out: presensi masuk tanpa pulang yang batasnya sudah lewat pada @now_wib (jam dinding WIB).
+-- Batasnya sama dengan attendance.CloseDeadline: cutoff 04.00 esok hari, atau akhir shift malam + 4 jam.
 SELECT e.id AS employee_id, e.nip, e.full_name, d.name AS division, s.name AS subdivision, e.base_salary,
        count(a.id) FILTER (WHERE a.status IN ('present','late')) AS present,
        count(a.id) FILTER (WHERE a.status = 'late') AS late,
        count(a.id) FILTER (WHERE a.status = 'leave') AS leave,
        count(a.id) FILTER (WHERE a.status = 'absent') AS absent,
-       COALESCE(sum(a.late_minutes), 0)::bigint AS late_minutes
+       count(a.id) FILTER (WHERE a.status = 'review') AS review,
+       COALESCE(sum(a.late_minutes), 0)::bigint AS late_minutes,
+       COALESCE(sum(a.worked_minutes), 0)::bigint AS worked_minutes,
+       count(a.id) FILTER (WHERE a.clock_in_at IS NOT NULL AND a.clock_out_at IS NULL AND a.status <> 'absent'
+         AND (a.work_date + 1) + CASE WHEN sh.end_time <= sh.start_time THEN (sh.end_time - time '00:00') + interval '4 hours'
+                                      ELSE interval '4 hours' END <= @now_wib::timestamp) AS missed_clock_out
 FROM employees e
 JOIN subdivisions s ON s.id = e.subdivision_id
 JOIN divisions d ON d.id = s.division_id
 LEFT JOIN attendances a ON a.employee_id = e.id AND a.work_date >= @from_date AND a.work_date < @to_date
   AND (sqlc.arg(work_mode)::text = '' OR (a.work_mode = sqlc.arg(work_mode)::text AND a.clock_in_at IS NOT NULL))
+LEFT JOIN shifts sh ON sh.id = a.shift_id
 WHERE e.deleted_at IS NULL
   AND (@scope_all::boolean OR s.id = ANY(@scope_subdivision_ids::uuid[]) OR d.id = ANY(@scope_division_ids::uuid[]))
   AND (sqlc.narg(division_id)::uuid IS NULL OR d.id = sqlc.narg(division_id))
 GROUP BY e.id, e.nip, e.full_name, d.name, s.name, e.base_salary, e.status, e.join_date
 HAVING count(a.id) > 0 OR (sqlc.arg(work_mode)::text = '' AND e.status = 'active' AND (e.join_date IS NULL OR e.join_date < @to_date))
 ORDER BY e.full_name, e.id;
+
+-- name: AttendanceReportLeaveTypes :many
+-- Hari berstatus leave per jenis cuti, dari pengajuan disetujui yang mencakup tanggalnya. Hari leave
+-- tanpa pengajuan yang cocok (mis. dicatat langsung) tidak muncul di sini dan dihitung "lainnya".
+SELECT a.employee_id, lt.id AS leave_type_id, lt.code, lt.name, lt.quota_kind, lt.paid, count(*) AS days
+FROM attendances a
+JOIN employees e ON e.id = a.employee_id
+JOIN subdivisions s ON s.id = e.subdivision_id
+JOIN divisions d ON d.id = s.division_id
+JOIN LATERAL (
+  SELECT lr.leave_type_id FROM leave_requests lr
+  WHERE lr.employee_id = a.employee_id AND lr.status = 'approved' AND a.work_date BETWEEN lr.start_date AND lr.end_date
+  ORDER BY lr.created_at DESC, lr.id LIMIT 1
+) m ON true
+JOIN leave_types lt ON lt.id = m.leave_type_id
+WHERE a.status = 'leave' AND a.work_date >= @from_date AND a.work_date < @to_date
+  AND e.deleted_at IS NULL
+  AND (@scope_all::boolean OR s.id = ANY(@scope_subdivision_ids::uuid[]) OR d.id = ANY(@scope_division_ids::uuid[]))
+  AND (sqlc.narg(division_id)::uuid IS NULL OR d.id = sqlc.narg(division_id))
+GROUP BY a.employee_id, lt.id, lt.code, lt.name, lt.quota_kind, lt.paid
+ORDER BY a.employee_id, lt.name;
 
 -- name: ListActiveEmployeesForAttendance :many
 SELECT id, join_date FROM employees e WHERE deleted_at IS NULL AND status = 'active'

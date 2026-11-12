@@ -19,21 +19,28 @@ SELECT e.id AS employee_id, e.nip, e.full_name, d.name AS division, s.name AS su
        count(a.id) FILTER (WHERE a.status = 'late') AS late,
        count(a.id) FILTER (WHERE a.status = 'leave') AS leave,
        count(a.id) FILTER (WHERE a.status = 'absent') AS absent,
-       COALESCE(sum(a.late_minutes), 0)::bigint AS late_minutes
+       count(a.id) FILTER (WHERE a.status = 'review') AS review,
+       COALESCE(sum(a.late_minutes), 0)::bigint AS late_minutes,
+       COALESCE(sum(a.worked_minutes), 0)::bigint AS worked_minutes,
+       count(a.id) FILTER (WHERE a.clock_in_at IS NOT NULL AND a.clock_out_at IS NULL AND a.status <> 'absent'
+         AND (a.work_date + 1) + CASE WHEN sh.end_time <= sh.start_time THEN (sh.end_time - time '00:00') + interval '4 hours'
+                                      ELSE interval '4 hours' END <= $1::timestamp) AS missed_clock_out
 FROM employees e
 JOIN subdivisions s ON s.id = e.subdivision_id
 JOIN divisions d ON d.id = s.division_id
-LEFT JOIN attendances a ON a.employee_id = e.id AND a.work_date >= $1 AND a.work_date < $2
-  AND ($3::text = '' OR (a.work_mode = $3::text AND a.clock_in_at IS NOT NULL))
+LEFT JOIN attendances a ON a.employee_id = e.id AND a.work_date >= $2 AND a.work_date < $3
+  AND ($4::text = '' OR (a.work_mode = $4::text AND a.clock_in_at IS NOT NULL))
+LEFT JOIN shifts sh ON sh.id = a.shift_id
 WHERE e.deleted_at IS NULL
-  AND ($4::boolean OR s.id = ANY($5::uuid[]) OR d.id = ANY($6::uuid[]))
-  AND ($7::uuid IS NULL OR d.id = $7)
+  AND ($5::boolean OR s.id = ANY($6::uuid[]) OR d.id = ANY($7::uuid[]))
+  AND ($8::uuid IS NULL OR d.id = $8)
 GROUP BY e.id, e.nip, e.full_name, d.name, s.name, e.base_salary, e.status, e.join_date
-HAVING count(a.id) > 0 OR ($3::text = '' AND e.status = 'active' AND (e.join_date IS NULL OR e.join_date < $2))
+HAVING count(a.id) > 0 OR ($4::text = '' AND e.status = 'active' AND (e.join_date IS NULL OR e.join_date < $3))
 ORDER BY e.full_name, e.id
 `
 
 type AttendanceReportParams struct {
+	NowWib              pgtype.Timestamp
 	FromDate            pgtype.Date
 	ToDate              pgtype.Date
 	WorkMode            string
@@ -44,22 +51,28 @@ type AttendanceReportParams struct {
 }
 
 type AttendanceReportRow struct {
-	EmployeeID  uuid.UUID
-	Nip         string
-	FullName    string
-	Division    string
-	Subdivision string
-	BaseSalary  decimal.Decimal
-	Present     int64
-	Late        int64
-	Leave       int64
-	Absent      int64
-	LateMinutes int64
+	EmployeeID     uuid.UUID
+	Nip            string
+	FullName       string
+	Division       string
+	Subdivision    string
+	BaseSalary     decimal.Decimal
+	Present        int64
+	Late           int64
+	Leave          int64
+	Absent         int64
+	Review         int64
+	LateMinutes    int64
+	WorkedMinutes  int64
+	MissedClockOut int64
 }
 
 // Masuk periode bila punya presensi, atau aktif dan sudah bergabung sebelum akhir bulan.
+// missed_clock_out: presensi masuk tanpa pulang yang batasnya sudah lewat pada @now_wib (jam dinding WIB).
+// Batasnya sama dengan attendance.CloseDeadline: cutoff 04.00 esok hari, atau akhir shift malam + 4 jam.
 func (q *Queries) AttendanceReport(ctx context.Context, arg AttendanceReportParams) ([]AttendanceReportRow, error) {
 	rows, err := q.db.Query(ctx, attendanceReport,
+		arg.NowWib,
 		arg.FromDate,
 		arg.ToDate,
 		arg.WorkMode,
@@ -86,7 +99,86 @@ func (q *Queries) AttendanceReport(ctx context.Context, arg AttendanceReportPara
 			&i.Late,
 			&i.Leave,
 			&i.Absent,
+			&i.Review,
 			&i.LateMinutes,
+			&i.WorkedMinutes,
+			&i.MissedClockOut,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const attendanceReportLeaveTypes = `-- name: AttendanceReportLeaveTypes :many
+SELECT a.employee_id, lt.id AS leave_type_id, lt.code, lt.name, lt.quota_kind, lt.paid, count(*) AS days
+FROM attendances a
+JOIN employees e ON e.id = a.employee_id
+JOIN subdivisions s ON s.id = e.subdivision_id
+JOIN divisions d ON d.id = s.division_id
+JOIN LATERAL (
+  SELECT lr.leave_type_id FROM leave_requests lr
+  WHERE lr.employee_id = a.employee_id AND lr.status = 'approved' AND a.work_date BETWEEN lr.start_date AND lr.end_date
+  ORDER BY lr.created_at DESC, lr.id LIMIT 1
+) m ON true
+JOIN leave_types lt ON lt.id = m.leave_type_id
+WHERE a.status = 'leave' AND a.work_date >= $1 AND a.work_date < $2
+  AND e.deleted_at IS NULL
+  AND ($3::boolean OR s.id = ANY($4::uuid[]) OR d.id = ANY($5::uuid[]))
+  AND ($6::uuid IS NULL OR d.id = $6)
+GROUP BY a.employee_id, lt.id, lt.code, lt.name, lt.quota_kind, lt.paid
+ORDER BY a.employee_id, lt.name
+`
+
+type AttendanceReportLeaveTypesParams struct {
+	FromDate            pgtype.Date
+	ToDate              pgtype.Date
+	ScopeAll            bool
+	ScopeSubdivisionIds []uuid.UUID
+	ScopeDivisionIds    []uuid.UUID
+	DivisionID          uuid.NullUUID
+}
+
+type AttendanceReportLeaveTypesRow struct {
+	EmployeeID  uuid.UUID
+	LeaveTypeID uuid.UUID
+	Code        string
+	Name        string
+	QuotaKind   LeaveQuotaKind
+	Paid        bool
+	Days        int64
+}
+
+// Hari berstatus leave per jenis cuti, dari pengajuan disetujui yang mencakup tanggalnya. Hari leave
+// tanpa pengajuan yang cocok (mis. dicatat langsung) tidak muncul di sini dan dihitung "lainnya".
+func (q *Queries) AttendanceReportLeaveTypes(ctx context.Context, arg AttendanceReportLeaveTypesParams) ([]AttendanceReportLeaveTypesRow, error) {
+	rows, err := q.db.Query(ctx, attendanceReportLeaveTypes,
+		arg.FromDate,
+		arg.ToDate,
+		arg.ScopeAll,
+		arg.ScopeSubdivisionIds,
+		arg.ScopeDivisionIds,
+		arg.DivisionID,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []AttendanceReportLeaveTypesRow{}
+	for rows.Next() {
+		var i AttendanceReportLeaveTypesRow
+		if err := rows.Scan(
+			&i.EmployeeID,
+			&i.LeaveTypeID,
+			&i.Code,
+			&i.Name,
+			&i.QuotaKind,
+			&i.Paid,
+			&i.Days,
 		); err != nil {
 			return nil, err
 		}

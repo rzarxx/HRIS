@@ -3,6 +3,7 @@ package id.pejuang.hris.data
 import android.os.Build
 import id.pejuang.hris.BuildConfig
 import id.pejuang.hris.location.Fix
+import id.pejuang.hris.security.DeviceRisk
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -93,11 +94,28 @@ class Repository(private val session: Session, val prefs: AppPrefs) {
     suspend fun challenge(purpose: String): AttendanceChallenge =
         call { challenge(AttendanceChallengeInput(purpose)).data }
 
-    private fun signals(fix: Fix) = AttendanceSignals(isMockLocation = fix.isMock, appVersion = BuildConfig.VERSION_NAME)
+    private fun signals(fix: Fix, risk: DeviceRisk) = AttendanceSignals(
+        isMockLocation = fix.isMock,
+        fakeGpsAppDetected = risk.fakeGpsAppDetected,
+        rootDetected = risk.rootDetected,
+        emulatorDetected = risk.emulatorDetected,
+        appVersion = BuildConfig.VERSION_NAME,
+    )
 
     private fun now(): String = Instant.now().truncatedTo(ChronoUnit.SECONDS).toString()
 
-    suspend fun clock(purpose: String, challenge: AttendanceChallenge, selfie: ByteArray, fix: Fix): ClockOutcome {
+    /**
+     * Presensi masuk atau pulang. [selfie] adalah foto lurus dan [gesture] foto saat kepala menoleh,
+     * yang dipakai server untuk membuktikan liveness (D50).
+     */
+    suspend fun clock(
+        purpose: String,
+        challenge: AttendanceChallenge,
+        selfie: ByteArray,
+        gesture: ByteArray,
+        fix: Fix,
+        risk: DeviceRisk,
+    ): ClockOutcome {
         val payload = apiJson.encodeToString(
             ClockInput.serializer(),
             ClockInput(
@@ -106,15 +124,17 @@ class Repository(private val session: Session, val prefs: AppPrefs) {
                 longitude = fix.longitude,
                 accuracyM = fix.accuracyM,
                 capturedAt = now(),
-                signals = signals(fix),
+                signals = signals(fix, risk),
                 selfieSha256 = sha256Hex(selfie),
                 livenessPassed = true,
                 livenessAction = challenge.livenessAction,
+                gestureSha256 = sha256Hex(gesture),
             ),
         )
         val part = jpegPart("selfie", "selfie.jpg", selfie)
+        val gesturePart = jpegPart("gesture", "gerakan.jpg", gesture)
         return if (purpose == PURPOSE_CLOCK_IN) {
-            val r = call { clockIn(jsonPart(payload), part).data }
+            val r = call { clockIn(jsonPart(payload), part, gesturePart).data }
             val late = if (r.lateMinutes > 0) "Terlambat ${r.lateMinutes} menit. " else ""
             val place = r.officeLocation?.name ?: when (r.workMode) {
                 "wfa" -> "WFA"
@@ -123,31 +143,38 @@ class Repository(private val session: Session, val prefs: AppPrefs) {
             }
             ClockOutcome("Presensi masuk tercatat", "${late}Lokasi: $place.", r.requiresReview)
         } else {
-            val r = call { clockOut(jsonPart(payload), part).data }
+            val r = call { clockOut(jsonPart(payload), part, gesturePart).data }
             val hours = r.workedMinutes / 60
             val minutes = r.workedMinutes % 60
             ClockOutcome("Presensi pulang tercatat", "Jam kerja $hours jam $minutes menit.", r.requiresReview)
         }
     }
 
-    suspend fun enroll(challenge: AttendanceChallenge, samples: List<ByteArray>, fix: Fix): FaceStatus {
+    suspend fun enroll(
+        challenge: AttendanceChallenge,
+        samples: List<ByteArray>,
+        gesture: ByteArray,
+        fix: Fix,
+        risk: DeviceRisk,
+    ): FaceStatus {
         val payload = apiJson.encodeToString(
             FaceEnrollInput.serializer(),
             FaceEnrollInput(
                 challengeId = challenge.challengeId,
                 capturedAt = now(),
                 sampleSha256 = samples.map { sha256Hex(it) },
+                gestureSha256 = sha256Hex(gesture),
                 livenessPassed = true,
                 livenessAction = challenge.livenessAction,
                 consentVersion = CONSENT_VERSION,
                 latitude = fix.latitude,
                 longitude = fix.longitude,
                 accuracyM = fix.accuracyM,
-                signals = signals(fix),
+                signals = signals(fix, risk),
             ),
         )
         val parts = samples.mapIndexed { i, bytes -> jpegPart("samples", "sampel-${i + 1}.jpg", bytes) }
-        return call { enroll(jsonPart(payload), parts).data }
+        return call { enroll(jsonPart(payload), parts, jpegPart("gesture", "gerakan.jpg", gesture)).data }
     }
 
     /** Persetujuan biometrik dicatat server saat daftar wajah; persetujuan lokasi dicatat di sini. */

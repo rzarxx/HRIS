@@ -659,13 +659,15 @@ paths:
           multipart/form-data:
             schema:
               type: object
-              required: [payload, selfie]
+              required: [payload, selfie, gesture]
               properties:
                 payload: { type: string, description: "JSON `ClockInput`" }
-                selfie: { type: string, format: binary, description: "Selfie JPEG, maksimal 1 MB" }
+                selfie: { type: string, format: binary, description: "Selfie JPEG lurus, maksimal 1 MB" }
+                gesture: { type: string, format: binary, description: "Foto JPEG saat kepala menoleh sesuai `liveness_action`, maksimal 1 MB (D50)" }
             encoding:
               payload: { contentType: application/json }
               selfie: { contentType: image/jpeg }
+              gesture: { contentType: image/jpeg }
           application/json:
             schema: { $ref: "#/components/schemas/ClockInput" }
       responses:
@@ -698,13 +700,15 @@ paths:
           multipart/form-data:
             schema:
               type: object
-              required: [payload, selfie]
+              required: [payload, selfie, gesture]
               properties:
                 payload: { type: string, description: "JSON `ClockInput`" }
-                selfie: { type: string, format: binary, description: "Selfie JPEG, maksimal 1 MB" }
+                selfie: { type: string, format: binary, description: "Selfie JPEG lurus, maksimal 1 MB" }
+                gesture: { type: string, format: binary, description: "Foto JPEG saat kepala menoleh sesuai `liveness_action`, maksimal 1 MB (D50)" }
             encoding:
               payload: { contentType: application/json }
               selfie: { contentType: image/jpeg }
+              gesture: { contentType: image/jpeg }
           application/json:
             schema: { $ref: "#/components/schemas/ClockInput" }
       responses:
@@ -773,7 +777,7 @@ paths:
           multipart/form-data:
             schema:
               type: object
-              required: [payload, samples]
+              required: [payload, samples, gesture]
               properties:
                 payload: { type: string, description: "JSON `FaceEnrollInput`" }
                 samples:
@@ -782,9 +786,11 @@ paths:
                   maxItems: 5
                   description: "3 sampai 5 selfie JPEG berbeda, masing-masing maksimal 1 MB, berurutan sesuai `sample_sha256`"
                   items: { type: string, format: binary }
+                gesture: { type: string, format: binary, description: "Foto JPEG saat kepala menoleh sesuai `liveness_action`, maksimal 1 MB (D50)" }
             encoding:
               payload: { contentType: application/json }
               samples: { contentType: image/jpeg }
+              gesture: { contentType: image/jpeg }
       responses:
         "201":
           description: Wajah terdaftar
@@ -2612,7 +2618,7 @@ components:
         challenge_id: { type: string, format: uuid }
         nonce: { type: string }
         expires_at: { type: string, format: date-time }
-        liveness_action: { type: string, enum: [blink, turn_left, turn_right, smile], description: "Gerakan liveness yang diminta, dipilih acak oleh server (D42)" }
+        liveness_action: { type: string, enum: [turn_left, turn_right], description: "Gerakan liveness yang diminta, dipilih acak oleh server (D42). Hanya toleh kepala, karena server membuktikannya dari foto gerakan (D50)." }
     ClockInput:
       type: object
       required: [challenge_id, latitude, longitude, accuracy_m, captured_at]
@@ -2628,9 +2634,10 @@ components:
         selfie_sha256: { type: string, pattern: '^[0-9a-f]{64}$', description: "SHA-256 berkas selfie; wajib bila selfie dikirim" }
         liveness_passed: { type: boolean }
         liveness_action: { type: string, description: "Gerakan yang dilakukan, harus sama dengan liveness_action challenge" }
+        gesture_sha256: { type: string, pattern: '^[0-9a-f]{64}$', description: "SHA-256 berkas foto gerakan; wajib bila selfie dikirim (D50)" }
     FaceEnrollInput:
       type: object
-      required: [challenge_id, sample_sha256, liveness_passed, liveness_action, consent_version, latitude, longitude, accuracy_m]
+      required: [challenge_id, sample_sha256, gesture_sha256, liveness_passed, liveness_action, consent_version, latitude, longitude, accuracy_m]
       properties:
         challenge_id: { type: string, format: uuid, description: "Challenge `face_enroll`" }
         captured_at: { type: string, format: date-time, description: "Waktu foto untuk mengikat token integritas; diperlukan saat verifikasi perangkat aktif." }
@@ -2643,6 +2650,7 @@ components:
           items: { type: string, pattern: '^[0-9a-f]{64}$' }
         liveness_passed: { type: boolean }
         liveness_action: { type: string, description: "Harus sama dengan liveness_action challenge" }
+        gesture_sha256: { type: string, pattern: '^[0-9a-f]{64}$', description: "SHA-256 berkas foto gerakan (D50)" }
         consent_version: { type: string, maxLength: 32, description: Versi teks persetujuan biometrik yang diterima }
         latitude: { type: number, minimum: -90, maximum: 90 }
         longitude: { type: number, minimum: -180, maximum: 180 }

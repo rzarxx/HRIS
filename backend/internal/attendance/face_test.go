@@ -70,6 +70,49 @@ func TestFaceBorderlineScore(t *testing.T) {
 	}
 }
 
+func TestLivenessRetrySignal(t *testing.T) {
+	if LivenessRetried(1) || !LivenessRetried(2) || !LivenessRetried(5) {
+		t.Error("liveness_retry menyala mulai dua upaya gagal (§5.4)")
+	}
+	if RiskScore([]string{flagLivenessRetry}) != 25 {
+		t.Error("liveness_retry bernilai 25 poin (§5.4)")
+	}
+}
+
+func TestLivenessActionsAreProvable(t *testing.T) {
+	for _, a := range LivenessActions {
+		if a != "turn_left" && a != "turn_right" {
+			t.Errorf("%q tidak bisa dibuktikan server dari foto gerakan (D50)", a)
+		}
+	}
+}
+
+func TestProvesTurn(t *testing.T) {
+	person := []float64{1, 0, 0}
+	same := []float64{0.9, 0.43, 0}
+	other := []float64{0, 1, 0}
+	straight := face.Analysis{Vector: person, Turn: 0.02}
+	cases := []struct {
+		name     string
+		straight face.Analysis
+		gesture  face.Analysis
+		want     bool
+	}{
+		{"menoleh ke kiri", straight, face.Analysis{Vector: same, Turn: 0.28}, true},
+		{"menoleh ke kanan", straight, face.Analysis{Vector: same, Turn: -0.28}, true},
+		{"foto gerakan lurus", straight, face.Analysis{Vector: same, Turn: 0.05}, false},
+		{"tolehan terlalu kecil", straight, face.Analysis{Vector: same, Turn: 0.15}, false},
+		{"selisih terlalu kecil", face.Analysis{Vector: person, Turn: 0.19}, face.Analysis{Vector: same, Turn: 0.25}, false},
+		{"foto utama menoleh", face.Analysis{Vector: person, Turn: 0.3}, face.Analysis{Vector: same, Turn: -0.3}, false},
+		{"orang lain", straight, face.Analysis{Vector: other, Turn: 0.3}, false},
+	}
+	for _, c := range cases {
+		if got := provesTurn(c.straight, c.gesture); got != c.want {
+			t.Errorf("%s: %v, ingin %v", c.name, got, c.want)
+		}
+	}
+}
+
 func TestDiskStoreEncrypts(t *testing.T) {
 	key := make([]byte, 32)
 	if _, err := rand.Read(key); err != nil {

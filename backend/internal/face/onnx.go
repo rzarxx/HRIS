@@ -114,28 +114,43 @@ func (e *sfaceEngine) Detect(img bgrImage) ([]Detection, error) {
 }
 
 func (e *sfaceEngine) Embed(ctx context.Context, jpeg []byte) ([]float64, error) {
+	a, err := e.Analyze(ctx, jpeg)
+	if err != nil {
+		return nil, err
+	}
+	if !a.Centered {
+		return nil, ErrFaceNotCentered
+	}
+	return a.Vector, nil
+}
+
+func (e *sfaceEngine) Analyze(ctx context.Context, jpeg []byte) (Analysis, error) {
 	if !IsJPEG(jpeg) {
-		return nil, ErrBadImage
+		return Analysis{}, ErrBadImage
 	}
 	select {
 	case e.slots <- struct{}{}:
 		defer func() { <-e.slots }()
 	case <-ctx.Done():
-		return nil, ctx.Err()
+		return Analysis{}, ctx.Err()
 	}
 	img, err := decodeJPEG(jpeg)
 	if err != nil {
-		return nil, err
+		return Analysis{}, err
 	}
 	faces, err := e.Detect(img)
 	if err != nil {
-		return nil, err
+		return Analysis{}, err
 	}
-	face, err := pickFace(faces, img.w, img.h)
+	face, err := pickMain(faces)
 	if err != nil {
-		return nil, err
+		return Analysis{}, err
 	}
-	return e.embedFace(img, face)
+	vector, err := e.embedFace(img, face)
+	if err != nil {
+		return Analysis{}, err
+	}
+	return Analysis{Vector: vector, Turn: TurnRatio(face.Landmarks), Centered: centered(face, img.w, img.h)}, nil
 }
 
 // embedFace menghitung embedding satu wajah yang sudah terdeteksi.

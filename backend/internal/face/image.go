@@ -220,6 +220,19 @@ func nms(faces []Detection) []Detection {
 // yang terlalu kecil atau jauh dari tengah ditolak, karena aplikasi hanya memotret wajah yang pas
 // di oval; foto seperti itu biasanya hasil kamera yang miring atau wajah yang terpotong.
 func pickFace(faces []Detection, width, height int) (Detection, error) {
+	best, err := pickMain(faces)
+	if err != nil {
+		return Detection{}, err
+	}
+	if !centered(best, width, height) {
+		return Detection{}, ErrFaceNotCentered
+	}
+	return best, nil
+}
+
+// pickMain memilih wajah terbesar dan menolak foto berisi lebih dari satu orang, tanpa memeriksa
+// posisinya. Foto gerakan liveness memakai ini karena wajah yang menoleh boleh sedikit bergeser.
+func pickMain(faces []Detection) (Detection, error) {
 	if len(faces) == 0 {
 		return Detection{}, ErrNoFace
 	}
@@ -233,9 +246,6 @@ func pickFace(faces []Detection, width, height int) (Detection, error) {
 		if f != best && f.W*f.H >= manyFaceAreaMin*best.W*best.H {
 			return Detection{}, ErrManyFaces
 		}
-	}
-	if !centered(best, width, height) {
-		return Detection{}, ErrFaceNotCentered
 	}
 	return best, nil
 }

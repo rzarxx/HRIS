@@ -123,6 +123,12 @@ SELECT count(*) FROM attendance_attempts
 WHERE created_at >= @from_at AND created_at < @to_at
   AND (sqlc.narg(outcome)::text IS NULL OR outcome = sqlc.narg(outcome));
 
+-- name: CountRecentFaceFailures :one
+SELECT count(*) FROM attendance_attempts
+WHERE employee_id = @employee_id AND purpose = @purpose AND outcome = 'rejected'
+  AND reason_code IN ('liveness_failed', 'face_not_detected', 'face_mismatch')
+  AND created_at >= @since;
+
 -- name: ListAttendanceAttempts :many
 SELECT a.id, a.employee_id, e.full_name AS employee_name, e.nip, s.name AS subdivision_name, d.name AS division_name,
        a.purpose, a.outcome, a.reason_code, a.risk_score, a.risk_flags, a.latitude, a.longitude, a.created_at

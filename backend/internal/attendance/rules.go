@@ -135,10 +135,16 @@ const (
 	// waktunya bisa terbaca sangat cepat walau Pejuang tidak berpindah.
 	locationJumpMinM = 1000
 
-	flagAccuracyLow  = "accuracy_low"
-	flagLocationJump = "location_jump"
-	flagClockSkew    = "clock_skew"
-	flagNewDevice    = "new_device_recent"
+	// liveness_retry: paling sedikit dua upaya wajah yang ditolak (liveness gagal, wajah tidak
+	// terdeteksi, atau tidak cocok) dalam 30 menit terakhir untuk tujuan yang sama.
+	livenessRetryMin    = 2
+	livenessRetryWindow = 30 * time.Minute
+
+	flagAccuracyLow   = "accuracy_low"
+	flagLocationJump  = "location_jump"
+	flagClockSkew     = "clock_skew"
+	flagNewDevice     = "new_device_recent"
+	flagLivenessRetry = "liveness_retry"
 )
 
 var softPoints = map[string]int{
@@ -147,7 +153,11 @@ var softPoints = map[string]int{
 	flagClockSkew:      20,
 	flagNewDevice:      10,
 	flagFaceBorderline: 20,
+	flagLivenessRetry:  25,
 }
+
+// LivenessRetried menjawab apakah jumlah upaya wajah yang ditolak cukup untuk sinyal liveness_retry.
+func LivenessRetried(failures int64) bool { return failures >= livenessRetryMin }
 
 // PointAt adalah titik presensi beserta waktunya.
 type PointAt struct {

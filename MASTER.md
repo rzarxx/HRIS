@@ -336,9 +336,9 @@ Domain terpisah: `admin.<domain>` (web statis) dan `api.<domain>` (API), keduany
 
 **Challenge-response (mencegah replay):**
 1. App meminta `POST /v1/attendance/challenge` → server membuat `nonce` acak, berlaku 90 detik, sekali pakai.
-2. App menghitung `request_hash = base64url(SHA256(nonce|latitude|longitude|captured_at|selfie_sha256))`, lalu meminta token Play Integrity dengan hash tersebut.
-   Serialisasi: nonce dan hash selfie heksadesimal huruf kecil; koordinat ditulis tepat 6 angka desimal (nol negatif menjadi `0.000000`); waktu dinormalisasi UTC RFC3339Nano tanpa nol pecahan di akhir; antarfield dipisahkan karakter `|`. Koordinat input tidak boleh melebihi 6 desimal. Encode hash sebagai base64url tanpa padding. Contoh untuk nonce `a` 64 kali, koordinat `-6.200100|106.816600`, waktu `2026-11-07T01:02:03Z`, dan hash selfie `b` 64 kali menghasilkan `dbAzmlRTN__s4xBRepwpPHwwELp5UEH9JukycsqroJE`. Jalur Play ini hanya dapat diaktifkan di development sampai sesi diikat secara kriptografis ke instalasi perangkat dan diuji dengan aplikasi serta layanan Google nyata.
-   Untuk pendaftaran wajah, string yang di-hash adalah `face_enroll|nonce|latitude|longitude|captured_at|consent_version|liveness_action|sample_sha256...`, dengan 3–5 hash sampel dalam urutan pengiriman. Gunakan aturan koordinat, waktu, hash, dan encoding yang sama; `consent_version` tidak boleh memuat `|`.
+2. App menghitung `request_hash = base64url(SHA256(nonce|latitude|longitude|captured_at|selfie_sha256|gesture_sha256))`, lalu meminta token Play Integrity dengan hash tersebut.
+   Serialisasi: nonce dan hash selfie heksadesimal huruf kecil; koordinat ditulis tepat 6 angka desimal (nol negatif menjadi `0.000000`); waktu dinormalisasi UTC RFC3339Nano tanpa nol pecahan di akhir; antarfield dipisahkan karakter `|`. Koordinat input tidak boleh melebihi 6 desimal. Encode hash sebagai base64url tanpa padding. Contoh untuk nonce `a` 64 kali, koordinat `-6.200100|106.816600`, waktu `2026-11-07T01:02:03Z`, hash selfie `b` 64 kali, dan hash foto gerakan `e` 64 kali menghasilkan `IZ0EvC-bV2dDeuNUnZAODJqQOd0txdevb-S9qNhGkZc` (D51). Jalur Play ini hanya dapat diaktifkan di development sampai sesi diikat secara kriptografis ke instalasi perangkat dan diuji dengan aplikasi serta layanan Google nyata.
+   Untuk pendaftaran wajah, string yang di-hash adalah `face_enroll|nonce|latitude|longitude|captured_at|consent_version|liveness_action|sample_sha256...|gesture_sha256`, dengan 3–5 hash sampel dalam urutan pengiriman lalu hash foto gerakan. Contoh dengan sampel `b`, `c`, `d` dan foto gerakan `e` (masing-masing 64 kali), consent `2026-11`, gerakan `blink`, dan input lain seperti di atas: `08XZRVOoOvRmUBBFtp1UJmnEKytWCDZLxj1MmInTFXU`. Gunakan aturan koordinat, waktu, hash, dan encoding yang sama; `consent_version` tidak boleh memuat `|`.
 3. Server memastikan: challenge milik user + device, belum dipakai, belum kedaluwarsa; token Integrity valid, paket benar, `request_hash` cocok, `deviceRecognitionVerdict` memuat `MEETS_DEVICE_INTEGRITY`, `appRecognitionVerdict` = `PLAY_RECOGNIZED`, dan cap waktu verdict masih segar.
 
 Level `MEETS_STRONG_INTEGRITY` tidak diwajibkan karena menolak banyak HP Android 10 yang sah.
@@ -362,7 +362,7 @@ Level `MEETS_STRONG_INTEGRITY` tidak diwajibkan karena menolak banyak HP Android
 | `accuracy_low` (`accuracy_m` > 50) | lunak | +15 |
 | `location_jump` (kecepatan implisit > 120 km/jam dari absen terakhir yang tercatat, dengan jarak minimal 1 km agar gangguan GPS tidak terhitung) | lunak | +40 |
 | `face_borderline` | lunak | +20 |
-| `liveness_retry` (≥ 2 kali ulang) | lunak | +25 |
+| `liveness_retry` (≥ 2 upaya wajah ditolak dalam 30 menit untuk tujuan yang sama, dihitung server dari `attendance_attempts`, D51) | lunak | +25 |
 | `clock_skew` (jam HP vs server > 5 menit) | lunak | +20 |
 | `new_device_recent` (perangkat disetujui < 24 jam) | lunak | +10 |
 | `embedding_replay` (selfie yang sama pernah dikirim Pejuang itu, D42) | keras | Tolak |
@@ -1375,6 +1375,7 @@ mobile/app/src/main/java/.../
 5. `FLAG_SECURE` pada slip dan profil; `allowBackup=false`; log rilis tanpa data pribadi.
 6. Uji di minimal 3 HP Android 10 kelas bawah sebelum rilis.
 7. Kamera presensi: wajah harus **pas di oval** (seluruh wajah di dalam oval, cukup dekat, di tengah, kepala tegak) selama beberapa frame sebelum liveness dimulai dan sebelum foto diambil; wajah yang keluar oval atau hilang membuat liveness diulang. Foto hasil jepretan diperiksa ulang dengan ML Kit dan diambil ulang otomatis bila wajahnya tidak pas. Server menolak wajah utama yang lebarnya < 20% foto atau pusatnya di luar 60% bagian tengah foto (`FACE_NOT_DETECTED`). Rincian di `mobile/README.md`.
+8. Liveness dibuktikan server (D51): saat kepala menoleh, frame itu disimpan sebagai foto gerakan dan dikirim bersama selfie lurus; wajah yang keluar oval membuang foto gerakan dan liveness diulang. Sebelum meminta challenge, aplikasi memeriksa root, emulator, dan aplikasi pemalsu lokasi lalu menampilkan pesan yang jelas; hasilnya juga dikirim sebagai `signals`.
 
 **Prinsip "mudah dipakai":**
 - Beranda: satu tombol Absen besar dan status hari ini.
@@ -1537,6 +1538,7 @@ Estimasi untuk tim kecil; sesuaikan setelah kapasitas tim jelas.
 - [x] Challenge, clock-in, clock-out, cutoff harian, dan `worked_minutes` (D31), masih tanpa verifikasi perangkat dan wajah (D36)
 - [x] Enroll + cocok wajah (enkripsi aplikasi), reset oleh SDM, dan `consents` (D41). Masih bergantung pada verifikasi perangkat (D36)
 - [x] Wajah dihitung server dari selfie, selfie terenkripsi, liveness acak, dan tolak selfie yang dikirim ulang (D42)
+- [x] Liveness dibuktikan server dari foto gerakan (toleh kepala) dan `liveness_retry` dihitung server (D51); ambang toleh menunggu kalibrasi
 - [x] Model wajah diganti dari dlib ke SFace setelah uji banding (D43); CI membandingkan hasil Go dengan OpenCV dan menguji ambang
 - [x] Lihat selfie di Review Absen dan hapus selfie setelah masa retensi (`purge_selfies` lewat timer systemd harian di server)
 - [x] Skor risiko dari sinyal yang sudah tersedia + `attendance_attempts`, termasuk `face_borderline`; sinyal integritas menyusul bersama verifikasinya
@@ -1549,7 +1551,7 @@ Estimasi untuk tim kecil; sesuaikan setelah kapasitas tim jelas.
 - [ ] Pembaruan APK mandiri dari GitHub Releases untuk build rilis bertanda tangan (D45); menunggu konfigurasi kunci, rilis, dan uji di HP.
 - [ ] Aplikasi minimal dimajukan: login, daftar perangkat, absen tanpa wajah. Dikerjakan sebelum Play Integrity dan wajah agar keduanya diuji di HP sungguhan (D35) Kode ada di `mobile/` (D44), menunggu uji di HP sungguhan.
 - [ ] Login, profile, penyimpanan token aman (API login, refresh, dan logout mobile sudah ada, D40). Kode ada (D44) termasuk tab Profil, data pribadi, dan ganti kata sandi; menunggu uji HP
-- [ ] Modul deteksi native
+- [x] Modul deteksi native: root, emulator, dan aplikasi pemalsu lokasi, dicek sebelum challenge dan dikirim sebagai `signals` (D51). Aturannya konservatif agar HP murah yang sah tidak tertolak; tetap perlu dicoba di HP sungguhan
 - [ ] Kamera + liveness (gerakan dari `liveness_action`) + kirim selfie (D42). Kode ada (D44), menunggu uji HP
 - [ ] Layar presensi + rekap. Absen, riwayat, dan rekap jam kerja hari ini serta bulan berjalan ada di tab Presensi; rekap per periode cutoff menunggu D31
 - [ ] FCM, pop-up, banner. Pop-up dan banner pengumuman sudah tampil di aplikasi (diambil saat aplikasi dibuka); push FCM menunggu proyek Firebase
@@ -1637,6 +1639,7 @@ Estimasi untuk tim kecil; sesuaikan setelah kapasitas tim jelas.
 | D48 | Pinjaman (dahulu kasbon) memotong ubar otomatis lewat cicilan per periode; plafon dan maksimum cicilan diatur SDM | Keputusan pemilik proyek (§14.2 no. 3). Dikerjakan setelah cuti/izin; potongan di payroll menyusul Fase 5 |
 | D49 | Role `kadiv`/`subdiv` mengikuti penunjukan kepala divisi/subdiv dan kembali menjadi `pejuang` saat tidak lagi memimpin unit mana pun. Role `sdm` dan `superadmin` tidak pernah diubah otomatis. Migrasi 000012 menyesuaikan kepala yang sudah ada | Keputusan pemilik proyek (§14.2 no. 15). Satu tempat pengaturan; perubahan tercatat `user.role_changed` dan berlaku setelah token diperbarui |
 | D50 | Istilah mengikuti adab yayasan: "presensi" menggantikan "absen" (karena absen berarti tidak hadir), "ubar" menggantikan upah/gaji, "pinjaman" menggantikan kasbon, dan "Pejuang" menggantikan karyawan/pegawai, di aplikasi, web, pesan API, dan dokumen baru | Keputusan pemilik proyek. Nama kode, path API, dan nilai enum (mis. `absent`, `/pengajuan/kasbon`) tidak diubah agar kontrak tetap stabil |
+| D51 | Liveness dibuktikan server dari dua foto: selfie lurus dan foto saat kepala menoleh (`gesture`), yang hash-nya ikut diikat ke `request_hash`. Server memeriksa dari lima titik YuNet bahwa selfie lurus (rasio toleh ≤ 0.20), foto gerakan menoleh (≥ 0.18, selisih ≥ 0.10), dan wajahnya orang yang sama (kemiripan ≥ 0.30). Challenge hanya meminta `turn_left`/`turn_right`. `liveness_retry` dihitung server dari upaya wajah yang ditolak, dan aplikasi mendeteksi root, emulator, serta aplikasi pemalsu lokasi sebelum meminta challenge | Keputusan pemilik proyek: sebelumnya server hanya mempercayai `liveness_passed` dari aplikasi. Kedip dan senyum tidak bisa dibuktikan dari lima titik, jadi tidak diminta lagi. Konsekuensi: foto cetak atau layar yang diam ditolak, tetapi video wajah yang diputar ulang masih bisa lolos; anti-spoof berbasis model atau layanan komersial tetap pilihan berikutnya. Ambang toleh adalah nilai awal dari geometri wajah dan wajib dikalibrasi dengan foto HP sungguhan. Aplikasi lama yang belum mengirim foto gerakan ditolak `VALIDATION_FAILED` (`gesture`), jadi server dan aplikasi harus diperbarui bersamaan. Deteksi di HP bersifat saran dan konservatif (tidak memakai `test-keys`) |
 | D15 | `/v1/admin/reports/payroll-preview` mewajibkan `attendance:report` dan `payroll:manage` | Respons memuat gaji, sedangkan §7.6 membatasi `base_salary` untuk `sdm` dan pemilik data |
 
 ### 14.2 Pertanyaan yang Harus Dijawab (blokir pekerjaan terkait)

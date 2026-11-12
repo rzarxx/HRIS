@@ -19,6 +19,9 @@ import id.pejuang.hris.face.mapToView
 import id.pejuang.hris.face.photoFits
 import id.pejuang.hris.face.scaledSize
 import id.pejuang.hris.location.roundCoordinate
+import id.pejuang.hris.security.BuildInfo
+import id.pejuang.hris.security.DeviceRisk
+import id.pejuang.hris.security.DeviceRules
 import id.pejuang.hris.ui.toPickerMillis
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -185,6 +188,18 @@ class LivenessTrackerTest {
         assertTrue(t.update(listOf(face(eyes = null, smile = 0.9f))) is LivenessState.Waiting)
         assertEquals(LivenessState.Passed, t.update(listOf(face())))
     }
+
+    @Test
+    fun gestureSeenMarksTheGestureFrame() {
+        val t = tracker("turn_left")
+        t.update(listOf(face()))
+        assertFalse(t.gestureSeen)
+        t.update(listOf(face(yaw = 30f)))
+        assertTrue(t.gestureSeen)
+        // Wajah keluar oval: foto gerakan lama harus dibuang dan gerakan diulang.
+        t.update(listOf(face(fit = FaceFit.Outside)))
+        assertFalse(t.gestureSeen)
+    }
 }
 
 class DataTest {
@@ -247,9 +262,17 @@ class DataTest {
     fun clockPayloadHasContractFields() {
         val json = apiJson.encodeToString(
             ClockInput.serializer(),
-            ClockInput("c", -6.2, 106.8, 12.5, "2026-11-09T01:00:00Z", AttendanceSignals(false, "0.1.0"), "ab", true, "blink"),
+            ClockInput(
+                challengeId = "c", latitude = -6.2, longitude = 106.8, accuracyM = 12.5, capturedAt = "2026-11-09T01:00:00Z",
+                signals = AttendanceSignals(isMockLocation = false, rootDetected = true, appVersion = "0.1.0"),
+                selfieSha256 = "ab", livenessPassed = true, livenessAction = "turn_left", gestureSha256 = "cd",
+            ),
         )
-        for (field in listOf("challenge_id", "accuracy_m", "captured_at", "selfie_sha256", "liveness_passed", "liveness_action", "is_mock_location", "app_version")) {
+        assertTrue(json.contains("\"root_detected\":true"))
+        for (field in listOf(
+            "challenge_id", "accuracy_m", "captured_at", "selfie_sha256", "liveness_passed", "liveness_action", "gesture_sha256",
+            "is_mock_location", "fake_gps_app_detected", "root_detected", "emulator_detected", "app_version",
+        )) {
             assertTrue("$field ada", json.contains("\"$field\""))
         }
     }
@@ -569,5 +592,59 @@ class FaceFitTest {
         assertFalse(check(box(480f, 512f, 180f)))
         assertFalse(check(box(200f, 512f, 300f)))
         assertFalse(check(box(480f, 1000f, 300f)))
+    }
+}
+
+class DeviceRulesTest {
+    private val phone = BuildInfo(
+        fingerprint = "Infinix/X6511-OP/Infinix-X6511:10/QP1A.190711.020/GH-201015V180:user/release-keys",
+        model = "Infinix X6511",
+        manufacturer = "INFINIX MOBILITY LIMITED",
+        brand = "Infinix",
+        device = "Infinix-X6511",
+        product = "X6511-OP",
+        hardware = "mt6762",
+    )
+
+    @Test
+    fun realPhoneIsNotEmulator() {
+        assertFalse(DeviceRules.emulator(phone))
+        // HP murah yang dibangun dengan test-keys tetap dianggap HP biasa.
+        assertFalse(DeviceRules.emulator(phone.copy(fingerprint = phone.fingerprint.replace("release-keys", "test-keys"))))
+    }
+
+    @Test
+    fun emulatorsAreRecognized() {
+        assertTrue(DeviceRules.emulator(phone.copy(fingerprint = "generic/sdk_gphone_x86/generic_x86:10/QSR1/123:userdebug/dev-keys")))
+        assertTrue(DeviceRules.emulator(phone.copy(hardware = "ranchu")))
+        assertTrue(DeviceRules.emulator(phone.copy(model = "Android SDK built for x86")))
+        assertTrue(DeviceRules.emulator(phone.copy(product = "sdk_gphone64_arm64")))
+        assertTrue(DeviceRules.emulator(phone.copy(manufacturer = "Genymotion")))
+    }
+
+    @Test
+    fun rootAndFakeGpsNeedConcreteEvidence() {
+        val none = { _: String -> false }
+        assertFalse(DeviceRules.rooted(none, none))
+        assertTrue(DeviceRules.rooted({ it == "/system/xbin/su" }, none))
+        assertTrue(DeviceRules.rooted(none, { it == "com.topjohnwu.magisk" }))
+        assertFalse(DeviceRules.fakeGpsApp(none))
+        assertTrue(DeviceRules.fakeGpsApp { it == "com.lexa.fakegps" })
+    }
+
+    @Test
+    fun riskMessageNamesTheProblem() {
+        assertFalse(DeviceRisk.CLEAN.blocked)
+        val fake = DeviceRisk(rootDetected = false, emulatorDetected = false, fakeGpsAppDetected = true)
+        assertTrue(fake.blocked)
+        assertTrue(fake.message.contains("pemalsu lokasi"))
+    }
+
+    @Test
+    fun manifestQueriesMatchRules() {
+        // Tes unit Gradle berjalan dari folder modul app.
+        val manifest = java.io.File("src/main/AndroidManifest.xml").readText()
+        val queried = Regex("""<package android:name="([^"]+)" />""").findAll(manifest).map { it.groupValues[1] }.toSet()
+        assertEquals((DeviceRules.ROOT_PACKAGES + DeviceRules.FAKE_GPS_PACKAGES).toSet(), queried)
     }
 }

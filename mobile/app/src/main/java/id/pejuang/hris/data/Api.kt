@@ -38,11 +38,19 @@ interface HrisApi {
 
     @Multipart
     @POST("v1/attendance/clock-in")
-    suspend fun clockIn(@Part("payload") payload: RequestBody, @Part selfie: MultipartBody.Part): DataResponse<ClockInResult>
+    suspend fun clockIn(
+        @Part("payload") payload: RequestBody,
+        @Part selfie: MultipartBody.Part,
+        @Part gesture: MultipartBody.Part,
+    ): DataResponse<ClockInResult>
 
     @Multipart
     @POST("v1/attendance/clock-out")
-    suspend fun clockOut(@Part("payload") payload: RequestBody, @Part selfie: MultipartBody.Part): DataResponse<ClockOutResult>
+    suspend fun clockOut(
+        @Part("payload") payload: RequestBody,
+        @Part selfie: MultipartBody.Part,
+        @Part gesture: MultipartBody.Part,
+    ): DataResponse<ClockOutResult>
 
     @GET("v1/attendance")
     suspend fun history(@Query("from") from: String? = null, @Query("to") to: String? = null): DataResponse<List<AttendanceRecord>>
@@ -52,7 +60,11 @@ interface HrisApi {
 
     @Multipart
     @POST("v1/face/enroll")
-    suspend fun enroll(@Part("payload") payload: RequestBody, @Part samples: List<MultipartBody.Part>): DataResponse<FaceStatus>
+    suspend fun enroll(
+        @Part("payload") payload: RequestBody,
+        @Part samples: List<MultipartBody.Part>,
+        @Part gesture: MultipartBody.Part,
+    ): DataResponse<FaceStatus>
 
     @POST("v1/auth/password/change")
     suspend fun changePassword(@Body body: PasswordChangeRequest): retrofit2.Response<Unit>

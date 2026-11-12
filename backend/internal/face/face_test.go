@@ -221,3 +221,55 @@ func TestDecodeJPEG(t *testing.T) {
 		t.Errorf("gambar terlalu kecil: %v", err)
 	}
 }
+
+// headLandmarks memproyeksikan model kepala sederhana yang menoleh yaw derajat: mata di (±0.5, 0, 0),
+// hidung 0.4 di bawah mata dan menonjol 0.55 ke depan, sudut mulut di (±0.35, 0.8, 0.2).
+func headLandmarks(yaw float64) [5][2]float64 {
+	rad := yaw * math.Pi / 180
+	project := func(x, y, z float64) [2]float64 {
+		return [2]float64{100 + 60*(x*math.Cos(rad)+z*math.Sin(rad)), 100 + 60*y}
+	}
+	return [5][2]float64{
+		project(-0.5, 0, 0), project(0.5, 0, 0), project(0, 0.4, 0.55),
+		project(-0.35, 0.8, 0.2), project(0.35, 0.8, 0.2),
+	}
+}
+
+func TestTurnRatio(t *testing.T) {
+	if r := TurnRatio(headLandmarks(0)); !near(r, 0, 1e-9) {
+		t.Errorf("lurus = %v", r)
+	}
+	// Arah toleh menentukan tanda, besarnya sama.
+	if l, r := TurnRatio(headLandmarks(25)), TurnRatio(headLandmarks(-25)); !near(l, -r, 1e-9) || l == 0 {
+		t.Errorf("toleh kiri %v, kanan %v", l, r)
+	}
+	// Ambang cocok dengan ambang aplikasi: wajah lurus aplikasi (< 12 derajat) lolos sebagai lurus,
+	// toleh aplikasi (> 25 derajat) lolos sebagai gerakan.
+	if r := math.Abs(TurnRatio(headLandmarks(12))); r > StraightTurnMax {
+		t.Errorf("12 derajat = %.3f, melebihi batas lurus %.2f", r, StraightTurnMax)
+	}
+	if r := math.Abs(TurnRatio(headLandmarks(25))); r < GestureTurnMin || r < GestureTurnDelta {
+		t.Errorf("25 derajat = %.3f, kurang dari batas gerakan %.2f", r, GestureTurnMin)
+	}
+	// Ukuran wajah tidak memengaruhi rasio.
+	var big [5][2]float64
+	for i, p := range headLandmarks(20) {
+		big[i] = [2]float64{p[0] * 3, p[1] * 3}
+	}
+	if !near(TurnRatio(big), TurnRatio(headLandmarks(20)), 1e-9) {
+		t.Error("rasio harus sama untuk wajah besar dan kecil")
+	}
+	if TurnRatio([5][2]float64{}) != 0 {
+		t.Error("titik kosong = 0")
+	}
+}
+
+func TestPickMainIgnoresPosition(t *testing.T) {
+	edge := Detection{X: 0, Y: 0, W: 50, H: 50}
+	if _, err := pickMain([]Detection{edge}); err != nil {
+		t.Errorf("pickMain tidak memeriksa posisi: %v", err)
+	}
+	if _, err := pickFace([]Detection{edge}, 1000, 800); err != ErrFaceNotCentered {
+		t.Errorf("pickFace tetap memeriksa posisi: %v", err)
+	}
+}

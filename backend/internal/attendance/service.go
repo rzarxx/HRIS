@@ -116,8 +116,12 @@ type ClockInput struct {
 	SelfieSHA256   string `json:"selfie_sha256"`
 	LivenessPassed *bool  `json:"liveness_passed"`
 	LivenessAction string `json:"liveness_action"`
+	// Foto saat gerakan liveness (berkas multipart `gesture`), dipakai server untuk membuktikan
+	// kepala benar-benar menoleh (D50).
+	GestureSHA256 string `json:"gesture_sha256"`
 
-	selfie []byte
+	selfie  []byte
+	gesture []byte
 }
 
 type parsedClock struct {
@@ -155,6 +159,11 @@ func (in ClockInput) parse() (parsedClock, error) {
 	p.capturedAt = captured
 	if len(in.selfie) > 0 && !strings.EqualFold(in.SelfieSHA256, sha256Hex(in.selfie)) {
 		fields["selfie_sha256"] = "Hash selfie tidak sesuai."
+	}
+	if len(in.selfie) > 0 && len(in.gesture) == 0 {
+		fields["gesture"] = errGestureMissing
+	} else if len(in.gesture) > 0 && !strings.EqualFold(in.GestureSHA256, sha256Hex(in.gesture)) {
+		fields["gesture_sha256"] = "Hash foto gerakan tidak sesuai."
 	}
 	if len(fields) > 0 {
 		return p, httpx.Validation(fields)
@@ -336,7 +345,7 @@ func (s *Service) verify(ctx context.Context, a *attempt, deviceHeader string, i
 	if s.opt.PlayVerifier == nil || len(in.selfie) == 0 {
 		return s.reject(ctx, *a, "integrity_failed", errBlocked())
 	}
-	hash, err := integrity.AttendanceHash(challenge.Nonce, parsed.point.Latitude, parsed.point.Longitude, parsed.capturedAt, in.SelfieSHA256)
+	hash, err := integrity.AttendanceHash(challenge.Nonce, parsed.point.Latitude, parsed.point.Longitude, parsed.capturedAt, in.SelfieSHA256, in.GestureSHA256)
 	if err != nil {
 		return s.reject(ctx, *a, "integrity_failed", errBlocked())
 	}
@@ -361,6 +370,16 @@ func (s *Service) assess(ctx context.Context, a *attempt, parsed parsedClock, no
 		return err
 	}
 	a.flags = append(a.flags, SoftFlags(input)...)
+	// liveness_retry dihitung server dari upaya yang ditolak, bukan dari laporan aplikasi.
+	failures, err := s.q.CountRecentFaceFailures(ctx, store.CountRecentFaceFailuresParams{
+		EmployeeID: a.p.EmployeeID, Purpose: a.purpose, Since: pgconv.Time(now.Add(-livenessRetryWindow)),
+	})
+	if err != nil {
+		return err
+	}
+	if LivenessRetried(failures) {
+		a.flags = append(a.flags, flagLivenessRetry)
+	}
 	a.score = RiskScore(a.flags)
 	if a.score >= riskRejectMin {
 		return s.reject(ctx, *a, "risk_too_high", errBlocked())
@@ -783,12 +802,15 @@ func (h *Handler) Challenge(w http.ResponseWriter, r *http.Request) error {
 // selfie yang hanya diterima di development (D36).
 func readClock(r *http.Request) (ClockInput, error) {
 	var in ClockInput
-	files, err := readUpload(r, &in, "selfie", 1)
+	files, err := readUploadFields(r, &in, map[string]int{"selfie": 1, "gesture": 1})
 	if err != nil {
 		return in, err
 	}
-	if len(files) == 1 {
-		in.selfie = files[0]
+	if f := files["selfie"]; len(f) == 1 {
+		in.selfie = f[0]
+	}
+	if f := files["gesture"]; len(f) == 1 {
+		in.gesture = f[0]
 	}
 	return in, nil
 }

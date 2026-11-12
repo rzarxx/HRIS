@@ -38,6 +38,12 @@ class LivenessTracker(private val action: String, private val holdFrames: Int = 
     private var gestureDone = false
     private var held = 0
 
+    /**
+     * Gerakan sudah terlihat dan belum dibatalkan. Saat berubah menjadi true, frame itu diambil
+     * sebagai foto gerakan yang dibuktikan server (D50); saat kembali false, foto itu dibuang.
+     */
+    val gestureSeen: Boolean get() = gestureDone
+
     val prompt: String = when (action) {
         "blink" -> "Kedipkan mata"
         "turn_left" -> "Tolehkan kepala ke kiri"

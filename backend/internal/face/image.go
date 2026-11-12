@@ -58,6 +58,9 @@ const (
 	yunetScoreMin   = 0.7
 	yunetNMS        = 0.3
 	manyFaceAreaMin = 0.25 // wajah lain dihitung bila luasnya minimal 25% wajah terbesar
+	// Wajah utama harus cukup besar dan di tengah foto, sesuai oval di kamera aplikasi.
+	faceWidthMin = 0.20 // lebar kotak wajah minimal 20% lebar foto
+	faceCenterIn = 0.60 // pusat wajah harus di dalam 60% bagian tengah foto pada tiap sumbu
 )
 
 var yunetStrides = []int{8, 16, 32}
@@ -212,9 +215,11 @@ func nms(faces []Detection) []Detection {
 	return keep
 }
 
-// pickFace memilih wajah terbesar. Wajah lain yang cukup besar berarti selfie berisi lebih dari
-// satu orang; wajah kecil jauh di belakang diabaikan.
-func pickFace(faces []Detection) (Detection, error) {
+// pickFace memilih wajah terbesar pada foto berukuran width x height. Wajah lain yang cukup besar
+// berarti selfie berisi lebih dari satu orang; wajah kecil jauh di belakang diabaikan. Wajah utama
+// yang terlalu kecil atau jauh dari tengah ditolak, karena aplikasi hanya memotret wajah yang pas
+// di oval; foto seperti itu biasanya hasil kamera yang miring atau wajah yang terpotong.
+func pickFace(faces []Detection, width, height int) (Detection, error) {
 	if len(faces) == 0 {
 		return Detection{}, ErrNoFace
 	}
@@ -229,7 +234,21 @@ func pickFace(faces []Detection) (Detection, error) {
 			return Detection{}, ErrManyFaces
 		}
 	}
+	if !centered(best, width, height) {
+		return Detection{}, ErrFaceNotCentered
+	}
 	return best, nil
+}
+
+// centered memeriksa ukuran dan posisi wajah utama terhadap foto.
+func centered(f Detection, width, height int) bool {
+	w, h := float64(width), float64(height)
+	if w <= 0 || h <= 0 || f.W < faceWidthMin*w {
+		return false
+	}
+	margin := (1 - faceCenterIn) / 2
+	cx, cy := f.X+f.W/2, f.Y+f.H/2
+	return cx >= margin*w && cx <= (1-margin)*w && cy >= margin*h && cy <= (1-margin)*h
 }
 
 // arcfaceTemplate adalah posisi lima titik pada gambar 112x112 yang dipakai SFace.

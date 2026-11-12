@@ -131,7 +131,7 @@ func (e *sfaceEngine) Embed(ctx context.Context, jpeg []byte) ([]float64, error)
 	if err != nil {
 		return nil, err
 	}
-	face, err := pickFace(faces)
+	face, err := pickFace(faces, img.w, img.h)
 	if err != nil {
 		return nil, err
 	}

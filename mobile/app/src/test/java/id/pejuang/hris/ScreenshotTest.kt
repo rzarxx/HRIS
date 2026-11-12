@@ -37,6 +37,7 @@ import id.pejuang.hris.ui.RequestsUi
 import id.pejuang.hris.ui.RequestsView
 import id.pejuang.hris.ui.SheetPreview
 import java.time.LocalDate
+import id.pejuang.hris.face.FaceFit
 import id.pejuang.hris.face.LivenessState
 import id.pejuang.hris.face.cameraMessage
 import id.pejuang.hris.ui.CameraOverlay
@@ -230,17 +231,37 @@ class ScreenshotTest {
     @Test
     fun sending() = shot { ProgressContent("Presensi masuk", "Memverifikasi wajah", "Mengirim foto dan lokasi. Jangan tutup aplikasi.", null) }
 
-    @Test
-    fun camera() = shot {
-        val (phase, message) = cameraMessage(LivenessState.Waiting("Kedipkan mata"), shots = 1, taken = 0)
+    private fun cameraShot(state: LivenessState) = shot {
+        val message = cameraMessage(state, shots = 1, taken = 0)
         Box(
             Modifier
                 .fillMaxSize()
                 .background(Brush.verticalGradient(listOf(Color(0xFF6B7280), Color(0xFF374151)))),
         ) {
-            CameraOverlay(title = "Presensi masuk", message = message, phase = phase, gesture = "Kedipkan mata", onClose = {})
+            CameraOverlay(
+                title = "Presensi masuk",
+                message = message.text,
+                phase = message.phase,
+                gesture = "Kedipkan mata",
+                onClose = {},
+                progress = message.progress,
+            )
         }
     }
+
+    @Test
+    fun camera() = cameraShot(LivenessState.Waiting("Kedipkan mata"))
+
+    /** Belum ada wajah: oval putih netral. */
+    @Test
+    fun cameraNeutral() = cameraShot(LivenessState.NoFace)
+
+    /** Wajah pas di oval: oval hijau dan cincin kemajuan menahan posisi. */
+    @Test
+    fun cameraAligned() = cameraShot(LivenessState.Waiting(FaceFit.Fit.hint, aligned = true, progress = 0.5f))
+
+    @Test
+    fun cameraTooFar() = cameraShot(LivenessState.Waiting(FaceFit.TooSmall.hint))
 
     @Test
     fun resultSuccess() = shot {

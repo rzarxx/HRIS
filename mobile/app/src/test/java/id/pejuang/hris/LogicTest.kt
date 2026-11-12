@@ -7,9 +7,16 @@ import id.pejuang.hris.data.MobileLoginRequest
 import id.pejuang.hris.data.apiJson
 import id.pejuang.hris.data.normalizeBaseUrl
 import id.pejuang.hris.data.sha256Hex
+import id.pejuang.hris.face.FaceFit
 import id.pejuang.hris.face.FaceSample
+import id.pejuang.hris.face.FitRect
+import id.pejuang.hris.face.FitRules
 import id.pejuang.hris.face.LivenessState
 import id.pejuang.hris.face.LivenessTracker
+import id.pejuang.hris.face.checkFit
+import id.pejuang.hris.face.faceOval
+import id.pejuang.hris.face.mapToView
+import id.pejuang.hris.face.photoFits
 import id.pejuang.hris.face.scaledSize
 import id.pejuang.hris.location.roundCoordinate
 import id.pejuang.hris.ui.toPickerMillis
@@ -19,12 +26,80 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class LivenessTrackerTest {
-    private fun face(yaw: Float = 0f, eyes: Float? = 0.9f, smile: Float? = 0.1f) =
-        FaceSample(leftEyeOpen = eyes, rightEyeOpen = eyes, smiling = smile, yaw = yaw)
+    private fun face(yaw: Float = 0f, eyes: Float? = 0.9f, smile: Float? = 0.1f, fit: FaceFit = FaceFit.Fit) =
+        FaceSample(leftEyeOpen = eyes, rightEyeOpen = eyes, smiling = smile, yaw = yaw, fit = fit)
+
+    // Tes gerakan memakai satu frame per tahap tahan posisi agar ringkas; aturan 8 frame dites terpisah.
+    private fun tracker(action: String) = LivenessTracker(action, holdFrames = 1)
+
+    @Test
+    fun straightStageNeedsEightFitFrames() {
+        val t = LivenessTracker("blink")
+        assertEquals(8, FitRules.HOLD_FRAMES)
+        repeat(7) { i ->
+            val s = t.update(listOf(face())) as LivenessState.Waiting
+            assertEquals("Tahan posisi", s.hint)
+            assertTrue(s.aligned)
+            assertEquals((i + 1) / 8f, s.progress, 1e-6f)
+        }
+        assertEquals(LivenessState.Waiting("Kedipkan mata", aligned = true), t.update(listOf(face())))
+    }
+
+    @Test
+    fun badFrameRestartsHold() {
+        val t = LivenessTracker("blink")
+        repeat(5) { t.update(listOf(face())) }
+        assertEquals(LivenessState.Waiting("Dekatkan wajah"), t.update(listOf(face(fit = FaceFit.TooSmall))))
+        assertEquals(LivenessState.Waiting("Tegakkan kepala"), t.update(listOf(face(fit = FaceFit.Tilted))))
+        repeat(7) { assertEquals("Tahan posisi", (t.update(listOf(face())) as LivenessState.Waiting).hint) }
+        assertEquals("Kedipkan mata", (t.update(listOf(face())) as LivenessState.Waiting).hint)
+    }
+
+    @Test
+    fun fitButNotStraightAsksToLookStraight() {
+        val t = tracker("blink")
+        assertEquals(LivenessState.Waiting("Lihat lurus ke kamera", aligned = true), t.update(listOf(face(yaw = 20f))))
+    }
+
+    @Test
+    fun leavingOvalMustStartOver() {
+        val t = tracker("blink")
+        t.update(listOf(face()))
+        t.update(listOf(face(eyes = 0.1f)))
+        assertEquals(
+            LivenessState.Waiting("Masukkan wajah ke dalam bingkai"),
+            t.update(listOf(face(fit = FaceFit.Outside))),
+        )
+        // Membuka mata setelah keluar oval hanya menetapkan posisi awal baru.
+        assertTrue(t.update(listOf(face())) is LivenessState.Waiting)
+        assertTrue(t.update(listOf(face())) is LivenessState.Waiting)
+    }
+
+    @Test
+    fun turnOnlyNeedsCenterInsideOval() {
+        val t = tracker("turn_left")
+        t.update(listOf(face()))
+        // Saat menoleh kotak wajah bergeser; selama pusatnya di oval, gerakan tetap dihitung.
+        assertEquals(LivenessState.Waiting("Geser ke tengah"), t.update(listOf(face(yaw = 30f, fit = FaceFit.OffCenter))))
+        // Sebelum foto, wajah wajib pas lagi.
+        assertEquals(LivenessState.Waiting("Tegakkan kepala"), t.update(listOf(face(yaw = 3f, fit = FaceFit.Tilted))))
+        assertEquals(LivenessState.Passed, t.update(listOf(face(yaw = 3f))))
+    }
+
+    @Test
+    fun straightStageNeedsFit() {
+        val t = tracker("smile")
+        assertEquals(LivenessState.Waiting("Jauhkan sedikit"), t.update(listOf(face(fit = FaceFit.TooLarge))))
+        // Gerakan sebelum posisi awal pas belum dihitung.
+        assertTrue(t.update(listOf(face(smile = 0.9f))) is LivenessState.Waiting)
+        t.update(listOf(face()))
+        assertEquals(LivenessState.Waiting("Jauhkan sedikit"), t.update(listOf(face(smile = 0.9f, fit = FaceFit.TooLarge))))
+        assertEquals(LivenessState.Passed, t.update(listOf(face())))
+    }
 
     @Test
     fun blinkNeedsOpenClosedOpen() {
-        val t = LivenessTracker("blink")
+        val t = tracker("blink")
         assertTrue(t.update(listOf(face())) is LivenessState.Waiting)
         assertTrue(t.update(listOf(face(eyes = 0.1f))) is LivenessState.Waiting)
         assertEquals(LivenessState.Passed, t.update(listOf(face(eyes = 0.9f))))
@@ -32,13 +107,13 @@ class LivenessTrackerTest {
 
     @Test
     fun closedEyesFromStartDoNotPass() {
-        val t = LivenessTracker("blink")
+        val t = tracker("blink")
         repeat(3) { assertTrue(t.update(listOf(face(eyes = 0.1f))) is LivenessState.Waiting) }
     }
 
     @Test
     fun turnNeedsStraightFirst() {
-        val t = LivenessTracker("turn_left")
+        val t = tracker("turn_left")
         // Kepala sudah menoleh sejak awal: belum dianggap gerakan.
         assertTrue(t.update(listOf(face(yaw = 40f))) is LivenessState.Waiting)
         t.update(listOf(face(yaw = 2f)))
@@ -50,7 +125,7 @@ class LivenessTrackerTest {
 
     @Test
     fun passedFaceStillMustBeAloneAndOpenEyed() {
-        val t = LivenessTracker("smile")
+        val t = tracker("smile")
         t.update(listOf(face()))
         assertEquals(LivenessState.Passed, t.update(listOf(face(smile = 0.9f))))
         assertEquals(LivenessState.ManyFaces, t.update(listOf(face(), face())))
@@ -59,7 +134,7 @@ class LivenessTrackerTest {
 
     @Test
     fun smileNeedsNeutralFirst() {
-        val t = LivenessTracker("smile")
+        val t = tracker("smile")
         assertTrue(t.update(listOf(face(smile = 0.95f))) is LivenessState.Waiting)
         t.update(listOf(face(smile = 0.1f)))
         assertEquals(LivenessState.Passed, t.update(listOf(face(smile = 0.9f))))
@@ -67,7 +142,7 @@ class LivenessTrackerTest {
 
     @Test
     fun noFaceAndManyFaces() {
-        val t = LivenessTracker("blink")
+        val t = tracker("blink")
         assertEquals(LivenessState.NoFace, t.update(emptyList()))
         assertEquals(LivenessState.ManyFaces, t.update(listOf(face(), face())))
     }
@@ -75,7 +150,7 @@ class LivenessTrackerTest {
     @Test
     fun interruptedGestureMustStartOver() {
         for (interruption in listOf(emptyList(), listOf(face(), face()))) {
-            val t = LivenessTracker("blink")
+            val t = tracker("blink")
             t.update(listOf(face()))
             t.update(listOf(face(eyes = 0.1f)))
             t.update(interruption)
@@ -89,7 +164,7 @@ class LivenessTrackerTest {
 
     @Test
     fun interruptionAfterGestureRequiresNewGesture() {
-        val t = LivenessTracker("turn_left")
+        val t = tracker("turn_left")
         t.update(listOf(face()))
         t.update(listOf(face(yaw = 30f)))
         t.update(emptyList())
@@ -99,7 +174,7 @@ class LivenessTrackerTest {
 
     @Test
     fun unknownClassificationDoesNotEstablishNeutralOrFinishCapture() {
-        val t = LivenessTracker("smile")
+        val t = tracker("smile")
         t.update(listOf(face(eyes = null)))
         t.update(listOf(face(smile = 0.9f)))
         assertTrue(t.update(listOf(face(smile = 0.9f))) is LivenessState.Waiting)
@@ -377,5 +452,122 @@ class BrandingLogicTest {
         )
         assertEquals("© 2026 PUTI", b.footer)
         assertFalse(b.isDefault)
+    }
+}
+
+class FaceFitTest {
+    // Layar 1080x2340: oval lebar 756, tinggi 997.92, pusat (540, 936).
+    private val viewWidth = 1080f
+    private val viewHeight = 2340f
+    private val oval = faceOval(viewWidth, viewHeight)
+
+    private fun box(cx: Float, cy: Float, w: Float, h: Float = w) = FitRect(cx - w / 2, cy - h / 2, cx + w / 2, cy + h / 2)
+
+    private fun fit(face: FitRect, roll: Float = 0f, pitch: Float = 0f) = checkFit(face, oval, roll, pitch)
+
+    private fun assertRect(expected: FitRect, actual: FitRect) {
+        assertEquals(expected.left, actual.left, 0.01f)
+        assertEquals(expected.top, actual.top, 0.01f)
+        assertEquals(expected.right, actual.right, 0.01f)
+        assertEquals(expected.bottom, actual.bottom, 0.01f)
+    }
+
+    @Test
+    fun ovalMatchesDrawing() {
+        assertEquals(756f, oval.width, 0.01f)
+        assertEquals(756f * 1.32f, oval.height, 0.01f)
+        assertEquals(540f, oval.centerX, 0.01f)
+        assertEquals(936f, oval.centerY, 0.01f)
+    }
+
+    @Test
+    fun centeredFaceFits() {
+        assertEquals(FaceFit.Fit, fit(box(540f, 936f, 0.7f * 756f)))
+        // Masih pas di dekat batas posisi dan ukuran.
+        assertEquals(FaceFit.Fit, fit(box(540f + 0.11f * 756f, 936f, 0.6f * 756f)))
+        assertEquals(FaceFit.Fit, fit(box(540f, 936f - 0.09f * 998f, 0.6f * 756f)))
+    }
+
+    @Test
+    fun tooSmallAndTooLarge() {
+        assertEquals(FaceFit.TooSmall, fit(box(540f, 936f, 0.5f * 756f)))
+        assertEquals(FaceFit.TooLarge, fit(box(540f, 936f, 0.9f * 756f)))
+    }
+
+    @Test
+    fun faceAtEdge() {
+        // Wajah yang baru terlihat sedikit di tepi bingkai: pusatnya di luar oval.
+        assertEquals(FaceFit.Outside, fit(box(60f, 936f, 0.6f * 756f)))
+        assertEquals(FaceFit.Outside, fit(box(540f, 200f, 0.6f * 756f)))
+        // Di dalam oval tetapi bergeser lebih dari 12% lebar atau 10% tinggi oval.
+        assertEquals(FaceFit.OffCenter, fit(box(540f + 0.15f * 756f, 936f, 0.6f * 756f)))
+        assertEquals(FaceFit.OffCenter, fit(box(540f, 936f + 0.12f * 998f, 0.6f * 756f)))
+        // Pusat dan ukuran lolos, tetapi sisi wajah menembus garis oval.
+        assertEquals(FaceFit.OffCenter, fit(box(540f + 0.11f * 756f, 936f, 0.84f * 756f)))
+    }
+
+    @Test
+    fun tiltedHead() {
+        val face = box(540f, 936f, 0.7f * 756f)
+        assertEquals(FaceFit.Tilted, fit(face, roll = 15f))
+        assertEquals(FaceFit.Tilted, fit(face, pitch = -13f))
+        assertEquals(FaceFit.Fit, fit(face, roll = 11f, pitch = -11f))
+    }
+
+    @Test
+    fun hintsMatchGuidance() {
+        assertEquals("Masukkan wajah ke dalam bingkai", FaceFit.Outside.hint)
+        assertEquals("Dekatkan wajah", FaceFit.TooSmall.hint)
+        assertEquals("Jauhkan sedikit", FaceFit.TooLarge.hint)
+        assertEquals("Geser ke tengah", FaceFit.OffCenter.hint)
+        assertEquals("Tegakkan kepala", FaceFit.Tilted.hint)
+        assertEquals("Tahan posisi", FaceFit.Fit.hint)
+    }
+
+    @Test
+    fun fillCenterMapping() {
+        // Frame 480x640 tegak di layar 1080x2340: skala 2340/640 = 3.65625, sisi kiri-kanan terpotong 337.5 px.
+        val mapped = mapToView(FitRect(100f, 200f, 300f, 400f), 480, 640, 0, viewWidth, viewHeight, mirror = false)
+        assertRect(FitRect(28.125f, 731.25f, 759.375f, 1462.5f), mapped)
+    }
+
+    @Test
+    fun frontCameraIsMirrored() {
+        val face = FitRect(100f, 200f, 300f, 400f)
+        // Wajah di kiri frame analisis tampil di kanan pratinjau kamera depan.
+        val mirrored = mapToView(face, 480, 640, 0, viewWidth, viewHeight, mirror = true)
+        assertRect(FitRect(320.625f, 731.25f, 1051.875f, 1462.5f), mirrored)
+        // Wajah di tengah frame tetap di tengah layar.
+        val centered = mapToView(FitRect(190f, 200f, 290f, 400f), 480, 640, 0, viewWidth, viewHeight, mirror = true)
+        assertEquals(540f, centered.centerX, 0.01f)
+    }
+
+    @Test
+    fun rotation270SwapsFrameSides() {
+        // Kamera depan biasanya memberi frame 640x480 dengan rotasi 270; kotak ML Kit sudah di gambar tegak 480x640.
+        val face = FitRect(100f, 200f, 300f, 400f)
+        val rotated = mapToView(face, 640, 480, 270, viewWidth, viewHeight, mirror = true)
+        assertRect(mapToView(face, 480, 640, 0, viewWidth, viewHeight, mirror = true), rotated)
+        assertRect(mapToView(face, 640, 480, 90, viewWidth, viewHeight, mirror = true), rotated)
+
+        // Wajah di tengah frame (0.4 tinggi) selebar 145 px pas di oval setelah dipetakan.
+        val onScreen = mapToView(FitRect(240f - 72.5f, 256f - 72.5f, 240f + 72.5f, 256f + 72.5f), 640, 480, 270, viewWidth, viewHeight, mirror = true)
+        assertEquals(FaceFit.Fit, fit(onScreen))
+    }
+
+    @Test
+    fun capturedPhotoChecks() {
+        // Foto tegak 960x1280; di layar 1080x2340 oval selebar sekitar 413 px foto.
+        fun check(vararg faces: FitRect) = photoFits(faces.toList(), 960, 1280, viewWidth, viewHeight, mirror = true)
+        assertTrue(check(box(480f, 512f, 300f)))
+        // 25% lebar foto tetap diterima karena sudah pas di oval yang terlihat.
+        assertTrue(check(box(480f, 512f, 240f)))
+        // Wajah kecil jauh di belakang diabaikan, seperti di server.
+        assertTrue(check(box(480f, 512f, 300f), box(100f, 100f, 60f)))
+        assertFalse(check(box(480f, 512f, 300f), box(800f, 500f, 280f)))
+        assertFalse(check())
+        assertFalse(check(box(480f, 512f, 180f)))
+        assertFalse(check(box(200f, 512f, 300f)))
+        assertFalse(check(box(480f, 1000f, 300f)))
     }
 }

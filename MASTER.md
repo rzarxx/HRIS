@@ -1374,6 +1374,7 @@ mobile/app/src/main/java/.../
 4. Deteksi lokal (mock, root, emulator) dijalankan **sebelum** meminta challenge agar pengguna cepat tahu.
 5. `FLAG_SECURE` pada slip dan profil; `allowBackup=false`; log rilis tanpa data pribadi.
 6. Uji di minimal 3 HP Android 10 kelas bawah sebelum rilis.
+7. Kamera presensi: wajah harus **pas di oval** (seluruh wajah di dalam oval, cukup dekat, di tengah, kepala tegak) selama beberapa frame sebelum liveness dimulai dan sebelum foto diambil; wajah yang keluar oval atau hilang membuat liveness diulang. Foto hasil jepretan diperiksa ulang dengan ML Kit dan diambil ulang otomatis bila wajahnya tidak pas. Server menolak wajah utama yang lebarnya < 20% foto atau pusatnya di luar 60% bagian tengah foto (`FACE_NOT_DETECTED`). Rincian di `mobile/README.md`.
 
 **Prinsip "mudah dipakai":**
 - Beranda: satu tombol Absen besar dan status hari ini.

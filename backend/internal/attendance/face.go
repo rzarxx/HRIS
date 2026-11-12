@@ -98,6 +98,8 @@ func faceProblem(err error) (string, bool) {
 		return "Wajah tidak terdeteksi. Pastikan wajah terlihat jelas dan cahaya cukup.", true
 	case errors.Is(err, face.ErrManyFaces):
 		return "Terdeteksi lebih dari satu wajah. Pastikan hanya wajah Anda yang terlihat.", true
+	case errors.Is(err, face.ErrFaceNotCentered):
+		return "Wajah terlalu kecil atau tidak di tengah bingkai", true
 	case errors.Is(err, face.ErrBadImage):
 		return "Foto tidak bisa dibaca. Silakan ambil ulang.", true
 	}

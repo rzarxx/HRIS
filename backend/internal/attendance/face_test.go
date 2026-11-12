@@ -54,7 +54,7 @@ func TestEmbeddingRoundTrip(t *testing.T) {
 }
 
 func TestFaceProblem(t *testing.T) {
-	for _, err := range []error{face.ErrNoFace, face.ErrManyFaces, face.ErrBadImage} {
+	for _, err := range []error{face.ErrNoFace, face.ErrManyFaces, face.ErrFaceNotCentered, face.ErrBadImage} {
 		if msg, ok := faceProblem(err); !ok || msg == "" {
 			t.Errorf("%v harus punya pesan", err)
 		}

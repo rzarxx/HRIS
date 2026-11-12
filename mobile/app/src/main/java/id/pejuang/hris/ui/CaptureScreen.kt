@@ -62,7 +62,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
-import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.PathFillType
@@ -81,6 +81,7 @@ import id.pejuang.hris.data.PURPOSE_FACE_ENROLL
 import id.pejuang.hris.data.Repository
 import id.pejuang.hris.data.toApiError
 import id.pejuang.hris.face.FaceCamera
+import id.pejuang.hris.face.faceOval
 import id.pejuang.hris.location.LocationReader
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
@@ -368,16 +369,31 @@ enum class CameraPhase(val color: Color) {
     Searching(Color.White),
     Problem(Color(0xFFFBBF24)),
     Following(Color.White),
+    /** Wajah pas di oval. */
+    Aligned(Hc.BrandBright),
     Capturing(Hc.BrandBright),
 }
 
-/** Lapisan di atas pratinjau kamera: bingkai oval, judul, dan instruksi. */
+/**
+ * Lapisan di atas pratinjau kamera: bingkai oval, judul, dan instruksi. Oval hijau saat wajah pas;
+ * [progress] (0 sampai 1) digambar sebagai cincin di luar oval selama posisi ditahan. Tanpa animasi
+ * tambahan agar ringan di HP kelas bawah: cincin cukup mengikuti frame kamera.
+ */
 @Composable
-fun CameraOverlay(title: String, message: String, phase: CameraPhase, gesture: String, onClose: () -> Unit) {
+fun CameraOverlay(
+    title: String,
+    message: String,
+    phase: CameraPhase,
+    gesture: String,
+    onClose: () -> Unit,
+    progress: Float = 0f,
+) {
     StatusBarIcons(dark = false)
     Box(Modifier.fillMaxSize()) {
         Canvas(Modifier.fillMaxSize()) {
-            val oval = faceOval(size)
+            // Oval yang sama dengan yang diperiksa checkFit, agar yang dilihat sama dengan yang dinilai.
+            val shared = faceOval(size.width, size.height)
+            val oval = Rect(shared.left, shared.top, shared.right, shared.bottom)
             val scrim = Path().apply {
                 fillType = PathFillType.EvenOdd
                 addRect(Rect(Offset.Zero, size))
@@ -385,6 +401,20 @@ fun CameraOverlay(title: String, message: String, phase: CameraPhase, gesture: S
             }
             drawPath(scrim, Color(0xB3000000))
             drawOval(phase.color, oval.topLeft, oval.size, style = Stroke(width = 4.dp.toPx()))
+            val sweep = 360f * progress.coerceIn(0f, 1f)
+            if (sweep > 0f) {
+                val ring = oval.inflate(9.dp.toPx())
+                drawOval(Color.White.copy(alpha = 0.25f), ring.topLeft, ring.size, style = Stroke(width = 5.dp.toPx()))
+                drawArc(
+                    color = Hc.BrandBright,
+                    startAngle = -90f,
+                    sweepAngle = sweep,
+                    useCenter = false,
+                    topLeft = ring.topLeft,
+                    size = ring.size,
+                    style = Stroke(width = 5.dp.toPx(), cap = StrokeCap.Round),
+                )
+            }
         }
 
         Row(
@@ -446,13 +476,4 @@ private fun GuideChip(number: String, text: String) {
         Spacer(Modifier.width(6.dp))
         Text(text, style = MaterialTheme.typography.labelMedium, color = Color.White, maxLines = 1)
     }
-}
-
-/** Oval wajah: 70% lebar layar, sedikit di atas tengah agar instruksi muat di bawahnya. */
-private fun faceOval(size: Size): Rect {
-    val w = size.width * 0.70f
-    val h = w * 1.32f
-    val cx = size.width / 2
-    val cy = size.height * 0.40f
-    return Rect(cx - w / 2, cy - h / 2, cx + w / 2, cy + h / 2)
 }

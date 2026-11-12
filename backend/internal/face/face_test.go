@@ -153,16 +153,48 @@ func TestDecodeYuNetAndPick(t *testing.T) {
 		t.Errorf("skor = %v", f.Score)
 	}
 
-	if _, err := pickFace(nil); err != ErrNoFace {
+	// Foto 300x160: wajah 64 px (21% lebar) berpusat di (168, 88), di dalam 60% bagian tengah.
+	if _, err := pickFace(nil, 300, 160); err != ErrNoFace {
 		t.Errorf("tanpa wajah: %v", err)
 	}
-	small := Detection{X: 500, W: 10, H: 10}
-	if got, err := pickFace([]Detection{small, f}); err != nil || got != f {
+	small := Detection{X: 250, W: 10, H: 10}
+	if got, err := pickFace([]Detection{small, f}, 300, 160); err != nil || got != f {
 		t.Errorf("wajah kecil di belakang harus diabaikan: %v", err)
 	}
-	other := Detection{X: 300, W: 50, H: 50}
-	if _, err := pickFace([]Detection{f, other}); err != ErrManyFaces {
+	other := Detection{X: 30, W: 50, H: 50}
+	if _, err := pickFace([]Detection{f, other}, 300, 160); err != ErrManyFaces {
 		t.Errorf("dua wajah: %v", err)
+	}
+}
+
+func TestPickFaceNeedsCenteredFace(t *testing.T) {
+	// Foto 1000x800: 60% bagian tengah adalah x 200-800 dan y 160-640; lebar minimal 200 px.
+	box := func(cx, cy, w float64) Detection { return Detection{X: cx - w/2, Y: cy - w/2, W: w, H: w} }
+	cases := []struct {
+		name string
+		face Detection
+		want error
+	}{
+		{"pas di tengah", box(500, 400, 400), nil},
+		{"tepat batas lebar", box(500, 400, 200), nil},
+		{"tepat batas tengah", box(800, 640, 300), nil},
+		{"terlalu kecil", box(500, 400, 199), ErrFaceNotCentered},
+		{"di tepi kiri", box(150, 400, 300), ErrFaceNotCentered},
+		{"di tepi kanan", box(850, 400, 300), ErrFaceNotCentered},
+		{"terlalu atas", box(500, 120, 300), ErrFaceNotCentered},
+		{"terlalu bawah", box(500, 700, 300), ErrFaceNotCentered},
+	}
+	for _, c := range cases {
+		if _, err := pickFace([]Detection{c.face}, 1000, 800); err != c.want {
+			t.Errorf("%s: %v, ingin %v", c.name, err, c.want)
+		}
+	}
+	// Banyak wajah tetap dilaporkan lebih dulu, walau wajah utamanya kecil.
+	if _, err := pickFace([]Detection{box(100, 100, 50), box(300, 300, 50)}, 1000, 800); err != ErrManyFaces {
+		t.Errorf("dua wajah kecil: %v", err)
+	}
+	if _, err := pickFace([]Detection{box(500, 400, 400)}, 0, 0); err != ErrFaceNotCentered {
+		t.Errorf("ukuran foto nol: %v", err)
 	}
 }
 

@@ -71,11 +71,42 @@ Android Studio.
 | Folder | Isi |
 |---|---|
 | `data/` | DTO JSON, klien Retrofit, sesi dan token, penyimpanan Keystore, terjemahan error |
-| `face/` | Pelacak liveness (Kotlin murni, ada tes unit), kamera CameraX + ML Kit, pengolah foto |
+| `face/` | Pelacak liveness dan pemeriksaan posisi wajah `FaceFit` (Kotlin murni, ada tes unit), kamera CameraX + ML Kit, pengolah foto |
 | `location/` | Lokasi GPS saat absen |
 | `ui/` | Tema, komponen, dan layar Compose. Tiap layar punya versi `*Content` tanpa jaringan untuk screenshot |
 
 Dependensi disusun manual di `HrisApp`, belum memakai Hilt (D44).
+
+## Kamera presensi
+
+Wajah harus benar-benar pas di oval sebelum liveness dimulai dan sebelum foto diambil. Wajah yang baru
+terlihat sebagian di tepi bingkai tidak lolos.
+
+- Oval (`faceOval()` di `face/FaceFit.kt`): 70% lebar layar, tinggi 1,32 kali lebarnya, pusat di 40% tinggi
+  layar. Fungsi yang sama dipakai untuk menggambar (`CameraOverlay`) dan memeriksa, jadi yang dilihat
+  Pejuang sama dengan yang dinilai.
+- Kotak wajah ML Kit ada di koordinat frame analisis yang sudah ditegakkan (`rotationDegrees` 90/270 menukar
+  lebar dan tinggi). `mapToView()` memetakannya ke layar seperti `PreviewView.ScaleType.FILL_CENTER` dan
+  mencerminkannya karena pratinjau kamera depan dicerminkan. Pratinjau, analisis, dan foto sama-sama 4:3.
+- Syarat pas (`checkFit()`): pusat wajah di dalam oval; lebar wajah 55–85% lebar oval; pusat wajah paling
+  jauh 12% lebar oval (mendatar) dan 10% tinggi oval (tegak) dari pusat oval; elips wajah di dalam oval
+  dengan toleransi 5%; kepala tidak miring (`headEulerAngleZ`) atau menunduk/mendongak (`headEulerAngleX`)
+  12 derajat atau lebih.
+- Pesan arahan: "Masukkan wajah ke dalam bingkai", "Dekatkan wajah", "Jauhkan sedikit", "Geser ke tengah",
+  "Tegakkan kepala", lalu "Tahan posisi". Saat pas oval berubah hijau dan cincin kemajuan terisi. Tidak ada
+  animasi lain agar ringan di HP kelas bawah.
+- `LivenessTracker`: posisi lurus awal dan posisi akhir sebelum foto harus pas 8 frame berturut-turut.
+  Selama gerakan (menoleh, berkedip, tersenyum) cukup pusat wajah tetap di oval. Wajah yang keluar oval,
+  hilang, atau bertambah membuat liveness diulang dari awal.
+- Setelah `takePicture`, ML Kit memeriksa foto hasil jepretan (`photoFits()`): tepat satu wajah (wajah lain
+  di bawah 25% luas wajah utama diabaikan, seperti server), lebar wajah minimal 22% lebar foto dan 45% lebar
+  oval, pusatnya di 56% bagian tengah foto dan di dalam oval. Bila tidak, foto diambil ulang otomatis paling
+  banyak 2 kali, lalu Pejuang diminta mengulang.
+- Batas lebar foto memakai oval, bukan 30% lebar foto: di layar tinggi pratinjau `FILL_CENTER` memotong sisi
+  kiri-kanan foto 4:3, sehingga wajah yang pas di oval hanya sekitar 24–38% lebar foto. Karena itu pula
+  `setMinFaceSize` detektor analisis 0,2, di bawah wajah pas yang terkecil.
+- Server menolak wajah utama yang lebarnya kurang dari 20% foto atau pusatnya di luar 60% bagian tengah foto
+  (`FACE_NOT_DETECTED`, "Wajah terlalu kecil atau tidak di tengah bingkai").
 
 ## Yang dipasang di PC pengembang
 
@@ -172,6 +203,8 @@ Pustaka (Compose, Retrofit, CameraX, ML Kit, lokasi) diambil otomatis oleh Gradl
   atau kanan selama sudutnya lebih dari 25 derajat (`LivenessTracker`).
 - Ambang mata tertutup, senyum, dan wajah lurus pada HP kelas bawah dan cahaya redup.
 - Selfie tegak di berbagai merek HP setelah rotasi kamera diterapkan.
+- Oval hijau benar-benar sesuai posisi wajah di layar (pemetaan `FILL_CENTER` dan cermin kamera depan), dan
+  ambang pas di oval tidak terlalu ketat di HP Android 10 kelas bawah.
 
 ## Rilis dan pembaruan APK mandiri
 

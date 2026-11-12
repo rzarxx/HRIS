@@ -34,6 +34,8 @@ var (
 	ErrNoFace = errors.New("wajah tidak terdeteksi")
 	// ErrManyFaces berarti ada lebih dari satu wajah yang cukup besar di foto.
 	ErrManyFaces = errors.New("lebih dari satu wajah")
+	// ErrFaceNotCentered berarti wajah utama terlalu kecil atau tidak di tengah foto.
+	ErrFaceNotCentered = errors.New("wajah terlalu kecil atau tidak di tengah")
 	// ErrBadImage berarti berkas bukan JPEG yang bisa dibaca.
 	ErrBadImage = errors.New("gambar tidak valid")
 )

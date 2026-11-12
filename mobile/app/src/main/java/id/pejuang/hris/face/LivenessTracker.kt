@@ -2,31 +2,41 @@ package id.pejuang.hris.face
 
 import kotlin.math.abs
 
-/** Ringkasan satu wajah dari ML Kit. Nilai probabilitas null bila ML Kit tidak yakin. */
+/**
+ * Ringkasan satu wajah dari ML Kit. Nilai probabilitas null bila ML Kit tidak yakin. [fit] adalah
+ * posisi wajah terhadap oval di layar (lihat [checkFit]).
+ */
 data class FaceSample(
     val leftEyeOpen: Float?,
     val rightEyeOpen: Float?,
     val smiling: Float?,
     val yaw: Float,
+    val fit: FaceFit = FaceFit.Fit,
 )
 
 sealed interface LivenessState {
     data object NoFace : LivenessState
     data object ManyFaces : LivenessState
-    /** Wajah terlihat; tunggu posisi lurus lalu gerakan yang diminta. */
-    data class Waiting(val hint: String) : LivenessState
+    /**
+     * Wajah terlihat; tunggu posisi pas, lurus, lalu gerakan yang diminta. [aligned] berarti wajah
+     * pas di oval pada frame ini; [progress] (0 sampai 1) adalah kemajuan menahan posisi.
+     */
+    data class Waiting(val hint: String, val aligned: Boolean = false, val progress: Float = 0f) : LivenessState
     data object Passed : LivenessState
 }
 
 /**
- * Memeriksa gerakan liveness dari challenge server (`liveness_action`, D42). Wajah harus terlihat
- * lurus dulu, baru melakukan gerakan, agar foto diam atau video lama tidak lolos begitu saja.
- * Server tetap memutuskan; ini hanya mencegah pengiriman sebelum gerakan dilakukan.
+ * Memeriksa gerakan liveness dari challenge server (`liveness_action`, D42). Wajah harus pas di oval
+ * dan lurus selama [holdFrames] frame berturut-turut dulu, baru melakukan gerakan, lalu pas dan lurus
+ * lagi sebelum foto diambil, agar foto diam, video lama, atau wajah yang hanya terlihat sebagian di
+ * tepi tidak lolos. Selama gerakan cukup pusat wajah yang tetap di dalam oval; wajah yang keluar oval
+ * atau hilang membuat semuanya diulang dari awal. Server tetap memutuskan.
  */
-class LivenessTracker(private val action: String) {
+class LivenessTracker(private val action: String, private val holdFrames: Int = FitRules.HOLD_FRAMES) {
     private var neutralSeen = false
     private var eyesClosedSeen = false
     private var gestureDone = false
+    private var held = 0
 
     val prompt: String = when (action) {
         "blink" -> "Kedipkan mata"
@@ -39,30 +49,29 @@ class LivenessTracker(private val action: String) {
     fun update(faces: List<FaceSample>): LivenessState {
         if (faces.size != 1) {
             // Gerakan sebelum wajah hilang atau wajah tambahan muncul tidak boleh digunakan lagi.
-            neutralSeen = false
-            eyesClosedSeen = false
-            gestureDone = false
+            reset()
             return if (faces.isEmpty()) LivenessState.NoFace else LivenessState.ManyFaces
         }
         val face = faces.first()
+        if (face.fit == FaceFit.Outside) {
+            reset()
+            return LivenessState.Waiting(FaceFit.Outside.hint)
+        }
 
-        // Foto diambil saat wajah sudah lurus dan mata terbuka lagi, bukan di tengah gerakan,
+        // Foto diambil saat wajah sudah pas, lurus, dan mata terbuka lagi, bukan di tengah gerakan,
         // agar selfie mirip dengan template dan antarsampel pendaftaran saling mirip.
         if (gestureDone) {
-            return if (abs(face.yaw) < STRAIGHT_YAW && eyesOpen(face)) {
-                LivenessState.Passed
-            } else {
-                LivenessState.Waiting("Bagus. Sekarang lihat lurus ke kamera")
-            }
+            val ready = abs(face.yaw) < STRAIGHT_YAW && eyesOpen(face)
+            return hold(face, ready, "Bagus. Sekarang lihat lurus ke kamera") { LivenessState.Passed }
         }
 
         if (!neutralSeen) {
             val notSmiling = action != "smile" || (face.smiling != null && face.smiling < NEUTRAL_SMILE)
-            if (abs(face.yaw) < STRAIGHT_YAW && eyesOpen(face) && notSmiling) {
+            val ready = abs(face.yaw) < STRAIGHT_YAW && eyesOpen(face) && notSmiling
+            return hold(face, ready, "Lihat lurus ke kamera") {
                 neutralSeen = true
-                return LivenessState.Waiting(prompt)
+                LivenessState.Waiting(prompt, aligned = true)
             }
-            return LivenessState.Waiting("Lihat lurus ke kamera")
         }
 
         gestureDone = when (action) {
@@ -78,8 +87,37 @@ class LivenessTracker(private val action: String) {
             "smile" -> (face.smiling ?: 0f) > SMILE
             else -> false
         }
-        if (!gestureDone) return LivenessState.Waiting(prompt)
+        if (!gestureDone) return LivenessState.Waiting(prompt, aligned = face.fit == FaceFit.Fit)
+        held = 0
         return update(faces)
+    }
+
+    /**
+     * Menghitung frame berturut-turut yang pas di oval dan [ready]. Setelah [holdFrames] frame,
+     * menjalankan [done]; sebelumnya mengembalikan arahan posisi atau kemajuan menahan posisi.
+     */
+    private fun hold(face: FaceSample, ready: Boolean, notReadyHint: String, done: () -> LivenessState): LivenessState {
+        if (face.fit != FaceFit.Fit) {
+            held = 0
+            return LivenessState.Waiting(face.fit.hint)
+        }
+        if (!ready) {
+            held = 0
+            return LivenessState.Waiting(notReadyHint, aligned = true)
+        }
+        held++
+        if (held < holdFrames) {
+            return LivenessState.Waiting(FaceFit.Fit.hint, aligned = true, progress = held.toFloat() / holdFrames)
+        }
+        held = 0
+        return done()
+    }
+
+    private fun reset() {
+        neutralSeen = false
+        eyesClosedSeen = false
+        gestureDone = false
+        held = 0
     }
 
     private fun eyesOpen(face: FaceSample) =

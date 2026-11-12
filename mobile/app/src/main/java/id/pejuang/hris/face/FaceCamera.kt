@@ -1,6 +1,7 @@
 package id.pejuang.hris.face
 
 import android.graphics.Bitmap
+import android.graphics.Rect
 import android.util.Size
 import androidx.annotation.OptIn
 import androidx.camera.core.CameraSelector
@@ -10,6 +11,7 @@ import androidx.camera.core.ImageCapture
 import androidx.camera.core.ImageCaptureException
 import androidx.camera.core.ImageProxy
 import androidx.camera.core.Preview
+import androidx.camera.core.resolutionselector.AspectRatioStrategy
 import androidx.camera.core.resolutionselector.ResolutionSelector
 import androidx.camera.core.resolutionselector.ResolutionStrategy
 import androidx.camera.lifecycle.ProcessCameraProvider
@@ -31,6 +33,7 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.google.mlkit.vision.common.InputImage
+import com.google.mlkit.vision.face.Face
 import com.google.mlkit.vision.face.FaceDetection
 import com.google.mlkit.vision.face.FaceDetector
 import com.google.mlkit.vision.face.FaceDetectorOptions
@@ -40,6 +43,7 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlinx.coroutines.tasks.await
 import kotlinx.coroutines.withContext
 import java.util.concurrent.Executor
 import java.util.concurrent.ExecutorService
@@ -51,18 +55,36 @@ import kotlin.coroutines.resumeWithException
 /** Hasil foto mentah dari kamera, sebelum ditegakkan dan diperkecil. */
 private class RawShot(val bitmap: Bitmap, val rotation: Int)
 
+/** Isi lapisan kamera: warna bingkai, pesan arahan, dan kemajuan menahan posisi (0 sampai 1). */
+data class CameraMessage(val phase: CameraPhase, val text: String, val progress: Float = 0f)
+
 /** Pesan yang ditampilkan di bawah bingkai wajah untuk tiap status liveness. */
-fun cameraMessage(state: LivenessState, shots: Int, taken: Int): Pair<CameraPhase, String> = when (state) {
-    LivenessState.NoFace -> CameraPhase.Searching to "Posisikan wajah di dalam bingkai"
-    LivenessState.ManyFaces -> CameraPhase.Problem to "Hanya satu wajah yang boleh terlihat"
-    is LivenessState.Waiting -> CameraPhase.Following to state.hint
-    LivenessState.Passed -> CameraPhase.Capturing to
-        if (shots > 1) "Tahan posisi · foto ${minOf(taken + 1, shots)} dari $shots" else "Tahan posisi..."
+fun cameraMessage(state: LivenessState, shots: Int, taken: Int, retrying: Boolean = false): CameraMessage = when (state) {
+    LivenessState.NoFace -> CameraMessage(CameraPhase.Searching, FaceFit.Outside.hint)
+    LivenessState.ManyFaces -> CameraMessage(CameraPhase.Problem, "Hanya satu wajah yang boleh terlihat")
+    is LivenessState.Waiting -> CameraMessage(
+        if (state.aligned) CameraPhase.Aligned else CameraPhase.Following,
+        state.hint,
+        state.progress,
+    )
+    LivenessState.Passed -> CameraMessage(
+        CameraPhase.Capturing,
+        when {
+            retrying -> "Tahan posisi · foto diulang"
+            shots > 1 -> "Tahan posisi · foto ${minOf(taken + 1, shots)} dari $shots"
+            else -> "Tahan posisi..."
+        },
+        1f,
+    )
 }
 
+// Analisis dan pratinjau sama-sama 4:3 agar kotak wajah dari frame analisis bisa dipetakan ke layar.
+private val ratio43 = AspectRatioStrategy.RATIO_4_3_FALLBACK_AUTO_STRATEGY
+
 /**
- * Kamera depan dengan pemeriksaan liveness. Setelah gerakan [action] selesai dan wajah lurus lagi,
- * mengambil [shots] foto lalu memanggil [onCaptured] dengan JPEG yang sudah tegak.
+ * Kamera depan dengan pemeriksaan liveness. Wajah harus pas di oval (lihat [checkFit]); setelah
+ * gerakan [action] selesai dan wajah pas dan lurus lagi, mengambil [shots] foto, memeriksa wajah di
+ * tiap foto, lalu memanggil [onCaptured] dengan JPEG yang sudah tegak.
  */
 @Composable
 fun FaceCamera(
@@ -81,6 +103,7 @@ fun FaceCamera(
     // Setelah lolos, status dibekukan agar pengambilan foto tidak dibatalkan bila wajah bergerak.
     var passed by remember(action) { mutableStateOf(false) }
     var taken by remember(action) { mutableIntStateOf(0) }
+    var retrying by remember(action) { mutableStateOf(false) }
     val currentOnCaptured by rememberUpdatedState(onCaptured)
     val currentOnError by rememberUpdatedState(onError)
 
@@ -92,6 +115,7 @@ fun FaceCamera(
             .setCaptureMode(ImageCapture.CAPTURE_MODE_MINIMIZE_LATENCY)
             .setResolutionSelector(
                 ResolutionSelector.Builder()
+                    .setAspectRatioStrategy(ratio43)
                     .setResolutionStrategy(
                         ResolutionStrategy(Size(1280, 960), ResolutionStrategy.FALLBACK_RULE_CLOSEST_LOWER_THEN_HIGHER),
                     )
@@ -105,20 +129,47 @@ fun FaceCamera(
         // karena CameraX masih bisa mengirim frame sampai unbind selesai.
         val analysisExecutor: ExecutorService = Executors.newSingleThreadExecutor()
         val closed = AtomicBoolean(false)
+        // Ukuran minimum 0.2: wajah yang pas di oval sekitar 24-45% lebar frame, tergantung tinggi
+        // layar, karena pratinjau memotong sisi frame. Ukuran wajah yang sebenarnya diperiksa checkFit.
         val detector = FaceDetection.getClient(
             FaceDetectorOptions.Builder()
                 .setPerformanceMode(FaceDetectorOptions.PERFORMANCE_MODE_FAST)
                 .setClassificationMode(FaceDetectorOptions.CLASSIFICATION_MODE_ALL)
-                .setMinFaceSize(0.25f)
+                .setMinFaceSize(0.2f)
                 .build(),
         )
         val analysis = ImageAnalysis.Builder()
             .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
+            .setResolutionSelector(
+                ResolutionSelector.Builder()
+                    .setAspectRatioStrategy(ratio43)
+                    .setResolutionStrategy(
+                        ResolutionStrategy(Size(640, 480), ResolutionStrategy.FALLBACK_RULE_CLOSEST_LOWER_THEN_HIGHER),
+                    )
+                    .build(),
+            )
             .build()
         analysis.setAnalyzer(analysisExecutor) { proxy ->
-            analyze(proxy, closed, detector) { faces ->
+            analyze(proxy, closed, detector) { faces, frameWidth, frameHeight, rotation ->
                 if (!passed) {
-                    val next = tracker.update(faces)
+                    val viewWidth = previewView.width.toFloat()
+                    val viewHeight = previewView.height.toFloat()
+                    val oval = faceOval(viewWidth, viewHeight)
+                    val samples = significantFaces(faces) { it.boundingBox.toFitRect() }.map { face ->
+                        val onScreen = mapToView(face.boundingBox.toFitRect(), frameWidth, frameHeight, rotation, viewWidth, viewHeight, mirror = true)
+                        FaceSample(
+                            leftEyeOpen = face.leftEyeOpenProbability,
+                            rightEyeOpen = face.rightEyeOpenProbability,
+                            smiling = face.smilingProbability,
+                            yaw = face.headEulerAngleY,
+                            fit = if (viewWidth > 0f && viewHeight > 0f) {
+                                checkFit(onScreen, oval, roll = face.headEulerAngleZ, pitch = face.headEulerAngleX)
+                            } else {
+                                FaceFit.Outside
+                            },
+                        )
+                    }
+                    val next = tracker.update(samples)
                     state = next
                     if (next == LivenessState.Passed) passed = true
                 }
@@ -132,7 +183,9 @@ fun FaceCamera(
             try {
                 val cameraProvider = future.get()
                 provider = cameraProvider
-                val preview = Preview.Builder().build()
+                val preview = Preview.Builder()
+                    .setResolutionSelector(ResolutionSelector.Builder().setAspectRatioStrategy(ratio43).build())
+                    .build()
                 preview.setSurfaceProvider(previewView.surfaceProvider)
                 cameraProvider.unbindAll()
                 cameraProvider.bindToLifecycle(lifecycleOwner, CameraSelector.DEFAULT_FRONT_CAMERA, preview, analysis, imageCapture)
@@ -152,18 +205,51 @@ fun FaceCamera(
 
     LaunchedEffect(passed) {
         if (!passed) return@LaunchedEffect
+        // Detektor terpisah untuk foto hasil jepretan; wajah kecil ikut dicari agar orang kedua terlihat.
+        val photoDetector = FaceDetection.getClient(
+            FaceDetectorOptions.Builder()
+                .setPerformanceMode(FaceDetectorOptions.PERFORMANCE_MODE_FAST)
+                .setMinFaceSize(0.1f)
+                .build(),
+        )
         try {
             val photos = mutableListOf<ByteArray>()
-            repeat(shots) { i ->
+            for (i in 0 until shots) {
                 if (i > 0) delay(600)
-                val raw = imageCapture.takeRaw(ContextCompat.getMainExecutor(context))
-                photos += withContext(Dispatchers.Default) {
-                    try {
-                        toUprightJpeg(raw.bitmap, raw.rotation)
-                    } finally {
+                var retries = 0
+                var photo: ByteArray? = null
+                while (photo == null) {
+                    val raw = imageCapture.takeRaw(ContextCompat.getMainExecutor(context))
+                    val fits = try {
+                        raw.fits(photoDetector, previewView.width.toFloat(), previewView.height.toFloat())
+                    } catch (e: CancellationException) {
                         raw.bitmap.recycle()
+                        throw e
+                    } catch (e: Exception) {
+                        // Detektor gagal: kirim saja, server tetap memeriksa wajah dan posisinya.
+                        true
+                    }
+                    if (fits) {
+                        photo = withContext(Dispatchers.Default) {
+                            try {
+                                toUprightJpeg(raw.bitmap, raw.rotation)
+                            } finally {
+                                raw.bitmap.recycle()
+                            }
+                        }
+                    } else {
+                        raw.bitmap.recycle()
+                        if (retries >= PhotoRules.RETRIES) {
+                            currentOnError("Wajah tidak pas di bingkai saat foto diambil. Ulangi dan tahan posisi sampai foto selesai.")
+                            return@LaunchedEffect
+                        }
+                        retries++
+                        retrying = true
+                        delay(400)
                     }
                 }
+                retrying = false
+                photos += checkNotNull(photo)
                 taken = i + 1
             }
             currentOnCaptured(photos)
@@ -173,15 +259,36 @@ fun FaceCamera(
             currentOnError("Memori HP tidak cukup untuk memproses foto. Tutup aplikasi lain lalu coba lagi.")
         } catch (e: Exception) {
             currentOnError("Foto gagal diambil. Silakan ulangi.")
+        } finally {
+            photoDetector.close()
         }
     }
 
-    val (phase, message) = cameraMessage(state, shots, taken)
+    val message = cameraMessage(state, shots, taken, retrying)
 
     Box(modifier = modifier.fillMaxSize()) {
         AndroidView(factory = { previewView }, modifier = Modifier.fillMaxSize())
-        CameraOverlay(title = title, message = message, phase = phase, gesture = tracker.prompt, onClose = onClose)
+        CameraOverlay(
+            title = title,
+            message = message.text,
+            phase = message.phase,
+            gesture = tracker.prompt,
+            onClose = onClose,
+            progress = message.progress,
+        )
     }
+}
+
+private fun Rect.toFitRect() = FitRect(left.toFloat(), top.toFloat(), right.toFloat(), bottom.toFloat())
+
+/** Memeriksa wajah pada foto hasil jepretan dengan aturan [photoFits]. */
+private suspend fun RawShot.fits(detector: FaceDetector, viewWidth: Float, viewHeight: Float): Boolean {
+    val faces = detector.process(InputImage.fromBitmap(bitmap, rotation)).await()
+    // Kotak dari ML Kit berada pada foto yang sudah ditegakkan.
+    val sideways = rotation % 180 != 0
+    val width = if (sideways) bitmap.height else bitmap.width
+    val height = if (sideways) bitmap.width else bitmap.height
+    return photoFits(faces.map { it.boundingBox.toFitRect() }, width, height, viewWidth, viewHeight, mirror = true)
 }
 
 @OptIn(ExperimentalGetImage::class)
@@ -189,30 +296,22 @@ private fun analyze(
     proxy: ImageProxy,
     closed: AtomicBoolean,
     detector: FaceDetector,
-    onFaces: (List<FaceSample>) -> Unit,
+    onFaces: (faces: List<Face>, frameWidth: Int, frameHeight: Int, rotation: Int) -> Unit,
 ) {
     val media = proxy.image
     if (closed.get() || media == null) {
         proxy.close()
         return
     }
+    val frameWidth = proxy.width
+    val frameHeight = proxy.height
+    val rotation = proxy.imageInfo.rotationDegrees
     try {
-        val input = InputImage.fromMediaImage(media, proxy.imageInfo.rotationDegrees)
+        val input = InputImage.fromMediaImage(media, rotation)
         detector.process(input)
             .addOnSuccessListener { faces ->
                 // Dijalankan di thread utama.
-                if (!closed.get()) {
-                    onFaces(
-                        faces.map {
-                            FaceSample(
-                                leftEyeOpen = it.leftEyeOpenProbability,
-                                rightEyeOpen = it.rightEyeOpenProbability,
-                                smiling = it.smilingProbability,
-                                yaw = it.headEulerAngleY,
-                            )
-                        },
-                    )
-                }
+                if (!closed.get()) onFaces(faces, frameWidth, frameHeight, rotation)
             }
             .addOnCompleteListener { proxy.close() }
     } catch (e: Exception) {

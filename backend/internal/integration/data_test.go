@@ -306,6 +306,7 @@ func TestPayrollPreviewUsesAttendance(t *testing.T) {
 		{"2020-01-08", "late", 15},
 		{"2020-01-09", "absent", 0},
 		{"2020-01-10", "leave", 0},
+		{"2020-01-13", "review", 0},
 	} {
 		exec(t, `INSERT INTO attendances (employee_id, work_date, status, late_minutes) VALUES ($1, $2::date, $3::att_status, $4)`, employeeID, row.date, row.status, row.late)
 	}
@@ -317,6 +318,7 @@ func TestPayrollPreviewUsesAttendance(t *testing.T) {
 		Late        int    `json:"late"`
 		Leave       int    `json:"leave"`
 		Absent      int    `json:"absent"`
+		Review      int    `json:"review"`
 		LateMinutes int    `json:"late_minutes"`
 	}](t, sdm.do(http.MethodGet, "/v1/admin/reports/attendance?year=2020&month=1", nil).want(t, http.StatusOK))
 	found := false
@@ -325,7 +327,7 @@ func TestPayrollPreviewUsesAttendance(t *testing.T) {
 			continue
 		}
 		found = true
-		if r.WorkDays != 5 || r.Present != 3 || r.Late != 2 || r.Leave != 1 || r.Absent != 1 || r.LateMinutes != 40 {
+		if r.WorkDays != 6 || r.Present != 3 || r.Late != 2 || r.Leave != 1 || r.Absent != 1 || r.Review != 1 || r.LateMinutes != 40 {
 			t.Errorf("rekap: %+v", r)
 		}
 	}

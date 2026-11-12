@@ -1293,7 +1293,7 @@ stateDiagram-v2
     [*] --> late: lewat toleransi
     [*] --> review: skor 30 sampai 59
     [*] --> leave: cuti disetujui
-    [*] --> absent: job malam, tanpa catatan
+    [*] --> absent: job mark_absent setelah cutoff, tanpa catatan
     review --> present: SDM valid
     review --> late: SDM valid
     review --> absent: SDM tidak valid
@@ -1416,7 +1416,7 @@ Request ID → recover → logger → batas body/timeout → CORS & header keama
 ### 11.3 Job Terjadwal
 | Job | Jadwal | Fungsi |
 |---|---|---|
-| `mark_absent` | harian malam (WIB) | Tandai `absent` untuk hari kerja tanpa presensi/cuti/libur |
+| `mark_absent` | harian 04.20 WIB, setelah cutoff (`hris-mark-absent.timer`) | Tandai `absent` untuk hari kerja shift tanpa presensi/cuti disetujui/libur, bagi Pejuang aktif berakun aktif sejak `join_date` sampai `exit_date`. Mengejar 7 hari tertutup terakhir dan tidak mengubah baris yang sudah ada; cuti yang disetujui belakangan tetap menimpanya. Izin WFA/hybrid tidak membebaskan presensi |
 | `apply_leave_to_attendance` | saat approved + harian | Isi `leave` pada tanggal cuti |
 | `apply_effective_transfers` | harian | Terapkan mutasi pada `effective_date` |
 | `expire_challenges` | tiap menit | Bersihkan challenge kedaluwarsa |

@@ -1995,7 +1995,7 @@ paths:
     get:
       tags: [Laporan]
       summary: Rekap presensi bulanan
-      description: "Permission `attendance:report`, dibatasi scope. Filter mode hanya menghitung catatan presensi masuk dengan mode tersebut; cuti dan alpha tidak disertakan."
+      description: "Permission `attendance:report`, dibatasi scope. Filter mode hanya menghitung catatan presensi masuk dengan mode tersebut; cuti dan alpha tidak disertakan. Rekap per periode cutoff ubar dan aturan upah (D29/D31) menyusul di Fase 5."
       parameters:
         - $ref: "#/components/parameters/Year"
         - $ref: "#/components/parameters/Month"
@@ -2577,19 +2577,44 @@ components:
               subdivision_count: { type: integer }
     AttendanceReportRow:
       type: object
-      required: [employee_id, nip, full_name, division, subdivision, work_days, present, late, leave, absent, late_minutes]
+      required:
+        [employee_id, nip, full_name, division, subdivision, work_days, present, late, leave, leave_quota, leave_non_quota, leave_other,
+         leave_unpaid, leave_by_type, absent, review, late_minutes, worked_minutes, missed_clock_out]
       properties:
         employee_id: { type: string, format: uuid }
         nip: { type: string }
         full_name: { type: string }
         division: { type: string }
         subdivision: { type: string }
-        work_days: { type: integer }
+        work_days: { type: integer, description: "Hadir, menunggu review, cuti, dan alpha" }
         present: { type: integer, description: Hadir termasuk telat }
         late: { type: integer }
-        leave: { type: integer }
+        leave: { type: integer, description: "Hari berstatus cuti/izin; sama dengan leave_quota + leave_non_quota + leave_other" }
+        leave_quota: { type: integer, description: "Hari cuti dari jenis bersaldo (quota_kind statutory/custom)" }
+        leave_non_quota: { type: integer, description: "Hari cuti dari jenis tanpa saldo (quota_kind none)" }
+        leave_other: { type: integer, description: "Hari cuti tanpa pengajuan disetujui yang mencakup tanggalnya" }
+        leave_unpaid: { type: integer, description: "Hari cuti dari jenis yang tidak dibayar (paid false)" }
+        leave_by_type:
+          type: array
+          description: "Rincian per jenis cuti dari pengajuan yang disetujui. Kosong bila filter work_mode dipakai."
+          items: { $ref: "#/components/schemas/AttendanceReportLeaveType" }
         absent: { type: integer }
+        review: { type: integer, description: "Presensi yang menunggu keputusan Review Presensi, belum dihitung hadir" }
         late_minutes: { type: integer }
+        worked_minutes: { type: integer, description: "Total menit kerja dari presensi yang sudah pulang" }
+        missed_clock_out:
+          type: integer
+          description: "Hari dengan presensi masuk tanpa presensi pulang yang batasnya (cutoff 04.00 esok hari, atau akhir shift malam + 4 jam) sudah lewat. Alpha hasil Review Presensi tidak dihitung."
+    AttendanceReportLeaveType:
+      type: object
+      required: [leave_type_id, code, name, quota_kind, paid, days]
+      properties:
+        leave_type_id: { type: string, format: uuid }
+        code: { type: string }
+        name: { type: string }
+        quota_kind: { type: string, enum: [statutory, custom, none] }
+        paid: { type: boolean }
+        days: { type: integer }
     PayrollPreviewRow:
       type: object
       required:

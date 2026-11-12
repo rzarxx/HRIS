@@ -186,6 +186,8 @@ func TestLeaveSelfApproverIsSkipped(t *testing.T) {
 		"name": "Uji", "start_time": "08:00", "end_time": "17:00", "late_tolerance_minutes": 10, "work_days": []int{1, 2, 3, 4, 5, 6, 7},
 	}).want(t, http.StatusCreated))
 	exec(t, `UPDATE employees SET default_shift_id = $1 WHERE id = $2`, shift.ID, kadivAcc.employeeID)
+	// Seed demo membuat presensi untuk hari-hari nyata terakhir, jadi tanggal uji bisa bertabrakan.
+	exec(t, `DELETE FROM attendances WHERE employee_id = $1`, kadivAcc.employeeID)
 	permit := leaveTypeID(t, kadiv, "permit")
 	lr := data[leaveRow](t, submitLeave(kadiv, permit.ID, "2026-11-12", "2026-11-12").want(t, http.StatusCreated))
 	if lr.Approvals[0].Status != "skipped" || lr.Approvals[1].Status != "pending" {

@@ -44,7 +44,51 @@ var (
 type Engine interface {
 	// Model adalah nama versi model. Embedding dari model berbeda tidak bisa dibandingkan.
 	Model() string
+	// Embed menghitung embedding wajah utama. Wajah yang terlalu kecil atau tidak di tengah ditolak
+	// dengan ErrFaceNotCentered.
 	Embed(ctx context.Context, jpeg []byte) ([]float64, error)
+	// Analyze seperti Embed, ditambah pose kepala, tanpa menolak wajah yang tidak di tengah; pemanggil
+	// memutuskan lewat Analysis.Centered. Dipakai untuk membuktikan gerakan liveness di server.
+	Analyze(ctx context.Context, jpeg []byte) (Analysis, error)
+}
+
+// Analysis adalah hasil analisis wajah utama pada satu foto.
+type Analysis struct {
+	Vector []float64
+	// Turn adalah rasio toleh kepala dari lima titik wajah (lihat TurnRatio): 0 berarti lurus.
+	Turn float64
+	// Centered berarti wajah cukup besar dan di tengah foto, syarat yang sama dengan Embed.
+	Centered bool
+}
+
+// Ambang pose untuk liveness toleh kepala (D50). Nilai awal dari geometri wajah rata-rata: toleh
+// sekitar 12 derajat memberi rasio ~0.13 dan toleh 25 derajat ~0.27. Wajib dikalibrasi dengan foto
+// dari HP sungguhan, sama seperti ambang kemiripan.
+const (
+	// StraightTurnMax: foto lurus boleh menoleh sampai rasio ini.
+	StraightTurnMax = 0.20
+	// GestureTurnMin: foto gerakan harus menoleh paling sedikit rasio ini.
+	GestureTurnMin = 0.18
+	// GestureTurnDelta: selisih rasio foto gerakan dan foto lurus, agar dua foto lurus yang sedikit
+	// miring tidak dianggap gerakan.
+	GestureTurnDelta = 0.10
+	// GestureMinSimilarity: kemiripan terendah wajah di foto gerakan dengan foto lurus. Wajah yang
+	// menoleh kurang mirip dengan wajah lurus, jadi ambangnya lebih longgar dari MinSimilarityReview;
+	// tujuannya menangkap foto gerakan milik orang lain, bukan mencocokkan identitas.
+	GestureMinSimilarity = 0.30
+)
+
+// TurnRatio mengukur toleh kepala dari titik YuNet (mata kanan, mata kiri, hidung, ...): selisih jarak
+// hidung ke kedua mata dibagi jumlahnya. Nilainya 0 saat lurus, makin besar saat menoleh, bertanda
+// sesuai arah. Tidak bergantung pada ukuran wajah atau jarak ke kamera.
+func TurnRatio(landmarks [5][2]float64) float64 {
+	nose := landmarks[2]
+	right := math.Hypot(nose[0]-landmarks[0][0], nose[1]-landmarks[0][1])
+	left := math.Hypot(nose[0]-landmarks[1][0], nose[1]-landmarks[1][1])
+	if right+left == 0 {
+		return 0
+	}
+	return (right - left) / (right + left)
 }
 
 // IsJPEG memeriksa tanda awal berkas JPEG.

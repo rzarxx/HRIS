@@ -83,8 +83,12 @@ import id.pejuang.hris.data.toApiError
 import id.pejuang.hris.face.FaceCamera
 import id.pejuang.hris.face.faceOval
 import id.pejuang.hris.location.LocationReader
+import id.pejuang.hris.security.DeviceChecks
+import id.pejuang.hris.security.DeviceRisk
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.time.ZonedDateTime
 
 private sealed interface Step {
@@ -119,6 +123,8 @@ fun CaptureScreen(purpose: String, repository: Repository, location: LocationRea
     var granted by remember { mutableStateOf(hasPermissions(context)) }
     var denied by remember { mutableStateOf(false) }
     var asked by remember { mutableStateOf(false) }
+    // Hasil pemeriksaan HP terakhir; ikut dikirim sebagai sinyal agar server juga menolaknya.
+    var risk by remember { mutableStateOf(DeviceRisk.CLEAN) }
     val launcher = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { result ->
         granted = hasPermissions(context)
         denied = !result.values.all { it }
@@ -136,6 +142,13 @@ fun CaptureScreen(purpose: String, repository: Repository, location: LocationRea
             }
             return@LaunchedEffect
         }
+        // Deteksi lokal dijalankan sebelum meminta challenge agar Pejuang langsung tahu (MASTER.md §10.2).
+        val checked = withContext(Dispatchers.IO) { DeviceChecks(context).check() }
+        risk = checked
+        if (checked.blocked) {
+            step = Step.Failed(checked.message)
+            return@LaunchedEffect
+        }
         step = try {
             Step.Camera(repository.challenge(purpose))
         } catch (e: CancellationException) {
@@ -145,16 +158,16 @@ fun CaptureScreen(purpose: String, repository: Repository, location: LocationRea
         }
     }
 
-    fun submit(challenge: AttendanceChallenge, photos: List<ByteArray>) {
+    fun submit(challenge: AttendanceChallenge, photos: List<ByteArray>, gesture: ByteArray) {
         step = Step.Sending
         scope.launch {
             step = try {
                 val fix = location.current()
                 val outcome = if (enrolling) {
-                    repository.enroll(challenge, photos, fix)
+                    repository.enroll(challenge, photos, gesture, fix, risk)
                     ClockOutcome("Wajah terdaftar", "Mulai sekarang Anda bisa presensi dengan selfie.", false)
                 } else {
-                    repository.clock(purpose, challenge, photos.first(), fix)
+                    repository.clock(purpose, challenge, photos.first(), gesture, fix, risk)
                 }
                 Step.Done(outcome, ZonedDateTime.now(Wib))
             } catch (e: CancellationException) {
@@ -196,7 +209,7 @@ fun CaptureScreen(purpose: String, repository: Repository, location: LocationRea
             title = title,
             action = s.challenge.livenessAction,
             shots = if (enrolling) 3 else 1,
-            onCaptured = { photos -> submit(s.challenge, photos) },
+            onCaptured = { photos, gesture -> submit(s.challenge, photos, gesture) },
             onError = { message -> step = Step.Failed(message) },
             onClose = onClose,
             modifier = Modifier.fillMaxSize(),

@@ -12,17 +12,18 @@ import (
 
 // AttendanceHash menghitung hash presensi dari input terverifikasi server dan nonce challenge.
 // Koordinat harus tepat maksimal enam desimal. Waktu dinormalisasi UTC RFC3339Nano; hash foto dan
-// nonce harus heksadesimal huruf kecil. Klien harus memakai representasi yang sama.
-func AttendanceHash(nonce string, latitude, longitude float64, capturedAt time.Time, selfieSHA256 string) (string, error) {
+// nonce harus heksadesimal huruf kecil. Klien harus memakai representasi yang sama. Hash foto gerakan
+// liveness (D50) ikut diikat agar fotonya tidak bisa ditukar.
+func AttendanceHash(nonce string, latitude, longitude float64, capturedAt time.Time, selfieSHA256, gestureSHA256 string) (string, error) {
 	fields, err := canonicalLocation(nonce, latitude, longitude, capturedAt)
-	if err != nil || !isLowerHex32(selfieSHA256) {
+	if err != nil || !isLowerHex32(selfieSHA256) || !isLowerHex32(gestureSHA256) {
 		return "", ErrInvalid
 	}
-	return hashFields(append(fields, selfieSHA256)), nil
+	return hashFields(append(fields, selfieSHA256, gestureSHA256)), nil
 }
 
-// EnrollmentHash mengikat semua sampel, consent dan gerakan ke challenge pendaftaran.
-func EnrollmentHash(nonce string, latitude, longitude float64, capturedAt time.Time, consentVersion, action string, samples []string) (string, error) {
+// EnrollmentHash mengikat semua sampel, foto gerakan, consent, dan gerakan ke challenge pendaftaran.
+func EnrollmentHash(nonce string, latitude, longitude float64, capturedAt time.Time, consentVersion, action string, samples []string, gestureSHA256 string) (string, error) {
 	fields, err := canonicalLocation(nonce, latitude, longitude, capturedAt)
 	if err != nil || len(samples) < 3 || len(samples) > 5 || consentVersion == "" || strings.TrimSpace(consentVersion) != consentVersion || strings.Contains(consentVersion, "|") ||
 		(action != "blink" && action != "turn_left" && action != "turn_right" && action != "smile") {
@@ -33,9 +34,13 @@ func EnrollmentHash(nonce string, latitude, longitude float64, capturedAt time.T
 			return "", ErrInvalid
 		}
 	}
+	if !isLowerHex32(gestureSHA256) {
+		return "", ErrInvalid
+	}
 	fields = append([]string{"face_enroll"}, fields...)
 	fields = append(fields, consentVersion, action)
-	return hashFields(append(fields, samples...)), nil
+	fields = append(fields, samples...)
+	return hashFields(append(fields, gestureSHA256)), nil
 }
 
 func canonicalLocation(nonce string, latitude, longitude float64, capturedAt time.Time) ([]string, error) {

@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"math"
 	"os"
 	"path/filepath"
 	"sort"
@@ -147,6 +148,7 @@ func TestSFaceEngine(t *testing.T) {
 		vector       []float64
 	}
 	var samples []sample
+	var turns stats
 	for _, path := range images(t, dir) {
 		name := strings.TrimSuffix(filepath.Base(path), ".jpg")
 		data, err := os.ReadFile(path)
@@ -160,6 +162,10 @@ func TestSFaceEngine(t *testing.T) {
 		}
 		if len(v) != 128 {
 			t.Fatalf("%s: dimensi %d", name, len(v))
+		}
+		// Rasio toleh foto contoh dicatat sebagai data awal kalibrasi ambang liveness (D50).
+		if a, err := e.Analyze(context.Background(), data); err == nil {
+			turns.add(math.Abs(a.Turn))
 		}
 		samples = append(samples, sample{name: name, person: strings.TrimRight(name, "0123456789"), vector: v})
 	}
@@ -188,6 +194,7 @@ func TestSFaceEngine(t *testing.T) {
 		}
 	}
 	t.Logf("%d foto terbaca", len(samples))
+	t.Logf("rasio toleh foto contoh: min %.3f, rata-rata %.3f, maks %.3f (batas lurus %.2f)", turns.min, turns.mean, turns.max, StraightTurnMax)
 	t.Logf("orang sama: %d pasang, kemiripan min %.3f, rata-rata %.3f, maks %.3f", same.n, same.min, same.mean, same.max)
 	t.Logf("orang berbeda: %d pasang, kemiripan min %.3f, rata-rata %.3f, maks %.3f", other.n, other.min, other.mean, other.max)
 	t.Logf("ambang lolos %.2f, borderline %.2f: salah terima %d, borderline orang sama %d, ditolak orang sama %d dari %d",

@@ -108,6 +108,31 @@ terlihat sebagian di tepi bingkai tidak lolos.
 - Server menolak wajah utama yang lebarnya kurang dari 20% foto atau pusatnya di luar 60% bagian tengah foto
   (`FACE_NOT_DETECTED`, "Wajah terlalu kecil atau tidak di tengah bingkai").
 
+### Liveness yang dibuktikan server (D51)
+
+- Challenge hanya meminta toleh kepala (`turn_left`/`turn_right`). Saat `LivenessTracker` pertama kali melihat
+  kepala menoleh (`gestureSeen`), frame analisis itu ditegakkan dan dikompresi menjadi **foto gerakan**. Bila
+  wajah keluar oval, hilang, atau bertambah, foto itu dibuang dan gerakan diulang.
+- Selfie lurus dan foto gerakan dikirim bersama (berkas `selfie`/`samples` dan `gesture`, hash di
+  `gesture_sha256`). Server mengukur rasio toleh dari lima titik wajah YuNet: selfie harus lurus, foto gerakan
+  harus menoleh jelas, dan keduanya orang yang sama. Gagal berarti `LIVENESS_FAILED`.
+- Dua upaya wajah yang ditolak dalam 30 menit menyalakan `liveness_retry` (+25) di server.
+
+### Pemeriksaan HP sebelum presensi
+
+`security/DeviceRules.kt` (Kotlin murni, ada tes) dan `security/DeviceChecks.kt` memeriksa, sebelum challenge
+diminta:
+
+- root: berkas `su` di lokasi umum atau aplikasi root (Magisk, SuperSU, KernelSU, APatch);
+- emulator: sidik build emulator (`generic`, `ranchu`, `goldfish`, `sdk_gphone`, Genymotion);
+- aplikasi pemalsu lokasi yang umum. Daftar paketnya juga ada di `<queries>` `AndroidManifest.xml` agar
+  terlihat di Android 11+; tes `manifestQueriesMatchRules` menjaga keduanya tetap sama.
+
+Bila salah satunya terdeteksi, layar menampilkan pesan yang jelas dan challenge tidak diminta. Hasilnya juga
+dikirim sebagai `signals` sehingga server ikut menolak. Aturannya sengaja konservatif: `Build.TAGS` berisi
+`test-keys` tidak dipakai karena banyak HP murah yang sah dibangun begitu. Deteksi ini hanya saran; HP yang
+dimodifikasi dengan rapi bisa menyembunyikannya sampai verifikasi perangkat di server selesai.
+
 ## Yang dipasang di PC pengembang
 
 Pasang versi stabil terbaru saat memulai, lalu catat versinya di bagian akhir README ini.
@@ -158,14 +183,17 @@ Pustaka (Compose, Retrofit, CameraX, ML Kit, lokasi) diambil otomatis oleh Gradl
 - Tampilkan pesan dari kode error di `MASTER.md` §7.4, misalnya `DEVICE_REVOKED` dan `ATTENDANCE_BLOCKED`.
 - Wajah dihitung server dari selfie (D42). HP tidak menghitung atau mengirim embedding; ML Kit dipakai untuk
   mendeteksi wajah, memotong foto, dan liveness.
-- Setiap challenge berisi `liveness_action` (`blink`, `turn_left`, `turn_right`, atau `smile`). Minta Pejuang
-  melakukan gerakan itu, lalu kirim `liveness_passed` dan `liveness_action` yang sama.
+- Setiap challenge berisi `liveness_action` (`turn_left` atau `turn_right`, D51). Minta Pejuang menoleh, lalu
+  kirim `liveness_passed`, `liveness_action` yang sama, dan foto saat menoleh (berkas `gesture` dan
+  `gesture_sha256`).
 - Daftar wajah (F7): bila `GET /v1/me` mengembalikan `face_enrolled: false`, buka layar daftar wajah. Minta
-  challenge `face_enroll`, ambil 3 sampai 5 selfie berbeda, lalu kirim `multipart/form-data` ke
-  `POST /v1/face/enroll`: bagian `payload` (JSON berisi `sample_sha256`, `liveness_*`, `consent_version`, dan
-  lokasi) dan berkas `samples`. Pendaftaran di luar area kantor memerlukan izin satu kali dari SDM yang berlaku 24 jam.
-- Absen masuk dan pulang juga `multipart/form-data`: bagian `payload` (isi absen ditambah `selfie_sha256`) dan
-  berkas `selfie`.
+  challenge `face_enroll`, ambil 3 sampai 5 selfie lurus yang berbeda, lalu kirim `multipart/form-data` ke
+  `POST /v1/face/enroll`: bagian `payload` (JSON berisi `sample_sha256`, `gesture_sha256`, `liveness_*`,
+  `consent_version`, dan lokasi), berkas `samples`, dan berkas `gesture`. Pendaftaran di luar area kantor
+  memerlukan izin satu kali dari SDM yang berlaku 24 jam.
+- Presensi masuk dan pulang juga `multipart/form-data`: bagian `payload` (isi presensi ditambah `selfie_sha256`
+  dan `gesture_sha256`), berkas `selfie`, dan berkas `gesture`. Server D51 menolak aplikasi lama yang tidak
+  mengirim `gesture` (`VALIDATION_FAILED`), jadi server dan aplikasi diperbarui bersamaan.
 - Selfie: JPEG yang sudah tegak (server tidak membaca orientasi EXIF), satu wajah, sisi terpanjang sekitar 640 px, maksimal 1 MB. Selalu ambil foto baru untuk setiap upaya, karena
   foto yang pernah dikirim ditolak `ATTENDANCE_BLOCKED`. Hapus foto dari HP setelah terkirim.
 - `FACE_NOT_DETECTED` berarti foto perlu diambil ulang (cahaya, wajah terhalang, atau lebih dari satu orang).

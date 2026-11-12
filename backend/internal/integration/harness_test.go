@@ -280,6 +280,17 @@ func (c *client) do(method, path string, body any) response {
 // upload mengirim multipart: bagian payload berisi JSON dan berkas di field.
 func (c *client) upload(path string, payload any, field string, files ...[]byte) response {
 	c.t.Helper()
+	return c.uploadParts(path, payload, filePart{field, files})
+}
+
+// filePart adalah berkas-berkas untuk satu field multipart.
+type filePart struct {
+	field string
+	files [][]byte
+}
+
+func (c *client) uploadParts(path string, payload any, parts ...filePart) response {
+	c.t.Helper()
 	var buf bytes.Buffer
 	w := multipart.NewWriter(&buf)
 	raw, err := json.Marshal(payload)
@@ -289,13 +300,15 @@ func (c *client) upload(path string, payload any, field string, files ...[]byte)
 	if err := w.WriteField("payload", string(raw)); err != nil {
 		c.t.Fatal(err)
 	}
-	for i, data := range files {
-		part, err := w.CreateFormFile(field, fmt.Sprintf("foto-%d.jpg", i+1))
-		if err != nil {
-			c.t.Fatal(err)
-		}
-		if _, err := part.Write(data); err != nil {
-			c.t.Fatal(err)
+	for _, p := range parts {
+		for i, data := range p.files {
+			part, err := w.CreateFormFile(p.field, fmt.Sprintf("%s-%d.jpg", p.field, i+1))
+			if err != nil {
+				c.t.Fatal(err)
+			}
+			if _, err := part.Write(data); err != nil {
+				c.t.Fatal(err)
+			}
 		}
 	}
 	if err := w.Close(); err != nil {

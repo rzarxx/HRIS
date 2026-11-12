@@ -25,6 +25,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
@@ -42,6 +43,7 @@ import id.pejuang.hris.ui.CameraPhase
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.tasks.await
 import kotlinx.coroutines.withContext
@@ -82,16 +84,17 @@ fun cameraMessage(state: LivenessState, shots: Int, taken: Int, retrying: Boolea
 private val ratio43 = AspectRatioStrategy.RATIO_4_3_FALLBACK_AUTO_STRATEGY
 
 /**
- * Kamera depan dengan pemeriksaan liveness. Wajah harus pas di oval (lihat [checkFit]); setelah
- * gerakan [action] selesai dan wajah pas dan lurus lagi, mengambil [shots] foto, memeriksa wajah di
- * tiap foto, lalu memanggil [onCaptured] dengan JPEG yang sudah tegak.
+ * Kamera depan dengan pemeriksaan liveness. Wajah harus pas di oval (lihat [checkFit]); saat gerakan
+ * [action] terlihat, frame itu disimpan sebagai foto gerakan. Setelah wajah pas dan lurus lagi,
+ * mengambil [shots] foto, memeriksa wajah di tiap foto, lalu memanggil [onCaptured] dengan JPEG yang
+ * sudah tegak dan foto gerakannya. Server membuktikan gerakan dari kedua foto itu (D50).
  */
 @Composable
 fun FaceCamera(
     title: String,
     action: String,
     shots: Int,
-    onCaptured: (List<ByteArray>) -> Unit,
+    onCaptured: (photos: List<ByteArray>, gesture: ByteArray) -> Unit,
     onError: (String) -> Unit,
     onClose: () -> Unit,
     modifier: Modifier = Modifier,
@@ -104,6 +107,11 @@ fun FaceCamera(
     var passed by remember(action) { mutableStateOf(false) }
     var taken by remember(action) { mutableIntStateOf(0) }
     var retrying by remember(action) { mutableStateOf(false) }
+    // Foto gerakan dari frame analisis. gestureGeneration naik setiap foto lama dibuang, agar hasil
+    // kompresi yang terlambat tidak menimpa keadaan baru.
+    var gesture by remember(action) { mutableStateOf<ByteArray?>(null) }
+    var gestureGeneration by remember(action) { mutableIntStateOf(0) }
+    val scope = rememberCoroutineScope()
     val currentOnCaptured by rememberUpdatedState(onCaptured)
     val currentOnError by rememberUpdatedState(onError)
 
@@ -150,7 +158,7 @@ fun FaceCamera(
             )
             .build()
         analysis.setAnalyzer(analysisExecutor) { proxy ->
-            analyze(proxy, closed, detector) { faces, frameWidth, frameHeight, rotation ->
+            analyze(proxy, closed, detector) { faces, frameWidth, frameHeight, rotation, grab ->
                 if (!passed) {
                     val viewWidth = previewView.width.toFloat()
                     val viewHeight = previewView.height.toFloat()
@@ -169,7 +177,29 @@ fun FaceCamera(
                             },
                         )
                     }
+                    val hadGesture = tracker.gestureSeen
                     val next = tracker.update(samples)
+                    if (!tracker.gestureSeen) {
+                        if (hadGesture || gesture != null) {
+                            gesture = null
+                            gestureGeneration++
+                        }
+                    } else if (!hadGesture) {
+                        // Frame pertama saat kepala menoleh menjadi foto gerakan.
+                        val generation = ++gestureGeneration
+                        grab()?.let { bitmap ->
+                            scope.launch {
+                                val jpeg = withContext(Dispatchers.Default) {
+                                    try {
+                                        toUprightJpeg(bitmap, rotation)
+                                    } finally {
+                                        bitmap.recycle()
+                                    }
+                                }
+                                if (generation == gestureGeneration) gesture = jpeg
+                            }
+                        }
+                    }
                     state = next
                     if (next == LivenessState.Passed) passed = true
                 }
@@ -252,7 +282,18 @@ fun FaceCamera(
                 photos += checkNotNull(photo)
                 taken = i + 1
             }
-            currentOnCaptured(photos)
+            // Foto gerakan dikompresi di latar sejak kepala menoleh; biasanya sudah siap di sini.
+            var waited = 0
+            while (gesture == null && waited < 2000) {
+                delay(50)
+                waited += 50
+            }
+            val gestureJpeg = gesture
+            if (gestureJpeg == null) {
+                currentOnError("Foto saat menoleh gagal diambil. Ulangi dan tolehkan kepala dengan jelas.")
+                return@LaunchedEffect
+            }
+            currentOnCaptured(photos, gestureJpeg)
         } catch (e: CancellationException) {
             throw e
         } catch (e: OutOfMemoryError) {
@@ -296,7 +337,7 @@ private fun analyze(
     proxy: ImageProxy,
     closed: AtomicBoolean,
     detector: FaceDetector,
-    onFaces: (faces: List<Face>, frameWidth: Int, frameHeight: Int, rotation: Int) -> Unit,
+    onFaces: (faces: List<Face>, frameWidth: Int, frameHeight: Int, rotation: Int, grab: () -> Bitmap?) -> Unit,
 ) {
     val media = proxy.image
     if (closed.get() || media == null) {
@@ -309,11 +350,23 @@ private fun analyze(
     try {
         val input = InputImage.fromMediaImage(media, rotation)
         detector.process(input)
-            .addOnSuccessListener { faces ->
-                // Dijalankan di thread utama.
-                if (!closed.get()) onFaces(faces, frameWidth, frameHeight, rotation)
+            .addOnCompleteListener { task ->
+                // Dijalankan di thread utama. Frame baru ditutup setelah onFaces, karena grab()
+                // mengambil bitmap dari frame ini (foto gerakan, D50).
+                try {
+                    if (task.isSuccessful && !closed.get()) {
+                        onFaces(task.result, frameWidth, frameHeight, rotation) {
+                            try {
+                                proxy.toBitmap()
+                            } catch (e: Exception) {
+                                null
+                            }
+                        }
+                    }
+                } finally {
+                    proxy.close()
+                }
             }
-            .addOnCompleteListener { proxy.close() }
     } catch (e: Exception) {
         // Detektor sudah ditutup saat layar ditinggalkan: abaikan frame ini.
         proxy.close()

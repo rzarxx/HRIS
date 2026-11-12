@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"mime"
+	"mime/multipart"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -26,9 +27,19 @@ func errTooLarge() error {
 // readUpload membaca body multipart (bagian `payload` berisi JSON dan berkas JPEG di field) atau
 // JSON biasa. JSON biasa hanya berguna di development, tempat presensi boleh tanpa selfie (D36).
 func readUpload(r *http.Request, payload any, field string, maxFiles int) ([][]byte, error) {
+	files, err := readUploadFields(r, payload, map[string]int{field: maxFiles})
+	if err != nil {
+		return nil, err
+	}
+	return files[field], nil
+}
+
+// readUploadFields seperti readUpload untuk beberapa field berkas sekaligus, masing-masing dengan
+// jumlah maksimumnya, misalnya selfie dan foto gerakan liveness (D50).
+func readUploadFields(r *http.Request, payload any, limits map[string]int) (map[string][][]byte, error) {
 	mediaType, _, _ := mime.ParseMediaType(r.Header.Get("Content-Type"))
 	if mediaType != "multipart/form-data" {
-		return nil, httpx.Decode(r, payload)
+		return map[string][][]byte{}, httpx.Decode(r, payload)
 	}
 	if err := r.ParseMultipartForm(MaxSelfieBytes); err != nil {
 		var tooLarge *http.MaxBytesError
@@ -46,33 +57,45 @@ func readUpload(r *http.Request, payload any, field string, maxFiles int) ([][]b
 	if err := httpx.DecodeFrom(strings.NewReader(parts[0]), payload); err != nil {
 		return nil, err
 	}
-	headers := r.MultipartForm.File[field]
-	if len(headers) > maxFiles {
-		return nil, httpx.Validation(map[string]string{field: fmt.Sprintf("Maksimal %d foto.", maxFiles)})
+	out := make(map[string][][]byte, len(limits))
+	for field, maxFiles := range limits {
+		headers := r.MultipartForm.File[field]
+		if len(headers) > maxFiles {
+			return nil, httpx.Validation(map[string]string{field: fmt.Sprintf("Maksimal %d foto.", maxFiles)})
+		}
+		files := make([][]byte, 0, len(headers))
+		for _, h := range headers {
+			data, err := readJPEG(h)
+			if err != nil {
+				return nil, err
+			}
+			files = append(files, data)
+		}
+		out[field] = files
 	}
-	files := make([][]byte, 0, len(headers))
-	for _, h := range headers {
-		if h.Size > MaxSelfieBytes {
-			return nil, errTooLarge()
-		}
-		f, err := h.Open()
-		if err != nil {
-			return nil, err
-		}
-		data, err := io.ReadAll(io.LimitReader(f, MaxSelfieBytes+1))
-		f.Close()
-		if err != nil {
-			return nil, err
-		}
-		if len(data) > MaxSelfieBytes {
-			return nil, errTooLarge()
-		}
-		if !face.IsJPEG(data) {
-			return nil, httpx.NewError(http.StatusUnsupportedMediaType, "UNSUPPORTED_MEDIA_TYPE", "Foto harus berformat JPEG.")
-		}
-		files = append(files, data)
+	return out, nil
+}
+
+func readJPEG(h *multipart.FileHeader) ([]byte, error) {
+	if h.Size > MaxSelfieBytes {
+		return nil, errTooLarge()
 	}
-	return files, nil
+	f, err := h.Open()
+	if err != nil {
+		return nil, err
+	}
+	data, err := io.ReadAll(io.LimitReader(f, MaxSelfieBytes+1))
+	f.Close()
+	if err != nil {
+		return nil, err
+	}
+	if len(data) > MaxSelfieBytes {
+		return nil, errTooLarge()
+	}
+	if !face.IsJPEG(data) {
+		return nil, httpx.NewError(http.StatusUnsupportedMediaType, "UNSUPPORTED_MEDIA_TYPE", "Foto harus berformat JPEG.")
+	}
+	return data, nil
 }
 
 // SelfieStore menyimpan selfie untuk audit (§5.5).

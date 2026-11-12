@@ -34,6 +34,7 @@ const FLAG_LABEL: Record<string, string> = {
   new_device_recent: "Perangkat baru disetujui",
   off_schedule: "Di luar jadwal shift",
   face_borderline: "Kemiripan wajah di batas bawah",
+  liveness_retry: "Beberapa kali gagal verifikasi wajah",
   unverified_integrity: "Tanpa verifikasi perangkat (development)",
 };
 

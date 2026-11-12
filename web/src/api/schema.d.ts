@@ -1492,9 +1492,14 @@ export interface paths {
                         payload: string;
                         /**
                          * Format: binary
-                         * @description Selfie JPEG, maksimal 1 MB
+                         * @description Selfie JPEG lurus, maksimal 1 MB
                          */
                         selfie: string;
+                        /**
+                         * Format: binary
+                         * @description Foto JPEG saat kepala menoleh sesuai `liveness_action`, maksimal 1 MB (D50)
+                         */
+                        gesture: string;
                     };
                     "application/json": components["schemas"]["ClockInput"];
                 };
@@ -1556,9 +1561,14 @@ export interface paths {
                         payload: string;
                         /**
                          * Format: binary
-                         * @description Selfie JPEG, maksimal 1 MB
+                         * @description Selfie JPEG lurus, maksimal 1 MB
                          */
                         selfie: string;
+                        /**
+                         * Format: binary
+                         * @description Foto JPEG saat kepala menoleh sesuai `liveness_action`, maksimal 1 MB (D50)
+                         */
+                        gesture: string;
                     };
                     "application/json": components["schemas"]["ClockInput"];
                 };
@@ -1706,6 +1716,11 @@ export interface paths {
                         payload: string;
                         /** @description 3 sampai 5 selfie JPEG berbeda, masing-masing maksimal 1 MB, berurutan sesuai `sample_sha256` */
                         samples: string[];
+                        /**
+                         * Format: binary
+                         * @description Foto JPEG saat kepala menoleh sesuai `liveness_action`, maksimal 1 MB (D50)
+                         */
+                        gesture: string;
                     };
                 };
             };
@@ -4716,10 +4731,10 @@ export interface components {
             /** Format: date-time */
             expires_at: string;
             /**
-             * @description Gerakan liveness yang diminta, dipilih acak oleh server (D42)
+             * @description Gerakan liveness yang diminta, dipilih acak oleh server (D42). Hanya toleh kepala, karena server membuktikannya dari foto gerakan (D50).
              * @enum {string}
              */
-            liveness_action: "blink" | "turn_left" | "turn_right" | "smile";
+            liveness_action: "turn_left" | "turn_right";
         };
         /** @description Payload presensi. Skor wajah adalah kemiripan cosine SFace (D43): di bawah 0.46 ditolak `FACE_MISMATCH`, 0.46 sampai 0.50 diterima dengan sinyal `face_borderline` (+20). Selfie yang pernah dikirim ditolak `ATTENDANCE_BLOCKED`. Token Play saat ini hanya dapat diuji di development. */
         ClockInput: {
@@ -4741,6 +4756,8 @@ export interface components {
             liveness_passed?: boolean;
             /** @description Gerakan yang dilakukan, harus sama dengan liveness_action challenge */
             liveness_action?: string;
+            /** @description SHA-256 berkas foto gerakan; wajib bila selfie dikirim (D50) */
+            gesture_sha256?: string;
         };
         FaceEnrollInput: {
             /**
@@ -4760,6 +4777,8 @@ export interface components {
             liveness_passed: boolean;
             /** @description Harus sama dengan liveness_action challenge */
             liveness_action: string;
+            /** @description SHA-256 berkas foto gerakan (D50) */
+            gesture_sha256: string;
             /** @description Versi teks persetujuan biometrik yang diterima */
             consent_version: string;
             latitude: number;

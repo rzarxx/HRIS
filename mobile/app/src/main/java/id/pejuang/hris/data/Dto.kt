@@ -86,6 +86,9 @@ data class AttendanceChallenge(
 @Serializable
 data class AttendanceSignals(
     @SerialName("is_mock_location") val isMockLocation: Boolean = false,
+    @SerialName("fake_gps_app_detected") val fakeGpsAppDetected: Boolean = false,
+    @SerialName("root_detected") val rootDetected: Boolean = false,
+    @SerialName("emulator_detected") val emulatorDetected: Boolean = false,
     @SerialName("app_version") val appVersion: String,
 )
 
@@ -101,6 +104,7 @@ data class ClockInput(
     @SerialName("selfie_sha256") val selfieSha256: String,
     @SerialName("liveness_passed") val livenessPassed: Boolean,
     @SerialName("liveness_action") val livenessAction: String,
+    @SerialName("gesture_sha256") val gestureSha256: String,
 )
 
 // schema: ClockInResult.office_location
@@ -137,6 +141,7 @@ data class FaceEnrollInput(
     @SerialName("challenge_id") val challengeId: String,
     @SerialName("captured_at") val capturedAt: String,
     @SerialName("sample_sha256") val sampleSha256: List<String>,
+    @SerialName("gesture_sha256") val gestureSha256: String,
     @SerialName("liveness_passed") val livenessPassed: Boolean,
     @SerialName("liveness_action") val livenessAction: String,
     @SerialName("consent_version") val consentVersion: String,

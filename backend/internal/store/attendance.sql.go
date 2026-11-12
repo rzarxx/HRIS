@@ -233,6 +233,26 @@ func (q *Queries) CountAttendanceReview(ctx context.Context, workMode pgtype.Tex
 	return count, err
 }
 
+const countRecentFaceFailures = `-- name: CountRecentFaceFailures :one
+SELECT count(*) FROM attendance_attempts
+WHERE employee_id = $1 AND purpose = $2 AND outcome = 'rejected'
+  AND reason_code IN ('liveness_failed', 'face_not_detected', 'face_mismatch')
+  AND created_at >= $3
+`
+
+type CountRecentFaceFailuresParams struct {
+	EmployeeID uuid.UUID
+	Purpose    string
+	Since      pgtype.Timestamptz
+}
+
+func (q *Queries) CountRecentFaceFailures(ctx context.Context, arg CountRecentFaceFailuresParams) (int64, error) {
+	row := q.db.QueryRow(ctx, countRecentFaceFailures, arg.EmployeeID, arg.Purpose, arg.Since)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const createAttendanceChallenge = `-- name: CreateAttendanceChallenge :one
 INSERT INTO attendance_challenges (employee_id, device_id, nonce, purpose, expires_at, liveness_action)
 VALUES ($1, $2, $3, $4, $5, $6)

@@ -52,8 +52,19 @@ const (
 )
 
 // LivenessActions adalah gerakan yang diminta server lewat challenge, dipilih acak agar rekaman
-// video lama tidak cocok dengan permintaan.
-var LivenessActions = []string{"blink", "turn_left", "turn_right", "smile"}
+// video lama tidak cocok dengan permintaan. Hanya toleh kepala, karena hanya gerakan itu yang bisa
+// dibuktikan server dari lima titik wajah pada foto gerakan (D50); kedip dan senyum tidak.
+var LivenessActions = []string{"turn_left", "turn_right"}
+
+// provesTurn memastikan foto gerakan membuktikan kepala menoleh (D50): foto utama lurus, foto gerakan
+// menoleh cukup jauh dari foto utama, dan wajah di foto gerakan adalah orang yang sama. Arah toleh
+// tidak diperiksa, sama seperti aplikasi, sampai arahnya diuji di HP sungguhan.
+func provesTurn(straight, gesture face.Analysis) bool {
+	return math.Abs(straight.Turn) <= face.StraightTurnMax &&
+		math.Abs(gesture.Turn) >= face.GestureTurnMin &&
+		math.Abs(gesture.Turn-straight.Turn) >= face.GestureTurnDelta &&
+		face.Cosine(gesture.Vector, straight.Vector) >= face.GestureMinSimilarity
+}
 
 func errFaceNotEnrolled() error {
 	return httpx.NewError(http.StatusUnprocessableEntity, "FACE_NOT_ENROLLED", "Wajah belum terdaftar.")
@@ -197,10 +208,14 @@ func (s *Service) checkFace(ctx context.Context, a *attempt, in ClockInput) (fac
 	if err != nil {
 		return faceResult{}, err
 	}
-	if in.LivenessPassed == nil || !*in.LivenessPassed || in.LivenessAction == "" || in.LivenessAction != a.livenessAction {
+	if in.LivenessPassed == nil || !*in.LivenessPassed || in.LivenessAction == "" || in.LivenessAction != a.livenessAction || len(in.gesture) == 0 {
 		return faceResult{}, s.reject(ctx, *a, "liveness_failed", errLiveness())
 	}
 	captureID, err := s.capture(ctx, a.p.EmployeeID, a.challenge, a.purpose, in.selfie)
+	if err == nil {
+		// Foto gerakan disimpan juga agar tidak bisa dipakai ulang dan bisa ditinjau bila perlu.
+		_, err = s.capture(ctx, a.p.EmployeeID, a.challenge, a.purpose, in.gesture)
+	}
 	if errors.Is(err, errReplay) {
 		a.flags = append(a.flags, flagSelfieReplay)
 		return faceResult{}, s.reject(ctx, *a, "embedding_replay", errBlocked())
@@ -208,13 +223,27 @@ func (s *Service) checkFace(ctx context.Context, a *attempt, in ClockInput) (fac
 	if err != nil {
 		return faceResult{}, err
 	}
-	vector, err := s.opt.Faces.Embed(ctx, in.selfie)
+	straight, err := s.opt.Faces.Analyze(ctx, in.selfie)
+	if err == nil && !straight.Centered {
+		err = face.ErrFaceNotCentered
+	}
 	if err != nil {
 		if msg, ok := faceProblem(err); ok {
 			return faceResult{}, s.reject(ctx, *a, "face_not_detected", errFaceNotDetected(msg))
 		}
 		return faceResult{}, err
 	}
+	gesture, err := s.opt.Faces.Analyze(ctx, in.gesture)
+	if err != nil {
+		if _, ok := faceProblem(err); ok {
+			return faceResult{}, s.reject(ctx, *a, "liveness_failed", errLiveness())
+		}
+		return faceResult{}, err
+	}
+	if !provesTurn(straight, gesture) {
+		return faceResult{}, s.reject(ctx, *a, "liveness_failed", errLiveness())
+	}
+	vector := straight.Vector
 	similarity := face.Cosine(vector, tpl.vector)
 	out := faceResult{capture: uuid.NullUUID{UUID: captureID, Valid: true}, score: scoreOf(similarity)}
 	if err := s.q.SetFaceCaptureScore(ctx, store.SetFaceCaptureScoreParams{ID: captureID, FaceScore: out.score}); err != nil {
@@ -272,9 +301,15 @@ type EnrollInput struct {
 	Longitude      *float64 `json:"longitude"`
 	AccuracyM      *float64 `json:"accuracy_m"`
 	Signals        Signals  `json:"signals"`
+	// Foto saat gerakan liveness (berkas multipart `gesture`, D50).
+	GestureSHA256 string `json:"gesture_sha256"`
 
 	samples [][]byte
+	gesture []byte
 }
+
+// errGestureMissing dipakai bila aplikasi lama mengirim selfie tanpa foto gerakan.
+const errGestureMissing = "Foto gerakan wajib dikirim. Perbarui aplikasi lalu ulangi."
 
 // FaceStatus adalah status wajah sendiri. Template tidak pernah dikirim.
 type FaceStatus struct {
@@ -331,6 +366,11 @@ func (in EnrollInput) validate() (uuid.UUID, Point, error) {
 			seen[sum] = true
 		}
 	}
+	if len(in.gesture) == 0 {
+		fields["gesture"] = errGestureMissing
+	} else if !strings.EqualFold(in.GestureSHA256, sha256Hex(in.gesture)) {
+		fields["gesture_sha256"] = "Hash foto gerakan tidak sesuai."
+	}
 	if len(fields) > 0 {
 		return challengeID, point, httpx.Validation(fields)
 	}
@@ -375,7 +415,7 @@ func (s *Service) Enroll(ctx context.Context, p auth.Principal, ip *netip.Addr, 
 		if err != nil {
 			return FaceStatus{}, errBlocked()
 		}
-		hash, err := integrity.EnrollmentHash(challenge.Nonce, point.Latitude, point.Longitude, capturedAt, in.ConsentVersion, in.LivenessAction, in.SampleSHA256)
+		hash, err := integrity.EnrollmentHash(challenge.Nonce, point.Latitude, point.Longitude, capturedAt, in.ConsentVersion, in.LivenessAction, in.SampleSHA256, in.GestureSHA256)
 		if err != nil {
 			return FaceStatus{}, errBlocked()
 		}
@@ -399,6 +439,7 @@ func (s *Service) Enroll(ctx context.Context, p auth.Principal, ip *netip.Addr, 
 
 	vectors := make([][]float64, 0, len(in.samples))
 	captures := make([]uuid.UUID, 0, len(in.samples))
+	var first face.Analysis
 	for i, data := range in.samples {
 		id, err := s.capture(ctx, p.EmployeeID, uuid.NullUUID{UUID: challengeID, Valid: true}, PurposeFaceEnroll, data)
 		if errors.Is(err, errReplay) {
@@ -408,14 +449,40 @@ func (s *Service) Enroll(ctx context.Context, p auth.Principal, ip *netip.Addr, 
 			return FaceStatus{}, err
 		}
 		captures = append(captures, id)
-		vector, err := s.opt.Faces.Embed(ctx, data)
+		a, err := s.opt.Faces.Analyze(ctx, data)
+		if err == nil && !a.Centered {
+			err = face.ErrFaceNotCentered
+		}
 		if err != nil {
 			if msg, ok := faceProblem(err); ok {
 				return FaceStatus{}, errFaceNotDetected(fmt.Sprintf("Foto ke-%d: %s", i+1, msg))
 			}
 			return FaceStatus{}, err
 		}
-		vectors = append(vectors, vector)
+		// Template dibentuk dari wajah lurus saja agar cocok dengan selfie presensi.
+		if math.Abs(a.Turn) > face.StraightTurnMax {
+			return FaceStatus{}, errFaceNotDetected(fmt.Sprintf("Foto ke-%d: wajah belum menghadap lurus ke kamera.", i+1))
+		}
+		if i == 0 {
+			first = a
+		}
+		vectors = append(vectors, a.Vector)
+	}
+	if _, err := s.capture(ctx, p.EmployeeID, uuid.NullUUID{UUID: challengeID, Valid: true}, PurposeFaceEnroll, in.gesture); err != nil {
+		if errors.Is(err, errReplay) {
+			return FaceStatus{}, errBlocked()
+		}
+		return FaceStatus{}, err
+	}
+	gesture, err := s.opt.Faces.Analyze(ctx, in.gesture)
+	if err != nil {
+		if _, ok := faceProblem(err); ok {
+			return FaceStatus{}, errLiveness()
+		}
+		return FaceStatus{}, err
+	}
+	if !provesTurn(first, gesture) {
+		return FaceStatus{}, errLiveness()
 	}
 	if !checkAgreement(vectors) {
 		return FaceStatus{}, httpx.Validation(map[string]string{"samples": "Foto wajah tidak konsisten, silakan ulangi."})
@@ -530,11 +597,14 @@ func (h *Handler) FaceStatus(w http.ResponseWriter, r *http.Request) error {
 
 func (h *Handler) Enroll(w http.ResponseWriter, r *http.Request) error {
 	var in EnrollInput
-	samples, err := readUpload(r, &in, "samples", maxFaceSamples)
+	files, err := readUploadFields(r, &in, map[string]int{"samples": maxFaceSamples, "gesture": 1})
 	if err != nil {
 		return err
 	}
-	in.samples = samples
+	in.samples = files["samples"]
+	if f := files["gesture"]; len(f) == 1 {
+		in.gesture = f[0]
+	}
 	p, _ := auth.PrincipalFrom(r.Context())
 	out, err := h.svc.Enroll(r.Context(), p, audit.ClientIP(r), r.Header.Get(headerDeviceID), in)
 	if err != nil {

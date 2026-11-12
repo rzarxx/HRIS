@@ -11,6 +11,31 @@
         android:name="android.hardware.camera.front"
         android:required="false" />
 
+    <!-- Android 11+ menyembunyikan aplikasi lain. Daftar ini harus sama dengan DeviceRules
+         (security/DeviceChecks.kt): aplikasi root dan pemalsu lokasi yang dicek sebelum presensi. -->
+    <queries>
+        <package android:name="com.topjohnwu.magisk" />
+        <package android:name="eu.chainfire.supersu" />
+        <package android:name="com.koushikdutta.superuser" />
+        <package android:name="com.noshufou.android.su" />
+        <package android:name="com.thirdparty.superuser" />
+        <package android:name="me.weishu.kernelsu" />
+        <package android:name="me.bmax.apatch" />
+        <package android:name="com.lexa.fakegps" />
+        <package android:name="com.incorporateapps.fakegps.fre" />
+        <package android:name="com.blogspot.newapphorizons.fakegps" />
+        <package android:name="com.theappninjas.fakegpsjoystick" />
+        <package android:name="com.theappninjas.gpsjoystick" />
+        <package android:name="com.gsmartstudio.fakegps" />
+        <package android:name="com.rosteam.gpsemulator" />
+        <package android:name="com.lkr.fakelocation" />
+        <package android:name="ru.gavrikov.mocklocations" />
+        <package android:name="com.evezzon.fgl" />
+        <package android:name="com.just4funtools.fakegpslocationprofessional" />
+        <package android:name="com.marlon.floating.fake.location" />
+        <package android:name="com.fakegps.mock" />
+    </queries>
+
     <!-- allowBackup mati agar token dan ID instalasi tidak ikut tercadang ke HP lain. -->
     <application
         android:name=".HrisApp"

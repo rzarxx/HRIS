@@ -553,7 +553,7 @@ func (q *Queries) GetOpenAttendance(ctx context.Context, employeeID uuid.UUID) (
 }
 
 const getOwnDevice = `-- name: GetOwnDevice :one
-SELECT id, employee_id, device_hash, model, os_version, fcm_token, status, approved_by, approved_at, revoked_by, revoked_at, revoked_reason, last_seen_at, created_at FROM devices WHERE id = $1 AND employee_id = $2
+SELECT id, employee_id, device_hash, model, os_version, fcm_token, status, approved_by, approved_at, revoked_by, revoked_at, revoked_reason, last_seen_at, created_at, integrity_tier, manual_approved_until, public_key, key_bound_at, tier_changed_by, tier_changed_at FROM devices WHERE id = $1 AND employee_id = $2
 `
 
 type GetOwnDeviceParams struct {
@@ -579,6 +579,12 @@ func (q *Queries) GetOwnDevice(ctx context.Context, arg GetOwnDeviceParams) (Dev
 		&i.RevokedReason,
 		&i.LastSeenAt,
 		&i.CreatedAt,
+		&i.IntegrityTier,
+		&i.ManualApprovedUntil,
+		&i.PublicKey,
+		&i.KeyBoundAt,
+		&i.TierChangedBy,
+		&i.TierChangedAt,
 	)
 	return i, err
 }

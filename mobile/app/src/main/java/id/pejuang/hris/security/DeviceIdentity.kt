@@ -64,8 +64,34 @@ class DeviceIdentity(private val context: Context) {
         }.getOrNull()
     }
 
+    /**
+     * Menghasilkan rantai sertifikat X.509 Android Key Attestation (DER Base64) untuk Jalur B (§5.4.1),
+     * dengan attestationChallenge yang mengikat kunci publik instalasi perangkat dan [requestHash].
+     */
+    fun attestationChainBase64(requestHash: String): List<String>? = runCatching {
+        val pubDer = ensureEntry()?.certificate?.publicKey?.encoded ?: return@runCatching null
+        val challenge = DeviceProof.attestationChallenge(pubDer, requestHash).toByteArray(Charsets.UTF_8)
+        val ks = KeyStore.getInstance(KEYSTORE).apply { load(null) }
+        val gen = KeyPairGenerator.getInstance(KeyProperties.KEY_ALGORITHM_EC, KEYSTORE)
+        gen.initialize(
+            KeyGenParameterSpec.Builder(
+                ATTEST_ALIAS,
+                KeyProperties.PURPOSE_SIGN or KeyProperties.PURPOSE_VERIFY,
+            )
+                .setAlgorithmParameterSpec(ECGenParameterSpec("secp256r1"))
+                .setDigests(KeyProperties.DIGEST_SHA256)
+                .setAttestationChallenge(challenge)
+                .build(),
+        )
+        gen.generateKeyPair()
+        val chain = ks.getCertificateChain(ATTEST_ALIAS) ?: return@runCatching null
+        if (chain.size < 2) return@runCatching null
+        chain.map { cert -> Base64.getEncoder().encodeToString(cert.encoded) }
+    }.getOrNull()
+
     private companion object {
         const val KEYSTORE = "AndroidKeyStore"
         const val ALIAS = "hris_device_proof_v1"
+        const val ATTEST_ALIAS = "hris_key_attestation_v1"
     }
 }

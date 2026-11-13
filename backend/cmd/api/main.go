@@ -70,11 +70,22 @@ func run() error {
 	if err != nil {
 		return err
 	}
+	enrollGeofence := cfg.FaceEnrollRequiresGeofence
 	attendanceOpt := attendance.Options{
-		AllowUnverified:  cfg.DevAllowUnverifiedAttendance,
-		RequireDeviceKey: !cfg.DevAllowUnverifiedAttendance,
-		ChallengeTTL:     cfg.ChallengeTTL,
-		Cipher:           fieldCipher,
+		AllowUnverified:          cfg.DevAllowUnverifiedAttendance,
+		RequireDeviceKey:         !cfg.DevAllowUnverifiedAttendance,
+		ChallengeTTL:             cfg.ChallengeTTL,
+		Cipher:                   fieldCipher,
+		FaceThresholdPass:        cfg.FaceThresholdPass,
+		FaceThresholdReview:      cfg.FaceThresholdReview,
+		FaceEnrollMinSimilarity:  cfg.FaceEnrollMinSimilarity,
+		EnrollRequiresGeofence:   &enrollGeofence,
+		FaceStraightTurnMax:      cfg.FaceStraightTurnMax,
+		FaceGestureTurnMin:       cfg.FaceGestureTurnMin,
+		FaceGestureTurnDelta:     cfg.FaceGestureTurnDelta,
+		FaceGestureMinSimilarity: cfg.FaceGestureMinSimilarity,
+		RiskReviewMin:            cfg.RiskReviewMin,
+		RiskRejectMin:            cfg.RiskRejectMin,
 	}
 	if cfg.PlayIntegrityPackage != "" {
 		account, err := integrity.LoadServiceAccount(cfg.PlayIntegrityCredentials, nil)
@@ -82,6 +93,24 @@ func run() error {
 			return err
 		}
 		attendanceOpt.PlayVerifier = integrity.PlayVerifier{PackageName: cfg.PlayIntegrityPackage, AccessToken: account.Token}
+	}
+	if cfg.KeyAttestationRootCAPath != "" {
+		roots, err := integrity.LoadAttestationRoots(cfg.KeyAttestationRootCAPath)
+		if err != nil {
+			return err
+		}
+		var certDigest []byte
+		if cfg.KeyAttestationCertSHA256 != "" {
+			certDigest, err = integrity.ParseAttestationCertSHA256(cfg.KeyAttestationCertSHA256)
+			if err != nil {
+				return err
+			}
+		}
+		attendanceOpt.AttestationVerifier = integrity.KeyAttestationVerifier{
+			PackageName:       cfg.KeyAttestationPackage,
+			SigningCertSHA256: certDigest,
+			Roots:             roots,
+		}
 	}
 	if cfg.SelfieDir != "" {
 		selfies, err := attendance.NewDiskStore(cfg.SelfieDir, fieldCipher)

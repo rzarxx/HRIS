@@ -104,4 +104,18 @@ object DeviceProof {
         }
         return Base64.getUrlEncoder().withoutPadding().encodeToString(sig)
     }
+
+    /**
+     * Menurunkan challenge Key Attestation 43 karakter (base64url SHA-256) yang mengikat
+     * kunci publik instalasi (PKIX DER) dengan [requestHash], cocok dengan `AttestationChallengeForKey` di server.
+     */
+    fun attestationChallenge(publicKeyDer: ByteArray, requestHash: String): String {
+        val digest = MessageDigest.getInstance("SHA-256").run {
+            update(publicKeyDer)
+            update('|'.code.toByte())
+            update(requestHash.toByteArray(Charsets.UTF_8))
+            digest()
+        }
+        return Base64.getUrlEncoder().withoutPadding().encodeToString(digest)
+    }
 }

@@ -40,7 +40,7 @@ func TestPlayVerifier(t *testing.T) {
 		{"unrecognized app", func(p *playPayload) { p.TokenPayloadExternal.AppIntegrity.Recognition = "UNRECOGNIZED_VERSION" }, ErrInvalid},
 		{"basic only", func(p *playPayload) {
 			p.TokenPayloadExternal.DeviceIntegrity.Recognition = []string{"MEETS_BASIC_INTEGRITY"}
-		}, ErrInvalid},
+		}, ErrBasicOnly},
 		{"no verdict", func(p *playPayload) { p.TokenPayloadExternal.DeviceIntegrity.Recognition = nil }, ErrInvalid},
 		{"expired", func(p *playPayload) { p.TokenPayloadExternal.RequestDetails.TimestampMillis = "1799999909999" }, ErrInvalid},
 		{"future", func(p *playPayload) { p.TokenPayloadExternal.RequestDetails.TimestampMillis = "1800000005001" }, ErrInvalid},

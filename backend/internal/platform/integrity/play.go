@@ -19,6 +19,7 @@ import (
 )
 
 var ErrInvalid = errors.New("verdict integritas tidak valid")
+var ErrBasicOnly = errors.New("verdict hanya MEETS_BASIC_INTEGRITY")
 var ErrNonceMismatch = errors.New("request_hash tidak cocok")
 var ErrUnavailable = errors.New("layanan integritas tidak tersedia")
 
@@ -105,7 +106,7 @@ func (v PlayVerifier) Verify(ctx context.Context, token, requestHash string) err
 	app := payload.TokenPayloadExternal.AppIntegrity
 	device := payload.TokenPayloadExternal.DeviceIntegrity
 	if details.PackageName != v.PackageName || app.PackageName != v.PackageName ||
-		app.Recognition != "PLAY_RECOGNIZED" || !slices.Contains(device.Recognition, "MEETS_DEVICE_INTEGRITY") {
+		app.Recognition != "PLAY_RECOGNIZED" {
 		return ErrInvalid
 	}
 	if subtle.ConstantTimeCompare([]byte(details.RequestHash), []byte(requestHash)) != 1 {
@@ -123,5 +124,11 @@ func (v PlayVerifier) Verify(ctx context.Context, token, requestHash string) err
 	if age < -5*time.Second || age > 90*time.Second {
 		return fmt.Errorf("%w: waktu verdict", ErrInvalid)
 	}
-	return nil
+	if slices.Contains(device.Recognition, "MEETS_DEVICE_INTEGRITY") {
+		return nil
+	}
+	if slices.Contains(device.Recognition, "MEETS_BASIC_INTEGRITY") {
+		return fmt.Errorf("%w: %w", ErrBasicOnly, ErrInvalid)
+	}
+	return ErrInvalid
 }

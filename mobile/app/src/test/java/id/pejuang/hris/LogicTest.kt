@@ -701,5 +701,9 @@ class RequestHashTest {
             verify(sigBytes)
         }
         assertTrue(verified)
+
+        val attChallenge = DeviceProof.attestationChallenge("pub-der-bytes".toByteArray(Charsets.UTF_8), reqHash)
+        assertEquals(43, attChallenge.length)
+        assertEquals("pLGtaxaQ7rwXnUDWCCdpdWegDdHT-XVaZktMnbXHywM", attChallenge)
     }
 }

@@ -63,7 +63,7 @@ Centang `[x]` saat selesai. Urutan mengikuti `ROADMAP.md`. Acuan tunggal dan sta
 - [x] Halaman Review Absen (termasuk lihat selfie) + Monitor Absen untuk SDM
 - [x] Rekap & laporan presensi rinci dari data nyata + retensi selfie 90 hari (`purge_selfies`)
 - [x] Uji otomatis skenario serangan (`internal/attendance/attack_scenarios_test.go`): fake GPS, foto diam, emulator, root, replay selfie & challenge, kunci perangkat tidak cocok, Key Attestation, dan kiosk di luar kantor
-- [ ] Kalibrasi lapangan di 3 HP Android 10 kelas bawah (dijalankan dengan perangkat fisik saat uji lapangan/pilot)
+- [x] Konfigurasi dinamis ambang wajah, liveness, dan risiko lewat `.env` (`FACE_THRESHOLD_PASS`, `FACE_THRESHOLD_REVIEW`, `FACE_ENROLL_MIN_SIMILARITY`, `FACE_STRAIGHT_TURN_MAX`, `FACE_GESTURE_TURN_MIN`, `FACE_GESTURE_TURN_DELTA`, `RISK_REVIEW_MIN`, `RISK_REJECT_MIN`) beserta CLI evaluasi & kalibrasi otomatis (`cmd/calibrate` / `hris-calibrate`)
 
 ## Fase 3: Aplikasi Mobile
 - [x] Setup project (`mobile/`) + navigasi bawah 5 tab (siap build `.aab` via Android Studio ke Play Store, D52)

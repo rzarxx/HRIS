@@ -181,6 +181,24 @@ func TestVerifyDeviceIntegrityTiersAndAttacks(t *testing.T) {
 		}
 	})
 
+	t.Run("Jalur A play: MEETS_BASIC_INTEGRITY adds integrity_basic_only (+30 -> review) on clock and blocks enroll", func(t *testing.T) {
+		svc := NewService(nil, Options{
+			Now:          func() time.Time { return now },
+			PlayVerifier: stubPlayVerifier{err: integrity.ErrBasicOnly},
+		})
+		dev := store.Device{IntegrityTier: store.DeviceIntegrityTierPlay, PublicKey: pubDER}
+
+		flags, reason, ok := svc.verifyDeviceIntegrity(context.Background(), dev, hash, "play-tok", validProof, nil, true)
+		if !ok || reason != "" || !slices.Contains(flags, flagIntegrityBasicOnly) || RiskScore(flags) != 30 {
+			t.Fatalf("clock-in dengan MEETS_BASIC_INTEGRITY harus masuk review (+30): ok=%v flags=%v", ok, flags)
+		}
+
+		_, reason, ok = svc.verifyDeviceIntegrity(context.Background(), dev, hash, "play-tok", validProof, nil, false)
+		if ok || reason != flagIntegrityFailed {
+			t.Fatalf("pendaftaran wajah dengan MEETS_BASIC_INTEGRITY harus ditolak: ok=%v reason=%q", ok, reason)
+		}
+	})
+
 	t.Run("Jalur B attestation: valid hardware chain + device_proof passes, failure never downgrades", func(t *testing.T) {
 		svc := NewService(nil, Options{
 			Now:                 func() time.Time { return now },

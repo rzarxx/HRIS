@@ -248,4 +248,27 @@ func TestKeyAttestationVerifier(t *testing.T) {
 			t.Fatalf("ingin ErrInvalid untuk sertifikat dicabut, dapat %v", err)
 		}
 	})
+
+	t.Run("accepts per-request attestation chain bound via AttestationChallengeForKey", func(t *testing.T) {
+		if got := AttestationChallengeForKey([]byte("pub-der-bytes"), "IZ0EvC-bV2dDeuNUnZAODJqQOd0txdevb-S9qNhGkZc"); got != "pLGtaxaQ7rwXnUDWCCdpdWegDdHT-XVaZktMnbXHywM" {
+			t.Fatalf("vektor AttestationChallengeForKey = %s", got)
+		}
+		_, boundPubDER, _ := buildTestAttestationChain(t, now, defaultTestAttestationOpts(hash, certDigest[:]))
+		boundChallenge := AttestationChallengeForKey(boundPubDER, hash)
+		opts := defaultTestAttestationOpts(boundChallenge, certDigest[:])
+		chain, _, roots := buildTestAttestationChain(t, now, opts)
+		v := KeyAttestationVerifier{
+			PackageName:       "id.pejuang.hris",
+			SigningCertSHA256: certDigest[:],
+			Roots:             roots,
+			Now:               func() time.Time { return now },
+		}
+		if err := v.Verify(chain, boundPubDER, hash); err != nil {
+			t.Fatalf("Verify rantai terikat AttestationChallengeForKey gagal: %v", err)
+		}
+		otherHash, _ := AttendanceHash(strings.Repeat("9", 64), -6.2001, 106.8166, now, strings.Repeat("b", 64), strings.Repeat("c", 64))
+		if err := v.Verify(chain, boundPubDER, otherHash); !errors.Is(err, ErrNonceMismatch) {
+			t.Fatalf("ingin ErrNonceMismatch saat requestHash berbeda, dapat %v", err)
+		}
+	})
 }

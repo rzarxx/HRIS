@@ -59,11 +59,11 @@ done
 # daftar wajah dan absen dengan selfie dijawab FACE_SERVICE_UNAVAILABLE.
 case "${FACE_ENGINE:-}" in
   onnx)
-    echo "    API dengan mesin wajah ONNX (SFace)"
-    as_builder env CGO_ENABLED=1 bash -c "cd '$SRC_DIR/backend' && go build -tags onnx -o '$BUILD_DIR/hris-api' ./cmd/api"
+    echo "    API & kalibrasi dengan mesin wajah ONNX (SFace)"
+    as_builder env CGO_ENABLED=1 bash -c "cd '$SRC_DIR/backend' && go build -tags onnx -o '$BUILD_DIR/hris-api' ./cmd/api && go build -tags onnx -o '$BUILD_DIR/hris-calibrate' ./cmd/calibrate"
     ;;
   "")
-    as_builder bash -c "cd '$SRC_DIR/backend' && go build -o '$BUILD_DIR/hris-api' ./cmd/api"
+    as_builder bash -c "cd '$SRC_DIR/backend' && go build -o '$BUILD_DIR/hris-api' ./cmd/api && go build -o '$BUILD_DIR/hris-calibrate' ./cmd/calibrate"
     ;;
   *)
     # Mis. FACE_ENGINE=dlib dari D42. Berhenti sebelum biner yang berjalan diganti.
@@ -76,7 +76,7 @@ echo "==> Build web"
 as_builder bash -c "cd '$SRC_DIR/web' && npm ci --ignore-scripts --no-audit --no-fund && npm run build"
 
 echo "==> Memasang"
-for program in api migrate seed bootstrap superadmin purge-selfies mark-absent; do
+for program in api migrate seed bootstrap superadmin purge-selfies mark-absent calibrate; do
   install -o hris -g hris -m 750 "$BUILD_DIR/hris-$program" "$APP_DIR/hris-$program.new"
   mv -f "$APP_DIR/hris-$program.new" "$APP_DIR/hris-$program"
 done

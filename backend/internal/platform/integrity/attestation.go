@@ -2,12 +2,14 @@ package integrity
 
 import (
 	"bytes"
+	"crypto/sha256"
 	"crypto/subtle"
 	"crypto/x509"
 	"encoding/asn1"
 	"encoding/base64"
 	"encoding/hex"
 	"fmt"
+	"os"
 	"strings"
 	"time"
 )
@@ -104,9 +106,6 @@ func (v KeyAttestationVerifier) Verify(chainBase64 []string, expectedPublicKeyDE
 	if _, err := ParseDevicePublicKey(leaf.RawSubjectPublicKeyInfo); err != nil {
 		return ErrInvalid
 	}
-	if len(expectedPublicKeyDER) > 0 && !bytes.Equal(leaf.RawSubjectPublicKeyInfo, expectedPublicKeyDER) {
-		return fmt.Errorf("%w: kunci publik tidak cocok", ErrInvalid)
-	}
 
 	inter := x509.NewCertPool()
 	for _, c := range certs[1 : len(certs)-1] {
@@ -137,8 +136,14 @@ func (v KeyAttestationVerifier) Verify(chainBase64 []string, expectedPublicKeyDE
 	if !isHardwareLevel(int(desc.AttestationSecurityLevel)) || !isHardwareLevel(int(desc.KeyMintSecurityLevel)) {
 		return fmt.Errorf("%w: bukan hardware keystore", ErrInvalid)
 	}
-	if subtle.ConstantTimeCompare(desc.AttestationChallenge, []byte(requestHash)) != 1 {
+	directChallengeMatch := subtle.ConstantTimeCompare(desc.AttestationChallenge, []byte(requestHash)) == 1
+	boundChallengeMatch := len(expectedPublicKeyDER) > 0 &&
+		subtle.ConstantTimeCompare(desc.AttestationChallenge, []byte(AttestationChallengeForKey(expectedPublicKeyDER, requestHash))) == 1
+	if !directChallengeMatch && !boundChallengeMatch {
 		return fmt.Errorf("%w: %w", ErrNonceMismatch, ErrInvalid)
+	}
+	if directChallengeMatch && len(expectedPublicKeyDER) > 0 && !bytes.Equal(leaf.RawSubjectPublicKeyInfo, expectedPublicKeyDER) {
+		return fmt.Errorf("%w: kunci publik tidak cocok", ErrInvalid)
 	}
 
 	hwOrigin, rot, hwAppID, err := parseAuthorizationList(desc.HardwareEnforced.Bytes)
@@ -261,4 +266,41 @@ func verifyApplicationID(der []byte, wantPackage string, wantCertSHA256 []byte) 
 		}
 	}
 	return nil
+}
+
+// AttestationChallengeForKey menurunkan challenge Key Attestation 43 karakter (base64url SHA-256)
+// yang mengikat kunci publik instalasi perangkat (PKIX DER) dengan requestHash tantangan presensi.
+func AttestationChallengeForKey(pubKeyDER []byte, requestHash string) string {
+	h := sha256.New()
+	h.Write(pubKeyDER)
+	h.Write([]byte{'|'})
+	h.Write([]byte(requestHash))
+	sum := h.Sum(nil)
+	return base64.RawURLEncoding.EncodeToString(sum)
+}
+
+// LoadAttestationRoots memuat berkas PEM yang berisi sertifikat Root CA Key Attestation.
+func LoadAttestationRoots(pemPath string) (*x509.CertPool, error) {
+	raw, err := os.ReadFile(pemPath)
+	if err != nil {
+		return nil, err
+	}
+	pool := x509.NewCertPool()
+	if !pool.AppendCertsFromPEM(raw) {
+		return nil, fmt.Errorf("%w: tidak ada sertifikat PEM yang valid di %s", ErrInvalid, pemPath)
+	}
+	return pool, nil
+}
+
+// ParseAttestationCertSHA256 mengurai sidik jari SHA-256 heksadesimal (dengan atau tanpa pemisah ':').
+func ParseAttestationCertSHA256(rawHex string) ([]byte, error) {
+	cleaned := strings.ReplaceAll(strings.TrimSpace(rawHex), ":", "")
+	if len(cleaned) != 64 {
+		return nil, fmt.Errorf("%w: sidik jari SHA-256 harus 64 karakter heksadesimal", ErrInvalid)
+	}
+	out, err := hex.DecodeString(cleaned)
+	if err != nil || len(out) != 32 {
+		return nil, fmt.Errorf("%w: sidik jari SHA-256 tidak valid", ErrInvalid)
+	}
+	return out, nil
 }

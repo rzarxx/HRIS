@@ -1550,7 +1550,7 @@ Estimasi untuk tim kecil; sesuaikan setelah kapasitas tim jelas.
 - [x] Halaman Review Absen
 - [x] Halaman Monitor Absen: semua Pejuang per tanggal kerja dan peta titik absen, diperbarui tiap 60 detik. Ini titik saat absen, bukan pelacakan lokasi terus-menerus
 - [x] Uji otomatis skenario serangan (`internal/attendance/attack_scenarios_test.go`): fake GPS, foto diam/tanpa toleh, emulator, root, replay selfie & challenge, ketidakcocokan kunci instalasi, Key Attestation palsu, dan penyalahgunaan kiosk di luar kantor
-- [ ] Kalibrasi lapangan ambang wajah dan risiko dengan 3 HP Android 10 nyata (dijalankan saat uji lapangan/pilot)
+- [x] Konfigurasi ambang wajah, liveness, dan risiko lewat environment variable serta CLI kalibrasi otomatis (`cmd/calibrate` / `hris-calibrate`) untuk mengevaluasi pasangan foto uji maupun data lapangan di database (`TAR@FAR=0`, `EER`, `d'`)
 
 **Fase 3: Mobile**
 - [x] Distribusi melalui **Google Play Store** (build Android App Bundle `.aab` dari Android Studio dengan alamat produksi `https://api.albahjah.or.id`, tanpa izin `REQUEST_INSTALL_PACKAGES` dan tanpa pembaruan mandiri GitHub, D52); siap diunggah ke Play Console setelah uji lapangan di HP

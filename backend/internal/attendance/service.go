@@ -61,6 +61,17 @@ type Options struct {
 	AttestationVerifier AttestationVerifier
 	// RequireDeviceKey mewajibkan setiap perangkat memiliki public_key terikat saat verifikasi aktif.
 	RequireDeviceKey bool
+	// Konfigurasi ambang pencocokan wajah, liveness, dan skor risiko (§5.4). Nol berarti nilai bawaan.
+	FaceThresholdPass        float64
+	FaceThresholdReview      float64
+	FaceEnrollMinSimilarity  float64
+	EnrollRequiresGeofence   *bool
+	FaceStraightTurnMax      float64
+	FaceGestureTurnMin       float64
+	FaceGestureTurnDelta     float64
+	FaceGestureMinSimilarity float64
+	RiskReviewMin            int
+	RiskRejectMin            int
 }
 
 // Service memuat aturan presensi (MASTER.md §5.4, alur F8 sampai F10).
@@ -77,7 +88,104 @@ func NewService(pool *pgxpool.Pool, opt Options) *Service {
 	if opt.Now == nil {
 		opt.Now = time.Now
 	}
+	if opt.FaceThresholdPass <= 0 {
+		opt.FaceThresholdPass = FaceThresholdPass
+	}
+	if opt.FaceThresholdReview <= 0 {
+		opt.FaceThresholdReview = FaceThresholdReview
+	}
+	if opt.FaceEnrollMinSimilarity <= 0 {
+		opt.FaceEnrollMinSimilarity = face.MinEnrollSimilarity
+	}
+	if opt.FaceStraightTurnMax <= 0 {
+		opt.FaceStraightTurnMax = face.StraightTurnMax
+	}
+	if opt.FaceGestureTurnMin <= 0 {
+		opt.FaceGestureTurnMin = face.GestureTurnMin
+	}
+	if opt.FaceGestureTurnDelta <= 0 {
+		opt.FaceGestureTurnDelta = face.GestureTurnDelta
+	}
+	if opt.FaceGestureMinSimilarity <= 0 {
+		opt.FaceGestureMinSimilarity = face.GestureMinSimilarity
+	}
+	if opt.RiskReviewMin <= 0 {
+		opt.RiskReviewMin = riskReviewMin
+	}
+	if opt.RiskRejectMin <= 0 {
+		opt.RiskRejectMin = riskRejectMin
+	}
 	return &Service{pool: pool, q: store.New(pool), opt: opt}
+}
+
+func (s *Service) faceThresholdPass() float64 {
+	if s.opt.FaceThresholdPass > 0 {
+		return s.opt.FaceThresholdPass
+	}
+	return FaceThresholdPass
+}
+
+func (s *Service) faceThresholdReview() float64 {
+	if s.opt.FaceThresholdReview > 0 {
+		return s.opt.FaceThresholdReview
+	}
+	return FaceThresholdReview
+}
+
+func (s *Service) faceEnrollMinSimilarity() float64 {
+	if s.opt.FaceEnrollMinSimilarity > 0 {
+		return s.opt.FaceEnrollMinSimilarity
+	}
+	return face.MinEnrollSimilarity
+}
+
+func (s *Service) enrollRequiresGeofence() bool {
+	if s.opt.EnrollRequiresGeofence != nil {
+		return *s.opt.EnrollRequiresGeofence
+	}
+	return true
+}
+
+func (s *Service) faceStraightTurnMax() float64 {
+	if s.opt.FaceStraightTurnMax > 0 {
+		return s.opt.FaceStraightTurnMax
+	}
+	return face.StraightTurnMax
+}
+
+func (s *Service) faceGestureTurnMin() float64 {
+	if s.opt.FaceGestureTurnMin > 0 {
+		return s.opt.FaceGestureTurnMin
+	}
+	return face.GestureTurnMin
+}
+
+func (s *Service) faceGestureTurnDelta() float64 {
+	if s.opt.FaceGestureTurnDelta > 0 {
+		return s.opt.FaceGestureTurnDelta
+	}
+	return face.GestureTurnDelta
+}
+
+func (s *Service) faceGestureMinSimilarity() float64 {
+	if s.opt.FaceGestureMinSimilarity > 0 {
+		return s.opt.FaceGestureMinSimilarity
+	}
+	return face.GestureMinSimilarity
+}
+
+func (s *Service) riskReviewMin() int {
+	if s.opt.RiskReviewMin > 0 {
+		return s.opt.RiskReviewMin
+	}
+	return riskReviewMin
+}
+
+func (s *Service) riskRejectMin() int {
+	if s.opt.RiskRejectMin > 0 {
+		return s.opt.RiskRejectMin
+	}
+	return riskRejectMin
 }
 
 // Signals adalah laporan dari HP. Sifatnya saran, tetapi laporan buruk tetap ditolak (§5.4).
@@ -392,7 +500,7 @@ func (s *Service) assess(ctx context.Context, a *attempt, parsed parsedClock, no
 		a.flags = append(a.flags, flagLivenessRetry)
 	}
 	a.score = RiskScore(a.flags)
-	if a.score >= riskRejectMin {
+	if a.score >= s.riskRejectMin() {
 		return s.reject(ctx, *a, "risk_too_high", errBlocked())
 	}
 	return nil
@@ -409,8 +517,11 @@ func previousPoint(r store.GetLastAttendancePointRow) *PointAt {
 }
 
 // recorded mengembalikan baris attempt untuk upaya yang tercatat, sesuai skornya.
-func (a attempt) recorded() (store.InsertAttendanceAttemptParams, error) {
-	if a.score >= riskReviewMin {
+func (a attempt) recorded(reviewMin int) (store.InsertAttendanceAttemptParams, error) {
+	if reviewMin <= 0 {
+		reviewMin = riskReviewMin
+	}
+	if a.score >= reviewMin {
 		return a.params("review", "risk_review")
 	}
 	return a.params("accepted", "ok")
@@ -516,11 +627,11 @@ func (s *Service) ClockIn(ctx context.Context, p auth.Principal, ip *netip.Addr,
 			status = store.AttStatusLate
 		}
 	}
-	if a.score >= riskReviewMin {
+	if a.score >= s.riskReviewMin() {
 		status = store.AttStatusReview
 	}
 
-	accepted, err := a.recorded()
+	accepted, err := a.recorded(s.riskReviewMin())
 	if err != nil {
 		return ClockInResult{}, err
 	}
@@ -653,7 +764,7 @@ func (s *Service) ClockOut(ctx context.Context, p auth.Principal, ip *netip.Addr
 	}
 	// Sinyal saat pulang digabung dengan saat masuk; skor tertinggi yang disimpan.
 	status := open.Status
-	if a.score >= riskReviewMin {
+	if a.score >= s.riskReviewMin() {
 		status = store.AttStatusReview
 	}
 	flags, err := mergeFlags(open.RiskFlags, a.flags)
@@ -661,7 +772,7 @@ func (s *Service) ClockOut(ctx context.Context, p auth.Principal, ip *netip.Addr
 		return ClockOutResult{}, err
 	}
 
-	accepted, err := a.recorded()
+	accepted, err := a.recorded(s.riskReviewMin())
 	if err != nil {
 		return ClockOutResult{}, err
 	}

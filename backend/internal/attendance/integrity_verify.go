@@ -55,6 +55,9 @@ func (s *Service) verifyDeviceIntegrity(
 		if err == nil {
 			return nil, "", true
 		}
+		if allowUnavailableReview && errors.Is(err, integrity.ErrBasicOnly) {
+			return []string{flagIntegrityBasicOnly}, "", true
+		}
 		if allowUnavailableReview && errors.Is(err, integrity.ErrUnavailable) {
 			return []string{flagIntegrityUnavailable}, "", true
 		}

@@ -60,10 +60,25 @@ var LivenessActions = []string{"turn_left", "turn_right"}
 // menoleh cukup jauh dari foto utama, dan wajah di foto gerakan adalah orang yang sama. Arah toleh
 // tidak diperiksa, sama seperti aplikasi, sampai arahnya diuji di HP sungguhan.
 func provesTurn(straight, gesture face.Analysis) bool {
-	return math.Abs(straight.Turn) <= face.StraightTurnMax &&
-		math.Abs(gesture.Turn) >= face.GestureTurnMin &&
-		math.Abs(gesture.Turn-straight.Turn) >= face.GestureTurnDelta &&
-		face.Cosine(gesture.Vector, straight.Vector) >= face.GestureMinSimilarity
+	return provesTurnWith(straight, gesture, face.StraightTurnMax, face.GestureTurnMin, face.GestureTurnDelta, face.GestureMinSimilarity)
+}
+
+func provesTurnWith(straight, gesture face.Analysis, straightMax, gestureMin, gestureDelta, minSimilarity float64) bool {
+	return math.Abs(straight.Turn) <= straightMax &&
+		math.Abs(gesture.Turn) >= gestureMin &&
+		math.Abs(gesture.Turn-straight.Turn) >= gestureDelta &&
+		face.Cosine(gesture.Vector, straight.Vector) >= minSimilarity
+}
+
+func (s *Service) provesTurn(straight, gesture face.Analysis) bool {
+	return provesTurnWith(
+		straight,
+		gesture,
+		s.faceStraightTurnMax(),
+		s.faceGestureTurnMin(),
+		s.faceGestureTurnDelta(),
+		s.faceGestureMinSimilarity(),
+	)
 }
 
 func errFaceNotEnrolled() error {
@@ -120,14 +135,22 @@ func faceProblem(err error) (string, bool) {
 // checkAgreement memastikan semua sampel pendaftaran saling mirip, agar satu foto yang buram atau
 // milik orang lain tidak ikut membentuk template.
 func checkAgreement(samples [][]float64) bool {
+	return checkAgreementWith(samples, face.MinEnrollSimilarity)
+}
+
+func checkAgreementWith(samples [][]float64, minSimilarity float64) bool {
 	for i := range samples {
 		for j := i + 1; j < len(samples); j++ {
-			if face.Cosine(samples[i], samples[j]) < face.MinEnrollSimilarity {
+			if face.Cosine(samples[i], samples[j]) < minSimilarity {
 				return false
 			}
 		}
 	}
 	return true
+}
+
+func (s *Service) checkAgreement(samples [][]float64) bool {
+	return checkAgreementWith(samples, s.faceEnrollMinSimilarity())
 }
 
 // encodeEmbedding menyimpan vektor sebagai float32 little-endian sebelum dienkripsi.
@@ -240,7 +263,7 @@ func (s *Service) checkFace(ctx context.Context, a *attempt, in ClockInput) (fac
 		}
 		return faceResult{}, err
 	}
-	if !provesTurn(straight, gesture) {
+	if !s.provesTurn(straight, gesture) {
 		return faceResult{}, s.reject(ctx, *a, "liveness_failed", errLiveness())
 	}
 	vector := straight.Vector
@@ -250,9 +273,9 @@ func (s *Service) checkFace(ctx context.Context, a *attempt, in ClockInput) (fac
 		return faceResult{}, err
 	}
 	switch {
-	case similarity < face.MinSimilarityReview:
+	case similarity < s.faceThresholdReview():
 		return faceResult{}, s.reject(ctx, *a, "face_mismatch", httpx.NewError(http.StatusUnprocessableEntity, "FACE_MISMATCH", "Wajah tidak cocok, silakan ulangi."))
-	case similarity < face.MinSimilarityPass:
+	case similarity < s.faceThresholdPass():
 		a.flags = append(a.flags, flagFaceBorderline)
 	}
 	return out, nil
@@ -423,17 +446,19 @@ func (s *Service) Enroll(ctx context.Context, p auth.Principal, ip *netip.Addr, 
 		}
 	}
 	var remotePermissionID uuid.UUID
-	if _, ok, err := s.matchLocation(ctx, p.EmployeeID, point); err != nil {
-		return FaceStatus{}, err
-	} else if !ok {
-		permission, err := s.q.GetRemoteFacePermission(ctx, store.GetRemoteFacePermissionParams{EmployeeID: p.EmployeeID, Now: pgconv.Time(s.opt.Now())})
-		if pgconv.IsNoRows(err) {
-			return FaceStatus{}, httpx.NewError(http.StatusUnprocessableEntity, "GEOFENCE_OUT", "Daftarkan wajah di lokasi kantor atau minta izin SDM.")
-		}
-		if err != nil {
+	if s.enrollRequiresGeofence() {
+		if _, ok, err := s.matchLocation(ctx, p.EmployeeID, point); err != nil {
 			return FaceStatus{}, err
+		} else if !ok {
+			permission, err := s.q.GetRemoteFacePermission(ctx, store.GetRemoteFacePermissionParams{EmployeeID: p.EmployeeID, Now: pgconv.Time(s.opt.Now())})
+			if pgconv.IsNoRows(err) {
+				return FaceStatus{}, httpx.NewError(http.StatusUnprocessableEntity, "GEOFENCE_OUT", "Daftarkan wajah di lokasi kantor atau minta izin SDM.")
+			}
+			if err != nil {
+				return FaceStatus{}, err
+			}
+			remotePermissionID = permission.ID
 		}
-		remotePermissionID = permission.ID
 	}
 
 	vectors := make([][]float64, 0, len(in.samples))
@@ -459,7 +484,7 @@ func (s *Service) Enroll(ctx context.Context, p auth.Principal, ip *netip.Addr, 
 			return FaceStatus{}, err
 		}
 		// Template dibentuk dari wajah lurus saja agar cocok dengan selfie presensi.
-		if math.Abs(a.Turn) > face.StraightTurnMax {
+		if math.Abs(a.Turn) > s.faceStraightTurnMax() {
 			return FaceStatus{}, errFaceNotDetected(fmt.Sprintf("Foto ke-%d: wajah belum menghadap lurus ke kamera.", i+1))
 		}
 		if i == 0 {
@@ -480,10 +505,10 @@ func (s *Service) Enroll(ctx context.Context, p auth.Principal, ip *netip.Addr, 
 		}
 		return FaceStatus{}, err
 	}
-	if !provesTurn(first, gesture) {
+	if !s.provesTurn(first, gesture) {
 		return FaceStatus{}, errLiveness()
 	}
-	if !checkAgreement(vectors) {
+	if !s.checkAgreement(vectors) {
 		return FaceStatus{}, httpx.Validation(map[string]string{"samples": "Foto wajah tidak konsisten, silakan ulangi."})
 	}
 	template := face.Template(vectors)

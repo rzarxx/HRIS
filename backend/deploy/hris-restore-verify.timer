@@ -1,0 +1,10 @@
+[Unit]
+Description=HRIS Pejuang: jadwal mingguan uji restore backup
+
+[Timer]
+OnCalendar=Sun *-*-* 03:30:00 Asia/Jakarta
+RandomizedDelaySec=15min
+Persistent=true
+
+[Install]
+WantedBy=timers.target

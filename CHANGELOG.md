@@ -7,6 +7,14 @@ Perubahan penting yang terlihat oleh Pejuang, SDM, atau pengelola server. Keputu
 ## Belum dirilis
 
 ### Ditambahkan
+- **Penyelesaian Fase 1 (Fondasi Produksi):**
+  - CLI `hris-bootstrap` (`backend/cmd/bootstrap`) untuk membuat akun SDM pertama secara aman di `APP_ENV=production` tanpa data dummy (`must_change_password = true`, menolak berjalan bila akun SDM sudah ada).
+  - Otomasi backup harian terenkripsi AES-256-CBC (`backend/deploy/backup.sh`, `hris-backup.timer`) dan verifikasi restore otomatis mingguan ke database sementara (`backend/deploy/restore-verify.sh`, `hris-restore-verify.timer`).
+  - Skrip pengalihan konfigurasi produksi (`backend/deploy/setup-production.sh`).
+- **Penyelesaian Fase 2 (Verifikasi Perangkat Berjenjang & Bukti Kunci Instalasi, D24):**
+  - Pengikatan kunci publik instalasi ECDSA P-256 (`devices.public_key`) saat login/registrasi perangkat dan verifikasi tanda tangan `device_proof` (`HRIS-DEVICE-PROOF-V1\n<request_hash>`) pada setiap presensi dan pendaftaran wajah.
+  - Dukungan penuh jalur verifikasi perangkat (`devices.integrity_tier`: `play`, `attestation`, `manual`, `kiosk`), verifikasi rantai sertifikat X.509 Android Key Attestation (`internal/platform/integrity/attestation.go`), endpoint `POST /v1/admin/devices/{id}/tier`, audit `device.integrity_tier_changed`, dan modal pengaturan jalur verifikasi di halaman web admin `/perangkat`.
+  - Suite tes skenario serangan presensi (`internal/attendance/attack_scenarios_test.go`) yang menguji penolakan fake GPS, root, emulator, foto diam, replay selfie, ketidakcocokan `request_hash`/kunci perangkat, Key Attestation, jalur manual (`+30` → `review`), dan kiosk kantor di luar geofence.
 - **Liveness dibuktikan server (D51).** Aplikasi mengirim foto saat kepala menoleh (`gesture`) bersama selfie
   lurus. Server memastikan dari lima titik wajah bahwa selfie lurus, foto gerakan benar-benar menoleh, dan
   keduanya orang yang sama; bila tidak, `LIVENESS_FAILED`. Berlaku untuk presensi masuk, pulang, dan daftar
@@ -28,6 +36,9 @@ Perubahan penting yang terlihat oleh Pejuang, SDM, atau pengelola server. Keputu
   presensi dan ikut diekspor ke CSV, termasuk satu kolom per jenis cuti.
 
 ### Diubah
+- Distribusi dan pembaruan aplikasi Android beralih dari GitHub Releases ke Google Play Store (build Android App
+  Bundle `.aab` dari Android Studio, izin `REQUEST_INSTALL_PACKAGES` dan modul pembaruan GitHub dihapus, D52);
+  domain produksi ditetapkan ke `hris.albahjah.or.id` (`/www/wwwroot/HRIS`) dan `api.albahjah.or.id`.
 - Challenge hanya meminta `turn_left`/`turn_right`; `blink` dan `smile` tidak diminta lagi karena tidak bisa
   dibuktikan server.
 - Sampel daftar wajah harus menghadap lurus; sampel yang menoleh ditolak `FACE_NOT_DETECTED`.

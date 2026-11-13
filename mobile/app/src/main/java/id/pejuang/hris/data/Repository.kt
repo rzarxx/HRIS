@@ -3,7 +3,9 @@ package id.pejuang.hris.data
 import android.os.Build
 import id.pejuang.hris.BuildConfig
 import id.pejuang.hris.location.Fix
+import id.pejuang.hris.security.DeviceIdentity
 import id.pejuang.hris.security.DeviceRisk
+import id.pejuang.hris.security.RequestHash
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -21,7 +23,11 @@ const val PURPOSE_FACE_ENROLL = "face_enroll"
 /** Ringkasan hasil presensi untuk layar hasil. */
 data class ClockOutcome(val title: String, val detail: String, val needsReview: Boolean)
 
-class Repository(private val session: Session, val prefs: AppPrefs) {
+class Repository(
+    private val session: Session,
+    val prefs: AppPrefs,
+    private val identity: DeviceIdentity? = null,
+) {
     @Volatile
     private var client: ApiClient? = null
 
@@ -70,6 +76,7 @@ class Repository(private val session: Session, val prefs: AppPrefs) {
                         deviceHash = session.deviceHash,
                         model = "${Build.MANUFACTURER} ${Build.MODEL}".take(100),
                         osVersion = "Android ${Build.VERSION.RELEASE}",
+                        publicKey = identity?.publicKeyBase64(),
                     ),
                 ),
             ).data
@@ -116,6 +123,19 @@ class Repository(private val session: Session, val prefs: AppPrefs) {
         fix: Fix,
         risk: DeviceRisk,
     ): ClockOutcome {
+        val capturedAt = now()
+        val selfieHash = sha256Hex(selfie)
+        val gestureHash = sha256Hex(gesture)
+        val reqHash = runCatching {
+            RequestHash.attendance(
+                nonce = challenge.nonce,
+                latitude = fix.latitude,
+                longitude = fix.longitude,
+                capturedAt = capturedAt,
+                selfieSha256 = selfieHash,
+                gestureSha256 = gestureHash,
+            )
+        }.getOrNull()
         val payload = apiJson.encodeToString(
             ClockInput.serializer(),
             ClockInput(
@@ -123,12 +143,14 @@ class Repository(private val session: Session, val prefs: AppPrefs) {
                 latitude = fix.latitude,
                 longitude = fix.longitude,
                 accuracyM = fix.accuracyM,
-                capturedAt = now(),
+                capturedAt = capturedAt,
+                integrityToken = reqHash?.let { identity?.requestIntegrityToken(it) },
+                deviceProof = reqHash?.let { identity?.signProof(it) },
                 signals = signals(fix, risk),
-                selfieSha256 = sha256Hex(selfie),
+                selfieSha256 = selfieHash,
                 livenessPassed = true,
                 livenessAction = challenge.livenessAction,
-                gestureSha256 = sha256Hex(gesture),
+                gestureSha256 = gestureHash,
             ),
         )
         val part = jpegPart("selfie", "selfie.jpg", selfie)
@@ -157,13 +179,30 @@ class Repository(private val session: Session, val prefs: AppPrefs) {
         fix: Fix,
         risk: DeviceRisk,
     ): FaceStatus {
+        val capturedAt = now()
+        val sampleHashes = samples.map { sha256Hex(it) }
+        val gestureHash = sha256Hex(gesture)
+        val reqHash = runCatching {
+            RequestHash.enrollment(
+                nonce = challenge.nonce,
+                latitude = fix.latitude,
+                longitude = fix.longitude,
+                capturedAt = capturedAt,
+                consentVersion = CONSENT_VERSION,
+                action = challenge.livenessAction,
+                samples = sampleHashes,
+                gestureSha256 = gestureHash,
+            )
+        }.getOrNull()
         val payload = apiJson.encodeToString(
             FaceEnrollInput.serializer(),
             FaceEnrollInput(
                 challengeId = challenge.challengeId,
-                capturedAt = now(),
-                sampleSha256 = samples.map { sha256Hex(it) },
-                gestureSha256 = sha256Hex(gesture),
+                capturedAt = capturedAt,
+                integrityToken = reqHash?.let { identity?.requestIntegrityToken(it) },
+                deviceProof = reqHash?.let { identity?.signProof(it) },
+                sampleSha256 = sampleHashes,
+                gestureSha256 = gestureHash,
                 livenessPassed = true,
                 livenessAction = challenge.livenessAction,
                 consentVersion = CONSENT_VERSION,

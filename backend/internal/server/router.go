@@ -139,6 +139,7 @@ func routes(d Deps) []Route {
 		guarded(http.MethodGet, "/v1/admin/devices", d.Device.List, permission.DeviceReview),
 		guarded(http.MethodPost, "/v1/admin/devices/{id}/approve", d.Device.Approve, permission.DeviceReview),
 		guarded(http.MethodPost, "/v1/admin/devices/{id}/revoke", d.Device.Revoke, permission.DeviceReview),
+		guarded(http.MethodPost, "/v1/admin/devices/{id}/tier", d.Device.SetTier, permission.DeviceReview),
 
 		guarded(http.MethodGet, "/v1/admin/office-locations", d.Location.List, permission.LocationManage),
 		guarded(http.MethodPost, "/v1/admin/office-locations", d.Location.Create, permission.LocationManage),

@@ -140,20 +140,26 @@ const (
 	livenessRetryMin    = 2
 	livenessRetryWindow = 30 * time.Minute
 
-	flagAccuracyLow   = "accuracy_low"
-	flagLocationJump  = "location_jump"
-	flagClockSkew     = "clock_skew"
-	flagNewDevice     = "new_device_recent"
-	flagLivenessRetry = "liveness_retry"
+	flagAccuracyLow          = "accuracy_low"
+	flagLocationJump         = "location_jump"
+	flagClockSkew            = "clock_skew"
+	flagNewDevice            = "new_device_recent"
+	flagLivenessRetry        = "liveness_retry"
+	flagIntegrityBasicOnly   = "integrity_basic_only"
+	flagIntegrityManual      = "integrity_manual"
+	flagIntegrityUnavailable = "integrity_unavailable"
 )
 
 var softPoints = map[string]int{
-	flagAccuracyLow:    15,
-	flagLocationJump:   40,
-	flagClockSkew:      20,
-	flagNewDevice:      10,
-	flagFaceBorderline: 20,
-	flagLivenessRetry:  25,
+	flagAccuracyLow:          15,
+	flagLocationJump:         40,
+	flagClockSkew:            20,
+	flagNewDevice:            10,
+	flagFaceBorderline:       20,
+	flagLivenessRetry:        25,
+	flagIntegrityBasicOnly:   30,
+	flagIntegrityManual:      30,
+	flagIntegrityUnavailable: 30,
 }
 
 // LivenessRetried menjawab apakah jumlah upaya wajah yang ditolak cukup untuk sinyal liveness_retry.

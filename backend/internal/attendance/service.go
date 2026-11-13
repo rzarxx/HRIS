@@ -57,6 +57,10 @@ type Options struct {
 	PlayVerifier interface {
 		Verify(context.Context, string, string) error
 	}
+	// AttestationVerifier memeriksa rantai Android Key Attestation (Jalur B, §5.4.1).
+	AttestationVerifier AttestationVerifier
+	// RequireDeviceKey mewajibkan setiap perangkat memiliki public_key terikat saat verifikasi aktif.
+	RequireDeviceKey bool
 }
 
 // Service memuat aturan presensi (MASTER.md §5.4, alur F8 sampai F10).
@@ -104,13 +108,15 @@ func (s Signals) hardFlags() []string {
 
 // ClockInput adalah isi presensi masuk dan pulang.
 type ClockInput struct {
-	ChallengeID    string   `json:"challenge_id"`
-	Latitude       *float64 `json:"latitude"`
-	Longitude      *float64 `json:"longitude"`
-	AccuracyM      *float64 `json:"accuracy_m"`
-	CapturedAt     string   `json:"captured_at"`
-	IntegrityToken string   `json:"integrity_token"`
-	Signals        Signals  `json:"signals"`
+	ChallengeID      string   `json:"challenge_id"`
+	Latitude         *float64 `json:"latitude"`
+	Longitude        *float64 `json:"longitude"`
+	AccuracyM        *float64 `json:"accuracy_m"`
+	CapturedAt       string   `json:"captured_at"`
+	IntegrityToken   string   `json:"integrity_token"`
+	DeviceProof      string   `json:"device_proof"`
+	AttestationChain []string `json:"attestation_chain"`
+	Signals          Signals  `json:"signals"`
 	// Bagian wajah (D42). Selfie dikirim sebagai berkas multipart `selfie`; hash-nya di payload
 	// mengikat foto ke challenge.
 	SelfieSHA256   string `json:"selfie_sha256"`
@@ -342,16 +348,21 @@ func (s *Service) verify(ctx context.Context, a *attempt, deviceHeader string, i
 		a.flags = append(a.flags, flagUnverified)
 		return nil
 	}
-	if s.opt.PlayVerifier == nil || len(in.selfie) == 0 {
-		return s.reject(ctx, *a, "integrity_failed", errBlocked())
+	if len(in.selfie) == 0 {
+		a.flags = append(a.flags, flagIntegrityFailed)
+		return s.reject(ctx, *a, flagIntegrityFailed, errBlocked())
 	}
 	hash, err := integrity.AttendanceHash(challenge.Nonce, parsed.point.Latitude, parsed.point.Longitude, parsed.capturedAt, in.SelfieSHA256, in.GestureSHA256)
 	if err != nil {
-		return s.reject(ctx, *a, "integrity_failed", errBlocked())
+		a.flags = append(a.flags, flagIntegrityFailed)
+		return s.reject(ctx, *a, flagIntegrityFailed, errBlocked())
 	}
-	if err := s.opt.PlayVerifier.Verify(ctx, in.IntegrityToken, hash); err != nil {
-		return s.reject(ctx, *a, "integrity_failed", errBlocked())
+	softFlags, reasonCode, ok := s.verifyDeviceIntegrity(ctx, device, hash, in.IntegrityToken, in.DeviceProof, in.AttestationChain, true)
+	if !ok {
+		a.flags = append(a.flags, reasonCode)
+		return s.reject(ctx, *a, reasonCode, errBlocked())
 	}
+	a.flags = append(a.flags, softFlags...)
 	return nil
 }
 

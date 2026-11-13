@@ -1,0 +1,13 @@
+[Unit]
+Description=HRIS Pejuang: backup harian terenkripsi PostgreSQL, secrets, dan selfie
+After=network-online.target postgresql.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/env bash /opt/hris/src/backend/deploy/backup.sh
+TimeoutStartSec=30min
+
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true

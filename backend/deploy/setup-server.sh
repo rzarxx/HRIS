@@ -6,9 +6,11 @@
 set -euo pipefail
 
 PSQL="${PSQL:-psql}"
-WEB_ORIGIN="${WEB_ORIGIN:?Isi WEB_ORIGIN, mis. https://admin.domain.id atau http://IP:PORT}"
-COOKIE_DOMAIN="${COOKIE_DOMAIN:-}"
-NEXT_PUBLIC_API_URL="${NEXT_PUBLIC_API_URL:?Isi NEXT_PUBLIC_API_URL, mis. https://api.domain.id}"
+WEB_ORIGIN="${WEB_ORIGIN:-http://admin.hris.local}"
+COOKIE_DOMAIN="${COOKIE_DOMAIN:-hris.local}"
+NEXT_PUBLIC_API_URL="${NEXT_PUBLIC_API_URL:-$WEB_ORIGIN}"
+WEB_ROOT="${WEB_ROOT:-/www/wwwroot/hris-web}"
+NEXT_PUBLIC_DEMO_MODE="${NEXT_PUBLIC_DEMO_MODE:-1}"
 NODE_BIN_DIR="${NODE_BIN_DIR:-}"
 GO_BIN_DIR="${GO_BIN_DIR:-/usr/local/go/bin}"
 BRANCH="${BRANCH:-develop}"
@@ -74,10 +76,10 @@ chmod 600 "$ENV_FILE"
 cat > "$APP_DIR/deploy.env" <<EOF
 BRANCH=$BRANCH
 NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
-NEXT_PUBLIC_DEMO_MODE=1
+NEXT_PUBLIC_DEMO_MODE=$NEXT_PUBLIC_DEMO_MODE
 GO_BIN_DIR=$GO_BIN_DIR
 NODE_BIN_DIR=$NODE_BIN_DIR
-WEB_ROOT=/www/wwwroot/hris-web
+WEB_ROOT=$WEB_ROOT
 EOF
 chmod 600 "$APP_DIR/deploy.env"
 

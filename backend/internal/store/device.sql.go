@@ -50,7 +50,9 @@ func (q *Queries) CountEmployeeDevices(ctx context.Context, employeeID uuid.UUID
 }
 
 const getAdminDevice = `-- name: GetAdminDevice :one
-SELECT d.id, d.employee_id, d.model, d.os_version, d.status, d.created_at, d.approved_at, d.revoked_at,
+SELECT d.id, d.employee_id, d.model, d.os_version, d.status, d.integrity_tier, d.manual_approved_until,
+       (d.public_key IS NOT NULL)::boolean AS key_bound,
+       d.created_at, d.approved_at, d.revoked_at,
        d.revoked_reason, d.last_seen_at, e.full_name AS employee_name, e.nip, s.name AS subdivision_name,
        dv.name AS division_name, ae.full_name AS approved_by_name,
        EXISTS (SELECT 1 FROM users ou WHERE ou.employee_id = d.employee_id AND ou.role = 'superadmin') AS owner_is_superadmin
@@ -64,22 +66,25 @@ WHERE d.id = $1
 `
 
 type GetAdminDeviceRow struct {
-	ID                uuid.UUID
-	EmployeeID        uuid.UUID
-	Model             pgtype.Text
-	OsVersion         pgtype.Text
-	Status            DeviceStatus
-	CreatedAt         pgtype.Timestamptz
-	ApprovedAt        pgtype.Timestamptz
-	RevokedAt         pgtype.Timestamptz
-	RevokedReason     pgtype.Text
-	LastSeenAt        pgtype.Timestamptz
-	EmployeeName      string
-	Nip               string
-	SubdivisionName   string
-	DivisionName      string
-	ApprovedByName    pgtype.Text
-	OwnerIsSuperadmin bool
+	ID                  uuid.UUID
+	EmployeeID          uuid.UUID
+	Model               pgtype.Text
+	OsVersion           pgtype.Text
+	Status              DeviceStatus
+	IntegrityTier       DeviceIntegrityTier
+	ManualApprovedUntil pgtype.Timestamptz
+	KeyBound            bool
+	CreatedAt           pgtype.Timestamptz
+	ApprovedAt          pgtype.Timestamptz
+	RevokedAt           pgtype.Timestamptz
+	RevokedReason       pgtype.Text
+	LastSeenAt          pgtype.Timestamptz
+	EmployeeName        string
+	Nip                 string
+	SubdivisionName     string
+	DivisionName        string
+	ApprovedByName      pgtype.Text
+	OwnerIsSuperadmin   bool
 }
 
 func (q *Queries) GetAdminDevice(ctx context.Context, id uuid.UUID) (GetAdminDeviceRow, error) {
@@ -91,6 +96,9 @@ func (q *Queries) GetAdminDevice(ctx context.Context, id uuid.UUID) (GetAdminDev
 		&i.Model,
 		&i.OsVersion,
 		&i.Status,
+		&i.IntegrityTier,
+		&i.ManualApprovedUntil,
+		&i.KeyBound,
 		&i.CreatedAt,
 		&i.ApprovedAt,
 		&i.RevokedAt,
@@ -107,7 +115,7 @@ func (q *Queries) GetAdminDevice(ctx context.Context, id uuid.UUID) (GetAdminDev
 }
 
 const getDeviceByHash = `-- name: GetDeviceByHash :one
-SELECT id, employee_id, device_hash, model, os_version, fcm_token, status, approved_by, approved_at, revoked_by, revoked_at, revoked_reason, last_seen_at, created_at FROM devices WHERE employee_id = $1 AND device_hash = $2
+SELECT id, employee_id, device_hash, model, os_version, fcm_token, status, approved_by, approved_at, revoked_by, revoked_at, revoked_reason, last_seen_at, created_at, integrity_tier, manual_approved_until, public_key, key_bound_at, tier_changed_by, tier_changed_at FROM devices WHERE employee_id = $1 AND device_hash = $2
 `
 
 type GetDeviceByHashParams struct {
@@ -133,12 +141,18 @@ func (q *Queries) GetDeviceByHash(ctx context.Context, arg GetDeviceByHashParams
 		&i.RevokedReason,
 		&i.LastSeenAt,
 		&i.CreatedAt,
+		&i.IntegrityTier,
+		&i.ManualApprovedUntil,
+		&i.PublicKey,
+		&i.KeyBoundAt,
+		&i.TierChangedBy,
+		&i.TierChangedAt,
 	)
 	return i, err
 }
 
 const getDeviceForUpdate = `-- name: GetDeviceForUpdate :one
-SELECT id, employee_id, device_hash, model, os_version, fcm_token, status, approved_by, approved_at, revoked_by, revoked_at, revoked_reason, last_seen_at, created_at FROM devices WHERE id = $1 FOR UPDATE
+SELECT id, employee_id, device_hash, model, os_version, fcm_token, status, approved_by, approved_at, revoked_by, revoked_at, revoked_reason, last_seen_at, created_at, integrity_tier, manual_approved_until, public_key, key_bound_at, tier_changed_by, tier_changed_at FROM devices WHERE id = $1 FOR UPDATE
 `
 
 func (q *Queries) GetDeviceForUpdate(ctx context.Context, id uuid.UUID) (Device, error) {
@@ -159,6 +173,12 @@ func (q *Queries) GetDeviceForUpdate(ctx context.Context, id uuid.UUID) (Device,
 		&i.RevokedReason,
 		&i.LastSeenAt,
 		&i.CreatedAt,
+		&i.IntegrityTier,
+		&i.ManualApprovedUntil,
+		&i.PublicKey,
+		&i.KeyBoundAt,
+		&i.TierChangedBy,
+		&i.TierChangedAt,
 	)
 	return i, err
 }
@@ -175,9 +195,9 @@ func (q *Queries) GetEmployeeStatus(ctx context.Context, id uuid.UUID) (string, 
 }
 
 const insertDevice = `-- name: InsertDevice :one
-INSERT INTO devices (employee_id, device_hash, model, os_version, fcm_token, status, approved_at, last_seen_at)
-VALUES ($1, $2, $3, $4, $5, $6, $7, now())
-RETURNING id, employee_id, device_hash, model, os_version, fcm_token, status, approved_by, approved_at, revoked_by, revoked_at, revoked_reason, last_seen_at, created_at
+INSERT INTO devices (employee_id, device_hash, model, os_version, fcm_token, public_key, key_bound_at, status, approved_at, last_seen_at)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, now())
+RETURNING id, employee_id, device_hash, model, os_version, fcm_token, status, approved_by, approved_at, revoked_by, revoked_at, revoked_reason, last_seen_at, created_at, integrity_tier, manual_approved_until, public_key, key_bound_at, tier_changed_by, tier_changed_at
 `
 
 type InsertDeviceParams struct {
@@ -186,6 +206,8 @@ type InsertDeviceParams struct {
 	Model      pgtype.Text
 	OsVersion  pgtype.Text
 	FcmToken   pgtype.Text
+	PublicKey  []byte
+	KeyBoundAt pgtype.Timestamptz
 	Status     DeviceStatus
 	ApprovedAt pgtype.Timestamptz
 }
@@ -197,6 +219,8 @@ func (q *Queries) InsertDevice(ctx context.Context, arg InsertDeviceParams) (Dev
 		arg.Model,
 		arg.OsVersion,
 		arg.FcmToken,
+		arg.PublicKey,
+		arg.KeyBoundAt,
 		arg.Status,
 		arg.ApprovedAt,
 	)
@@ -216,12 +240,20 @@ func (q *Queries) InsertDevice(ctx context.Context, arg InsertDeviceParams) (Dev
 		&i.RevokedReason,
 		&i.LastSeenAt,
 		&i.CreatedAt,
+		&i.IntegrityTier,
+		&i.ManualApprovedUntil,
+		&i.PublicKey,
+		&i.KeyBoundAt,
+		&i.TierChangedBy,
+		&i.TierChangedAt,
 	)
 	return i, err
 }
 
 const listDevices = `-- name: ListDevices :many
-SELECT d.id, d.employee_id, d.model, d.os_version, d.status, d.created_at, d.approved_at, d.revoked_at,
+SELECT d.id, d.employee_id, d.model, d.os_version, d.status, d.integrity_tier, d.manual_approved_until,
+       (d.public_key IS NOT NULL)::boolean AS key_bound,
+       d.created_at, d.approved_at, d.revoked_at,
        d.revoked_reason, d.last_seen_at, e.full_name AS employee_name, e.nip, s.name AS subdivision_name,
        dv.name AS division_name, ae.full_name AS approved_by_name,
        EXISTS (SELECT 1 FROM users ou WHERE ou.employee_id = d.employee_id AND ou.role = 'superadmin') AS owner_is_superadmin
@@ -243,22 +275,25 @@ type ListDevicesParams struct {
 }
 
 type ListDevicesRow struct {
-	ID                uuid.UUID
-	EmployeeID        uuid.UUID
-	Model             pgtype.Text
-	OsVersion         pgtype.Text
-	Status            DeviceStatus
-	CreatedAt         pgtype.Timestamptz
-	ApprovedAt        pgtype.Timestamptz
-	RevokedAt         pgtype.Timestamptz
-	RevokedReason     pgtype.Text
-	LastSeenAt        pgtype.Timestamptz
-	EmployeeName      string
-	Nip               string
-	SubdivisionName   string
-	DivisionName      string
-	ApprovedByName    pgtype.Text
-	OwnerIsSuperadmin bool
+	ID                  uuid.UUID
+	EmployeeID          uuid.UUID
+	Model               pgtype.Text
+	OsVersion           pgtype.Text
+	Status              DeviceStatus
+	IntegrityTier       DeviceIntegrityTier
+	ManualApprovedUntil pgtype.Timestamptz
+	KeyBound            bool
+	CreatedAt           pgtype.Timestamptz
+	ApprovedAt          pgtype.Timestamptz
+	RevokedAt           pgtype.Timestamptz
+	RevokedReason       pgtype.Text
+	LastSeenAt          pgtype.Timestamptz
+	EmployeeName        string
+	Nip                 string
+	SubdivisionName     string
+	DivisionName        string
+	ApprovedByName      pgtype.Text
+	OwnerIsSuperadmin   bool
 }
 
 func (q *Queries) ListDevices(ctx context.Context, arg ListDevicesParams) ([]ListDevicesRow, error) {
@@ -276,6 +311,9 @@ func (q *Queries) ListDevices(ctx context.Context, arg ListDevicesParams) ([]Lis
 			&i.Model,
 			&i.OsVersion,
 			&i.Status,
+			&i.IntegrityTier,
+			&i.ManualApprovedUntil,
+			&i.KeyBound,
 			&i.CreatedAt,
 			&i.ApprovedAt,
 			&i.RevokedAt,
@@ -299,7 +337,7 @@ func (q *Queries) ListDevices(ctx context.Context, arg ListDevicesParams) ([]Lis
 }
 
 const listMyDevices = `-- name: ListMyDevices :many
-SELECT id, employee_id, device_hash, model, os_version, fcm_token, status, approved_by, approved_at, revoked_by, revoked_at, revoked_reason, last_seen_at, created_at FROM devices WHERE employee_id = $1 ORDER BY created_at DESC, id
+SELECT id, employee_id, device_hash, model, os_version, fcm_token, status, approved_by, approved_at, revoked_by, revoked_at, revoked_reason, last_seen_at, created_at, integrity_tier, manual_approved_until, public_key, key_bound_at, tier_changed_by, tier_changed_at FROM devices WHERE employee_id = $1 ORDER BY created_at DESC, id
 `
 
 func (q *Queries) ListMyDevices(ctx context.Context, employeeID uuid.UUID) ([]Device, error) {
@@ -326,6 +364,12 @@ func (q *Queries) ListMyDevices(ctx context.Context, employeeID uuid.UUID) ([]De
 			&i.RevokedReason,
 			&i.LastSeenAt,
 			&i.CreatedAt,
+			&i.IntegrityTier,
+			&i.ManualApprovedUntil,
+			&i.PublicKey,
+			&i.KeyBoundAt,
+			&i.TierChangedBy,
+			&i.TierChangedAt,
 		); err != nil {
 			return nil, err
 		}
@@ -424,6 +468,32 @@ func (q *Queries) RevokeEmployeeDevices(ctx context.Context, employeeID uuid.UUI
 	return err
 }
 
+const setDeviceIntegrityTier = `-- name: SetDeviceIntegrityTier :exec
+UPDATE devices
+SET integrity_tier = $1,
+    manual_approved_until = $2,
+    tier_changed_by = $3,
+    tier_changed_at = now()
+WHERE id = $4
+`
+
+type SetDeviceIntegrityTierParams struct {
+	IntegrityTier       DeviceIntegrityTier
+	ManualApprovedUntil pgtype.Timestamptz
+	Actor               uuid.NullUUID
+	ID                  uuid.UUID
+}
+
+func (q *Queries) SetDeviceIntegrityTier(ctx context.Context, arg SetDeviceIntegrityTierParams) error {
+	_, err := q.db.Exec(ctx, setDeviceIntegrityTier,
+		arg.IntegrityTier,
+		arg.ManualApprovedUntil,
+		arg.Actor,
+		arg.ID,
+	)
+	return err
+}
+
 const setUserRole = `-- name: SetUserRole :exec
 UPDATE users SET role = $1 WHERE id = $2
 `
@@ -440,15 +510,21 @@ func (q *Queries) SetUserRole(ctx context.Context, arg SetUserRoleParams) error 
 
 const touchDevice = `-- name: TouchDevice :one
 UPDATE devices
-SET model = $1, os_version = $2, fcm_token = COALESCE($3, fcm_token), last_seen_at = now()
-WHERE id = $4
-RETURNING id, employee_id, device_hash, model, os_version, fcm_token, status, approved_by, approved_at, revoked_by, revoked_at, revoked_reason, last_seen_at, created_at
+SET model = $1,
+    os_version = $2,
+    fcm_token = COALESCE($3, fcm_token),
+    public_key = COALESCE(public_key, $4),
+    key_bound_at = CASE WHEN public_key IS NULL AND $4 IS NOT NULL THEN now() ELSE key_bound_at END,
+    last_seen_at = now()
+WHERE id = $5
+RETURNING id, employee_id, device_hash, model, os_version, fcm_token, status, approved_by, approved_at, revoked_by, revoked_at, revoked_reason, last_seen_at, created_at, integrity_tier, manual_approved_until, public_key, key_bound_at, tier_changed_by, tier_changed_at
 `
 
 type TouchDeviceParams struct {
 	Model     pgtype.Text
 	OsVersion pgtype.Text
 	FcmToken  pgtype.Text
+	PublicKey []byte
 	ID        uuid.UUID
 }
 
@@ -457,6 +533,7 @@ func (q *Queries) TouchDevice(ctx context.Context, arg TouchDeviceParams) (Devic
 		arg.Model,
 		arg.OsVersion,
 		arg.FcmToken,
+		arg.PublicKey,
 		arg.ID,
 	)
 	var i Device
@@ -475,6 +552,12 @@ func (q *Queries) TouchDevice(ctx context.Context, arg TouchDeviceParams) (Devic
 		&i.RevokedReason,
 		&i.LastSeenAt,
 		&i.CreatedAt,
+		&i.IntegrityTier,
+		&i.ManualApprovedUntil,
+		&i.PublicKey,
+		&i.KeyBoundAt,
+		&i.TierChangedBy,
+		&i.TierChangedAt,
 	)
 	return i, err
 }

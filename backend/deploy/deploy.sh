@@ -19,10 +19,10 @@ CONFIG="$APP_DIR/deploy.env"
 # shellcheck disable=SC1090
 source "$CONFIG"
 : "${BRANCH:=develop}"
-: "${WEB_ROOT:=/www/wwwroot/hris-web}"
+: "${WEB_ROOT:=/www/wwwroot/HRIS}"
 : "${GO_BIN_DIR:=/usr/local/go/bin}"
 : "${NEXT_PUBLIC_API_URL:?Isi NEXT_PUBLIC_API_URL di $CONFIG}"
-: "${NEXT_PUBLIC_DEMO_MODE:=1}"
+: "${NEXT_PUBLIC_DEMO_MODE:=0}"
 # Batas memori build Next.js; kecilkan di server ber-RAM kecil.
 : "${NODE_MAX_OLD_SPACE:=1536}"
 
@@ -52,7 +52,7 @@ echo "    $COMMIT"
 echo "==> Build API"
 BUILD_DIR="$APP_DIR/build-home/dist"
 as_builder mkdir -p "$BUILD_DIR"
-for program in migrate seed superadmin purge-selfies mark-absent; do
+for program in migrate seed bootstrap superadmin purge-selfies mark-absent; do
   as_builder bash -c "cd '$SRC_DIR/backend' && go build -o '$BUILD_DIR/hris-$program' ./cmd/$program"
 done
 # Mesin wajah ONNX butuh cgo dan pustaka dari setup-face.sh (D43). Tanpanya API tetap jalan, tetapi
@@ -76,7 +76,7 @@ echo "==> Build web"
 as_builder bash -c "cd '$SRC_DIR/web' && npm ci --ignore-scripts --no-audit --no-fund && npm run build"
 
 echo "==> Memasang"
-for program in api migrate seed superadmin purge-selfies mark-absent; do
+for program in api migrate seed bootstrap superadmin purge-selfies mark-absent; do
   install -o hris -g hris -m 750 "$BUILD_DIR/hris-$program" "$APP_DIR/hris-$program.new"
   mv -f "$APP_DIR/hris-$program.new" "$APP_DIR/hris-$program"
 done
@@ -115,6 +115,17 @@ install -m 644 "$SRC_DIR/backend/deploy/hris-mark-absent.timer" /etc/systemd/sys
 systemctl daemon-reload
 systemctl enable --now hris-mark-absent.timer >/dev/null
 systemctl list-timers hris-mark-absent.timer --no-pager || true
+
+if [ -f /etc/hris/backup.pass ]; then
+  echo "==> Jadwal backup & uji restore"
+  install -m 644 "$SRC_DIR/backend/deploy/hris-backup.service" /etc/systemd/system/hris-backup.service
+  install -m 644 "$SRC_DIR/backend/deploy/hris-backup.timer" /etc/systemd/system/hris-backup.timer
+  install -m 644 "$SRC_DIR/backend/deploy/hris-restore-verify.service" /etc/systemd/system/hris-restore-verify.service
+  install -m 644 "$SRC_DIR/backend/deploy/hris-restore-verify.timer" /etc/systemd/system/hris-restore-verify.timer
+  systemctl daemon-reload
+  systemctl enable --now hris-backup.timer hris-restore-verify.timer >/dev/null
+  systemctl list-timers hris-backup.timer hris-restore-verify.timer --no-pager || true
+fi
 
 echo "==> Menyalin web ke $WEB_ROOT"
 # Web disalin terakhir agar tidak mendahului API. File milik aaPanel tidak ikut dihapus.

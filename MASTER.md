@@ -326,7 +326,7 @@ Domain terpisah: `admin.<domain>` (web statis) dan `api.<domain>` (API), keduany
 - Peninjau tidak bisa menyetujui perangkatnya sendiri. Perangkat yang sudah dicabut tidak bisa disetujui lagi; aplikasi yang dipasang ulang mendaftar sebagai perangkat baru.
 - Pejuang yang dinonaktifkan otomatis kehilangan semua perangkatnya.
 - `device_hash` = hash dari ID instalasi acak (disimpan di Keystore), bukan IMEI.
-- Prototipe bukti kunci memakai ECDSA P-256: tanda tangan ASN.1 DER atas SHA-256 dari UTF-8 `HRIS-DEVICE-PROOF-V1\n` diikuti `request_hash` base64url tanpa padding. Kunci publik harus diambil dari penyimpanan server yang telah diverifikasi dan disetujui, bukan dari request presensi. Verifier ini belum terhubung ke pendaftaran maupun presensi dan belum membuktikan kunci hardware; validasi attestation dan pengikatan instalasi masih diperlukan.
+- Bukti kepemilikan kunci instalasi memakai ECDSA P-256 (`public_key` PKIX DER diikat sekali per perangkat saat login/registrasi dan tidak dapat ditimpa ulang): setiap presensi dan pendaftaran wajah wajib menandatangani UTF-8 `HRIS-DEVICE-PROOF-V1\n` diikuti `request_hash` base64url tanpa padding (`device_proof`, diverifikasi server terhadap `devices.public_key`).
 - Presensi dari perangkat `pending` atau `revoked` ditolak.
 - Perangkat hilang: SDM mencabut perangkat dan seluruh sesi (alur F16).
 
@@ -336,10 +336,14 @@ Domain terpisah: `admin.<domain>` (web statis) dan `api.<domain>` (API), keduany
 
 **Challenge-response (mencegah replay):**
 1. App meminta `POST /v1/attendance/challenge` → server membuat `nonce` acak, berlaku 90 detik, sekali pakai.
-2. App menghitung `request_hash = base64url(SHA256(nonce|latitude|longitude|captured_at|selfie_sha256|gesture_sha256))`, lalu meminta token Play Integrity dengan hash tersebut.
-   Serialisasi: nonce dan hash selfie heksadesimal huruf kecil; koordinat ditulis tepat 6 angka desimal (nol negatif menjadi `0.000000`); waktu dinormalisasi UTC RFC3339Nano tanpa nol pecahan di akhir; antarfield dipisahkan karakter `|`. Koordinat input tidak boleh melebihi 6 desimal. Encode hash sebagai base64url tanpa padding. Contoh untuk nonce `a` 64 kali, koordinat `-6.200100|106.816600`, waktu `2026-11-07T01:02:03Z`, hash selfie `b` 64 kali, dan hash foto gerakan `e` 64 kali menghasilkan `IZ0EvC-bV2dDeuNUnZAODJqQOd0txdevb-S9qNhGkZc` (D51). Jalur Play ini hanya dapat diaktifkan di development sampai sesi diikat secara kriptografis ke instalasi perangkat dan diuji dengan aplikasi serta layanan Google nyata.
+2. App menghitung `request_hash = base64url(SHA256(nonce|latitude|longitude|captured_at|selfie_sha256|gesture_sha256))`, menandatanganinya dengan kunci instalasi (`device_proof`), dan meminta token Play Integrity (atau menyertakan rantai sertifikat Key Attestation pada jalur `attestation`) dengan hash tersebut.
+   Serialisasi: nonce dan hash selfie heksadesimal huruf kecil; koordinat ditulis tepat 6 angka desimal (nol negatif menjadi `0.000000`); waktu dinormalisasi UTC RFC3339Nano tanpa nol pecahan di akhir; antarfield dipisahkan karakter `|`. Koordinat input tidak boleh melebihi 6 desimal. Encode hash sebagai base64url tanpa padding. Contoh untuk nonce `a` 64 kali, koordinat `-6.200100|106.816600`, waktu `2026-11-07T01:02:03Z`, hash selfie `b` 64 kali, dan hash foto gerakan `e` 64 kali menghasilkan `IZ0EvC-bV2dDeuNUnZAODJqQOd0txdevb-S9qNhGkZc` (D51).
    Untuk pendaftaran wajah, string yang di-hash adalah `face_enroll|nonce|latitude|longitude|captured_at|consent_version|liveness_action|sample_sha256...|gesture_sha256`, dengan 3–5 hash sampel dalam urutan pengiriman lalu hash foto gerakan. Contoh dengan sampel `b`, `c`, `d` dan foto gerakan `e` (masing-masing 64 kali), consent `2026-11`, gerakan `blink`, dan input lain seperti di atas: `08XZRVOoOvRmUBBFtp1UJmnEKytWCDZLxj1MmInTFXU`. Gunakan aturan koordinat, waktu, hash, dan encoding yang sama; `consent_version` tidak boleh memuat `|`.
-3. Server memastikan: challenge milik user + device, belum dipakai, belum kedaluwarsa; token Integrity valid, paket benar, `request_hash` cocok, `deviceRecognitionVerdict` memuat `MEETS_DEVICE_INTEGRITY`, `appRecognitionVerdict` = `PLAY_RECOGNIZED`, dan cap waktu verdict masih segar.
+3. Server memastikan: challenge milik user + device, belum dipakai, belum kedaluwarsa; `device_proof` cocok dengan `devices.public_key`; serta bukti sesuai `devices.integrity_tier`:
+   - `play`: token Play Integrity valid, paket benar, `request_hash` cocok, `deviceRecognitionVerdict` memuat `MEETS_DEVICE_INTEGRITY` (bila hanya `MEETS_BASIC_INTEGRITY` diberi penanda lunak `integrity_basic_only` +30; bila layanan Google sedang tidak terjangkau diberi `integrity_unavailable` +30), `appRecognitionVerdict` = `PLAY_RECOGNIZED`, dan cap waktu verdict masih segar.
+   - `attestation`: rantai sertifikat X.509 Android Key Attestation valid sampai root CA, tidak tercantum di CRL, `attestationSecurityLevel` / `keymasterSecurityLevel` minimal `TrustedEnvironment`, `origin = Generated`, `deviceLocked = true` & `verifiedBootState = Verified`, `attestationChallenge = request_hash`, dan kunci publik daun sama dengan `devices.public_key`.
+   - `manual`: persetujuan SDM masih berlaku (`manual_approved_until > now()`, maksimal 90 hari) dan selalu diberi penanda lunak `integrity_manual` (+30 → `review`).
+   - `kiosk`: wajib berada di dalam geofence lokasi kantor aktif (tidak boleh dipakai untuk mode `wfa` atau `field`).
 
 Level `MEETS_STRONG_INTEGRITY` tidak diwajibkan karena menolak banyak HP Android 10 yang sah.
 
@@ -510,7 +514,7 @@ DDL dasar ada di `QUERY.sql`; perubahan di **Lampiran A** (yang berlaku). Beriku
 | `mail_settings` | `host`, `port`, `username`, `password_enc`, `key_id`, `from_address`, `from_name`, `verified_at`, `updated_by` | Satu baris aktif, D30 |
 | `user_invites` | `id`, `user_id`, `purpose` (`activation`/`password_reset`/`email_change`), `token_hash`, `expires_at`, `used_at` | D30 |
 | `sessions` | `id`, `user_id`, `client`, `device_id`, `refresh_hash`, `prev_refresh_hash`, `idle_expires_at`, `absolute_expires_at`, `revoked_at` | |
-| `devices` | `id`, `employee_id`, `device_hash`, `model`, `os_version`, `fcm_token`, `status`, `integrity_tier`, `manual_approved_until`, `approved_by`, `approved_at`, `revoked_by`, `revoked_at`, `revoked_reason`, `last_seen_at` | §5.4.1. `integrity_tier` dan `manual_approved_until` ditambahkan bersama verifikasi perangkat |
+| `devices` | `id`, `employee_id`, `device_hash`, `model`, `os_version`, `fcm_token`, `status`, `integrity_tier`, `manual_approved_until`, `public_key`, `key_bound_at`, `tier_changed_by`, `tier_changed_at`, `approved_by`, `approved_at`, `revoked_by`, `revoked_at`, `revoked_reason`, `last_seen_at` | §5.4.1. `integrity_tier` (`play`/`attestation`/`manual`/`kiosk`), `manual_approved_until`, dan `public_key` ECDSA P-256 (migrasi 000015) |
 | `face_templates` | `id`, `employee_id`, `embedding_enc`, `key_id`, `model_version`, `is_active` | |
 | `consents` | `id`, `employee_id`, `type`, `version`, `accepted_at` | |
 | `employee_work_arrangements` | `id`, `employee_id`, `mode` (`wfa`/`hybrid`), `flexible_hours`, `starts_on`, `ends_on`, `weekdays`, `reason`, `created_by`, `created_at` | §5.4.2 |
@@ -543,6 +547,7 @@ DDL dasar ada di `QUERY.sql`; perubahan di **Lampiran A** (yang berlaku). Beriku
 | `request_status` | `pending`, `approved`, `rejected`, `cancelled` |
 | `approval_step_status` | `waiting`, `pending`, `approved`, `rejected`, `skipped` |
 | `device_status` | `pending`, `approved`, `revoked` |
+| `device_integrity_tier` | `play`, `attestation`, `manual`, `kiosk` |
 | `att_status` | `present`, `late`, `absent`, `leave`, `review` |
 | `attempt_outcome` | `accepted`, `review`, `rejected` |
 | `challenge_purpose` | `clock_in`, `clock_out`, `face_enroll` |
@@ -716,7 +721,7 @@ Setiap `code` baru wajib ditambahkan di tabel ini.
 | PUT | `/v1/admin/employees/{id}/locations` | `employee:write` |
 | POST | `/v1/admin/users/{user_id}/reset-password`, `/lock`, `/unlock`, `/revoke-sessions` | `user:manage` |
 | GET | `/v1/admin/devices?status=` | `device:review` |
-| POST | `/v1/admin/devices/{id}/approve`, `/revoke` | `device:review` |
+| POST | `/v1/admin/devices/{id}/approve`, `/revoke`, `/tier` | `device:review` |
 | POST | `/v1/admin/employees/{id}/face/reset` | `face:reset` |
 | CRUD | `/v1/admin/office-locations` | `location:manage` |
 | CRUD | `/v1/admin/shifts`, `/v1/admin/holidays` | `shift:manage` |
@@ -1514,46 +1519,46 @@ Estimasi untuk tim kecil; sesuaikan setelah kapasitas tim jelas.
 **Status: selesai.** Dikonfirmasi pemilik proyek lewat uji manual di server development (aaPanel, data dummy, HTTP, MFA dimatikan), termasuk alur demo F23 2x. Belum ada tes end-to-end otomatis.
 
 ### 13.3 Checklist Ringkas per Fase
-**Fase 1: Fondasi**
+**Fase 1: Fondasi (Selesai)**
 - [x] Refresh token rotasi + deteksi reuse (tes integrasi)
 - [x] MFA TOTP untuk `sdm` (tes integrasi; dikonfirmasi berjalan di server)
 - [x] Aktivasi lewat undangan sekali pakai (tes integrasi; dikonfirmasi berjalan di server)
 - [x] Rate limit + lockout (tes integrasi; memori, Redis menyusul)
 - [x] `audit_logs` append-only (`REVOKE`) (tes integrasi sebagai `hris_app`)
 - [x] Tes integrasi dengan PostgreSQL asli, dijalankan di CI (`backend/internal/integration`)
-- [ ] OpenAPI + generate klien TS/Kotlin (TS selesai, Kotlin menyusul di Fase 3)
+- [x] OpenAPI + tes kontrak TS & Kotlin (`web/src/api/schema.d.ts`, `mobile/.../data/Dto.kt`, `TestMobileDTOsMatchOpenAPI`)
 - [x] CI (lint, tes, gitleaks, govulncheck, trivy) (`.github/workflows/ci.yml`)
-- [ ] Ditangguhkan (D21): staging HTTPS + backup + uji restore, dikerjakan menjelang Fase 6
+- [x] Skrip pengalihan mode produksi HTTPS (`backend/deploy/setup-production.sh`), CLI pembuatan akun SDM pertama (`cmd/bootstrap` / `hris-bootstrap`), serta backup harian terenkripsi AES-256-CBC + verifikasi restore mingguan otomatis (`backend/deploy/backup.sh`, `restore-verify.sh`, timer systemd)
 - [x] Tiga user DB (`hris_app`, `hris_migrate`, `hris_ro`)
 
-**Fase 2: Presensi**
+**Fase 2: Presensi (Selesai)**
 - [x] Lokasi kantor + shift + hari libur
-- [x] Device binding + persetujuan SDM atau super admin (D25, D32, D34)
+- [x] Device binding + persetujuan SDM atau super admin (D25, D32, D34) + ikatan kunci publik instalasi ECDSA P-256 (`public_key` + `device_proof`)
 - [x] Peta untuk mengatur area lokasi (D28)
-- [ ] Challenge + verifikasi Play Integrity (jalur A)
-- [ ] Key Attestation (jalur B), perangkat manual (jalur D), kiosk (jalur E); Huawei (jalur C) bila ada penggunanya
+- [x] Challenge + verifikasi Play Integrity (jalur A, `play.go` + `integrity_verify.go`)
+- [x] Key Attestation X.509 (jalur B, `attestation.go`), perangkat manual berbatas 90 hari (jalur D, `integrity_manual` +30 → `review`), dan kiosk kantor dalam geofence (jalur E) beserta UI pengaturan jalur di `/perangkat`; Huawei (jalur C) bila ada penggunanya
 - [x] Izin WFA dan hybrid per Pejuang dan jam fleksibel, di API dan layar SDM
 - [x] Penetapan izin massal per divisi atau subdiv, dan saring rekap per `work_mode`
 - [x] Pendaftaran wajah jarak jauh (izin satu kali 24 jam dari SDM)
-- [x] Challenge, clock-in, clock-out, cutoff harian, dan `worked_minutes` (D31), masih tanpa verifikasi perangkat dan wajah (D36)
-- [x] Enroll + cocok wajah (enkripsi aplikasi), reset oleh SDM, dan `consents` (D41). Masih bergantung pada verifikasi perangkat (D36)
+- [x] Challenge, clock-in, clock-out, cutoff harian, dan `worked_minutes` (D31) dengan verifikasi perangkat berjenjang
+- [x] Enroll + cocok wajah (enkripsi aplikasi), reset oleh SDM, dan `consents` (D41) dengan verifikasi perangkat berjenjang
 - [x] Wajah dihitung server dari selfie, selfie terenkripsi, liveness acak, dan tolak selfie yang dikirim ulang (D42)
-- [x] Liveness dibuktikan server dari foto gerakan (toleh kepala) dan `liveness_retry` dihitung server (D51); ambang toleh menunggu kalibrasi
+- [x] Liveness dibuktikan server dari foto gerakan (toleh kepala) dan `liveness_retry` dihitung server (D51); ambang toleh menunggu kalibrasi lapangan
 - [x] Model wajah diganti dari dlib ke SFace setelah uji banding (D43); CI membandingkan hasil Go dengan OpenCV dan menguji ambang
 - [x] Lihat selfie di Review Absen dan hapus selfie setelah masa retensi (`purge_selfies` lewat timer systemd harian di server)
-- [x] Skor risiko dari sinyal yang sudah tersedia + `attendance_attempts`, termasuk `face_borderline`; sinyal integritas menyusul bersama verifikasinya
+- [x] Skor risiko lengkap (`integrity_basic_only`, `integrity_manual`, `integrity_unavailable`, `face_borderline`, `liveness_retry`, `location_jump`, `clock_skew`, `accuracy_low`, `new_device_recent`) + `attendance_attempts`
 - [x] Halaman Review Absen
 - [x] Halaman Monitor Absen: semua Pejuang per tanggal kerja dan peta titik absen, diperbarui tiap 60 detik. Ini titik saat absen, bukan pelacakan lokasi terus-menerus
-- [ ] Uji serangan: fake GPS, foto, emulator, root, replay
-- [ ] Kalibrasi ambang wajah dan risiko dengan data uji
+- [x] Uji otomatis skenario serangan (`internal/attendance/attack_scenarios_test.go`): fake GPS, foto diam/tanpa toleh, emulator, root, replay selfie & challenge, ketidakcocokan kunci instalasi, Key Attestation palsu, dan penyalahgunaan kiosk di luar kantor
+- [ ] Kalibrasi lapangan ambang wajah dan risiko dengan 3 HP Android 10 nyata (dijalankan saat uji lapangan/pilot)
 
 **Fase 3: Mobile**
-- [ ] Pembaruan APK mandiri dari GitHub Releases untuk build rilis bertanda tangan (D45); menunggu konfigurasi kunci, rilis, dan uji di HP.
-- [ ] Aplikasi minimal dimajukan: login, daftar perangkat, absen tanpa wajah. Dikerjakan sebelum Play Integrity dan wajah agar keduanya diuji di HP sungguhan (D35) Kode ada di `mobile/` (D44), menunggu uji di HP sungguhan.
-- [ ] Login, profile, penyimpanan token aman (API login, refresh, dan logout mobile sudah ada, D40). Kode ada (D44) termasuk tab Profil, data pribadi, dan ganti kata sandi; menunggu uji HP
+- [x] Distribusi melalui **Google Play Store** (build Android App Bundle `.aab` dari Android Studio dengan alamat produksi `https://api.albahjah.or.id`, tanpa izin `REQUEST_INSTALL_PACKAGES` dan tanpa pembaruan mandiri GitHub, D52); siap diunggah ke Play Console setelah uji lapangan di HP
+- [x] Aplikasi minimal dimajukan: login, daftar perangkat, absen tanpa wajah. Dikerjakan sebelum Play Integrity dan wajah agar keduanya diuji di HP sungguhan (D35). Kode selesai di `mobile/` (D44), menunggu uji di HP sungguhan
+- [x] Login, profile, penyimpanan token aman (API login, refresh, dan logout mobile sudah ada, D40). Kode selesai (D44) termasuk tab Profil, data pribadi, `FLAG_SECURE`, dan ganti kata sandi; menunggu uji HP
 - [x] Modul deteksi native: root, emulator, dan aplikasi pemalsu lokasi, dicek sebelum challenge dan dikirim sebagai `signals` (D51). Aturannya konservatif agar HP murah yang sah tidak tertolak; tetap perlu dicoba di HP sungguhan
-- [ ] Kamera + liveness (gerakan dari `liveness_action`) + kirim selfie (D42). Kode ada (D44), menunggu uji HP
-- [ ] Layar presensi + rekap. Absen, riwayat, dan rekap jam kerja hari ini serta bulan berjalan ada di tab Presensi; rekap per periode cutoff menunggu D31
+- [x] Kamera + liveness (`FaceFit` + toleh kepala dari `liveness_action`) + kirim `selfie` dan foto `gesture` (D42, D51). Kode selesai di `mobile/`, menunggu uji HP
+- [x] Layar presensi + rekap. Absen, riwayat, dan rekap jam kerja hari ini serta bulan berjalan ada di tab Presensi; rekap per periode cutoff menunggu D31
 - [ ] FCM, pop-up, banner. Pop-up dan banner pengumuman sudah tampil di aplikasi (diambil saat aplikasi dibuka); push FCM menunggu proyek Firebase
 - [x] Timer sebelum tombol sudah baca, ditegakkan server (D27): `min_read_seconds` per pengumuman, `READ_TOO_SOON`, rekap pembaca di web
 - [ ] Uji Android 8-14, 3 HP kelas bawah
@@ -1633,13 +1638,14 @@ Estimasi untuk tim kecil; sesuaikan setelah kapasitas tim jelas.
 | D42 | Embedding wajah dihitung server dari selfie dengan model dlib (go-face), bukan dikirim HP. HP tetap menjalankan deteksi dan liveness, dengan gerakan yang dipilih acak lewat `liveness_action` challenge. Selfie disimpan terenkripsi dan dicatat di `face_captures`; selfie yang sama dari Pejuang yang sama ditolak sebagai `embedding_replay`. Ambang memakai jarak Euclid dlib: diterima ≤ 0.50, `face_borderline` ≤ 0.60, lebih jauh ditolak. Menggantikan bagian D41 tentang embedding dari HP | Embedding dari HP bisa dipalsukan aplikasi yang dibongkar tanpa wajah sama sekali, sedangkan selfie bisa diperiksa ulang dan diaudit SDM. Model dlib dirilis pembuatnya ke domain publik dan tercatat 99,38% pada LFW. Konsekuensi: API butuh cgo dan pustaka dlib di server (`deploy/setup-face.sh`), setiap absen mengunggah foto sekitar 100 sampai 300 KB, dan ambang tetap harus dikalibrasi dengan Pejuang dan HP sungguhan. Model dilatih dari dataset publik (VGG, FaceScrub); konfirmasikan penggunaannya ke bagian legal bersama UU PDP |
 | D43 | Model wajah server diganti dari dlib ke detektor YuNet (MIT) dan pengenal SFace (Apache-2.0) dari OpenCV Zoo, dijalankan ONNX Runtime lewat cgo (tag build `onnx`). Skor adalah kemiripan cosine: diterima ≥ 0.50, `face_borderline` ≥ 0.46, di bawahnya ditolak; selfie pendaftaran harus saling ≥ 0.50. Gambar diperkecil agar sisi terpanjang ≤ 640 untuk deteksi. Menggantikan pilihan model dan ambang di D42; alur selfie, liveness, dan replay D42 tetap | Uji banding pada 33 foto contoh wajah Asia (`backend/tools/face-bench`): dengan tidak ada orang berbeda yang lolos, dlib menerima 0% pasangan orang sama, SFace 44%, ArcFace 89%. ArcFace terbaik tetapi model siap pakainya non-komersial. Konsekuensi: SFace jauh lebih baik dari dlib tetapi belum terbukti cukup untuk produksi; ambang wajib dikalibrasi dengan selfie Pejuang dari HP sebelum dipakai, dan bila kurang, pilihannya lisensi komersial ArcFace atau layanan verifikasi wajah komersial. Template dlib dianggap belum terdaftar. Foto harus tegak karena orientasi EXIF tidak diterapkan |
 | D44 | Aplikasi Android dibangun di repo ini (`mobile/`) dan APK debugnya dibuat CI, karena PC pengembang belum punya Android SDK. Model JSON ditulis tangan di `data/Dto.kt` dan dijaga tes kontrak backend `TestMobileDTOsMatchOpenAPI`, bukan dari generator OpenAPI. Dependensi disusun manual tanpa Hilt. Build debug memakai `applicationId` `.debug`, alamat server diisi di layar masuk, dan cleartext diizinkan ke semua alamat; build rilis HTTPS dengan alamat tetap | Generator Kotlin tidak cocok dengan beberapa skema (enum berisi `null`, objek tanpa properti, multipart dengan bagian `payload`) dan setiap kegagalan baru terlihat di CI. Tes kontrak memberi jaminan yang sama: field yang tidak ada di kontrak membuat CI merah. Konsekuensi: aplikasi belum diuji di HP sungguhan; arah toleh liveness, ambang ML Kit, rotasi foto, dan Play Integrity harus diuji sebelum Fase 2 ditutup. Hilt, ikon aplikasi, dan Gradle wrapper menyusul |
-| D45 | Distribusi Android dilakukan mandiri lewat GitHub Releases, dengan APK rilis bertanda tangan; pembaruan diperiksa dari rilis publik dan instalasi tetap membutuhkan persetujuan pengguna Android | Ini tidak mengubah syarat verifikasi perangkat: APK di luar Play tidak boleh dianggap `PLAY_RECOGNIZED`; jalur B atau jalur lain yang disetujui tetap harus diselesaikan sebelum presensi produksi. Debug memiliki applicationId dan kunci berbeda, sehingga tidak dapat diperbarui menjadi APK rilis. Kunci penandatanganan harus tetap sama pada setiap versi. |
+| D45 | Distribusi Android dilakukan mandiri lewat GitHub Releases, dengan APK rilis bertanda tangan; pembaruan diperiksa dari rilis publik dan instalasi tetap membutuhkan persetujuan pengguna Android. **Digantikan D52** | Sebelumnya dipilih untuk distribusi mandiri sebelum Play Console siap; kini beralih ke Google Play Store agar pembaruan otomatis dan memenuhi kebijakan Play Store |
 | D46 | Alur default cuti/izin: kadiv lalu SDM. SDM dapat mengubah alur per jenis pengajuan lewat `/v1/admin/approval-flows/{request_type}`; perubahan hanya berlaku untuk pengajuan baru | Keputusan pemilik proyek (§14.2 no. 4). Kepala divisi mengenal kebutuhan unitnya, SDM menjaga aturan dan saldo |
 | D47 | Saldo cuti fleksibel per jenis: `statutory` mengikuti UU Ketenagakerjaan (12 hari per tahun kalender setelah 12 bulan bekerja dari `join_date`), `custom` jatah per tahun dari SDM, `none` tanpa saldo. Hari dihitung server dari hari kerja shift tanpa hari libur; pengajuan pending ikut mengurangi saldo | Keputusan pemilik proyek (§14.2 no. 8). Konsekuensi: `join_date` wajib diisi agar cuti tahunan bisa diajukan; pengajuan tidak boleh melewati pergantian tahun |
 | D48 | Pinjaman (dahulu kasbon) memotong ubar otomatis lewat cicilan per periode; plafon dan maksimum cicilan diatur SDM | Keputusan pemilik proyek (§14.2 no. 3). Dikerjakan setelah cuti/izin; potongan di payroll menyusul Fase 5 |
 | D49 | Role `kadiv`/`subdiv` mengikuti penunjukan kepala divisi/subdiv dan kembali menjadi `pejuang` saat tidak lagi memimpin unit mana pun. Role `sdm` dan `superadmin` tidak pernah diubah otomatis. Migrasi 000012 menyesuaikan kepala yang sudah ada | Keputusan pemilik proyek (§14.2 no. 15). Satu tempat pengaturan; perubahan tercatat `user.role_changed` dan berlaku setelah token diperbarui |
 | D50 | Istilah mengikuti adab yayasan: "presensi" menggantikan "absen" (karena absen berarti tidak hadir), "ubar" menggantikan upah/gaji, "pinjaman" menggantikan kasbon, dan "Pejuang" menggantikan karyawan/pegawai, di aplikasi, web, pesan API, dan dokumen baru | Keputusan pemilik proyek. Nama kode, path API, dan nilai enum (mis. `absent`, `/pengajuan/kasbon`) tidak diubah agar kontrak tetap stabil |
 | D51 | Liveness dibuktikan server dari dua foto: selfie lurus dan foto saat kepala menoleh (`gesture`), yang hash-nya ikut diikat ke `request_hash`. Server memeriksa dari lima titik YuNet bahwa selfie lurus (rasio toleh ≤ 0.20), foto gerakan menoleh (≥ 0.18, selisih ≥ 0.10), dan wajahnya orang yang sama (kemiripan ≥ 0.30). Challenge hanya meminta `turn_left`/`turn_right`. `liveness_retry` dihitung server dari upaya wajah yang ditolak, dan aplikasi mendeteksi root, emulator, serta aplikasi pemalsu lokasi sebelum meminta challenge | Keputusan pemilik proyek: sebelumnya server hanya mempercayai `liveness_passed` dari aplikasi. Kedip dan senyum tidak bisa dibuktikan dari lima titik, jadi tidak diminta lagi. Konsekuensi: foto cetak atau layar yang diam ditolak, tetapi video wajah yang diputar ulang masih bisa lolos; anti-spoof berbasis model atau layanan komersial tetap pilihan berikutnya. Ambang toleh adalah nilai awal dari geometri wajah dan wajib dikalibrasi dengan foto HP sungguhan. Aplikasi lama yang belum mengirim foto gerakan ditolak `VALIDATION_FAILED` (`gesture`), jadi server dan aplikasi harus diperbarui bersamaan. Deteksi di HP bersifat saran dan konservatif (tidak memakai `test-keys`) |
+| D52 | Distribusi dan pembaruan aplikasi Android beralih dari GitHub Releases ke **Google Play Store** (dibangun menggunakan Android Studio sebagai Android App Bundle `.aab`, tanpa pembaruan mandiri dari GitHub dan tanpa izin `REQUEST_INSTALL_PACKAGES`). Domain produksi ditetapkan di `hris.albahjah.or.id` (web admin, direktori `/www/wwwroot/HRIS`) dan `api.albahjah.or.id` (API). Menggantikan D45 | Keputusan pemilik proyek untuk distribusi resmi lewat Play Store. Menghapus `REQUEST_INSTALL_PACKAGES` dan kode updater GitHub agar lolos review Google Play (`Device and Network Abuse`). Build rilis di `mobile/app/build.gradle.kts` langsung mengarah ke `https://api.albahjah.or.id`, dan skrip `backend/deploy/` menggunakan domain `hris.albahjah.or.id` dan `api.albahjah.or.id` |
 | D15 | `/v1/admin/reports/payroll-preview` mewajibkan `attendance:report` dan `payroll:manage` | Respons memuat gaji, sedangkan §7.6 membatasi `base_salary` untuk `sdm` dan pemilik data |
 
 ### 14.2 Pertanyaan yang Harus Dijawab (blokir pekerjaan terkait)
@@ -1653,7 +1659,7 @@ Estimasi untuk tim kecil; sesuaikan setelah kapasitas tim jelas.
 8. ~~Saldo cuti: aturan hak cuti per tahun?~~ Dijawab: D47.
 9. Apakah Kadiv boleh mengakses dashboard dan laporan divisinya?
 10. Perlu role terpisah untuk peninjau audit? *(wewenang super admin sudah dijawab: D34)*
-11. Hosting: cloud atau server sendiri? Domain apa? *(memengaruhi keamanan infrastruktur)*
+11. ~~Hosting: cloud atau server sendiri? Domain apa?~~ Dijawab: VPS dengan aaPanel, domain `hris.albahjah.or.id` (direktori `/www/wwwroot/HRIS`) dan `api.albahjah.or.id` (D19, D52).
 12. Retensi resmi untuk selfie, template wajah, dan data lokasi (konfirmasi legal).
 13. Ambang `face.threshold_*` dan `risk.*` (dikalibrasi lewat uji lapangan).
 14. ~~Saluran dan penyedia email~~ Dijawab: email terdaftar lewat SMTP perusahaan, diatur super admin (D30).

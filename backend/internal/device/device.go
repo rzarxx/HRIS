@@ -2,7 +2,9 @@
 package device
 
 import (
+	"bytes"
 	"context"
+	"encoding/base64"
 	"net/http"
 	"net/netip"
 	"regexp"
@@ -17,14 +19,19 @@ import (
 	"github.com/rzarxx/HRIS/backend/internal/auth"
 	"github.com/rzarxx/HRIS/backend/internal/platform/database"
 	"github.com/rzarxx/HRIS/backend/internal/platform/httpx"
+	"github.com/rzarxx/HRIS/backend/internal/platform/integrity"
 	"github.com/rzarxx/HRIS/backend/internal/platform/pgconv"
 	"github.com/rzarxx/HRIS/backend/internal/store"
 )
 
 const (
-	maxModelLen    = 100
-	maxVersionLen  = 50
-	maxFCMTokenLen = 4096
+	maxModelLen          = 100
+	maxVersionLen        = 50
+	maxFCMTokenLen       = 4096
+	maxPublicKeyB64Len   = 400
+	maxTierReasonLen     = 250
+	minTierReasonLen     = 3
+	maxManualApprovalDay = 90
 
 	reasonAdminRevoked = "admin_revoked"
 	reasonReplaced     = "replaced"
@@ -33,14 +40,17 @@ const (
 // device_hash = SHA-256 heksadesimal dari ID instalasi acak, bukan IMEI (§5.3).
 var hashPattern = regexp.MustCompile(`^[a-f0-9]{64}$`)
 
-// Device adalah perangkat milik sendiri. Hash dan token FCM tidak pernah dikembalikan.
+// Device adalah perangkat milik sendiri. Hash, kunci publik mentah, dan token FCM tidak pernah dikembalikan.
 type Device struct {
-	ID         string  `json:"id"`
-	Model      *string `json:"model"`
-	OSVersion  *string `json:"os_version"`
-	Status     string  `json:"status"`
-	CreatedAt  string  `json:"created_at"`
-	LastSeenAt *string `json:"last_seen_at"`
+	ID                  string  `json:"id"`
+	Model               *string `json:"model"`
+	OSVersion           *string `json:"os_version"`
+	Status              string  `json:"status"`
+	IntegrityTier       string  `json:"integrity_tier"`
+	ManualApprovedUntil *string `json:"manual_approved_until"`
+	KeyBound            bool    `json:"key_bound"`
+	CreatedAt           string  `json:"created_at"`
+	LastSeenAt          *string `json:"last_seen_at"`
 }
 
 // AdminDevice menambah data Pejuang untuk halaman persetujuan.
@@ -65,6 +75,14 @@ type RegisterInput struct {
 	Model      *string `json:"model"`
 	OSVersion  *string `json:"os_version"`
 	FCMToken   *string `json:"fcm_token"`
+	PublicKey  *string `json:"public_key"`
+}
+
+// TierInput mengatur jalur verifikasi integritas perangkat (MASTER.md §5.4.1).
+type TierInput struct {
+	IntegrityTier       string  `json:"integrity_tier"`
+	ManualApprovedUntil *string `json:"manual_approved_until"`
+	Reason              string  `json:"reason"`
 }
 
 func (in RegisterInput) validate() error {
@@ -72,6 +90,27 @@ func (in RegisterInput) validate() error {
 		return httpx.Validation(fields)
 	}
 	return nil
+}
+
+func (in RegisterInput) decodePublicKey() ([]byte, bool) {
+	if in.PublicKey == nil {
+		return nil, true
+	}
+	trimmed := strings.TrimSpace(*in.PublicKey)
+	if trimmed == "" {
+		return nil, true
+	}
+	if len(trimmed) > maxPublicKeyB64Len {
+		return nil, false
+	}
+	der, err := base64.StdEncoding.DecodeString(trimmed)
+	if err != nil {
+		return nil, false
+	}
+	if _, err := integrity.ParseDevicePublicKey(der); err != nil {
+		return nil, false
+	}
+	return der, true
 }
 
 func (in RegisterInput) problems() map[string]string {
@@ -88,7 +127,43 @@ func (in RegisterInput) problems() map[string]string {
 	if in.FCMToken != nil && len(*in.FCMToken) > maxFCMTokenLen {
 		fields["fcm_token"] = "Token notifikasi terlalu panjang."
 	}
+	if _, ok := in.decodePublicKey(); !ok {
+		fields["public_key"] = "Kunci publik perangkat harus ECDSA P-256 PKIX DER yang valid."
+	}
 	return fields
+}
+
+func validateTierInput(in TierInput, now time.Time) (store.DeviceIntegrityTier, pgtype.Timestamptz, string, error) {
+	fields := map[string]string{}
+	tier := store.DeviceIntegrityTier(strings.TrimSpace(in.IntegrityTier))
+	switch tier {
+	case store.DeviceIntegrityTierPlay, store.DeviceIntegrityTierAttestation, store.DeviceIntegrityTierManual, store.DeviceIntegrityTierKiosk:
+	default:
+		fields["integrity_tier"] = "Jalur verifikasi tidak valid."
+	}
+	reason := strings.TrimSpace(in.Reason)
+	if len(reason) < minTierReasonLen || len(reason) > maxTierReasonLen {
+		fields["reason"] = "Alasan wajib 3 sampai 250 karakter."
+	}
+	var manualUntil pgtype.Timestamptz
+	if tier == store.DeviceIntegrityTierManual {
+		if in.ManualApprovedUntil == nil || strings.TrimSpace(*in.ManualApprovedUntil) == "" {
+			fields["manual_approved_until"] = "Batas waktu wajib diisi untuk jalur manual."
+		} else {
+			parsed, err := time.Parse(time.RFC3339, strings.TrimSpace(*in.ManualApprovedUntil))
+			if err != nil {
+				fields["manual_approved_until"] = "Format waktu tidak valid."
+			} else if !parsed.After(now) || parsed.After(now.AddDate(0, 0, maxManualApprovalDay)) {
+				fields["manual_approved_until"] = "Masa berlaku jalur manual harus di masa depan dan maksimal 90 hari."
+			} else {
+				manualUntil = pgconv.Time(parsed.UTC())
+			}
+		}
+	}
+	if len(fields) > 0 {
+		return "", pgtype.Timestamptz{}, "", httpx.Validation(fields)
+	}
+	return tier, manualUntil, reason, nil
 }
 
 func errRevoked() error {
@@ -106,17 +181,27 @@ func NewService(pool *pgxpool.Pool) *Service { return &Service{pool: pool, q: st
 func timeString(t pgtype.Timestamptz) string { return t.Time.UTC().Format(time.RFC3339) }
 
 func present(d store.Device) Device {
+	tier := string(d.IntegrityTier)
+	if tier == "" {
+		tier = string(store.DeviceIntegrityTierPlay)
+	}
 	return Device{
 		ID: d.ID.String(), Model: pgconv.TextPtr(d.Model), OSVersion: pgconv.TextPtr(d.OsVersion),
-		Status: string(d.Status), CreatedAt: timeString(d.CreatedAt), LastSeenAt: pgconv.TimeString(d.LastSeenAt),
+		Status: string(d.Status), IntegrityTier: tier, ManualApprovedUntil: pgconv.TimeString(d.ManualApprovedUntil),
+		KeyBound: len(d.PublicKey) > 0, CreatedAt: timeString(d.CreatedAt), LastSeenAt: pgconv.TimeString(d.LastSeenAt),
 	}
 }
 
 func presentAdmin(r store.GetAdminDeviceRow) AdminDevice {
+	tier := string(r.IntegrityTier)
+	if tier == "" {
+		tier = string(store.DeviceIntegrityTierPlay)
+	}
 	return AdminDevice{
 		Device: Device{
 			ID: r.ID.String(), Model: pgconv.TextPtr(r.Model), OSVersion: pgconv.TextPtr(r.OsVersion),
-			Status: string(r.Status), CreatedAt: timeString(r.CreatedAt), LastSeenAt: pgconv.TimeString(r.LastSeenAt),
+			Status: string(r.Status), IntegrityTier: tier, ManualApprovedUntil: pgconv.TimeString(r.ManualApprovedUntil),
+			KeyBound: r.KeyBound, CreatedAt: timeString(r.CreatedAt), LastSeenAt: pgconv.TimeString(r.LastSeenAt),
 		},
 		EmployeeID: r.EmployeeID.String(), EmployeeName: r.EmployeeName, Nip: r.Nip,
 		SubdivisionName: r.SubdivisionName, DivisionName: r.DivisionName,
@@ -175,13 +260,19 @@ func bind(ctx context.Context, q *store.Queries, employeeID, userID uuid.UUID, i
 			}
 			return err
 		}
+		pubKey, _ := in.decodePublicKey()
 		existing, err := q.GetDeviceByHash(ctx, store.GetDeviceByHashParams{EmployeeID: employeeID, DeviceHash: in.DeviceHash})
 		if err == nil {
 			if existing.Status == store.DeviceStatusRevoked {
 				return errRevoked()
 			}
+			// Kunci instalasi yang sudah terikat tidak boleh diganti pada device_hash yang sama (§5.3).
+			if len(existing.PublicKey) > 0 && len(pubKey) > 0 && !bytes.Equal(existing.PublicKey, pubKey) {
+				return errRevoked()
+			}
 			out, err = q.TouchDevice(ctx, store.TouchDeviceParams{
-				ID: existing.ID, Model: pgconv.Text(in.Model), OsVersion: pgconv.Text(in.OSVersion), FcmToken: pgconv.Text(in.FCMToken),
+				ID: existing.ID, Model: pgconv.Text(in.Model), OsVersion: pgconv.Text(in.OSVersion),
+				FcmToken: pgconv.Text(in.FCMToken), PublicKey: pubKey,
 			})
 			return err
 		}
@@ -194,13 +285,19 @@ func bind(ctx context.Context, q *store.Queries, employeeID, userID uuid.UUID, i
 		}
 		status := store.DeviceStatusPending
 		approvedAt := pgtype.Timestamptz{}
+		now := time.Now()
 		if count == 0 {
 			status = store.DeviceStatusApproved
-			approvedAt = pgconv.Time(time.Now())
+			approvedAt = pgconv.Time(now)
+		}
+		keyBoundAt := pgtype.Timestamptz{}
+		if len(pubKey) > 0 {
+			keyBoundAt = pgconv.Time(now)
 		}
 		out, err = q.InsertDevice(ctx, store.InsertDeviceParams{
 			EmployeeID: employeeID, DeviceHash: in.DeviceHash, Model: pgconv.Text(in.Model),
-			OsVersion: pgconv.Text(in.OSVersion), FcmToken: pgconv.Text(in.FCMToken), Status: status, ApprovedAt: approvedAt,
+			OsVersion: pgconv.Text(in.OSVersion), FcmToken: pgconv.Text(in.FCMToken),
+			PublicKey: pubKey, KeyBoundAt: keyBoundAt, Status: status, ApprovedAt: approvedAt,
 		})
 		if err != nil {
 			return err
@@ -208,7 +305,7 @@ func bind(ctx context.Context, q *store.Queries, employeeID, userID uuid.UUID, i
 		created = true
 		return audit.Write(ctx, q, audit.Entry{
 			UserID: audit.Actor(userID), Action: audit.DeviceRegistered, Entity: "device", EntityID: out.ID,
-			Detail: map[string]any{"status": string(status)}, IP: ip,
+			Detail: map[string]any{"status": string(status), "key_bound": len(pubKey) > 0}, IP: ip,
 		})
 	}()
 	return out, created, err
@@ -417,6 +514,70 @@ func (h *Handler) Revoke(w http.ResponseWriter, r *http.Request) error {
 	}
 	p, _ := auth.PrincipalFrom(r.Context())
 	out, err := h.svc.Revoke(r.Context(), p, audit.ClientIP(r), id)
+	if err != nil {
+		return err
+	}
+	return httpx.Data(w, http.StatusOK, out)
+}
+
+// SetTier mengubah jalur verifikasi integritas perangkat dan mencatatnya di audit (MASTER.md §5.4.1).
+// Aturan anti-turun-jalur: peninjau tidak boleh melonggarkan jalur perangkatnya sendiri.
+func (s *Service) SetTier(ctx context.Context, p auth.Principal, ip *netip.Addr, id uuid.UUID, in TierInput) (AdminDevice, error) {
+	now := time.Now()
+	tier, manualUntil, reason, err := validateTierInput(in, now)
+	if err != nil {
+		return AdminDevice{}, err
+	}
+	actor := audit.Actor(p.UserID)
+	err = database.InTx(ctx, s.pool, func(q *store.Queries) error {
+		d, err := lockDevice(ctx, q, id)
+		if err != nil {
+			return err
+		}
+		if err := auth.AssertEmployeeNotProtected(ctx, q, p, d.EmployeeID); err != nil {
+			return err
+		}
+		if d.EmployeeID == p.EmployeeID && tier != store.DeviceIntegrityTierPlay {
+			return httpx.NewError(http.StatusConflict, "CONFLICT_SELF_ACTION", "Jalur verifikasi perangkat sendiri harus diubah peninjau lain.")
+		}
+		if d.Status == store.DeviceStatusRevoked {
+			return errRevoked()
+		}
+		if err := q.SetDeviceIntegrityTier(ctx, store.SetDeviceIntegrityTierParams{
+			IntegrityTier: tier, ManualApprovedUntil: manualUntil, Actor: actor, ID: id,
+		}); err != nil {
+			return err
+		}
+		detail := map[string]any{
+			"from_tier": string(d.IntegrityTier),
+			"to_tier":   string(tier),
+			"reason":    reason,
+		}
+		if manualUntil.Valid {
+			detail["manual_approved_until"] = timeString(manualUntil)
+		}
+		return audit.Write(ctx, q, audit.Entry{
+			UserID: actor, Action: audit.DeviceIntegrityTierChanged, Entity: "device", EntityID: id,
+			Detail: detail, IP: ip,
+		})
+	})
+	if err != nil {
+		return AdminDevice{}, err
+	}
+	return s.adminView(ctx, id)
+}
+
+func (h *Handler) SetTier(w http.ResponseWriter, r *http.Request) error {
+	id, err := httpx.PathID(r)
+	if err != nil {
+		return err
+	}
+	var in TierInput
+	if err := httpx.Decode(r, &in); err != nil {
+		return err
+	}
+	p, _ := auth.PrincipalFrom(r.Context())
+	out, err := h.svc.SetTier(r.Context(), p, audit.ClientIP(r), id, in)
 	if err != nil {
 		return err
 	}

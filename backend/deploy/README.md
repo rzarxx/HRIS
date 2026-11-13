@@ -4,13 +4,12 @@ Server development memakai **data dummy**. Jangan isi data karyawan asli: mode i
 Nama menu dan lokasi folder aaPanel bisa sedikit berbeda antar versi.
 
 ```
-Browser ─ HTTPS ─► Nginx aaPanel ─┬─ admin.<domain> : file statis /www/wwwroot/hris-web
-                                  └─ api.<domain>   : proxy ke 127.0.0.1:8080 (hris-api, systemd)
-                                                       └─ PostgreSQL 127.0.0.1:5432
+Browser ─► Nginx aaPanel ─┬─ Development : admin.hris.local (web admin) & api.albahjah.net (API mobile/dev)
+                          └─ Production  : hris.albahjah.or.id (/www/wwwroot/HRIS) & api.albahjah.or.id
+                                            └─ proxy ke 127.0.0.1:8080 (hris-api, systemd) ─► PostgreSQL 127.0.0.1:5432
 ```
 
-Dua subdomain itu harus satu domain induk agar cookie `SameSite=Strict` tetap terkirim. `COOKIE_DOMAIN` diisi domain induk
-agar web admin bisa membaca `hris_csrf`; tanpa itu semua aksi simpan ditolak `CSRF_INVALID`.
+Untuk web admin yang berbeda subdomain dengan API, keduanya harus satu domain induk agar cookie `SameSite=Strict` tetap terkirim (`COOKIE_DOMAIN=hris.local` di development bila memakai `admin.hris.local` + `api.hris.local`, atau `COOKIE_DOMAIN=albahjah.or.id` di production untuk `hris.albahjah.or.id` + `api.albahjah.or.id`), atau web admin dapat memanggil `/v1/` pada origin yang sama (`admin.hris.local`) karena `nginx-web.conf` juga meneruskan `/v1/` ke `127.0.0.1:8080`. Aplikasi Android tidak memakai cookie melainkan token `Bearer`, sehingga di development langsung terhubung ke `https://api.albahjah.net`.
 
 ## Alur Git
 
@@ -26,9 +25,9 @@ Deploy dijalankan manual. **Pastikan CI branch `develop` hijau dulu**, karena sk
 1. **App Store:** pasang Nginx dan PostgreSQL Manager (versi 16 ke atas). Catat kata sandi superuser `postgres`.
 2. **Security / Firewall:** jangan buka port 5432 dan 8080 ke internet. Yang perlu terbuka hanya 80 dan 443, plus SSH.
 3. **Website:** buat dua situs.
-   - `admin.<domain>`, situs statis dengan root `/www/wwwroot/hris-web`
-   - `api.<domain>`
-4. Di tiap situs, aktifkan **SSL Let's Encrypt** dan paksa HTTPS.
+   - Development: `admin.hris.local` (situs statis web admin, root `/www/wwwroot/hris-web`) dan `api.albahjah.net` (API)
+   - Production: `hris.albahjah.or.id` (situs statis web admin, root `/www/wwwroot/HRIS`) dan `api.albahjah.or.id` (API)
+4. Pada domain publik (`api.albahjah.net`, `hris.albahjah.or.id`, `api.albahjah.or.id`), aktifkan **SSL Let's Encrypt** dan paksa HTTPS.
 
 ### 2. Alat build
 Server butuh `git`, `rsync`, Go 1.27, dan Node.js 22. Cek dengan:
@@ -42,7 +41,7 @@ Paket `apt` terlalu lama. Pasang Go dari [go.dev/dl](https://go.dev/dl/) ke `/us
 
 Build Next.js butuh memori sekitar 1,5 GB. Bila RAM server di bawah 3 GB, tambahkan swap dulu.
 
-### 3. Ambil kode dan siapkan server
+### 3. Ambil kode dan siapkan server (Development)
 Sebagai root. Sesuaikan domain dan folder Node. Skrip menanyakan kata sandi `postgres`; kata sandi itu tidak disimpan.
 
 ```bash
@@ -50,7 +49,7 @@ git clone --branch develop https://github.com/rzarxx/HRIS.git /tmp/hris-setup
 ```
 
 ```bash
-PSQL=/www/server/pgsql/bin/psql WEB_ORIGIN=https://admin.domain.id COOKIE_DOMAIN=domain.id NEXT_PUBLIC_API_URL=https://api.domain.id NODE_BIN_DIR=/usr/local/node/bin bash /tmp/hris-setup/backend/deploy/setup-server.sh
+PSQL=/www/server/pgsql/bin/psql WEB_ORIGIN=http://admin.hris.local COOKIE_DOMAIN=hris.local NEXT_PUBLIC_API_URL=http://admin.hris.local WEB_ROOT=/www/wwwroot/hris-web NODE_BIN_DIR=/usr/local/node/bin bash /tmp/hris-setup/backend/deploy/setup-server.sh
 ```
 
 ```bash
@@ -65,7 +64,7 @@ Buat kedua situs sebagai PHP Project dengan PHP **Pure static**, tanpa database 
 Setelah kedua situs dibuat, pasang konfigurasinya. Cadangan otomatis dibuat dan dikembalikan bila `nginx -t` gagal.
 
 ```bash
-API_SITE=api.domain.id WEB_SITE=admin.domain.id bash /opt/hris/src/backend/deploy/setup-nginx.sh
+API_SITE=api.albahjah.net WEB_SITE=admin.hris.local bash /opt/hris/src/backend/deploy/setup-nginx.sh
 ```
 
 ### 5. Deploy pertama dan data dummy
@@ -86,12 +85,12 @@ curl -i http://127.0.0.1:8080/readyz
 API menolak akses langsung dari luar (D37), jadi perintah ini seharusnya menjawab `403 API_ACCESS_DENIED`:
 
 ```bash
-curl -i https://api.domain.id/healthz
+curl -i https://api.albahjah.net/healthz
 ```
 
 Postman ke server harus mengirim header `Origin` berisi alamat web admin. Pemeriksaan dari server lewat `127.0.0.1:8080` tidak terpengaruh.
 
-Buka `https://admin.domain.id`, masuk dengan `sdm@pejuang.id`. Kata sandinya ada di server:
+Buka `http://admin.hris.local`, masuk dengan `sdm@pejuang.id`. Kata sandinya ada di server:
 
 ```bash
 grep SEED_SDM_PASSWORD /opt/hris/.env
@@ -139,14 +138,42 @@ Bisa memakai `http://IP:PORT` untuk tiap situs, dengan `WEB_ORIGIN` dan `NEXT_PU
 dikosongkan. Risikonya, kata sandi dan token terkirim tanpa enkripsi, jadi batasi aksesnya di firewall hanya untuk IP kantor
 atau lewat VPN.
 
-## Sebelum dipakai data asli
-Mode ini khusus development. Untuk data asli wajib `APP_ENV=production`, MFA aktif, HTTPS, kunci dari secret manager, backup teruji,
-dan cara membuat akun SDM pertama (seed ditolak di luar development, dan bootstrap akun belum ada).
+## Beralih ke Mode Produksi (`APP_ENV=production`)
 
-## Mencoba absen sebelum verifikasi selesai
+Saat server siap digunakan untuk data Pejuang asli (HTTPS aktif di `hris.albahjah.or.id` dan `api.albahjah.or.id`):
 
-Absen ditolak bawaan, karena verifikasi perangkat (Play Integrity) belum dibuat. Hanya untuk uji di server
-development, tambahkan baris ini ke `/opt/hris/.env` lalu jalankan `systemctl restart hris-api`:
+1. Jalankan skrip pengalihan produksi sebagai `root`:
+   ```bash
+   WEB_ORIGIN=https://hris.albahjah.or.id COOKIE_DOMAIN=albahjah.or.id NEXT_PUBLIC_API_URL=https://api.albahjah.or.id bash /opt/hris/src/backend/deploy/setup-production.sh
+   ```
+   Skrip ini mengaktifkan `APP_ENV=production`, `MFA_REQUIRED=true`, `COOKIE_SECURE=true`, mematikan `DEV_ALLOW_UNVERIFIED_ATTENDANCE` dan `DEV_SIMULATE_ATTENDANCE`, membuat kunci passphrase backup `/etc/hris/backup.pass` (simpan salinan file ini di password manager terpisah!), mengaktifkan timer backup harian & uji restore mingguan, serta membangun biner `/opt/hris/hris-bootstrap`.
+
+2. Deploy ulang agar web admin dan biner terbaru terpasang:
+   ```bash
+   bash /opt/hris/src/backend/deploy/deploy.sh
+   ```
+
+3. Buat akun SDM pertama (hanya bisa dijalankan satu kali saat belum ada akun ber-role `sdm`):
+   ```bash
+   cd /opt/hris && runuser -u hris -- ./hris-bootstrap --email sdm@albahjah.or.id --name "Admin SDM" --nip 1001
+   ```
+   Setelah login pertama, akun wajib mengganti kata sandi dan mengaktifkan MFA TOTP.
+
+## Backup Terenkripsi & Verifikasi Restore Otomatis
+
+`setup-production.sh` dan `deploy.sh` memasang dua timer systemd:
+- `hris-backup.timer` (`01:30` setiap hari): menjalankan `backup.sh` untuk mencadangkan PostgreSQL (`pg_dump --format=custom`), `.env`, `deploy.env`, `.secrets`, dan `selfies/`, lalu mengenkripsinya dengan AES-256-CBC PBKDF2 (`/etc/hris/backup.pass`) ke `/var/backups/hris/`. Bila `OFFSITE_DEST` diisi di `/opt/hris/deploy.env` (mis. `rclone://gdrive:hris-backup` atau `user@host:/path`), arsip terenkripsi ikut dikirim ke lokasi terpisah.
+- `hris-restore-verify.timer` (Ahad `03:10` setiap minggu): menjalankan `restore-verify.sh` untuk mendekripsi cadangan terbaru, memeriksa checksum `manifest.sha256` dan kunci, serta menguji `pg_restore` ke database sementara `hris_restore_verify_*`.
+
+Menjalankan backup dan verifikasi restore secara manual:
+```bash
+bash /opt/hris/src/backend/deploy/backup.sh
+bash /opt/hris/src/backend/deploy/restore-verify.sh
+```
+
+## Mencoba absen di server development
+
+Pada `APP_ENV=development` sebelum layanan Google Play Integrity dihubungkan, tambahkan baris ini ke `/opt/hris/.env` lalu jalankan `systemctl restart hris-api`:
 
 ```bash
 DEV_ALLOW_UNVERIFIED_ATTENDANCE=true

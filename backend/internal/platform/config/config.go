@@ -161,11 +161,6 @@ func Load() (Config, error) {
 	if cfg.PlayIntegrityPackage != "" && cfg.DevAllowUnverifiedAttendance {
 		return cfg, errors.New("Play Integrity tidak dapat digabung dengan DEV_ALLOW_UNVERIFIED_ATTENDANCE")
 	}
-	// Verdict Play tidak mengidentifikasi instalasi yang terikat pada sesi. Jangan aktifkan di
-	// produksi sebelum bukti kunci perangkat mengikat token dan sesi ke instalasi yang sama.
-	if cfg.PlayIntegrityPackage != "" && !cfg.IsDevelopment() {
-		return cfg, errors.New("Play Integrity hanya untuk pengujian development sampai pengikatan perangkat selesai")
-	}
 	if cfg.DatabaseURL == "" {
 		return cfg, errors.New("DATABASE_URL wajib diisi")
 	}

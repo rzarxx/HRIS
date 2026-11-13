@@ -1,7 +1,6 @@
 package config
 
 import (
-	"strings"
 	"testing"
 )
 
@@ -30,7 +29,7 @@ func TestPlayIntegrityConfig(t *testing.T) {
 	}
 	t.Setenv("DEV_ALLOW_UNVERIFIED_ATTENDANCE", "false")
 	t.Setenv("APP_ENV", "production")
-	if _, err := Load(); err == nil || !strings.Contains(err.Error(), "pengikatan perangkat") {
-		t.Fatal("pengujian Play tidak boleh diaktifkan di produksi sebelum pengikatan perangkat selesai")
+	if _, err := Load(); err != nil {
+		t.Fatalf("Play Integrity dengan pengikatan perangkat harus diterima di produksi: %v", err)
 	}
 }

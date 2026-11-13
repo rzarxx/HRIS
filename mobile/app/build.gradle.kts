@@ -10,22 +10,26 @@ plugins {
     id("app.cash.paparazzi")
 }
 
-// Alamat API untuk build rilis, mis. -Phris.apiBaseUrl=https://api.domain.id/
-// Build debug bisa mengganti alamat ini di layar masuk.
-val apiBaseUrl = (findProperty("hris.apiBaseUrl") as String?) ?: ""
-val releaseVersionName = (findProperty("hris.versionName") as String?) ?: "0.4.0"
+// Alamat API untuk build rilis Play Store (Android Studio) bawaan ke https://api.albahjah.or.id.
+// Saat dibuild di GitHub Actions (release.yml), ditimpa oleh -Phris.apiBaseUrl=$HRIS_RELEASE_API_BASE_URL (domain .net).
+// Build debug memakai https://api.albahjah.net sebagai isian awal dan tetap bisa diganti di layar masuk.
+val customApiBaseUrl = (findProperty("hris.apiBaseUrl") as String?)?.trim()
+val releaseApiBaseUrl = if (!customApiBaseUrl.isNullOrEmpty()) customApiBaseUrl else "https://api.albahjah.or.id"
+val debugApiBaseUrl = if (!customApiBaseUrl.isNullOrEmpty()) customApiBaseUrl else "https://api.albahjah.net"
+val releaseVersionName = (findProperty("hris.versionName") as String?) ?: "1.0.0"
 val releaseVersionCode = (findProperty("hris.versionCode") as String?)?.let {
     requireNotNull(it.toIntOrNull()) { "hris.versionCode harus berupa bilangan bulat" }
-} ?: 4
-val updateRepo = (findProperty("hris.updateRepo") as String?) ?: "rzarxx/HRIS"
-require(Regex("^[A-Za-z0-9][A-Za-z0-9-]{0,38}/[A-Za-z0-9_.-]+$").matches(updateRepo) &&
-    updateRepo.substringAfter('/') !in setOf(".", "..")) { "hris.updateRepo harus berupa owner/repo GitHub" }
+} ?: 1000000
+val playCloudProjectNumber = (findProperty("hris.playCloudProjectNumber") as String?)?.let {
+    requireNotNull(it.toLongOrNull()) { "hris.playCloudProjectNumber harus berupa bilangan bulat" }
+} ?: 0L
 require(Regex("^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)$").matches(releaseVersionName)) { "hris.versionName harus berupa versi stabil x.y.z" }
 require(releaseVersionCode > 0) { "hris.versionCode harus positif" }
-if (apiBaseUrl.isNotEmpty()) {
-    val uri = URI(apiBaseUrl)
+require(playCloudProjectNumber >= 0L) { "hris.playCloudProjectNumber tidak boleh negatif" }
+for (url in listOf(releaseApiBaseUrl, debugApiBaseUrl)) {
+    val uri = URI(url)
     require(uri.scheme == "https" && !uri.host.isNullOrBlank() && uri.userInfo == null &&
-        uri.query == null && uri.fragment == null && !apiBaseUrl.contains('"') && !apiBaseUrl.contains('\\')) {
+        uri.query == null && uri.fragment == null && !url.contains('"') && !url.contains('\\')) {
         "hris.apiBaseUrl harus berupa URL HTTPS tanpa kredensial, query, atau fragment"
     }
 }
@@ -41,8 +45,7 @@ android {
         targetSdk = 35
         versionCode = releaseVersionCode
         versionName = releaseVersionName
-        buildConfigField("String", "API_BASE_URL", "\"$apiBaseUrl\"")
-        buildConfigField("String", "UPDATE_REPO", "\"$updateRepo\"")
+        buildConfigField("long", "PLAY_CLOUD_PROJECT_NUMBER", "${playCloudProjectNumber}L")
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         // Hanya prosesor ARM (semua HP Android yang dituju). Pustaka x86 hanya terpakai emulator dan
         // menambah sekitar 20 MB.
@@ -54,10 +57,12 @@ android {
     buildTypes {
         debug {
             applicationIdSuffix = ".debug"
+            buildConfigField("String", "API_BASE_URL", "\"$debugApiBaseUrl\"")
             buildConfigField("boolean", "SERVER_EDITABLE", "true")
         }
         release {
             isMinifyEnabled = false
+            buildConfigField("String", "API_BASE_URL", "\"$releaseApiBaseUrl\"")
             buildConfigField("boolean", "SERVER_EDITABLE", "false")
         }
     }
@@ -118,6 +123,7 @@ dependencies {
     // Model deteksi wajah dibundel di APK agar jalan juga di HP tanpa layanan Google (§5.4.1).
     implementation("com.google.mlkit:face-detection:16.1.7")
     implementation("com.google.android.gms:play-services-location:21.3.0")
+    implementation("com.google.android.play:integrity:1.4.0")
 
     testImplementation("junit:junit:4.13.2")
 }

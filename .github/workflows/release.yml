@@ -1,4 +1,4 @@
-﻿name: Android release
+name: Android release
 
 on:
   push:
@@ -53,7 +53,6 @@ jobs:
           API_BASE_URL: ${{ secrets.HRIS_RELEASE_API_BASE_URL }}
           VERSION_NAME: ${{ steps.version.outputs.name }}
           VERSION_CODE: ${{ steps.version.outputs.code }}
-          UPDATE_REPO: ${{ github.repository }}
         shell: bash
         run: |
           set -euo pipefail
@@ -62,8 +61,7 @@ jobs:
             exit 1
           fi
           gradle --no-daemon recordPaparazziDebug assembleRelease \
-            "-Phris.apiBaseUrl=$API_BASE_URL" "-Phris.versionName=$VERSION_NAME" "-Phris.versionCode=$VERSION_CODE" \
-            "-Phris.updateRepo=$UPDATE_REPO"
+            "-Phris.apiBaseUrl=$API_BASE_URL" "-Phris.versionName=$VERSION_NAME" "-Phris.versionCode=$VERSION_CODE"
       - name: Tanda tangani dan periksa APK
         env:
           KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}

@@ -58,3 +58,33 @@ func TestPlayIntegrityEnforcedForClock(t *testing.T) {
 	verifier.err = errors.New("network failure")
 	f.faceClock(t, "clock_in", photo("1", 0.1), map[string]any{"integrity_token": "valid"}).wantError(t, http.StatusUnprocessableEntity, "ATTENDANCE_BLOCKED")
 }
+
+func TestDeviceIntegrityTiersAndUnavailableFallback(t *testing.T) {
+	verifier := &fakePlayVerifier{err: integrity.ErrUnavailable}
+	f := newClockFixture(t, options{strictIntegrity: true, playVerifier: verifier}, "08:00", "17:00")
+
+	// Pendaftaran wajah tetap ditolak saat layanan Play Integrity tidak terjangkau.
+	proof := map[string]any{"captured_at": f.clock.Now().UTC().Format(time.RFC3339), "integrity_token": "token"}
+	f.enroll(t, enrollSamples(), proof).wantError(t, http.StatusUnprocessableEntity, "ATTENDANCE_BLOCKED")
+
+	// Setelah pendaftaran wajah berhasil, presensi saat Play Integrity tidak terjangkau masuk review (+30).
+	verifier.err = nil
+	f.enroll(t, enrollSamples(), proof).want(t, http.StatusCreated)
+	verifier.err = integrity.ErrUnavailable
+	res := f.faceClock(t, "clock_in", photo("1", 0.1), map[string]any{"integrity_token": "tok"}).want(t, http.StatusCreated)
+	in := data[clockInResp](t, res)
+	if in.Status != "review" || !in.RequiresReview {
+		t.Fatalf("presensi saat Play tidak terjangkau harus review: %+v", in)
+	}
+
+	// SDM mengubah jalur perangkat ke manual (Jalur D) dengan masa berlaku 30 hari.
+	until := f.clock.Now().AddDate(0, 0, 30).UTC().Format(time.RFC3339)
+	f.sdm.do(http.MethodPost, "/v1/admin/devices/"+f.deviceID+"/tier", map[string]any{
+		"integrity_tier":        "manual",
+		"manual_approved_until": until,
+		"reason":                "HP operasional tanpa Google Play Services",
+	}).want(t, http.StatusOK)
+	if got := countAudit(t, "device.integrity_tier_changed"); got != 1 {
+		t.Fatalf("audit device.integrity_tier_changed = %d, ingin 1", got)
+	}
+}

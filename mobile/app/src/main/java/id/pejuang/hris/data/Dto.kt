@@ -17,6 +17,7 @@ data class DeviceRegisterInput(
     @SerialName("device_hash") val deviceHash: String,
     @SerialName("model") val model: String? = null,
     @SerialName("os_version") val osVersion: String? = null,
+    @SerialName("public_key") val publicKey: String? = null,
 )
 
 // schema: MobileLoginRequest
@@ -100,6 +101,9 @@ data class ClockInput(
     @SerialName("longitude") val longitude: Double,
     @SerialName("accuracy_m") val accuracyM: Double,
     @SerialName("captured_at") val capturedAt: String,
+    @SerialName("integrity_token") val integrityToken: String? = null,
+    @SerialName("device_proof") val deviceProof: String? = null,
+    @SerialName("attestation_chain") val attestationChain: List<String>? = null,
     @SerialName("signals") val signals: AttendanceSignals,
     @SerialName("selfie_sha256") val selfieSha256: String,
     @SerialName("liveness_passed") val livenessPassed: Boolean,
@@ -140,6 +144,9 @@ data class ClockOutResult(
 data class FaceEnrollInput(
     @SerialName("challenge_id") val challengeId: String,
     @SerialName("captured_at") val capturedAt: String,
+    @SerialName("integrity_token") val integrityToken: String? = null,
+    @SerialName("device_proof") val deviceProof: String? = null,
+    @SerialName("attestation_chain") val attestationChain: List<String>? = null,
     @SerialName("sample_sha256") val sampleSha256: List<String>,
     @SerialName("gesture_sha256") val gestureSha256: String,
     @SerialName("liveness_passed") val livenessPassed: Boolean,

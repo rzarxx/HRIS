@@ -146,6 +146,50 @@ func (ns NullAttStatus) Value() (driver.Value, error) {
 	return string(ns.AttStatus), nil
 }
 
+type DeviceIntegrityTier string
+
+const (
+	DeviceIntegrityTierPlay        DeviceIntegrityTier = "play"
+	DeviceIntegrityTierAttestation DeviceIntegrityTier = "attestation"
+	DeviceIntegrityTierManual      DeviceIntegrityTier = "manual"
+	DeviceIntegrityTierKiosk       DeviceIntegrityTier = "kiosk"
+)
+
+func (e *DeviceIntegrityTier) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = DeviceIntegrityTier(s)
+	case string:
+		*e = DeviceIntegrityTier(s)
+	default:
+		return fmt.Errorf("unsupported scan type for DeviceIntegrityTier: %T", src)
+	}
+	return nil
+}
+
+type NullDeviceIntegrityTier struct {
+	DeviceIntegrityTier DeviceIntegrityTier
+	Valid               bool // Valid is true if DeviceIntegrityTier is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullDeviceIntegrityTier) Scan(value interface{}) error {
+	if value == nil {
+		ns.DeviceIntegrityTier, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.DeviceIntegrityTier.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullDeviceIntegrityTier) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.DeviceIntegrityTier), nil
+}
+
 type DeviceStatus string
 
 const (
@@ -490,20 +534,26 @@ type Consent struct {
 }
 
 type Device struct {
-	ID            uuid.UUID
-	EmployeeID    uuid.UUID
-	DeviceHash    string
-	Model         pgtype.Text
-	OsVersion     pgtype.Text
-	FcmToken      pgtype.Text
-	Status        DeviceStatus
-	ApprovedBy    uuid.NullUUID
-	ApprovedAt    pgtype.Timestamptz
-	RevokedBy     uuid.NullUUID
-	RevokedAt     pgtype.Timestamptz
-	RevokedReason pgtype.Text
-	LastSeenAt    pgtype.Timestamptz
-	CreatedAt     pgtype.Timestamptz
+	ID                  uuid.UUID
+	EmployeeID          uuid.UUID
+	DeviceHash          string
+	Model               pgtype.Text
+	OsVersion           pgtype.Text
+	FcmToken            pgtype.Text
+	Status              DeviceStatus
+	ApprovedBy          uuid.NullUUID
+	ApprovedAt          pgtype.Timestamptz
+	RevokedBy           uuid.NullUUID
+	RevokedAt           pgtype.Timestamptz
+	RevokedReason       pgtype.Text
+	LastSeenAt          pgtype.Timestamptz
+	CreatedAt           pgtype.Timestamptz
+	IntegrityTier       DeviceIntegrityTier
+	ManualApprovedUntil pgtype.Timestamptz
+	PublicKey           []byte
+	KeyBoundAt          pgtype.Timestamptz
+	TierChangedBy       uuid.NullUUID
+	TierChangedAt       pgtype.Timestamptz
 }
 
 type Division struct {

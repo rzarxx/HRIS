@@ -19,6 +19,7 @@ import (
 )
 
 var ErrInvalid = errors.New("verdict integritas tidak valid")
+var ErrNonceMismatch = errors.New("request_hash tidak cocok")
 var ErrUnavailable = errors.New("layanan integritas tidak tersedia")
 
 // AccessToken mengambil access token layanan Google dengan scope playintegrity.
@@ -104,9 +105,11 @@ func (v PlayVerifier) Verify(ctx context.Context, token, requestHash string) err
 	app := payload.TokenPayloadExternal.AppIntegrity
 	device := payload.TokenPayloadExternal.DeviceIntegrity
 	if details.PackageName != v.PackageName || app.PackageName != v.PackageName ||
-		subtle.ConstantTimeCompare([]byte(details.RequestHash), []byte(requestHash)) != 1 ||
 		app.Recognition != "PLAY_RECOGNIZED" || !slices.Contains(device.Recognition, "MEETS_DEVICE_INTEGRITY") {
 		return ErrInvalid
+	}
+	if subtle.ConstantTimeCompare([]byte(details.RequestHash), []byte(requestHash)) != 1 {
+		return fmt.Errorf("%w: %w", ErrNonceMismatch, ErrInvalid)
 	}
 	ms, err := strconv.ParseInt(details.TimestampMillis, 10, 64)
 	if err != nil || ms <= 0 {

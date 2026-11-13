@@ -2175,6 +2175,59 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/admin/devices/{id}/tier": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Atur jalur verifikasi perangkat (Play, Key Attestation, Manual, atau Kiosk)
+         * @description Jalur `manual` mewajibkan masa berlaku maksimal 90 hari dan alasan. SDM tidak dapat menurunkan perangkatnya sendiri ke `manual`/`kiosk` (`CONFLICT_SELF_ACTION`) dan tidak bisa mengubah perangkat super admin (D34).
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: components["parameters"]["Id"];
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["DeviceTierInput"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data: components["schemas"]["AdminDevice"];
+                        };
+                    };
+                };
+                400: components["responses"]["Error"];
+                403: components["responses"]["Error"];
+                404: components["responses"]["Error"];
+                409: components["responses"]["Error"];
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/admin/office-locations": {
         parameters: {
             query?: never;
@@ -4778,6 +4831,10 @@ export interface components {
             captured_at: string;
             /** @description Token Play Integrity untuk presensi; wajib ketika jalur Play dikonfigurasi. */
             integrity_token?: string;
+            /** @description Tanda tangan ECDSA P-256 base64url atas HRIS-DEVICE-PROOF-V1\n<request_hash> dari kunci instalasi perangkat. */
+            device_proof?: string;
+            /** @description Rantai sertifikat X.509 DER base64 untuk Android Key Attestation pada perangkat jalur `attestation`. */
+            attestation_chain?: string[];
             signals?: components["schemas"]["AttendanceSignals"];
             /** @description SHA-256 berkas selfie; wajib bila selfie dikirim */
             selfie_sha256?: string;
@@ -4800,6 +4857,10 @@ export interface components {
             captured_at?: string;
             /** @description Token Play Integrity untuk pendaftaran wajah. */
             integrity_token?: string;
+            /** @description Tanda tangan ECDSA P-256 base64url atas HRIS-DEVICE-PROOF-V1\n<request_hash> dari kunci instalasi perangkat. */
+            device_proof?: string;
+            /** @description Rantai sertifikat X.509 DER base64 untuk Android Key Attestation pada perangkat jalur `attestation`. */
+            attestation_chain?: string[];
             /** @description SHA-256 setiap berkas sampel, berurutan */
             sample_sha256: string[];
             liveness_passed: boolean;
@@ -4891,12 +4952,25 @@ export interface components {
         };
         /** @enum {string} */
         DeviceStatus: "pending" | "approved" | "revoked";
+        /** @enum {string} */
+        DeviceIntegrityTier: "play" | "attestation" | "manual" | "kiosk";
+        DeviceTierInput: {
+            integrity_tier: components["schemas"]["DeviceIntegrityTier"];
+            /**
+             * Format: date-time
+             * @description Wajib diisi (maksimal 90 hari ke depan) bila `integrity_tier` adalah `manual`; harus `null` untuk jalur lain.
+             */
+            manual_approved_until?: string | null;
+            reason: string;
+        };
         DeviceRegisterInput: {
             /** @description SHA-256 dari ID instalasi acak, bukan IMEI */
             device_hash: string;
             model?: string | null;
             os_version?: string | null;
             fcm_token?: string | null;
+            /** @description Kunci publik ECDSA P-256 PKIX DER dalam base64 dari Android KeyStore untuk mengikat instalasi perangkat. */
+            public_key?: string | null;
         };
         /** @description Hash dan token notifikasi tidak pernah dikembalikan. */
         Device: {
@@ -4905,6 +4979,11 @@ export interface components {
             model: string | null;
             os_version: string | null;
             status: components["schemas"]["DeviceStatus"];
+            integrity_tier: components["schemas"]["DeviceIntegrityTier"];
+            /** Format: date-time */
+            manual_approved_until: string | null;
+            /** @description True bila perangkat sudah mengikat kunci publik instalasi ECDSA P-256. */
+            key_bound: boolean;
             /** Format: date-time */
             created_at: string;
             /** Format: date-time */

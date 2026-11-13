@@ -20,9 +20,15 @@ import id.pejuang.hris.face.photoFits
 import id.pejuang.hris.face.scaledSize
 import id.pejuang.hris.location.roundCoordinate
 import id.pejuang.hris.security.BuildInfo
+import id.pejuang.hris.security.DeviceProof
 import id.pejuang.hris.security.DeviceRisk
 import id.pejuang.hris.security.DeviceRules
+import id.pejuang.hris.security.RequestHash
 import id.pejuang.hris.ui.toPickerMillis
+import java.security.KeyPairGenerator
+import java.security.Signature
+import java.security.spec.ECGenParameterSpec
+import java.util.Base64
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -646,5 +652,54 @@ class DeviceRulesTest {
         val manifest = java.io.File("src/main/AndroidManifest.xml").readText()
         val queried = Regex("""<package android:name="([^"]+)" />""").findAll(manifest).map { it.groupValues[1] }.toSet()
         assertEquals((DeviceRules.ROOT_PACKAGES + DeviceRules.FAKE_GPS_PACKAGES).toSet(), queried)
+    }
+}
+
+class RequestHashTest {
+    @Test
+    fun matchesBackendCanonicalVectorsD51() {
+        val nonce = "a".repeat(64)
+        val selfie = "b".repeat(64)
+        val sample2 = "c".repeat(64)
+        val sample3 = "d".repeat(64)
+        val gesture = "e".repeat(64)
+
+        val attendanceHash = RequestHash.attendance(
+            nonce = nonce,
+            latitude = -6.2001,
+            longitude = 106.8166,
+            capturedAt = "2026-11-07T01:02:03Z",
+            selfieSha256 = selfie,
+            gestureSha256 = gesture,
+        )
+        assertEquals("IZ0EvC-bV2dDeuNUnZAODJqQOd0txdevb-S9qNhGkZc", attendanceHash)
+
+        val enrollmentHash = RequestHash.enrollment(
+            nonce = nonce,
+            latitude = -6.2001,
+            longitude = 106.8166,
+            capturedAt = "2026-11-07T01:02:03Z",
+            consentVersion = "2026-11",
+            action = "blink",
+            samples = listOf(selfie, sample2, sample3),
+            gestureSha256 = gesture,
+        )
+        assertEquals("08XZRVOoOvRmUBBFtp1UJmnEKytWCDZLxj1MmInTFXU", enrollmentHash)
+    }
+
+    @Test
+    fun deviceProofSignsCanonicalMessage() {
+        val kp = KeyPairGenerator.getInstance("EC").apply {
+            initialize(ECGenParameterSpec("secp256r1"))
+        }.generateKeyPair()
+        val reqHash = "IZ0EvC-bV2dDeuNUnZAODJqQOd0txdevb-S9qNhGkZc"
+        val proof = DeviceProof.sign(kp.private, reqHash)
+        val sigBytes = Base64.getUrlDecoder().decode(proof)
+        val verified = Signature.getInstance("SHA256withECDSA").run {
+            initVerify(kp.public)
+            update("HRIS-DEVICE-PROOF-V1\n$reqHash".toByteArray(Charsets.UTF_8))
+            verify(sigBytes)
+        }
+        assertTrue(verified)
     }
 }

@@ -8,13 +8,18 @@ SELECT * FROM devices WHERE employee_id = $1 AND device_hash = $2;
 SELECT count(*) FROM devices WHERE employee_id = $1;
 
 -- name: InsertDevice :one
-INSERT INTO devices (employee_id, device_hash, model, os_version, fcm_token, status, approved_at, last_seen_at)
-VALUES (@employee_id, @device_hash, @model, @os_version, @fcm_token, @status, @approved_at, now())
+INSERT INTO devices (employee_id, device_hash, model, os_version, fcm_token, public_key, key_bound_at, status, approved_at, last_seen_at)
+VALUES (@employee_id, @device_hash, @model, @os_version, @fcm_token, @public_key, @key_bound_at, @status, @approved_at, now())
 RETURNING *;
 
 -- name: TouchDevice :one
 UPDATE devices
-SET model = @model, os_version = @os_version, fcm_token = COALESCE(@fcm_token, fcm_token), last_seen_at = now()
+SET model = @model,
+    os_version = @os_version,
+    fcm_token = COALESCE(@fcm_token, fcm_token),
+    public_key = COALESCE(public_key, @public_key),
+    key_bound_at = CASE WHEN public_key IS NULL AND @public_key IS NOT NULL THEN now() ELSE key_bound_at END,
+    last_seen_at = now()
 WHERE id = @id
 RETURNING *;
 
@@ -22,7 +27,9 @@ RETURNING *;
 SELECT * FROM devices WHERE employee_id = $1 ORDER BY created_at DESC, id;
 
 -- name: ListDevices :many
-SELECT d.id, d.employee_id, d.model, d.os_version, d.status, d.created_at, d.approved_at, d.revoked_at,
+SELECT d.id, d.employee_id, d.model, d.os_version, d.status, d.integrity_tier, d.manual_approved_until,
+       (d.public_key IS NOT NULL)::boolean AS key_bound,
+       d.created_at, d.approved_at, d.revoked_at,
        d.revoked_reason, d.last_seen_at, e.full_name AS employee_name, e.nip, s.name AS subdivision_name,
        dv.name AS division_name, ae.full_name AS approved_by_name,
        EXISTS (SELECT 1 FROM users ou WHERE ou.employee_id = d.employee_id AND ou.role = 'superadmin') AS owner_is_superadmin
@@ -41,7 +48,9 @@ SELECT count(*) FROM devices d
 WHERE sqlc.narg(status)::device_status IS NULL OR d.status = sqlc.narg(status);
 
 -- name: GetAdminDevice :one
-SELECT d.id, d.employee_id, d.model, d.os_version, d.status, d.created_at, d.approved_at, d.revoked_at,
+SELECT d.id, d.employee_id, d.model, d.os_version, d.status, d.integrity_tier, d.manual_approved_until,
+       (d.public_key IS NOT NULL)::boolean AS key_bound,
+       d.created_at, d.approved_at, d.revoked_at,
        d.revoked_reason, d.last_seen_at, e.full_name AS employee_name, e.nip, s.name AS subdivision_name,
        dv.name AS division_name, ae.full_name AS approved_by_name,
        EXISTS (SELECT 1 FROM users ou WHERE ou.employee_id = d.employee_id AND ou.role = 'superadmin') AS owner_is_superadmin
@@ -84,3 +93,11 @@ SELECT status FROM employees WHERE id = $1 AND deleted_at IS NULL;
 
 -- name: SetUserRole :exec
 UPDATE users SET role = @role WHERE id = @id;
+
+-- name: SetDeviceIntegrityTier :exec
+UPDATE devices
+SET integrity_tier = @integrity_tier,
+    manual_approved_until = @manual_approved_until,
+    tier_changed_by = @actor,
+    tier_changed_at = now()
+WHERE id = @id;

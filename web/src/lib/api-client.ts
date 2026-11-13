@@ -14,6 +14,7 @@ const ERROR_MESSAGES: Partial<Record<ErrorCode, string>> = {
   ACTIVATION_USED: "Tautan ini sudah dipakai atau sudah diganti tautan baru. Silakan masuk dengan kata sandi Anda, atau minta tautan baru ke SDM.",
   ACTIVATION_EXPIRED: "Tautan ini sudah kedaluwarsa. Minta tautan baru ke SDM.",
   CONFLICT_HAS_DEPENDENTS: "Data masih dipakai data lain sehingga tidak bisa dihapus.",
+  CONFLICT_SELF_ACTION: "Tindakan ini tidak dapat dilakukan pada akun atau perangkat Anda sendiri.",
   AUTH_TOKEN_INVALID: "Sesi berakhir, silakan masuk kembali.",
   FORBIDDEN_ROLE: "Anda tidak memiliki akses ke fitur ini.",
   CSRF_INVALID: "Token keamanan tidak valid. Muat ulang halaman lalu coba lagi.",

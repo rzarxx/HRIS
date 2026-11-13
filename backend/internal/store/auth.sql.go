@@ -495,6 +495,17 @@ func (q *Queries) GetUserMfa(ctx context.Context, userID uuid.UUID) (UserMfa, er
 	return i, err
 }
 
+const hasSDMUser = `-- name: HasSDMUser :one
+SELECT EXISTS (SELECT 1 FROM users WHERE role = 'sdm')
+`
+
+func (q *Queries) HasSDMUser(ctx context.Context) (bool, error) {
+	row := q.db.QueryRow(ctx, hasSDMUser)
+	var exists bool
+	err := row.Scan(&exists)
+	return exists, err
+}
+
 const headedDivisionIDs = `-- name: HeadedDivisionIDs :many
 SELECT id FROM divisions WHERE head_employee_id = $1
 `

@@ -1,0 +1,12 @@
+[Unit]
+Description=HRIS Pejuang: verifikasi mingguan restore arsip backup terenkripsi
+After=network-online.target postgresql.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/env bash /opt/hris/src/backend/deploy/restore-verify.sh
+TimeoutStartSec=30min
+
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true

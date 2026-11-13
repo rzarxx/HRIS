@@ -8,8 +8,8 @@
 # sebagai root dan repo bisa ditulis oleh user hris-build.
 set -euo pipefail
 
-API_SITE="${API_SITE:?Isi API_SITE, mis. api.hris.local}"
-WEB_SITE="${WEB_SITE:?Isi WEB_SITE, mis. admin.hris.local}"
+API_SITE="${API_SITE:-api.albahjah.net}"
+WEB_SITE="${WEB_SITE:-admin.hris.local}"
 NGINX=/www/server/nginx/sbin/nginx
 VHOST_DIR=/www/server/panel/vhost/nginx
 INC_DIR=/www/server/nginx/conf

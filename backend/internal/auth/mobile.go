@@ -27,6 +27,7 @@ type MobileDevice struct {
 	Model      *string `json:"model"`
 	OSVersion  *string `json:"os_version"`
 	FCMToken   *string `json:"fcm_token"`
+	PublicKey  *string `json:"public_key"`
 }
 
 // BoundDevice adalah perangkat yang terikat ke sesi mobile.

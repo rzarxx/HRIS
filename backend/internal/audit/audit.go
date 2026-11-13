@@ -40,6 +40,7 @@ const (
 	DeviceRegistered               = "device.registered"
 	DeviceApproved                 = "device.approved"
 	DeviceRevoked                  = "device.revoked"
+	DeviceIntegrityTierChanged     = "device.integrity_tier_changed"
 	AttendanceClockIn              = "attendance.clock_in"
 	AttendanceClockOut             = "attendance.clock_out"
 	AttendanceRejected             = "attendance.rejected"

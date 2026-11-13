@@ -175,3 +175,6 @@ SELECT status FROM devices WHERE id = $1;
 
 -- name: EmployeeHasFace :one
 SELECT EXISTS (SELECT 1 FROM face_templates WHERE employee_id = $1 AND is_active);
+
+-- name: HasSDMUser :one
+SELECT EXISTS (SELECT 1 FROM users WHERE role = 'sdm');

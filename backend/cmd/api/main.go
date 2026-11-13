@@ -70,7 +70,12 @@ func run() error {
 	if err != nil {
 		return err
 	}
-	attendanceOpt := attendance.Options{AllowUnverified: cfg.DevAllowUnverifiedAttendance, ChallengeTTL: cfg.ChallengeTTL, Cipher: fieldCipher}
+	attendanceOpt := attendance.Options{
+		AllowUnverified:  cfg.DevAllowUnverifiedAttendance,
+		RequireDeviceKey: !cfg.DevAllowUnverifiedAttendance,
+		ChallengeTTL:     cfg.ChallengeTTL,
+		Cipher:           fieldCipher,
+	}
 	if cfg.PlayIntegrityPackage != "" {
 		account, err := integrity.LoadServiceAccount(cfg.PlayIntegrityCredentials, nil)
 		if err != nil {

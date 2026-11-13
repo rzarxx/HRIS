@@ -996,6 +996,32 @@ paths:
                   data: { $ref: "#/components/schemas/AdminDevice" }
         "403": { $ref: "#/components/responses/Error" }
         "404": { $ref: "#/components/responses/Error" }
+  /v1/admin/devices/{id}/tier:
+    parameters:
+      - $ref: "#/components/parameters/Id"
+    post:
+      tags: [Perangkat]
+      summary: Ubah jalur verifikasi integritas perangkat
+      description: "Permission `device:review`. Mengatur jalur verifikasi (`play`, `attestation`, `manual`, `kiosk`) untuk mitigasi kompatibilitas perangkat (MASTER.md §5.4.1). Perangkat sendiri ditolak `CONFLICT_SELF_ACTION` untuk jalur manual/kiosk, dan perangkat super admin hanya boleh diubah oleh super admin."
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/DeviceTierInput" }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data: { $ref: "#/components/schemas/AdminDevice" }
+        "400": { $ref: "#/components/responses/ValidationFailed" }
+        "403": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+        "409": { $ref: "#/components/responses/Error" }
   /v1/admin/office-locations:
     get:
       tags: [Lokasi]
@@ -2647,14 +2673,20 @@ components:
     ClockInput:
       type: object
       required: [challenge_id, latitude, longitude, accuracy_m, captured_at]
-      description: "Payload presensi. Skor wajah adalah kemiripan cosine SFace (D43): di bawah 0.46 ditolak `FACE_MISMATCH`, 0.46 sampai 0.50 diterima dengan sinyal `face_borderline` (+20). Selfie yang pernah dikirim ditolak `ATTENDANCE_BLOCKED`. Token Play saat ini hanya dapat diuji di development."
+      description: "Payload presensi. Skor wajah adalah kemiripan cosine SFace (D43): di bawah 0.46 ditolak `FACE_MISMATCH`, 0.46 sampai 0.50 diterima dengan sinyal `face_borderline` (+20). Selfie yang pernah dikirim ditolak `ATTENDANCE_BLOCKED`."
       properties:
         challenge_id: { type: string, format: uuid }
         latitude: { type: number, minimum: -90, maximum: 90, example: -6.2001 }
         longitude: { type: number, minimum: -180, maximum: 180, example: 106.8166 }
         accuracy_m: { type: number, minimum: 0, example: 12.5 }
         captured_at: { type: string, format: date-time }
-        integrity_token: { type: string, maxLength: 32768, description: "Token Play Integrity untuk presensi; wajib ketika jalur Play dikonfigurasi." }
+        integrity_token: { type: string, maxLength: 32768, description: "Token Play Integrity untuk presensi; wajib ketika perangkat memakai jalur Play." }
+        device_proof: { type: string, maxLength: 512, description: "Tanda tangan ECDSA P-256 (base64 ASN.1 DER) atas `HRIS-DEVICE-PROOF-V1\\n<request_hash>`." }
+        attestation_chain:
+          type: array
+          maxItems: 8
+          description: "Opsional: rantai sertifikat Android Key Attestation (base64 DER) untuk tantangan request_hash."
+          items: { type: string, maxLength: 8192 }
         signals: { $ref: "#/components/schemas/AttendanceSignals" }
         selfie_sha256: { type: string, pattern: '^[0-9a-f]{64}$', description: "SHA-256 berkas selfie; wajib bila selfie dikirim" }
         liveness_passed: { type: boolean }
@@ -2667,6 +2699,12 @@ components:
         challenge_id: { type: string, format: uuid, description: "Challenge `face_enroll`" }
         captured_at: { type: string, format: date-time, description: "Waktu foto untuk mengikat token integritas; diperlukan saat verifikasi perangkat aktif." }
         integrity_token: { type: string, maxLength: 32768, description: "Token Play Integrity untuk pendaftaran wajah." }
+        device_proof: { type: string, maxLength: 512, description: "Tanda tangan ECDSA P-256 (base64 ASN.1 DER) atas `HRIS-DEVICE-PROOF-V1\\n<request_hash>`." }
+        attestation_chain:
+          type: array
+          maxItems: 8
+          description: "Opsional: rantai sertifikat Android Key Attestation (base64 DER) untuk tantangan request_hash."
+          items: { type: string, maxLength: 8192 }
         sample_sha256:
           type: array
           minItems: 3
@@ -2753,6 +2791,10 @@ components:
     DeviceStatus:
       type: string
       enum: [pending, approved, revoked]
+    DeviceIntegrityTier:
+      type: string
+      description: "Jalur verifikasi perangkat (MASTER.md §5.4.1). Ditetapkan server; klien tidak bisa memilih."
+      enum: [play, attestation, manual, kiosk]
     DeviceRegisterInput:
       type: object
       required: [device_hash]
@@ -2761,15 +2803,26 @@ components:
         model: { type: string, nullable: true, maxLength: 100 }
         os_version: { type: string, nullable: true, maxLength: 50 }
         fcm_token: { type: string, nullable: true, maxLength: 4096 }
+        public_key: { type: string, nullable: true, maxLength: 400, description: "Kunci publik ECDSA P-256 instalasi (PKIX DER, base64 standar). Diikat sekali ke perangkat dan tidak pernah ditimpa." }
+    DeviceTierInput:
+      type: object
+      required: [integrity_tier, reason]
+      properties:
+        integrity_tier: { $ref: "#/components/schemas/DeviceIntegrityTier" }
+        manual_approved_until: { type: string, format: date-time, nullable: true, description: "Wajib bila integrity_tier = manual; harus di masa depan dan paling lama 90 hari (device.manual_approval_days)" }
+        reason: { type: string, minLength: 3, maxLength: 250 }
     Device:
       type: object
-      description: Hash dan token notifikasi tidak pernah dikembalikan.
-      required: [id, model, os_version, status, created_at, last_seen_at]
+      description: Hash, kunci publik mentah, dan token notifikasi tidak pernah dikembalikan.
+      required: [id, model, os_version, status, integrity_tier, manual_approved_until, key_bound, created_at, last_seen_at]
       properties:
         id: { type: string, format: uuid }
         model: { type: string, nullable: true }
         os_version: { type: string, nullable: true }
         status: { $ref: "#/components/schemas/DeviceStatus" }
+        integrity_tier: { $ref: "#/components/schemas/DeviceIntegrityTier" }
+        manual_approved_until: { type: string, format: date-time, nullable: true }
+        key_bound: { type: boolean, description: "Kunci instalasi sudah terikat; bukti perangkat (device_proof) diwajibkan" }
         created_at: { type: string, format: date-time }
         last_seen_at: { type: string, format: date-time, nullable: true }
     AdminDevice:

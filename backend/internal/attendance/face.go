@@ -290,17 +290,19 @@ func (s *Service) activeTemplate(ctx context.Context, employeeID uuid.UUID) (fac
 // EnrollInput adalah bagian payload pendaftaran wajah (F7). Foto sampel dikirim sebagai berkas
 // `samples` dan hash-nya, berurutan, di sample_sha256.
 type EnrollInput struct {
-	ChallengeID    string   `json:"challenge_id"`
-	CapturedAt     string   `json:"captured_at"`
-	IntegrityToken string   `json:"integrity_token"`
-	SampleSHA256   []string `json:"sample_sha256"`
-	LivenessPassed *bool    `json:"liveness_passed"`
-	LivenessAction string   `json:"liveness_action"`
-	ConsentVersion string   `json:"consent_version"`
-	Latitude       *float64 `json:"latitude"`
-	Longitude      *float64 `json:"longitude"`
-	AccuracyM      *float64 `json:"accuracy_m"`
-	Signals        Signals  `json:"signals"`
+	ChallengeID      string   `json:"challenge_id"`
+	CapturedAt       string   `json:"captured_at"`
+	IntegrityToken   string   `json:"integrity_token"`
+	DeviceProof      string   `json:"device_proof"`
+	AttestationChain []string `json:"attestation_chain"`
+	SampleSHA256     []string `json:"sample_sha256"`
+	LivenessPassed   *bool    `json:"liveness_passed"`
+	LivenessAction   string   `json:"liveness_action"`
+	ConsentVersion   string   `json:"consent_version"`
+	Latitude         *float64 `json:"latitude"`
+	Longitude        *float64 `json:"longitude"`
+	AccuracyM        *float64 `json:"accuracy_m"`
+	Signals          Signals  `json:"signals"`
 	// Foto saat gerakan liveness (berkas multipart `gesture`, D50).
 	GestureSHA256 string `json:"gesture_sha256"`
 
@@ -408,9 +410,6 @@ func (s *Service) Enroll(ctx context.Context, p auth.Principal, ip *netip.Addr, 
 		return FaceStatus{}, errLiveness()
 	}
 	if !s.opt.AllowUnverified {
-		if s.opt.PlayVerifier == nil {
-			return FaceStatus{}, errBlocked()
-		}
 		capturedAt, err := time.Parse(time.RFC3339Nano, in.CapturedAt)
 		if err != nil {
 			return FaceStatus{}, errBlocked()
@@ -419,7 +418,7 @@ func (s *Service) Enroll(ctx context.Context, p auth.Principal, ip *netip.Addr, 
 		if err != nil {
 			return FaceStatus{}, errBlocked()
 		}
-		if err := s.opt.PlayVerifier.Verify(ctx, in.IntegrityToken, hash); err != nil {
+		if _, _, ok := s.verifyDeviceIntegrity(ctx, device, hash, in.IntegrityToken, in.DeviceProof, in.AttestationChain, false); !ok {
 			return FaceStatus{}, errBlocked()
 		}
 	}

@@ -6,6 +6,7 @@ import id.pejuang.hris.data.Repository
 import id.pejuang.hris.data.SecureStore
 import id.pejuang.hris.data.Session
 import id.pejuang.hris.location.LocationReader
+import id.pejuang.hris.security.DeviceIdentity
 
 /** Wadah dependensi sederhana untuk seluruh aplikasi. */
 class HrisApp : Application() {
@@ -27,7 +28,7 @@ class HrisApp : Application() {
         CrashLog.install(this)
         session = Session(this, SecureStore(this))
         prefs = AppPrefs(this)
-        repository = Repository(session, prefs)
+        repository = Repository(session, prefs, DeviceIdentity(this))
         location = LocationReader(this)
     }
 }

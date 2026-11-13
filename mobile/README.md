@@ -45,26 +45,32 @@ notifikasi FCM, pinjaman, mutasi, dan slip upah.
 Bila aplikasi tertutup tiba-tiba, ringkasan galatnya (tanpa token atau data pribadi) muncul saat aplikasi dibuka
 lagi, dengan tombol **Salin laporan** untuk dikirim ke tim.
 
-## Mendapatkan APK
+## Build di Android Studio & Rilis ke Google Play Store
 
-Setiap push menjalankan job CI `mobile` yang membangun APK debug, menjalankan tes unit, dan merender screenshot
-tiap layar dengan Paparazzi (artefak `hris-pejuang-screenshots`, untuk meninjau tampilan tanpa HP). APK-nya ada di
-halaman run GitHub Actions, bagian **Artifacts**, dengan nama `hris-pejuang-debug-apk` (disimpan 14 hari).
-Pasang ke HP dengan mengizinkan instalasi dari sumber tidak dikenal, atau lewat `adb install`.
+Aplikasi didistribusikan dan diperbarui langsung melalui **Google Play Store** (D52), sehingga izin
+`REQUEST_INSTALL_PACKAGES` dan pengecekan rilis GitHub tidak lagi digunakan.
 
-Build debug memakai `applicationId` `id.pejuang.hris.debug` dan menampilkan kolom **Alamat server** di layar
-masuk, mis. `http://192.168.1.10:8080`. Build rilis memakai alamat dari `-Phris.apiBaseUrl=https://...` dan
-tidak bisa diganti.
+- Build debug memakai `applicationId` `id.pejuang.hris.debug` dan menampilkan kolom **Alamat server** di layar
+  masuk, mis. `http://192.168.1.10:8080`.
+- Build rilis memakai `applicationId` `id.pejuang.hris`, secara bawaan mengarah ke `https://api.albahjah.or.id`
+  (bisa ditimpa dengan `-Phris.apiBaseUrl=https://...`), dan alamat server tidak bisa diganti di layar masuk.
 
-Build lokal (butuh JDK 17 dan Android SDK, lihat di bawah):
+### Langkah Build di Android Studio
+
+1. Buka folder `mobile/` di Android Studio dan tunggu proses *Gradle Sync* selesai (atau buat wrapper sekali
+   dengan `gradle wrapper --gradle-version 8.11.1`).
+2. Sebelum rilis baru, naikkan `releaseVersionName` (format `x.y.z`) dan `releaseVersionCode` di
+   `mobile/app/build.gradle.kts` (bawaan `1.0.0` / `1000000`).
+3. Pilih menu **Build → Generate Signed App Bundle / APK...** → pilih **Android App Bundle**.
+4. Gunakan keystore rilis yang tetap (jangan sampai hilang/berganti antarversi), pilih variant **`release`**,
+   lalu unggah berkas `mobile/app/release/app-release.aab` ke **Google Play Console**.
+
+Build dan tes lokal dari terminal (butuh JDK 17 dan Android SDK):
 
 ```bash
 cd mobile
-gradle assembleDebug recordPaparazziDebug
+gradle assembleDebug recordPaparazziDebug bundleRelease
 ```
-
-Repo belum memuat Gradle wrapper; buat sekali dengan `gradle wrapper --gradle-version 8.11.1` bila memakai
-Android Studio.
 
 ## Struktur
 
@@ -234,72 +240,12 @@ Pustaka (Compose, Retrofit, CameraX, ML Kit, lokasi) diambil otomatis oleh Gradl
 - Oval hijau benar-benar sesuai posisi wajah di layar (pemetaan `FILL_CENTER` dan cermin kamera depan), dan
   ambang pas di oval tidak terlalu ketat di HP Android 10 kelas bawah.
 
-## Rilis dan pembaruan APK mandiri
+## Catatan Rilis Google Play Store
 
-Workflow `.github/workflows/release.yml` berjalan pada push tag `vMAJOR.MINOR.PATCH` dan menerbitkan
-`hris-pejuang-release.apk` di GitHub Releases. Hanya rilis stabil yang dipakai; tag prarilis ditolak.
-Versi `0.3.1`, misalnya, menghasilkan `versionCode` 3001 (`major * 1000000 + minor * 1000 + patch`;
-minor dan patch 0–999, major maksimal 2100). Gunakan tag yang selalu lebih tinggi dari semua rilis sebelumnya.
-
-Sebelum tag pertama, buat **kunci rilis yang tetap** di komputer yang aman (misalnya dengan `keytool`
-atau Android Studio), simpan cadangannya di tempat aman, dan siapkan GitHub Actions secrets berikut:
-
-| Secret | Isi |
-|---|---|
-| `ANDROID_KEYSTORE_BASE64` | Seluruh file keystore yang dienkode base64 tanpa perubahan byte |
-| `ANDROID_KEYSTORE_PASSWORD` | Kata sandi keystore |
-| `ANDROID_KEY_ALIAS` | Alias kunci rilis |
-| `ANDROID_KEY_PASSWORD` | Kata sandi kunci |
-| `HRIS_RELEASE_API_BASE_URL` | Alamat API tetap dengan HTTPS, misalnya `https://api.example.id/` |
-
-Jangan masukkan kunci atau kata sandi ke repo. Semua rilis untuk instalasi yang sama wajib menggunakan
-applicationId dan kunci yang sama. APK debug `id.pejuang.hris.debug` tidak dapat diperbarui menjadi APK
-rilis `id.pejuang.hris`; pasang rilis sebagai aplikasi terpisah. Kehilangan atau mengganti kunci rilis
-mencegah Android memasang pembaruan di atas aplikasi lama.
-
-Setelah perubahan digabung dan CI hijau, buat tag pada commit yang sudah ditinjau dan push tag tersebut.
-Workflow membangun APK, menjalankan tes unit, menyelaraskan dan menandatangani APK, memverifikasi tanda
-tangan, lalu menerbitkan GitHub Release. Pembuatan tag memicu publikasi ke repo publik; jangan buat tag
-percobaan di repo produksi. Jika secret belum dikonfigurasi, workflow gagal dan tidak menerbitkan APK.
-Jangan ubah aset rilis yang sudah dibagikan; buat versi baru bila ada koreksi.
-
-Aplikasi memeriksa `https://api.github.com/repos/rzarxx/HRIS/releases/latest` tanpa token. Repo harus
-publik; token GitHub tidak boleh ditanam di APK. Aplikasi menerima hanya aset bernama tetap dengan digest
-SHA-256 dari GitHub, mengunduhnya lewat DownloadManager, memeriksa ukuran, digest, nama paket, versi,
-dan sertifikat, lalu meminta Android membuka installer. Pengguna harus mengizinkan sumber pemasangan
-untuk aplikasi ini dan mengonfirmasi instalasi. Tidak ada pemasangan diam-diam. Unduhan dapat berlanjut
-saat aplikasi ditutup; progres diperbarui ketika aplikasi aktif. Tidak diperlukan izin penyimpanan luas:
-file unduhan sementara berada di folder khusus aplikasi, dan file terverifikasi di penyimpanan privat.
-
-### Uji lokal dan di HP
-
-1. Jalankan `gradle recordPaparazziDebug` dari `mobile/` untuk uji unit, perbandingan versi, validasi metadata, dan render layar.
-   Debug tidak menjalankan updater karena nama paket/kunci debug berbeda dari rilis.
-2. Untuk uji lengkap, gunakan **repo GitHub publik khusus pengujian**, bukan repo produksi; salin workflow
-   dan atur lima secret di repo uji dengan keystore uji tersendiri. Workflow mengikat APK ke repo tempat
-   workflow berjalan. Gunakan endpoint HTTPS pengujian yang sah untuk API aplikasi.
-3. Terbitkan versi stabil pertama di repo uji, pasang APK rilisnya di HP/emulator Android 8+ lewat `adb install`.
-   Terbitkan versi kedua dengan tag lebih tinggi dan **keystore uji yang sama**. Buka kembali aplikasi, pilih
-   Unduh, periksa progres, izinkan pemasangan dari sumber ini bila diminta, lalu pilih Pasang dan setujui
-   installer sistem. Tutup dan buka aplikasi saat unduhan berjalan untuk memeriksa pemulihan status.
-4. Uji juga jaringan terputus, ruang habis, membatalkan unduhan, izin instalasi ditolak, checksum tidak
-   cocok dan APK dengan kunci/nama paket berbeda. Pastikan tidak ada APK invalid yang ditawarkan untuk dipasang.
-   Uji negatif terakhir dapat dilakukan dengan rilis uji terpisah; jangan gunakan kunci produksi.
-
-Pengujian di atas membutuhkan Android SDK, dua APK bertanda tangan, dan perangkat atau emulator dengan
-akses GitHub. CI debug tidak membuktikan bahwa rilis yang ditandatangani atau instalasi pada HP sudah berhasil.
-Karena APK dipasang di luar Play Store, `PLAY_RECOGNIZED` bukan jaminan yang dapat diasumsikan: lihat D45
-untuk ketergantungan verifikasi perangkat sebelum presensi produksi.
-
-Contoh setelah perubahan yang disetujui masuk ke `main` dan kelima secret tersedia:
-
-```bash
-git checkout main
-git pull --ff-only origin main
-git tag -a v0.4.1 -m "Rilis Android 0.4.1"
-git push origin v0.4.1
-```
-
-Periksa job **Android release** dan asset GitHub Release setelah push; perintah tag tidak membuktikan
-build, tanda tangan, maupun pemasangan berhasil. Tag pertama yang berisi fitur updater harus sudah
-dipasang sebagai APK rilis sebelum aplikasi tersebut dapat menawarkan pembaruan berikutnya.
+- Pastikan **kunci penandatanganan rilis (keystore `.jks`)** disimpan dengan aman dan dicadangkan. Mengganti atau
+  kehilangan kunci akan mencegah pembaruan aplikasi di Play Console (kecuali memakai *Play App Signing* dengan
+  upload key reset).
+- Build debug (`id.pejuang.hris.debug`) dapat dipasang berdampingan dengan build Play Store (`id.pejuang.hris`)
+  untuk pengujian lokal tanpa menimpa versi produksi.
+- Untuk menguji fitur presensi dan liveness di HP sungguhan sebelum rilis produksi, pastikan seluruh skenario
+  `Perlu dicek di HP sungguhan` di atas sudah diverifikasi pada minimal 3 HP Android kelas bawah (`minSdk 26`).

@@ -2,11 +2,15 @@ name: CI
 
 on:
   push:
-    branches: [main, develop, "feat/**"]
+    branches: [main, develop]
   pull_request:
 
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   backend:
@@ -32,10 +36,25 @@ jobs:
       SEED_SDM_PASSWORD: ci-only-password-untuk-seed
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.head_ref || github.ref_name }}
       - uses: actions/setup-go@v5
         with:
           go-version-file: backend/go.mod
           cache-dependency-path: backend/go.sum
+      - name: Auto-fix format (gofmt) dan sqlc pada PR
+        if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
+        run: |
+          gofmt -w .
+          go run github.com/sqlc-dev/sqlc/cmd/sqlc@v1.31.1 generate
+          if [ -n "$(git status --porcelain .)" ]; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add .
+            git commit -m "style(ci): auto-fix gofmt dan sqlc"
+            git pull --rebase origin "${{ github.head_ref }}"
+            git push origin "HEAD:${{ github.head_ref }}"
+          fi
       - name: Format
         run: test -z "$(gofmt -l .)"
       - name: Vet
@@ -175,12 +194,27 @@ jobs:
         working-directory: web
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.head_ref || github.ref_name }}
       - uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: npm
           cache-dependency-path: web/package-lock.json
       - run: npm ci
+      - name: Auto-fix OpenAPI schema dan ESLint pada PR
+        if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
+        run: |
+          npm run gen:api
+          npx eslint --fix . || true
+          if [ -n "$(git status --porcelain .)" ]; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add .
+            git commit -m "style(ci): auto-fix openapi schema dan eslint"
+            git pull --rebase origin "${{ github.head_ref }}"
+            git push origin "HEAD:${{ github.head_ref }}"
+          fi
       - name: Tipe hasil generate harus mutakhir
         run: |
           npm run gen:api

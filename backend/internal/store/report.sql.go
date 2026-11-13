@@ -13,6 +13,315 @@ import (
 	"github.com/shopspring/decimal"
 )
 
+const attendanceExportArrangements = `-- name: AttendanceExportArrangements :many
+SELECT ewa.employee_id, ewa.mode, ewa.starts_on, ewa.ends_on, ewa.weekdays
+FROM employee_work_arrangements ewa
+JOIN employees e ON e.id = ewa.employee_id
+JOIN subdivisions s ON s.id = e.subdivision_id
+JOIN divisions d ON d.id = s.division_id
+WHERE ewa.starts_on < $1 AND (ewa.ends_on IS NULL OR ewa.ends_on >= $2)
+  AND e.deleted_at IS NULL
+  AND ($3::boolean OR s.id = ANY($4::uuid[]) OR d.id = ANY($5::uuid[]))
+  AND ($6::uuid IS NULL OR d.id = $6)
+ORDER BY ewa.employee_id, ewa.starts_on DESC, ewa.id
+`
+
+type AttendanceExportArrangementsParams struct {
+	ToDate              pgtype.Date
+	FromDate            pgtype.Date
+	ScopeAll            bool
+	ScopeSubdivisionIds []uuid.UUID
+	ScopeDivisionIds    []uuid.UUID
+	DivisionID          uuid.NullUUID
+}
+
+type AttendanceExportArrangementsRow struct {
+	EmployeeID uuid.UUID
+	Mode       string
+	StartsOn   pgtype.Date
+	EndsOn     pgtype.Date
+	Weekdays   []int16
+}
+
+func (q *Queries) AttendanceExportArrangements(ctx context.Context, arg AttendanceExportArrangementsParams) ([]AttendanceExportArrangementsRow, error) {
+	rows, err := q.db.Query(ctx, attendanceExportArrangements,
+		arg.ToDate,
+		arg.FromDate,
+		arg.ScopeAll,
+		arg.ScopeSubdivisionIds,
+		arg.ScopeDivisionIds,
+		arg.DivisionID,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []AttendanceExportArrangementsRow{}
+	for rows.Next() {
+		var i AttendanceExportArrangementsRow
+		if err := rows.Scan(
+			&i.EmployeeID,
+			&i.Mode,
+			&i.StartsOn,
+			&i.EndsOn,
+			&i.Weekdays,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const attendanceExportEmployees = `-- name: AttendanceExportEmployees :many
+SELECT e.id AS employee_id, e.nip, e.full_name, d.id AS division_id, d.name AS division, s.name AS subdivision,
+       e.join_date, e.exit_date,
+       COALESCE(sh.work_days, ARRAY[1,2,3,4,5,6]::smallint[])::smallint[] AS work_days
+FROM employees e
+JOIN subdivisions s ON s.id = e.subdivision_id
+JOIN divisions d ON d.id = s.division_id
+LEFT JOIN shifts sh ON sh.id = e.default_shift_id
+LEFT JOIN attendances a ON a.employee_id = e.id AND a.work_date >= $1 AND a.work_date < $2
+  AND ($3::text = '' OR (a.work_mode = $3::text AND a.clock_in_at IS NOT NULL))
+WHERE e.deleted_at IS NULL
+  AND ($4::boolean OR s.id = ANY($5::uuid[]) OR d.id = ANY($6::uuid[]))
+  AND ($7::uuid IS NULL OR d.id = $7)
+GROUP BY e.id, e.nip, e.full_name, d.id, d.name, s.name, e.join_date, e.exit_date, e.status, sh.work_days
+HAVING count(a.id) > 0 OR ($3::text = '' AND e.status = 'active' AND (e.join_date IS NULL OR e.join_date < $2))
+ORDER BY d.name, e.full_name, e.id
+`
+
+type AttendanceExportEmployeesParams struct {
+	FromDate            pgtype.Date
+	ToDate              pgtype.Date
+	WorkMode            string
+	ScopeAll            bool
+	ScopeSubdivisionIds []uuid.UUID
+	ScopeDivisionIds    []uuid.UUID
+	DivisionID          uuid.NullUUID
+}
+
+type AttendanceExportEmployeesRow struct {
+	EmployeeID  uuid.UUID
+	Nip         string
+	FullName    string
+	DivisionID  uuid.UUID
+	Division    string
+	Subdivision string
+	JoinDate    pgtype.Date
+	ExitDate    pgtype.Date
+	WorkDays    []int16
+}
+
+func (q *Queries) AttendanceExportEmployees(ctx context.Context, arg AttendanceExportEmployeesParams) ([]AttendanceExportEmployeesRow, error) {
+	rows, err := q.db.Query(ctx, attendanceExportEmployees,
+		arg.FromDate,
+		arg.ToDate,
+		arg.WorkMode,
+		arg.ScopeAll,
+		arg.ScopeSubdivisionIds,
+		arg.ScopeDivisionIds,
+		arg.DivisionID,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []AttendanceExportEmployeesRow{}
+	for rows.Next() {
+		var i AttendanceExportEmployeesRow
+		if err := rows.Scan(
+			&i.EmployeeID,
+			&i.Nip,
+			&i.FullName,
+			&i.DivisionID,
+			&i.Division,
+			&i.Subdivision,
+			&i.JoinDate,
+			&i.ExitDate,
+			&i.WorkDays,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const attendanceExportHolidays = `-- name: AttendanceExportHolidays :many
+SELECT date FROM holidays
+WHERE date >= $1 AND date < $2
+ORDER BY date
+`
+
+type AttendanceExportHolidaysParams struct {
+	FromDate pgtype.Date
+	ToDate   pgtype.Date
+}
+
+func (q *Queries) AttendanceExportHolidays(ctx context.Context, arg AttendanceExportHolidaysParams) ([]pgtype.Date, error) {
+	rows, err := q.db.Query(ctx, attendanceExportHolidays, arg.FromDate, arg.ToDate)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []pgtype.Date{}
+	for rows.Next() {
+		var date pgtype.Date
+		if err := rows.Scan(&date); err != nil {
+			return nil, err
+		}
+		items = append(items, date)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const attendanceExportLeaves = `-- name: AttendanceExportLeaves :many
+SELECT lr.employee_id, lr.start_date, lr.end_date, lt.code, lt.name, lt.quota_kind
+FROM leave_requests lr
+JOIN leave_types lt ON lt.id = lr.leave_type_id
+JOIN employees e ON e.id = lr.employee_id
+JOIN subdivisions s ON s.id = e.subdivision_id
+JOIN divisions d ON d.id = s.division_id
+WHERE lr.status = 'approved'
+  AND lr.start_date < $1 AND lr.end_date >= $2
+  AND e.deleted_at IS NULL
+  AND ($3::boolean OR s.id = ANY($4::uuid[]) OR d.id = ANY($5::uuid[]))
+  AND ($6::uuid IS NULL OR d.id = $6)
+ORDER BY lr.employee_id, lr.created_at DESC, lr.id
+`
+
+type AttendanceExportLeavesParams struct {
+	ToDate              pgtype.Date
+	FromDate            pgtype.Date
+	ScopeAll            bool
+	ScopeSubdivisionIds []uuid.UUID
+	ScopeDivisionIds    []uuid.UUID
+	DivisionID          uuid.NullUUID
+}
+
+type AttendanceExportLeavesRow struct {
+	EmployeeID uuid.UUID
+	StartDate  pgtype.Date
+	EndDate    pgtype.Date
+	Code       string
+	Name       string
+	QuotaKind  LeaveQuotaKind
+}
+
+func (q *Queries) AttendanceExportLeaves(ctx context.Context, arg AttendanceExportLeavesParams) ([]AttendanceExportLeavesRow, error) {
+	rows, err := q.db.Query(ctx, attendanceExportLeaves,
+		arg.ToDate,
+		arg.FromDate,
+		arg.ScopeAll,
+		arg.ScopeSubdivisionIds,
+		arg.ScopeDivisionIds,
+		arg.DivisionID,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []AttendanceExportLeavesRow{}
+	for rows.Next() {
+		var i AttendanceExportLeavesRow
+		if err := rows.Scan(
+			&i.EmployeeID,
+			&i.StartDate,
+			&i.EndDate,
+			&i.Code,
+			&i.Name,
+			&i.QuotaKind,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const attendanceExportRecords = `-- name: AttendanceExportRecords :many
+SELECT a.employee_id, a.work_date, a.clock_in_at, a.clock_out_at, a.status, a.late_minutes, a.work_mode
+FROM attendances a
+JOIN employees e ON e.id = a.employee_id
+JOIN subdivisions s ON s.id = e.subdivision_id
+JOIN divisions d ON d.id = s.division_id
+WHERE a.work_date >= $1 AND a.work_date < $2
+  AND ($3::text = '' OR (a.work_mode = $3::text AND a.clock_in_at IS NOT NULL))
+  AND e.deleted_at IS NULL
+  AND ($4::boolean OR s.id = ANY($5::uuid[]) OR d.id = ANY($6::uuid[]))
+  AND ($7::uuid IS NULL OR d.id = $7)
+ORDER BY a.employee_id, a.work_date
+`
+
+type AttendanceExportRecordsParams struct {
+	FromDate            pgtype.Date
+	ToDate              pgtype.Date
+	WorkMode            string
+	ScopeAll            bool
+	ScopeSubdivisionIds []uuid.UUID
+	ScopeDivisionIds    []uuid.UUID
+	DivisionID          uuid.NullUUID
+}
+
+type AttendanceExportRecordsRow struct {
+	EmployeeID  uuid.UUID
+	WorkDate    pgtype.Date
+	ClockInAt   pgtype.Timestamptz
+	ClockOutAt  pgtype.Timestamptz
+	Status      AttStatus
+	LateMinutes int32
+	WorkMode    string
+}
+
+func (q *Queries) AttendanceExportRecords(ctx context.Context, arg AttendanceExportRecordsParams) ([]AttendanceExportRecordsRow, error) {
+	rows, err := q.db.Query(ctx, attendanceExportRecords,
+		arg.FromDate,
+		arg.ToDate,
+		arg.WorkMode,
+		arg.ScopeAll,
+		arg.ScopeSubdivisionIds,
+		arg.ScopeDivisionIds,
+		arg.DivisionID,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []AttendanceExportRecordsRow{}
+	for rows.Next() {
+		var i AttendanceExportRecordsRow
+		if err := rows.Scan(
+			&i.EmployeeID,
+			&i.WorkDate,
+			&i.ClockInAt,
+			&i.ClockOutAt,
+			&i.Status,
+			&i.LateMinutes,
+			&i.WorkMode,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const attendanceReport = `-- name: AttendanceReport :many
 SELECT e.id AS employee_id, e.nip, e.full_name, d.name AS division, s.name AS subdivision, e.base_salary,
        count(a.id) FILTER (WHERE a.status IN ('present','late')) AS present,

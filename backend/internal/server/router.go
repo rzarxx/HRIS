@@ -188,6 +188,7 @@ func routes(d Deps) []Route {
 		guarded(http.MethodPut, "/v1/admin/approval-flows/{request_type}", d.Approval.SetFlow, permission.ApprovalFlowManage),
 
 		guarded(http.MethodGet, "/v1/admin/reports/attendance", d.Report.Attendance, permission.AttendanceReport),
+		guarded(http.MethodGet, "/v1/admin/reports/attendance/export", d.Report.AttendanceExport, permission.AttendanceReport),
 		// Memuat ubar: base_salary hanya untuk sdm (§7.6), jadi perlu payroll:manage juga.
 		guarded(http.MethodGet, "/v1/admin/reports/payroll-preview", d.Report.PayrollPreview, permission.AttendanceReport, permission.PayrollManage),
 	}

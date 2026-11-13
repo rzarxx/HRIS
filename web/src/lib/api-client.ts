@@ -132,7 +132,7 @@ async function request<T>(method: string, path: string, opts: { query?: Query; b
 
 export const api = {
   get: <T>(path: string, query?: Query) => request<T>("GET", path, { query }),
-  blob: (path: string) => request<Blob>("GET", path, { blob: true }),
+  blob: (path: string, query?: Query) => request<Blob>("GET", path, { query, blob: true }),
   post: <T>(path: string, body?: unknown) => request<T>("POST", path, { body }),
   patch: <T>(path: string, body?: unknown) => request<T>("PATCH", path, { body }),
   put: <T>(path: string, body?: unknown) => request<T>("PUT", path, { body }),

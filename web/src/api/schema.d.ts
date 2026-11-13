@@ -4319,6 +4319,52 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/admin/reports/attendance/export": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Ekspor rekap presensi format Excel SDM (.xlsx)
+         * @description Permission `attendance:report`, dibatasi scope. Menghasilkan berkas Excel `.xlsx` dengan 2 worksheet (`Fingerprint` untuk jam Masuk/Pulang harian dan `Manual` untuk kode status H/S/I/A/L/C/IS/T/WFH serta rumus COUNTIF, Jumlah HK, dan Persentase) untuk periode cutoff tanggal 26 bulan sebelumnya s.d. tanggal 25 bulan yang dipilih.
+         */
+        get: {
+            parameters: {
+                query: {
+                    year: components["parameters"]["Year"];
+                    month: components["parameters"]["Month"];
+                    division_id?: string;
+                    /** @description Hanya hitung presensi dengan mode ini */
+                    work_mode?: "onsite" | "wfa" | "field";
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Berkas Excel (.xlsx) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": string;
+                    };
+                };
+                400: components["responses"]["ValidationFailed"];
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/admin/reports/payroll-preview": {
         parameters: {
             query?: never;

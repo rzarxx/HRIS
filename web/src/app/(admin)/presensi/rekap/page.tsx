@@ -1,13 +1,14 @@
 "use client";
 
-import { Download, Info } from "lucide-react";
+import { Download } from "lucide-react";
 import { useMemo, useState } from "react";
 import { currentPeriod, PeriodFilterBar } from "@/components/reports/period-filter";
 import { Button } from "@/components/ui/button";
 import { Select } from "@/components/ui/form";
 import { Card, EmptyState, ErrorState, Loading, PageHeader } from "@/components/ui/layout";
 import { Table, Td, Th } from "@/components/ui/table";
-import { downloadCsv } from "@/lib/csv";
+import { useToast } from "@/components/ui/toast";
+import { api, ApiError } from "@/lib/api-client";
 import { MONTHS, number, percent } from "@/lib/format";
 import { useAttendanceReport, type AttendanceReportFilter } from "@/lib/hooks";
 
@@ -27,11 +28,10 @@ function hours(minutes: number) {
   return m ? `${number(h)} j ${m} m` : `${number(h)} j`;
 }
 
-/** Menit kerja sebagai jam desimal berkoma untuk Excel berlokal Indonesia. */
-const hoursCsv = (minutes: number) => (minutes / 60).toFixed(2).replace(".", ",");
-
 export default function AttendanceReportPage() {
   const [period, setPeriod] = useState<AttendanceReportFilter>(() => currentPeriod());
+  const [exporting, setExporting] = useState(false);
+  const toast = useToast();
   const report = useAttendanceReport(period);
   const rows = useMemo(() => report.isPlaceholderData ? [] : report.data ?? [], [report.data, report.isPlaceholderData]);
 
@@ -46,40 +46,24 @@ export default function AttendanceReportPage() {
     return { ...t, rate: t.days ? t.present / t.days : 0 };
   }, [rows]);
 
-  // Jenis cuti yang muncul di periode ini, untuk kolom ekspor per jenis.
-  const leaveTypes = useMemo(() => {
-    const types = new Map<string, string>();
-    for (const r of rows) for (const t of r.leave_by_type) types.set(t.code, t.name);
-    return [...types].sort((a, b) => a[1].localeCompare(b[1], "id"));
-  }, [rows]);
-
   const label = `${MONTHS[period.month - 1]} ${period.year}`;
 
-  function exportCsv() {
-    const base = `rekap-presensi-${period.year}-${String(period.month).padStart(2, "0")}`;
-    if (period.work_mode) {
-      downloadCsv(
-        `${base}-${period.work_mode}.csv`,
-        ["NIPY", "Nama", "Divisi", "Subdiv", "Hadir", "Telat", "Perlu ditinjau", "Lupa presensi pulang", "Jam kerja", "Total menit telat"],
-        rows.map((r) => [r.nip, r.full_name, r.division, r.subdivision, r.present, r.late, r.review, r.missed_clock_out, hoursCsv(r.worked_minutes), r.late_minutes]),
-      );
-      return;
+  async function exportXlsx() {
+    if (exporting) return;
+    setExporting(true);
+    try {
+      const blob = await api.blob("/admin/reports/attendance/export", { ...period });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `Rekap_Absen_Yayasan_${MONTHS[period.month - 1]}_${period.year}.xlsx`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : "Gagal mengekspor berkas Excel.");
+    } finally {
+      setExporting(false);
     }
-    downloadCsv(
-      `${base}.csv`,
-      [
-        "NIPY", "Nama", "Divisi", "Subdiv", "Hari kerja", "Hadir", "Telat", "Perlu ditinjau", "Cuti/Izin",
-        "Cuti bersaldo", "Cuti tanpa saldo", "Cuti lainnya", "Cuti tidak dibayar", ...leaveTypes.map(([, name]) => `Cuti: ${name}`),
-        "Alpha", "Lupa presensi pulang", "Jam kerja", "Total menit telat", "Kehadiran (%)",
-      ],
-      rows.map((r) => [
-        r.nip, r.full_name, r.division, r.subdivision, r.work_days, r.present, r.late, r.review, r.leave,
-        r.leave_quota, r.leave_non_quota, r.leave_other, r.leave_unpaid,
-        ...leaveTypes.map(([code]) => r.leave_by_type.find((t) => t.code === code)?.days ?? 0),
-        r.absent, r.missed_clock_out, hoursCsv(r.worked_minutes), r.late_minutes,
-        (r.work_days ? (r.present / r.work_days) * 100 : 0).toFixed(1).replace(".", ","),
-      ]),
-    );
   }
 
   return (
@@ -88,15 +72,11 @@ export default function AttendanceReportPage() {
         title="Rekap presensi"
         description={`Rekap kehadiran Pejuang periode ${label}.`}
         actions={
-          <Button variant="secondary" onClick={exportCsv} disabled={!rows.length || report.isPlaceholderData || report.isError}>
-            <Download className="size-4" /> Ekspor Excel (CSV)
+          <Button variant="secondary" onClick={exportXlsx} loading={exporting} disabled={!rows.length || report.isPlaceholderData || report.isError || exporting}>
+            <Download className="size-4" /> Ekspor Excel (.xlsx)
           </Button>
         }
       />
-      <div className="mb-4 flex items-start gap-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
-        <Info className="mt-0.5 size-3.5 shrink-0" aria-hidden />
-        Data presensi saat ini adalah simulasi. Presensi nyata dari aplikasi HP (geofence + verifikasi wajah) hadir di Fase 2-3.
-      </div>
       <Card bodyClassName="">
         <div className="space-y-4 border-b border-slate-100 p-4">
           <PeriodFilterBar value={period} onChange={(value) => setPeriod({ ...value, work_mode: period.work_mode })} />

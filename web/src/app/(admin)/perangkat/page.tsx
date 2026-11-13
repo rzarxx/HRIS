@@ -20,9 +20,9 @@ const STATUS: Record<DeviceStatus, { label: string; tone: "amber" | "green" | "g
   revoked: { label: "Dicabut", tone: "gray" },
 };
 
-const TIER: Record<DeviceIntegrityTier, { label: string; tone: "green" | "blue" | "amber" | "gray" }> = {
+const TIER: Record<DeviceIntegrityTier, { label: string; tone: "green" | "accent" | "amber" | "gray" }> = {
   play: { label: "Play Integrity", tone: "green" },
-  attestation: { label: "Key Attestation", tone: "blue" },
+  attestation: { label: "Key Attestation", tone: "accent" },
   manual: { label: "Manual (Review)", tone: "amber" },
   kiosk: { label: "Kiosk Kantor", tone: "gray" },
 };

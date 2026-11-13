@@ -539,16 +539,16 @@ func buildSheet2Manual(
 	arrsByEmp map[uuid.UUID][]store.AttendanceExportArrangementsRow,
 ) []byte {
 	numDays := len(dates)
-	firstDateColIdx := 3                  // D
-	lastDateColIdx := 3 + numDays - 1     // AH when numDays=31
-	hkColIdx := 3 + numDays               // AI
-	hColIdx := 4 + numDays                // AJ
-	sColIdx := 5 + numDays                // AK
-	iColIdx := 6 + numDays                // AL
-	aColIdx := 7 + numDays                // AM
-	lColIdx := 8 + numDays                // AN
-	cColIdx := 9 + numDays                // AO
-	pctColIdx := 10 + numDays             // AP
+	firstDateColIdx := 3              // D
+	lastDateColIdx := 3 + numDays - 1 // AH when numDays=31
+	hkColIdx := 3 + numDays           // AI
+	hColIdx := 4 + numDays            // AJ
+	sColIdx := 5 + numDays            // AK
+	iColIdx := 6 + numDays            // AL
+	aColIdx := 7 + numDays            // AM
+	lColIdx := 8 + numDays            // AN
+	cColIdx := 9 + numDays            // AO
+	pctColIdx := 10 + numDays         // AP
 
 	lastDateColName := excelColName(lastDateColIdx)
 	hkColName := excelColName(hkColIdx)

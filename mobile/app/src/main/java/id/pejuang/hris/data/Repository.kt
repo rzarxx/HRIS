@@ -136,6 +136,7 @@ class Repository(
                 gestureSha256 = gestureHash,
             )
         }.getOrNull()
+        val integrityToken = reqHash?.let { identity?.requestIntegrityToken(it) }
         val payload = apiJson.encodeToString(
             ClockInput.serializer(),
             ClockInput(
@@ -144,8 +145,9 @@ class Repository(
                 longitude = fix.longitude,
                 accuracyM = fix.accuracyM,
                 capturedAt = capturedAt,
-                integrityToken = reqHash?.let { identity?.requestIntegrityToken(it) },
+                integrityToken = integrityToken,
                 deviceProof = reqHash?.let { identity?.signProof(it) },
+                attestationChain = if (integrityToken == null && reqHash != null) identity?.attestationChainBase64(reqHash) else null,
                 signals = signals(fix, risk),
                 selfieSha256 = selfieHash,
                 livenessPassed = true,
@@ -194,13 +196,15 @@ class Repository(
                 gestureSha256 = gestureHash,
             )
         }.getOrNull()
+        val integrityToken = reqHash?.let { identity?.requestIntegrityToken(it) }
         val payload = apiJson.encodeToString(
             FaceEnrollInput.serializer(),
             FaceEnrollInput(
                 challengeId = challenge.challengeId,
                 capturedAt = capturedAt,
-                integrityToken = reqHash?.let { identity?.requestIntegrityToken(it) },
+                integrityToken = integrityToken,
                 deviceProof = reqHash?.let { identity?.signProof(it) },
+                attestationChain = if (integrityToken == null && reqHash != null) identity?.attestationChainBase64(reqHash) else null,
                 sampleSha256 = sampleHashes,
                 gestureSha256 = gestureHash,
                 livenessPassed = true,

@@ -89,3 +89,64 @@ INSERT INTO shifts (name, start_time, end_time, late_tolerance_minutes) VALUES (
 
 -- name: ListAttendanceKeysSince :many
 SELECT employee_id, work_date FROM attendances WHERE work_date >= $1;
+
+-- name: AttendanceExportEmployees :many
+SELECT e.id AS employee_id, e.nip, e.full_name, d.id AS division_id, d.name AS division, s.name AS subdivision,
+       e.join_date, e.exit_date,
+       COALESCE(sh.work_days, ARRAY[1,2,3,4,5,6]::smallint[])::smallint[] AS work_days
+FROM employees e
+JOIN subdivisions s ON s.id = e.subdivision_id
+JOIN divisions d ON d.id = s.division_id
+LEFT JOIN shifts sh ON sh.id = e.default_shift_id
+LEFT JOIN attendances a ON a.employee_id = e.id AND a.work_date >= @from_date AND a.work_date < @to_date
+  AND (sqlc.arg(work_mode)::text = '' OR (a.work_mode = sqlc.arg(work_mode)::text AND a.clock_in_at IS NOT NULL))
+WHERE e.deleted_at IS NULL
+  AND (@scope_all::boolean OR s.id = ANY(@scope_subdivision_ids::uuid[]) OR d.id = ANY(@scope_division_ids::uuid[]))
+  AND (sqlc.narg(division_id)::uuid IS NULL OR d.id = sqlc.narg(division_id))
+GROUP BY e.id, e.nip, e.full_name, d.id, d.name, s.name, e.join_date, e.exit_date, e.status, sh.work_days
+HAVING count(a.id) > 0 OR (sqlc.arg(work_mode)::text = '' AND e.status = 'active' AND (e.join_date IS NULL OR e.join_date < @to_date))
+ORDER BY d.name, e.full_name, e.id;
+
+-- name: AttendanceExportRecords :many
+SELECT a.employee_id, a.work_date, a.clock_in_at, a.clock_out_at, a.status, a.late_minutes, a.work_mode
+FROM attendances a
+JOIN employees e ON e.id = a.employee_id
+JOIN subdivisions s ON s.id = e.subdivision_id
+JOIN divisions d ON d.id = s.division_id
+WHERE a.work_date >= @from_date AND a.work_date < @to_date
+  AND (sqlc.arg(work_mode)::text = '' OR (a.work_mode = sqlc.arg(work_mode)::text AND a.clock_in_at IS NOT NULL))
+  AND e.deleted_at IS NULL
+  AND (@scope_all::boolean OR s.id = ANY(@scope_subdivision_ids::uuid[]) OR d.id = ANY(@scope_division_ids::uuid[]))
+  AND (sqlc.narg(division_id)::uuid IS NULL OR d.id = sqlc.narg(division_id))
+ORDER BY a.employee_id, a.work_date;
+
+-- name: AttendanceExportLeaves :many
+SELECT lr.employee_id, lr.start_date, lr.end_date, lt.code, lt.name, lt.quota_kind
+FROM leave_requests lr
+JOIN leave_types lt ON lt.id = lr.leave_type_id
+JOIN employees e ON e.id = lr.employee_id
+JOIN subdivisions s ON s.id = e.subdivision_id
+JOIN divisions d ON d.id = s.division_id
+WHERE lr.status = 'approved'
+  AND lr.start_date < @to_date AND lr.end_date >= @from_date
+  AND e.deleted_at IS NULL
+  AND (@scope_all::boolean OR s.id = ANY(@scope_subdivision_ids::uuid[]) OR d.id = ANY(@scope_division_ids::uuid[]))
+  AND (sqlc.narg(division_id)::uuid IS NULL OR d.id = sqlc.narg(division_id))
+ORDER BY lr.employee_id, lr.created_at DESC, lr.id;
+
+-- name: AttendanceExportHolidays :many
+SELECT date FROM holidays
+WHERE date >= @from_date AND date < @to_date
+ORDER BY date;
+
+-- name: AttendanceExportArrangements :many
+SELECT ewa.employee_id, ewa.mode, ewa.starts_on, ewa.ends_on, ewa.weekdays
+FROM employee_work_arrangements ewa
+JOIN employees e ON e.id = ewa.employee_id
+JOIN subdivisions s ON s.id = e.subdivision_id
+JOIN divisions d ON d.id = s.division_id
+WHERE ewa.starts_on < @to_date AND (ewa.ends_on IS NULL OR ewa.ends_on >= @from_date)
+  AND e.deleted_at IS NULL
+  AND (@scope_all::boolean OR s.id = ANY(@scope_subdivision_ids::uuid[]) OR d.id = ANY(@scope_division_ids::uuid[]))
+  AND (sqlc.narg(division_id)::uuid IS NULL OR d.id = sqlc.narg(division_id))
+ORDER BY ewa.employee_id, ewa.starts_on DESC, ewa.id;

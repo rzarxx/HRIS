@@ -1,10 +1,15 @@
 package report
 
 import (
+	"archive/zip"
+	"bytes"
+	"io"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/shopspring/decimal"
 
 	"github.com/rzarxx/HRIS/backend/internal/store"
@@ -63,5 +68,161 @@ func TestWibWallClock(t *testing.T) {
 	got := wibWallClock(time.Date(2026, 11, 2, 21, 30, 0, 0, time.UTC)) // 04.30 WIB tanggal 3
 	if want := time.Date(2026, 11, 3, 4, 30, 0, 0, time.UTC); !got.Valid || !got.Time.Equal(want) {
 		t.Fatalf("jam dinding WIB = %v", got.Time)
+	}
+}
+
+func TestCutoffPeriod(t *testing.T) {
+	from, to := CutoffPeriod(2026, time.November)
+	if !from.Equal(time.Date(2026, 10, 26, 0, 0, 0, 0, time.UTC)) {
+		t.Fatalf("from = %v, want 2026-10-26", from)
+	}
+	if !to.Equal(time.Date(2026, 11, 26, 0, 0, 0, 0, time.UTC)) {
+		t.Fatalf("to = %v, want 2026-11-26 (exclusive)", to)
+	}
+}
+
+func TestBuildAttendanceXLSX(t *testing.T) {
+	emp1 := uuid.New()
+	emp2 := uuid.New()
+	div1 := uuid.New()
+
+	dOct26 := pgtype.Date{Time: time.Date(2026, 10, 26, 0, 0, 0, 0, time.UTC), Valid: true}
+	dOct27 := pgtype.Date{Time: time.Date(2026, 10, 27, 0, 0, 0, 0, time.UTC), Valid: true}
+	dOct28 := pgtype.Date{Time: time.Date(2026, 10, 28, 0, 0, 0, 0, time.UTC), Valid: true}
+	dNov02 := pgtype.Date{Time: time.Date(2026, 11, 2, 0, 0, 0, 0, time.UTC), Valid: true}
+
+	xlsxBytes, err := BuildAttendanceXLSX(ExportData{
+		Year:  2026,
+		Month: time.November,
+		Employees: []store.AttendanceExportEmployeesRow{
+			{
+				EmployeeID: emp1,
+				Nip:        "P001",
+				FullName:   "Muhammad Ramdan",
+				DivisionID: div1,
+				Division:   "SDM Dan Kepejuangan",
+				WorkDays:   []int16{1, 2, 3, 4, 5, 6},
+			},
+			{
+				EmployeeID: emp2,
+				Nip:        "P002",
+				FullName:   "Hilman",
+				DivisionID: div1,
+				Division:   "SDM Dan Kepejuangan",
+				JoinDate:   dOct27, // 26 Okt -> "T"
+				WorkDays:   []int16{1, 2, 3, 4, 5, 6},
+			},
+		},
+		Records: []store.AttendanceExportRecordsRow{
+			{
+				EmployeeID: emp1,
+				WorkDate:   dOct26,
+				ClockInAt:  pgtype.Timestamptz{Time: time.Date(2026, 10, 26, 0, 28, 0, 0, time.UTC), Valid: true}, // 07:28 WIB
+				ClockOutAt: pgtype.Timestamptz{Time: time.Date(2026, 10, 26, 9, 44, 0, 0, time.UTC), Valid: true}, // 16:44 WIB
+				Status:     store.AttStatusPresent,
+				WorkMode:   "onsite",
+			},
+			{
+				EmployeeID:  emp1,
+				WorkDate:    dOct27,
+				ClockInAt:   pgtype.Timestamptz{Time: time.Date(2026, 10, 27, 0, 45, 0, 0, time.UTC), Valid: true}, // 07:45 WIB (late)
+				Status:      store.AttStatusLate,
+				LateMinutes: 15,
+				WorkMode:    "onsite",
+			},
+			{
+				EmployeeID: emp2,
+				WorkDate:   dOct28,
+				Status:     store.AttStatusAbsent,
+			},
+		},
+		Leaves: []store.AttendanceExportLeavesRow{
+			{
+				EmployeeID: emp1,
+				StartDate:  dNov02,
+				EndDate:    dNov02,
+				Code:       "SAKIT",
+				Name:       "Sakit",
+				QuotaKind:  store.LeaveQuotaKindNone,
+			},
+		},
+	})
+	if err != nil {
+		t.Fatalf("BuildAttendanceXLSX gagal: %v", err)
+	}
+
+	zr, err := zip.NewReader(bytes.NewReader(xlsxBytes), int64(len(xlsxBytes)))
+	if err != nil {
+		t.Fatalf("buka zip xlsx: %v", err)
+	}
+	files := map[string]string{}
+	for _, f := range zr.File {
+		rc, err := f.Open()
+		if err != nil {
+			t.Fatal(err)
+		}
+		raw, err := io.ReadAll(rc)
+		_ = rc.Close()
+		if err != nil {
+			t.Fatal(err)
+		}
+		files[f.Name] = string(raw)
+	}
+
+	wb := files["xl/workbook.xml"]
+	if !strings.Contains(wb, `name="Fingerprint"`) || !strings.Contains(wb, `name="Manual"`) {
+		t.Fatalf("workbook harus punya sheet Fingerprint dan Manual: %s", wb)
+	}
+
+	sst := files["xl/sharedStrings.xml"]
+	for _, want := range []string{
+		"PERIODE OKTOBER-NOVEMBER 2026",
+		"Nama Pejuang",
+		"Masuk",
+		"Pulang",
+		"Periode (Oktober-November)",
+		"Jumlah HK",
+		"Keterangan",
+		"Persentase",
+		"SEKRETARIS WAKIL KETUA UMUM",
+		"SDM DAN KEPEJUANGAN",
+		"Muhammad Ramdan",
+		"Hilman",
+	} {
+		if !strings.Contains(sst, want) {
+			t.Errorf("sharedStrings kehilangan %q", want)
+		}
+	}
+
+	s1 := files["xl/worksheets/sheet1.xml"]
+	for _, merge := range []string{
+		`<mergeCell ref="A1:BM2"/>`,
+		`<mergeCell ref="A3:A6"/>`,
+		`<mergeCell ref="B3:B6"/>`,
+		`<mergeCell ref="C3:C6"/>`,
+		`<mergeCell ref="D3:O3"/>`,
+		`<mergeCell ref="P3:BM3"/>`,
+		`<mergeCell ref="B7:B8"/>`,
+	} {
+		if !strings.Contains(s1, merge) {
+			t.Errorf("sheet1 kehilangan merge %s", merge)
+		}
+	}
+
+	s2 := files["xl/worksheets/sheet2.xml"]
+	for _, want := range []string{
+		`<mergeCell ref="D3:AH3"/>`,
+		`<mergeCell ref="AI3:AI4"/>`,
+		`<mergeCell ref="AJ3:AO3"/>`,
+		`<mergeCell ref="AP3:AP4"/>`,
+		`<mergeCell ref="B5:AI6"/>`,
+		`<mergeCell ref="B7:AH7"/>`,
+		`SUM(AJ8:AO8)`,
+		`COUNTIF(D8:AH8,"H")`,
+		`IF(AI8=0,0,AJ8/AI8)`,
+	} {
+		if !strings.Contains(s2, want) {
+			t.Errorf("sheet2 kehilangan %s", want)
+		}
 	}
 }

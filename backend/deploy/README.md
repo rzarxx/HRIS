@@ -264,5 +264,7 @@ akun Pejuang biasa yang sudah dibuat SDM:
 cd /opt/hris && runuser -u hris -- ./hris-superadmin grant --email orang@contoh.id
 ```
 
-Bila akun belum aktif, tautan aktivasi tampil di terminal. Untuk mencabut, pakai `revoke`. Bila
-super admin lupa kata sandi, pakai `reset`, karena SDM tidak bisa mereset akun super admin.
+`--email` juga menerima NIPY atau nomor WA. Bila akun lama belum pernah aktif, kata sandi awal tampil di
+terminal dan wajib diganti saat login pertama. Kata sandi hanya ditulis ke terminal interaktif (`/dev/tty`), tidak ke
+keluaran biasa, jadi tidak ikut tersimpan bila keluaran dialihkan ke berkas log; tanpa terminal, perintah menolak berjalan. Untuk mencabut, pakai `revoke`. Bila super admin lupa
+kata sandi, pakai `reset`: akun kembali ke kata sandi awal, karena SDM tidak bisa mereset akun super admin.

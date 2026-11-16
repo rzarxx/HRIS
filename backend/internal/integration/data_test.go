@@ -81,7 +81,7 @@ func TestEmployeeCRUD(t *testing.T) {
 	sdm := loginSDM(t, srv)
 
 	if f := sdm.do(http.MethodPost, "/v1/admin/employees", map[string]any{"full_name": "Al"}).
-		wantError(t, http.StatusBadRequest, "VALIDATION_FAILED").fields(); f["full_name"] == nil || f["email"] == nil || f["subdivision_id"] == nil || f["base_salary"] == nil {
+		wantError(t, http.StatusBadRequest, "VALIDATION_FAILED").fields(); f["full_name"] == nil || f["subdivision_id"] == nil || f["base_salary"] == nil {
 		t.Errorf("pesan per field: %v", f)
 	}
 	sdm.do(http.MethodPost, "/v1/admin/employees", map[string]any{"full_name": "Budi", "field_ngawur": 1}).want(t, http.StatusBadRequest)
@@ -199,16 +199,17 @@ func TestEmployeeListFilters(t *testing.T) {
 func TestOrganizationCRUD(t *testing.T) {
 	srv := fresh(t, options{})
 	sdm := loginSDM(t, srv)
+	branch := branchID(t, "PUSAT")
 
 	division := data[struct {
 		ID   string `json:"id"`
 		Code string `json:"code"`
-	}](t, sdm.do(http.MethodPost, "/v1/admin/divisions", map[string]any{"code": "hkm", "name": "Hukum"}).want(t, http.StatusCreated))
+	}](t, sdm.do(http.MethodPost, "/v1/admin/divisions", map[string]any{"branch_id": branch, "code": "hkm", "name": "Hukum"}).want(t, http.StatusCreated))
 	if division.Code != "HKM" {
 		t.Errorf("kode harus huruf besar: %s", division.Code)
 	}
-	sdm.do(http.MethodPost, "/v1/admin/divisions", map[string]any{"code": "HKM", "name": "Hukum Lain"}).wantError(t, http.StatusConflict, "CONFLICT_DUPLICATE")
-	sdm.do(http.MethodPost, "/v1/admin/divisions", map[string]any{"code": "A B", "name": ""}).wantError(t, http.StatusBadRequest, "VALIDATION_FAILED")
+	sdm.do(http.MethodPost, "/v1/admin/divisions", map[string]any{"branch_id": branch, "code": "HKM", "name": "Hukum Lain"}).wantError(t, http.StatusConflict, "CONFLICT_DUPLICATE")
+	sdm.do(http.MethodPost, "/v1/admin/divisions", map[string]any{"branch_id": branch, "code": "A B", "name": ""}).wantError(t, http.StatusBadRequest, "VALIDATION_FAILED")
 
 	patched := data[struct {
 		Code string `json:"code"`
@@ -242,7 +243,7 @@ func TestOrganizationCRUD(t *testing.T) {
 
 	empty := data[struct {
 		ID string `json:"id"`
-	}](t, sdm.do(http.MethodPost, "/v1/admin/divisions", map[string]any{"code": "TMP", "name": "Sementara"}).want(t, http.StatusCreated))
+	}](t, sdm.do(http.MethodPost, "/v1/admin/divisions", map[string]any{"branch_id": branch, "code": "TMP", "name": "Sementara"}).want(t, http.StatusCreated))
 	sdm.do(http.MethodDelete, "/v1/admin/divisions/"+empty.ID, nil).want(t, http.StatusNoContent)
 	sdm.do(http.MethodDelete, "/v1/admin/divisions/"+empty.ID, nil).wantError(t, http.StatusNotFound, "NOT_FOUND")
 }

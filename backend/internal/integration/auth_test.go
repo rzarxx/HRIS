@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
-	"sync"
 	"testing"
 	"time"
 
@@ -193,18 +192,26 @@ func TestRefreshRejections(t *testing.T) {
 }
 
 type createdEmployee struct {
-	ID         string `json:"id"`
-	Nip        string `json:"nip"`
-	Activation struct {
-		Token     string `json:"token"`
-		ExpiresAt string `json:"expires_at"`
-	} `json:"activation"`
-	Account struct {
+	ID              string `json:"id"`
+	Nip             string `json:"nip"`
+	FullName        string `json:"full_name"`
+	InitialPassword string `json:"initial_password"`
+	ExpiresAt       string `json:"expires_at"`
+	Account         struct {
 		UserID   string `json:"user_id"`
 		Role     string `json:"role"`
 		IsActive bool   `json:"is_active"`
 	} `json:"account"`
 	BaseSalary string `json:"base_salary"`
+}
+
+func branchID(t *testing.T, code string) string {
+	t.Helper()
+	var id string
+	if err := ownerPool.QueryRow(context.Background(), `SELECT id::text FROM branches WHERE code = $1`, code).Scan(&id); err != nil {
+		t.Fatal(err)
+	}
+	return id
 }
 
 func subdivisionID(t *testing.T, code string) string {
@@ -226,122 +233,135 @@ func createEmployee(t *testing.T, sdm *client, email string) createdEmployee {
 	}).want(t, http.StatusCreated))
 }
 
-func TestActivationFlow(t *testing.T) {
+// changePassword mengganti kata sandi awal, syarat sebelum fitur lain bisa dipakai.
+func changePassword(t *testing.T, c *client, current, next string) {
+	t.Helper()
+	c.do(http.MethodPost, "/v1/auth/password/change", map[string]any{"current_password": current, "new_password": next}).want(t, http.StatusNoContent)
+}
+
+// D53: akun baru langsung aktif dengan kata sandi awal @NamaDepan+tahun yang wajib diganti.
+func TestInitialPasswordFlow(t *testing.T) {
 	srv := fresh(t, options{})
 	sdm := loginSDM(t, srv)
 	const email = "rudi.hartono.baru@pejuang.id"
 	created := createEmployee(t, sdm, email)
-	if created.Activation.Token == "" || created.Nip == "" {
-		t.Fatalf("respons pembuatan: %+v", created)
+	want := auth.InitialPassword("Rudi Hartono", time.Now())
+	if created.InitialPassword != want || created.Nip == "" {
+		t.Fatalf("respons pembuatan: %+v, mau kata sandi %s", created, want)
 	}
-	if created.Account.IsActive || created.Account.Role != "pejuang" {
-		t.Errorf("akun baru harus pejuang dan belum aktif: %+v", created.Account)
+	if !created.Account.IsActive || created.Account.Role != "pejuang" {
+		t.Errorf("akun baru harus pejuang dan aktif: %+v", created.Account)
 	}
-
-	// Token tidak tersimpan apa adanya di database.
 	var stored string
-	if err := ownerPool.QueryRow(context.Background(), `SELECT token_hash FROM user_invites`).Scan(&stored); err != nil {
+	if err := ownerPool.QueryRow(context.Background(), `SELECT password_hash FROM users WHERE id = $1`, created.Account.UserID).Scan(&stored); err != nil {
 		t.Fatal(err)
 	}
-	if strings.Contains(stored, created.Activation.Token) {
-		t.Error("token undangan tersimpan apa adanya")
+	if strings.Contains(stored, created.InitialPassword) {
+		t.Error("kata sandi awal tersimpan apa adanya")
 	}
 
-	anon := newClient(t, srv)
-	// Belum aktivasi: tidak bisa masuk walau menebak apa pun.
-	anon.do(http.MethodPost, "/v1/auth/web/login", map[string]any{"email": email, "password": newPassword}).
-		wantError(t, http.StatusUnauthorized, "AUTH_INVALID_CREDENTIALS")
-
-	activate := func(token, password string) response {
-		return anon.do(http.MethodPost, "/v1/auth/activate", map[string]any{"token": token, "password": password})
+	// Masuk dengan NIPY; fitur lain tertutup sampai kata sandi diganti.
+	c := newClient(t, srv)
+	c.do(http.MethodPost, "/v1/auth/web/login", map[string]any{"identifier": created.Nip, "password": created.InitialPassword}).want(t, http.StatusOK)
+	me := data[struct {
+		Role               string `json:"role"`
+		MustChangePassword bool   `json:"must_change_password"`
+	}](t, c.do(http.MethodGet, "/v1/me", nil).want(t, http.StatusOK))
+	if me.Role != "pejuang" || !me.MustChangePassword {
+		t.Errorf("me = %+v", me)
 	}
-	if f := activate(created.Activation.Token, "pendek").want(t, http.StatusBadRequest).fields(); f["password"] == nil {
+	c.do(http.MethodGet, "/v1/announcements/active", nil).wantError(t, http.StatusForbidden, "PASSWORD_CHANGE_REQUIRED")
+	if f := c.do(http.MethodPost, "/v1/auth/password/change", map[string]any{"current_password": created.InitialPassword, "new_password": "pendek"}).
+		want(t, http.StatusBadRequest).fields(); f["new_password"] == nil {
 		t.Errorf("sandi pendek: %v", f)
 	}
-	activate(created.Activation.Token, "pejuang123").want(t, http.StatusBadRequest)
-	// Sandi sama dengan email ditolak di dalam transaksi; undangan harus tetap bisa dipakai.
-	activate(created.Activation.Token, email).want(t, http.StatusBadRequest)
-	activate("token-ngawur", newPassword).wantError(t, http.StatusUnprocessableEntity, "ACTIVATION_INVALID")
+	changePassword(t, c, created.InitialPassword, newPassword)
 
-	activate(created.Activation.Token, newPassword).want(t, http.StatusNoContent)
-	// Sekali pakai, dan sandi dari pemakaian pertama tetap berlaku.
-	activate(created.Activation.Token, "sandi-lain-yang-kuat-9").wantError(t, http.StatusUnprocessableEntity, "ACTIVATION_USED")
-	anon.do(http.MethodPost, "/v1/auth/web/login", map[string]any{"email": email, "password": "sandi-lain-yang-kuat-9"}).
+	// Kata sandi awal tidak berlaku lagi; sandi baru berlaku lewat email.
+	newClient(t, srv).do(http.MethodPost, "/v1/auth/web/login", map[string]any{"identifier": created.Nip, "password": created.InitialPassword}).
 		wantError(t, http.StatusUnauthorized, "AUTH_INVALID_CREDENTIALS")
-
-	c := login(t, srv, email, newPassword)
-	me := data[struct {
-		Role string `json:"role"`
-	}](t, c.do(http.MethodGet, "/v1/me", nil).want(t, http.StatusOK))
-	if me.Role != "pejuang" {
-		t.Errorf("role = %s", me.Role)
-	}
+	login(t, srv, email, newPassword).do(http.MethodGet, "/v1/announcements/active", nil).want(t, http.StatusOK)
 	if countAudit(t, "employee.created") != 1 || countAudit(t, "user.created") != 1 || countAudit(t, "auth.password_changed") != 1 {
-		t.Error("pembuatan akun dan aktivasi harus tercatat")
+		t.Error("pembuatan akun dan ganti kata sandi harus tercatat")
+	}
+
+	// Akun lama yang belum pernah aktivasi (sebelum D53) aktif setelah SDM mereset kata sandinya.
+	if _, err := ownerPool.Exec(context.Background(), `UPDATE users SET is_active = false WHERE id = $1`, created.Account.UserID); err != nil {
+		t.Fatal(err)
+	}
+	reset := data[auth.InitialCredential](t, sdm.do(http.MethodPost, "/v1/admin/users/"+created.Account.UserID+"/reset-password", nil).want(t, http.StatusOK))
+	if reset.InitialPassword != want {
+		t.Errorf("reset = %q, mau %q", reset.InitialPassword, want)
+	}
+	login(t, srv, created.Nip, reset.InitialPassword).do(http.MethodGet, "/v1/announcements/active", nil).wantError(t, http.StatusForbidden, "PASSWORD_CHANGE_REQUIRED")
+}
+
+// D53: kata sandi awal hanya berlaku 72 jam; lewat dari itu SDM harus mereset ulang.
+func TestInitialPasswordExpires(t *testing.T) {
+	srv := fresh(t, options{})
+	sdm := loginSDM(t, srv)
+	created := createEmployee(t, sdm, "kedaluwarsa@pejuang.id")
+	expires, err := time.Parse(time.RFC3339, created.ExpiresAt)
+	if err != nil {
+		t.Fatalf("expires_at = %q: %v", created.ExpiresAt, err)
+	}
+	if d := time.Until(expires); d < auth.InitialPasswordTTL-time.Minute || d > auth.InitialPasswordTTL {
+		t.Errorf("berlaku %v, mau sekitar %v", d, auth.InitialPasswordTTL)
+	}
+	exec(t, `UPDATE users SET initial_password_expires_at = now() - interval '1 minute' WHERE id = $1`, created.Account.UserID)
+
+	// Kata sandi salah tetap dijawab umum; kata sandi benar yang kedaluwarsa dijawab khusus.
+	newClient(t, srv).do(http.MethodPost, "/v1/auth/web/login", map[string]any{"identifier": created.Nip, "password": wrongPassword}).
+		wantError(t, http.StatusUnauthorized, "AUTH_INVALID_CREDENTIALS")
+	newClient(t, srv).do(http.MethodPost, "/v1/auth/web/login", map[string]any{"identifier": created.Nip, "password": created.InitialPassword}).
+		wantError(t, http.StatusUnauthorized, "AUTH_INITIAL_PASSWORD_EXPIRED")
+
+	// Reset menerbitkan kata sandi awal baru dengan batas baru.
+	reset := data[auth.InitialCredential](t, sdm.do(http.MethodPost, "/v1/admin/users/"+created.Account.UserID+"/reset-password", nil).want(t, http.StatusOK))
+	if reset.ExpiresAt == "" {
+		t.Fatal("reset tanpa expires_at")
+	}
+	c := login(t, srv, created.Nip, reset.InitialPassword)
+	changePassword(t, c, reset.InitialPassword, newPassword)
+
+	// Kata sandi pilihan sendiri tidak ikut kedaluwarsa.
+	var stillSet bool
+	if err := ownerPool.QueryRow(context.Background(), `SELECT initial_password_expires_at IS NOT NULL FROM users WHERE id = $1`, created.Account.UserID).Scan(&stillSet); err != nil {
+		t.Fatal(err)
+	}
+	if stillSet {
+		t.Error("batas kata sandi awal harus hilang setelah diganti")
 	}
 }
 
-func TestActivationExpired(t *testing.T) {
+// D53: login bisa memakai NIPY, email, atau nomor WA dalam bentuk apa pun.
+func TestLoginIdentifiers(t *testing.T) {
 	srv := fresh(t, options{})
-	created := createEmployee(t, loginSDM(t, srv), "kedaluwarsa@pejuang.id")
-	exec(t, `UPDATE user_invites SET expires_at = now() - interval '1 second'`)
-	newClient(t, srv).do(http.MethodPost, "/v1/auth/activate", map[string]any{"token": created.Activation.Token, "password": newPassword}).
-		wantError(t, http.StatusUnprocessableEntity, "ACTIVATION_EXPIRED")
-}
-
-// Halaman aktivasi memeriksa tautan lebih dulu, dan pemeriksaan tidak boleh memakai tautannya.
-func TestActivationCheck(t *testing.T) {
-	srv := fresh(t, options{})
-	created := createEmployee(t, loginSDM(t, srv), "periksa.tautan@pejuang.id")
-	anon := newClient(t, srv)
-	check := func(token string) response {
-		return anon.do(http.MethodPost, "/v1/auth/activate/check", map[string]any{"token": token})
+	sdm := loginSDM(t, srv)
+	created := data[createdEmployee](t, sdm.do(http.MethodPost, "/v1/admin/employees", map[string]any{
+		"full_name":      "Siti Aminah",
+		"nip":            "2026.01.777",
+		"phone":          "0812-3456-7777",
+		"subdivision_id": subdivisionID(t, "OPS-LAP"),
+		"base_salary":    "3000000.00",
+	}).want(t, http.StatusCreated))
+	if created.InitialPassword == "" {
+		t.Fatal("kata sandi awal kosong")
 	}
-
-	check("").wantError(t, http.StatusUnprocessableEntity, "ACTIVATION_INVALID")
-	check("token-ngawur").wantError(t, http.StatusUnprocessableEntity, "ACTIVATION_INVALID")
-
-	for range 2 {
-		got := data[struct {
-			ExpiresAt string `json:"expires_at"`
-		}](t, check(created.Activation.Token).want(t, http.StatusOK))
-		if got.ExpiresAt != created.Activation.ExpiresAt {
-			t.Errorf("expires_at = %s, mau %s", got.ExpiresAt, created.Activation.ExpiresAt)
-		}
+	for _, id := range []string{"2026.01.777", "2026.01.777 ", "081234567777", "+62 812 3456 7777", "6281234567777"} {
+		newClient(t, srv).do(http.MethodPost, "/v1/auth/web/login", map[string]any{"identifier": id, "password": created.InitialPassword}).want(t, http.StatusOK)
 	}
+	// Field email lama tetap diterima (aplikasi versi lama).
+	newClient(t, srv).do(http.MethodPost, "/v1/auth/web/login", map[string]any{"email": "2026.01.777", "password": created.InitialPassword}).want(t, http.StatusOK)
+	newClient(t, srv).do(http.MethodPost, "/v1/auth/web/login", map[string]any{"identifier": "089999999999", "password": created.InitialPassword}).
+		wantError(t, http.StatusUnauthorized, "AUTH_INVALID_CREDENTIALS")
+	newClient(t, srv).do(http.MethodPost, "/v1/auth/web/login", map[string]any{"identifier": "", "password": "x"}).want(t, http.StatusBadRequest)
 
-	anon.do(http.MethodPost, "/v1/auth/activate", map[string]any{"token": created.Activation.Token, "password": newPassword}).
-		want(t, http.StatusNoContent)
-	check(created.Activation.Token).wantError(t, http.StatusUnprocessableEntity, "ACTIVATION_USED")
-
-	expiring := createEmployee(t, loginSDM(t, srv), "tautan.lewat@pejuang.id")
-	exec(t, `UPDATE user_invites SET expires_at = now() - interval '1 second' WHERE used_at IS NULL`)
-	check(expiring.Activation.Token).wantError(t, http.StatusUnprocessableEntity, "ACTIVATION_EXPIRED")
-}
-
-// Dua permintaan bersamaan dengan token sama: hanya satu yang boleh berhasil.
-func TestActivationConcurrent(t *testing.T) {
-	srv := fresh(t, options{})
-	created := createEmployee(t, loginSDM(t, srv), "bersamaan@pejuang.id")
-	var wg sync.WaitGroup
-	statuses := make([]int, 4)
-	for i := range statuses {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			c := newClient(t, srv)
-			statuses[i] = c.do(http.MethodPost, "/v1/auth/activate", map[string]any{"token": created.Activation.Token, "password": newPassword}).status
-		}()
-	}
-	wg.Wait()
-	success := 0
-	for _, status := range statuses {
-		if status == http.StatusNoContent {
-			success++
-		}
-	}
-	if success != 1 {
-		t.Errorf("berhasil %d kali: %v", success, statuses)
+	// Nomor WA unik dan disimpan dalam bentuk baku.
+	if f := sdm.do(http.MethodPost, "/v1/admin/employees", map[string]any{
+		"full_name": "Pemakai Nomor Sama", "phone": "+6281234567777", "subdivision_id": subdivisionID(t, "OPS-LAP"), "base_salary": "1.00",
+	}).wantError(t, http.StatusConflict, "CONFLICT_DUPLICATE").fields(); f["phone"] == nil {
+		t.Errorf("duplikat WA: %v", f)
 	}
 }
 

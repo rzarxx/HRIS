@@ -524,6 +524,13 @@ type AuditLog struct {
 	CreatedAt pgtype.Timestamptz
 }
 
+type Branch struct {
+	ID        uuid.UUID
+	Code      string
+	Name      string
+	CreatedAt pgtype.Timestamptz
+}
+
 type Consent struct {
 	ID         uuid.UUID
 	EmployeeID uuid.UUID
@@ -562,6 +569,7 @@ type Division struct {
 	Name           string
 	CreatedAt      pgtype.Timestamptz
 	HeadEmployeeID uuid.NullUUID
+	BranchID       uuid.UUID
 }
 
 type Employee struct {
@@ -580,6 +588,24 @@ type Employee struct {
 	CreatedAt      pgtype.Timestamptz
 	UpdatedAt      pgtype.Timestamptz
 	DeletedAt      pgtype.Timestamptz
+	Gender         pgtype.Text
+	MaritalStatus  pgtype.Text
+	HasChildren    pgtype.Bool
+	ChildrenCount  pgtype.Int2
+}
+
+type EmployeeChild struct {
+	ID         uuid.UUID
+	EmployeeID uuid.UUID
+	ChildOrder int16
+	FullName   string
+	Gender     pgtype.Text
+	BirthPlace pgtype.Text
+	BirthDate  pgtype.Date
+	Relation   pgtype.Text
+	Education  pgtype.Text
+	SchoolName pgtype.Text
+	UpdatedAt  pgtype.Timestamptz
 }
 
 type EmployeeLocation struct {
@@ -713,18 +739,19 @@ type Subdivision struct {
 }
 
 type User struct {
-	ID                 uuid.UUID
-	EmployeeID         uuid.UUID
-	Email              string
-	PasswordHash       string
-	Role               UserRole
-	IsActive           bool
-	FailedLoginCount   int32
-	LockedUntil        pgtype.Timestamptz
-	MustChangePassword bool
-	PasswordChangedAt  pgtype.Timestamptz
-	LastLoginAt        pgtype.Timestamptz
-	CreatedAt          pgtype.Timestamptz
+	ID                       uuid.UUID
+	EmployeeID               uuid.UUID
+	Email                    pgtype.Text
+	PasswordHash             string
+	Role                     UserRole
+	IsActive                 bool
+	FailedLoginCount         int32
+	LockedUntil              pgtype.Timestamptz
+	MustChangePassword       bool
+	PasswordChangedAt        pgtype.Timestamptz
+	LastLoginAt              pgtype.Timestamptz
+	CreatedAt                pgtype.Timestamptz
+	InitialPasswordExpiresAt pgtype.Timestamptz
 }
 
 type UserInvite struct {

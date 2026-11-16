@@ -43,7 +43,10 @@ set_key "$ENV_FILE" APP_ENV production
 set_key "$ENV_FILE" MFA_REQUIRED true
 set_key "$ENV_FILE" COOKIE_SECURE true
 set_key "$ENV_FILE" COOKIE_DOMAIN "${COOKIE_DOMAIN:-albahjah.or.id}"
-set_key "$ENV_FILE" WEB_ORIGIN "${WEB_ORIGIN:-https://hris.albahjah.or.id}"
+WEB_ORIGIN="${WEB_ORIGIN:-https://hris.albahjah.or.id}"
+set_key "$ENV_FILE" WEB_ORIGIN "$WEB_ORIGIN"
+# API membaca CORS_ALLOWED_ORIGINS (bukan WEB_ORIGIN) untuk CORS dan penolakan akses langsung (D37).
+set_key "$ENV_FILE" CORS_ALLOWED_ORIGINS "$WEB_ORIGIN"
 set_key "$ENV_FILE" DEV_ALLOW_UNVERIFIED_ATTENDANCE false
 set_key "$ENV_FILE" DEV_SIMULATE_ATTENDANCE false
 chown hris:hris "$ENV_FILE"

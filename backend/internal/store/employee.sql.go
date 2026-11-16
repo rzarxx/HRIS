@@ -24,10 +24,12 @@ WHERE e.deleted_at IS NULL
        OR e.full_name ILIKE '%' || $4 || '%'
        OR e.nip ILIKE '%' || $4 || '%'
        OR e.email ILIKE '%' || $4 || '%'
+       OR e.phone ILIKE '%' || $4 || '%'
        OR e.position ILIKE '%' || $4 || '%')
-  AND ($5::uuid IS NULL OR d.id = $5)
-  AND ($6::uuid IS NULL OR s.id = $6)
-  AND ($7::text IS NULL OR e.status = $7)
+  AND ($5::uuid IS NULL OR d.branch_id = $5)
+  AND ($6::uuid IS NULL OR d.id = $6)
+  AND ($7::uuid IS NULL OR s.id = $7)
+  AND ($8::text IS NULL OR e.status = $8)
 `
 
 type CountEmployeesParams struct {
@@ -35,6 +37,7 @@ type CountEmployeesParams struct {
 	ScopeSubdivisionIds []uuid.UUID
 	ScopeDivisionIds    []uuid.UUID
 	Q                   pgtype.Text
+	BranchID            uuid.NullUUID
 	DivisionID          uuid.NullUUID
 	SubdivisionID       uuid.NullUUID
 	Status              pgtype.Text
@@ -46,6 +49,7 @@ func (q *Queries) CountEmployees(ctx context.Context, arg CountEmployeesParams) 
 		arg.ScopeSubdivisionIds,
 		arg.ScopeDivisionIds,
 		arg.Q,
+		arg.BranchID,
 		arg.DivisionID,
 		arg.SubdivisionID,
 		arg.Status,
@@ -56,8 +60,9 @@ func (q *Queries) CountEmployees(ctx context.Context, arg CountEmployeesParams) 
 }
 
 const createEmployee = `-- name: CreateEmployee :one
-INSERT INTO employees (nip, full_name, email, phone, subdivision_id, position, join_date, base_salary, status, default_shift_id)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+INSERT INTO employees (nip, full_name, email, phone, subdivision_id, position, join_date, base_salary, status, default_shift_id,
+                       gender, marital_status, has_children, children_count)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
 RETURNING id
 `
 
@@ -72,6 +77,10 @@ type CreateEmployeeParams struct {
 	BaseSalary     decimal.Decimal
 	Status         string
 	DefaultShiftID uuid.NullUUID
+	Gender         pgtype.Text
+	MaritalStatus  pgtype.Text
+	HasChildren    pgtype.Bool
+	ChildrenCount  pgtype.Int2
 }
 
 func (q *Queries) CreateEmployee(ctx context.Context, arg CreateEmployeeParams) (uuid.UUID, error) {
@@ -86,6 +95,10 @@ func (q *Queries) CreateEmployee(ctx context.Context, arg CreateEmployeeParams) 
 		arg.BaseSalary,
 		arg.Status,
 		arg.DefaultShiftID,
+		arg.Gender,
+		arg.MaritalStatus,
+		arg.HasChildren,
+		arg.ChildrenCount,
 	)
 	var id uuid.UUID
 	err := row.Scan(&id)
@@ -110,6 +123,15 @@ func (q *Queries) DeactivateEmployee(ctx context.Context, arg DeactivateEmployee
 	return result.RowsAffected(), nil
 }
 
+const deleteEmployeeChildren = `-- name: DeleteEmployeeChildren :exec
+DELETE FROM employee_children WHERE employee_id = $1
+`
+
+func (q *Queries) DeleteEmployeeChildren(ctx context.Context, employeeID uuid.UUID) error {
+	_, err := q.db.Exec(ctx, deleteEmployeeChildren, employeeID)
+	return err
+}
+
 const getEmployeeBaseSalary = `-- name: GetEmployeeBaseSalary :one
 SELECT base_salary FROM employees WHERE id = $1
 `
@@ -122,11 +144,13 @@ func (q *Queries) GetEmployeeBaseSalary(ctx context.Context, id uuid.UUID) (deci
 }
 
 const getEmployeeScoped = `-- name: GetEmployeeScoped :one
-SELECT e.id, e.nip, e.full_name, e.email, e.phone, e.subdivision_id, e.position, e.join_date, e.exit_date, e.base_salary, e.default_shift_id, e.status, e.created_at, e.updated_at, e.deleted_at, s.name AS subdivision_name, s.division_id, d.name AS division_name, sh.name AS default_shift_name,
+SELECT e.id, e.nip, e.full_name, e.email, e.phone, e.subdivision_id, e.position, e.join_date, e.exit_date, e.base_salary, e.default_shift_id, e.status, e.created_at, e.updated_at, e.deleted_at, e.gender, e.marital_status, e.has_children, e.children_count, s.name AS subdivision_name, s.division_id, d.name AS division_name, d.branch_id, b.name AS branch_name,
+       sh.name AS default_shift_name,
        EXISTS (SELECT 1 FROM face_templates f WHERE f.employee_id = e.id AND f.is_active) AS face_enrolled
 FROM employees e
 JOIN subdivisions s ON s.id = e.subdivision_id
 JOIN divisions d ON d.id = s.division_id
+JOIN branches b ON b.id = d.branch_id
 LEFT JOIN shifts sh ON sh.id = e.default_shift_id
 WHERE e.id = $1 AND e.deleted_at IS NULL
   AND ($2::boolean OR s.id = ANY($3::uuid[]) OR d.id = ANY($4::uuid[]))
@@ -155,9 +179,15 @@ type GetEmployeeScopedRow struct {
 	CreatedAt        pgtype.Timestamptz
 	UpdatedAt        pgtype.Timestamptz
 	DeletedAt        pgtype.Timestamptz
+	Gender           pgtype.Text
+	MaritalStatus    pgtype.Text
+	HasChildren      pgtype.Bool
+	ChildrenCount    pgtype.Int2
 	SubdivisionName  string
 	DivisionID       uuid.UUID
 	DivisionName     string
+	BranchID         uuid.UUID
+	BranchName       string
 	DefaultShiftName pgtype.Text
 	FaceEnrolled     bool
 }
@@ -186,22 +216,99 @@ func (q *Queries) GetEmployeeScoped(ctx context.Context, arg GetEmployeeScopedPa
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.DeletedAt,
+		&i.Gender,
+		&i.MaritalStatus,
+		&i.HasChildren,
+		&i.ChildrenCount,
 		&i.SubdivisionName,
 		&i.DivisionID,
 		&i.DivisionName,
+		&i.BranchID,
+		&i.BranchName,
 		&i.DefaultShiftName,
 		&i.FaceEnrolled,
 	)
 	return i, err
 }
 
+const insertEmployeeChild = `-- name: InsertEmployeeChild :exec
+INSERT INTO employee_children (employee_id, child_order, full_name, gender, birth_place, birth_date, relation, education, school_name)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+`
+
+type InsertEmployeeChildParams struct {
+	EmployeeID uuid.UUID
+	ChildOrder int16
+	FullName   string
+	Gender     pgtype.Text
+	BirthPlace pgtype.Text
+	BirthDate  pgtype.Date
+	Relation   pgtype.Text
+	Education  pgtype.Text
+	SchoolName pgtype.Text
+}
+
+func (q *Queries) InsertEmployeeChild(ctx context.Context, arg InsertEmployeeChildParams) error {
+	_, err := q.db.Exec(ctx, insertEmployeeChild,
+		arg.EmployeeID,
+		arg.ChildOrder,
+		arg.FullName,
+		arg.Gender,
+		arg.BirthPlace,
+		arg.BirthDate,
+		arg.Relation,
+		arg.Education,
+		arg.SchoolName,
+	)
+	return err
+}
+
+const listEmployeeChildren = `-- name: ListEmployeeChildren :many
+SELECT id, employee_id, child_order, full_name, gender, birth_place, birth_date, relation, education, school_name, updated_at FROM employee_children WHERE employee_id = $1 ORDER BY child_order
+`
+
+// Data anak hanya untuk SDM, super admin, dan Pejuang sendiri (D53).
+func (q *Queries) ListEmployeeChildren(ctx context.Context, employeeID uuid.UUID) ([]EmployeeChild, error) {
+	rows, err := q.db.Query(ctx, listEmployeeChildren, employeeID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []EmployeeChild{}
+	for rows.Next() {
+		var i EmployeeChild
+		if err := rows.Scan(
+			&i.ID,
+			&i.EmployeeID,
+			&i.ChildOrder,
+			&i.FullName,
+			&i.Gender,
+			&i.BirthPlace,
+			&i.BirthDate,
+			&i.Relation,
+			&i.Education,
+			&i.SchoolName,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listEmployees = `-- name: ListEmployees :many
 
-SELECT e.id, e.nip, e.full_name, e.email, e.phone, e.subdivision_id, e.position, e.join_date, e.exit_date, e.base_salary, e.default_shift_id, e.status, e.created_at, e.updated_at, e.deleted_at, s.name AS subdivision_name, s.division_id, d.name AS division_name, sh.name AS default_shift_name,
+SELECT e.id, e.nip, e.full_name, e.email, e.phone, e.subdivision_id, e.position, e.join_date, e.exit_date, e.base_salary, e.default_shift_id, e.status, e.created_at, e.updated_at, e.deleted_at, e.gender, e.marital_status, e.has_children, e.children_count, s.name AS subdivision_name, s.division_id, d.name AS division_name, d.branch_id, b.name AS branch_name,
+       sh.name AS default_shift_name,
        EXISTS (SELECT 1 FROM face_templates f WHERE f.employee_id = e.id AND f.is_active) AS face_enrolled
 FROM employees e
 JOIN subdivisions s ON s.id = e.subdivision_id
 JOIN divisions d ON d.id = s.division_id
+JOIN branches b ON b.id = d.branch_id
 LEFT JOIN shifts sh ON sh.id = e.default_shift_id
 WHERE e.deleted_at IS NULL
   AND ($1::boolean OR s.id = ANY($2::uuid[]) OR d.id = ANY($3::uuid[]))
@@ -209,12 +316,14 @@ WHERE e.deleted_at IS NULL
        OR e.full_name ILIKE '%' || $4 || '%'
        OR e.nip ILIKE '%' || $4 || '%'
        OR e.email ILIKE '%' || $4 || '%'
+       OR e.phone ILIKE '%' || $4 || '%'
        OR e.position ILIKE '%' || $4 || '%')
-  AND ($5::uuid IS NULL OR d.id = $5)
-  AND ($6::uuid IS NULL OR s.id = $6)
-  AND ($7::text IS NULL OR e.status = $7)
+  AND ($5::uuid IS NULL OR d.branch_id = $5)
+  AND ($6::uuid IS NULL OR d.id = $6)
+  AND ($7::uuid IS NULL OR s.id = $7)
+  AND ($8::text IS NULL OR e.status = $8)
 ORDER BY e.full_name, e.id
-LIMIT $9 OFFSET $8
+LIMIT $10 OFFSET $9
 `
 
 type ListEmployeesParams struct {
@@ -222,6 +331,7 @@ type ListEmployeesParams struct {
 	ScopeSubdivisionIds []uuid.UUID
 	ScopeDivisionIds    []uuid.UUID
 	Q                   pgtype.Text
+	BranchID            uuid.NullUUID
 	DivisionID          uuid.NullUUID
 	SubdivisionID       uuid.NullUUID
 	Status              pgtype.Text
@@ -245,9 +355,15 @@ type ListEmployeesRow struct {
 	CreatedAt        pgtype.Timestamptz
 	UpdatedAt        pgtype.Timestamptz
 	DeletedAt        pgtype.Timestamptz
+	Gender           pgtype.Text
+	MaritalStatus    pgtype.Text
+	HasChildren      pgtype.Bool
+	ChildrenCount    pgtype.Int2
 	SubdivisionName  string
 	DivisionID       uuid.UUID
 	DivisionName     string
+	BranchID         uuid.UUID
+	BranchName       string
 	DefaultShiftName pgtype.Text
 	FaceEnrolled     bool
 }
@@ -259,6 +375,7 @@ func (q *Queries) ListEmployees(ctx context.Context, arg ListEmployeesParams) ([
 		arg.ScopeSubdivisionIds,
 		arg.ScopeDivisionIds,
 		arg.Q,
+		arg.BranchID,
 		arg.DivisionID,
 		arg.SubdivisionID,
 		arg.Status,
@@ -288,9 +405,15 @@ func (q *Queries) ListEmployees(ctx context.Context, arg ListEmployeesParams) ([
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.DeletedAt,
+			&i.Gender,
+			&i.MaritalStatus,
+			&i.HasChildren,
+			&i.ChildrenCount,
 			&i.SubdivisionName,
 			&i.DivisionID,
 			&i.DivisionName,
+			&i.BranchID,
+			&i.BranchName,
 			&i.DefaultShiftName,
 			&i.FaceEnrolled,
 		); err != nil {
@@ -318,7 +441,8 @@ func (q *Queries) NextNipSequence(ctx context.Context) (int32, error) {
 const updateEmployee = `-- name: UpdateEmployee :execrows
 UPDATE employees
 SET nip = $2, full_name = $3, email = $4, phone = $5, subdivision_id = $6,
-    position = $7, join_date = $8, base_salary = $9, status = $10, default_shift_id = $11, updated_at = now()
+    position = $7, join_date = $8, base_salary = $9, status = $10, default_shift_id = $11,
+    gender = $12, marital_status = $13, has_children = $14, children_count = $15, updated_at = now()
 WHERE id = $1 AND deleted_at IS NULL
 `
 
@@ -334,6 +458,10 @@ type UpdateEmployeeParams struct {
 	BaseSalary     decimal.Decimal
 	Status         string
 	DefaultShiftID uuid.NullUUID
+	Gender         pgtype.Text
+	MaritalStatus  pgtype.Text
+	HasChildren    pgtype.Bool
+	ChildrenCount  pgtype.Int2
 }
 
 func (q *Queries) UpdateEmployee(ctx context.Context, arg UpdateEmployeeParams) (int64, error) {
@@ -349,6 +477,10 @@ func (q *Queries) UpdateEmployee(ctx context.Context, arg UpdateEmployeeParams) 
 		arg.BaseSalary,
 		arg.Status,
 		arg.DefaultShiftID,
+		arg.Gender,
+		arg.MaritalStatus,
+		arg.HasChildren,
+		arg.ChildrenCount,
 	)
 	if err != nil {
 		return 0, err

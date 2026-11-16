@@ -20,12 +20,12 @@ import (
 	"github.com/rzarxx/HRIS/backend/internal/platform/database"
 	"github.com/rzarxx/HRIS/backend/internal/platform/httpx"
 	"github.com/rzarxx/HRIS/backend/internal/platform/pgconv"
+	"github.com/rzarxx/HRIS/backend/internal/platform/phone"
 	"github.com/rzarxx/HRIS/backend/internal/store"
 )
 
 var (
-	nipPattern    = regexp.MustCompile(`^[A-Za-z0-9-]{4,20}$`)
-	phonePattern  = regexp.MustCompile(`^(\+62|0)8[0-9]{7,12}$`)
+	nipPattern    = regexp.MustCompile(`^[A-Za-z0-9.-]{4,20}$`)
 	emailPattern  = regexp.MustCompile(`^[^@\s]+@[^@\s]+\.[^@\s]+$`)
 	moneyPattern  = regexp.MustCompile(`^\d+(\.\d{1,2})?$`)
 	maxBaseSalary = decimal.NewFromInt(1_000_000_000)
@@ -51,10 +51,16 @@ type Employee struct {
 	FullName         string   `json:"full_name"`
 	Email            *string  `json:"email"`
 	Phone            *string  `json:"phone"`
+	Gender           *string  `json:"gender"`
+	MaritalStatus    *string  `json:"marital_status"`
+	HasChildren      *bool    `json:"has_children"`
+	ChildrenCount    *int     `json:"children_count"`
 	SubdivisionID    string   `json:"subdivision_id"`
 	SubdivisionName  string   `json:"subdivision_name"`
 	DivisionID       string   `json:"division_id"`
 	DivisionName     string   `json:"division_name"`
+	BranchID         string   `json:"branch_id"`
+	BranchName       string   `json:"branch_name"`
 	Position         *string  `json:"position"`
 	JoinDate         *string  `json:"join_date"`
 	Status           string   `json:"status"`
@@ -63,6 +69,8 @@ type Employee struct {
 	FaceEnrolled     bool     `json:"face_enrolled"`
 	BaseSalary       *string  `json:"base_salary,omitempty"`
 	Account          *Account `json:"account,omitempty"`
+	// Children hanya dikirim di detail untuk SDM dan super admin (D53).
+	Children *[]Child `json:"children,omitempty"`
 }
 
 // Account adalah ringkasan akun, hanya untuk pemegang user:manage.
@@ -74,24 +82,30 @@ type Account struct {
 	MFAEnabled bool   `json:"mfa_enabled"`
 }
 
-// Created adalah respons pembuatan Pejuang, memuat undangan aktivasi sekali tampil.
+// Created adalah respons pembuatan Pejuang, memuat kata sandi awal untuk disampaikan SDM (D53).
 type Created struct {
 	Employee
-	Activation auth.Activation `json:"activation"`
+	auth.InitialCredential
 }
 
-// Input juga dipakai untuk PATCH: field yang tidak dikirim tetap nilai lamanya.
+// Input juga dipakai untuk PATCH: field yang tidak dikirim tetap nilai lamanya. Children nil berarti
+// data anak tidak diubah.
 type Input struct {
-	Nip            *string `json:"nip"`
-	FullName       string  `json:"full_name"`
-	Email          *string `json:"email"`
-	Phone          *string `json:"phone"`
-	SubdivisionID  string  `json:"subdivision_id"`
-	Position       *string `json:"position"`
-	JoinDate       *string `json:"join_date"`
-	BaseSalary     string  `json:"base_salary"`
-	Status         string  `json:"status"`
-	DefaultShiftID *string `json:"default_shift_id"`
+	Nip            *string  `json:"nip"`
+	FullName       string   `json:"full_name"`
+	Email          *string  `json:"email"`
+	Phone          *string  `json:"phone"`
+	Gender         *string  `json:"gender"`
+	MaritalStatus  *string  `json:"marital_status"`
+	HasChildren    *bool    `json:"has_children"`
+	ChildrenCount  *int     `json:"children_count"`
+	Children       *[]Child `json:"children"`
+	SubdivisionID  string   `json:"subdivision_id"`
+	Position       *string  `json:"position"`
+	JoinDate       *string  `json:"join_date"`
+	BaseSalary     string   `json:"base_salary"`
+	Status         string   `json:"status"`
+	DefaultShiftID *string  `json:"default_shift_id"`
 }
 
 type validated struct {
@@ -99,6 +113,12 @@ type validated struct {
 	FullName       string
 	Email          pgtype.Text
 	Phone          pgtype.Text
+	Gender         pgtype.Text
+	MaritalStatus  pgtype.Text
+	HasChildren    pgtype.Bool
+	ChildrenCount  pgtype.Int2
+	Children       []store.InsertEmployeeChildParams
+	SetChildren    bool
 	SubdivisionID  uuid.UUID
 	Position       pgtype.Text
 	JoinDate       pgtype.Date
@@ -107,19 +127,54 @@ type validated struct {
 	DefaultShiftID uuid.NullUUID
 }
 
-func (in Input) validate() (validated, error) {
+func (in Input) validate(today time.Time) (validated, error) {
 	fields := map[string]string{}
 	v := validated{
 		FullName: strings.TrimSpace(in.FullName),
 		Email:    pgconv.Text(in.Email),
-		Phone:    pgconv.Text(in.Phone),
 		Position: pgconv.Text(in.Position),
 		Status:   in.Status,
+	}
+	if v.Email.Valid {
+		v.Email.String = strings.TrimSpace(v.Email.String)
+	}
+	if raw := pgconv.Text(in.Phone); raw.Valid {
+		normalized, ok := phone.Normalize(raw.String)
+		if !ok {
+			fields["phone"] = "Nomor WA tidak valid (contoh 081234567890)."
+		}
+		v.Phone = pgtype.Text{String: normalized, Valid: ok}
+	}
+	var msg string
+	if v.Gender, msg = optionalEnum(in.Gender, Genders, "Jenis kelamin L atau P."); msg != "" {
+		fields["gender"] = msg
+	}
+	if v.MaritalStatus, msg = optionalEnum(in.MaritalStatus, MaritalStatuses, "Status pernikahan tidak valid."); msg != "" {
+		fields["marital_status"] = msg
+	}
+	if in.Children != nil {
+		v.SetChildren = true
+		v.Children = validateChildren(*in.Children, today, fields)
+	}
+	if in.HasChildren != nil {
+		v.HasChildren = pgtype.Bool{Bool: *in.HasChildren, Valid: true}
+	}
+	if in.ChildrenCount != nil {
+		if *in.ChildrenCount < 0 || *in.ChildrenCount > maxChildren {
+			fields["children_count"] = fmt.Sprintf("Jumlah anak 0 sampai %d.", maxChildren)
+		}
+		v.ChildrenCount = pgtype.Int2{Int16: int16(*in.ChildrenCount), Valid: true}
+	}
+	switch {
+	case v.HasChildren.Valid && !v.HasChildren.Bool && ((v.ChildrenCount.Valid && v.ChildrenCount.Int16 > 0) || len(v.Children) > 0):
+		fields["has_children"] = "Isi \"memiliki anak\" dengan Ya bila ada data anak."
+	case v.ChildrenCount.Valid && int(v.ChildrenCount.Int16) < len(v.Children):
+		fields["children_count"] = "Jumlah anak tidak boleh lebih sedikit dari data anak yang diisi."
 	}
 	if in.Nip != nil {
 		v.Nip = strings.ToUpper(strings.TrimSpace(*in.Nip))
 		if v.Nip != "" && !nipPattern.MatchString(v.Nip) {
-			fields["nip"] = "NIPY 4-20 karakter huruf, angka, atau tanda minus."
+			fields["nip"] = "NIPY 4-20 karakter huruf, angka, titik, atau tanda minus."
 		}
 	}
 	switch n := len(v.FullName); {
@@ -130,15 +185,9 @@ func (in Input) validate() (validated, error) {
 	case n > 100:
 		fields["full_name"] = "Nama maksimal 100 karakter."
 	}
-	// Email menjadi identitas login sehingga wajib (F3).
-	switch {
-	case !v.Email.Valid:
-		fields["email"] = "Email wajib diisi."
-	case len(v.Email.String) > 254 || !emailPattern.MatchString(v.Email.String):
+	// Email tidak lagi wajib: login bisa memakai NIPY atau nomor WA (D53).
+	if v.Email.Valid && (len(v.Email.String) > 254 || !emailPattern.MatchString(v.Email.String)) {
 		fields["email"] = "Format email tidak valid."
-	}
-	if v.Phone.Valid && !phonePattern.MatchString(v.Phone.String) {
-		fields["phone"] = "Nomor HP tidak valid (contoh 081234567890)."
 	}
 	if v.Position.Valid && len(v.Position.String) > 100 {
 		fields["position"] = "Jabatan maksimal 100 karakter."
@@ -200,12 +249,16 @@ func mapUnique(err error) error {
 	if strings.Contains(constraint, "email") {
 		return httpx.Duplicate("email", "Email sudah dipakai Pejuang lain.")
 	}
+	if strings.Contains(constraint, "phone") {
+		return httpx.Duplicate("phone", "Nomor WA sudah dipakai Pejuang lain.")
+	}
 	return httpx.Duplicate("nip", "NIPY sudah dipakai Pejuang lain.")
 }
 
 // ListParams adalah filter resmi daftar Pejuang.
 type ListParams struct {
 	Q             string
+	BranchID      uuid.NullUUID
 	DivisionID    uuid.NullUUID
 	SubdivisionID uuid.NullUUID
 	Status        string
@@ -252,14 +305,14 @@ func (s *Service) List(ctx context.Context, p auth.Principal, params ListParams)
 	}
 	total, err := s.q.CountEmployees(ctx, store.CountEmployeesParams{
 		ScopeAll: all, ScopeSubdivisionIds: subs, ScopeDivisionIds: divs,
-		Q: q, DivisionID: params.DivisionID, SubdivisionID: params.SubdivisionID, Status: status,
+		Q: q, BranchID: params.BranchID, DivisionID: params.DivisionID, SubdivisionID: params.SubdivisionID, Status: status,
 	})
 	if err != nil {
 		return nil, 0, err
 	}
 	rows, err := s.q.ListEmployees(ctx, store.ListEmployeesParams{
 		ScopeAll: all, ScopeSubdivisionIds: subs, ScopeDivisionIds: divs,
-		Q: q, DivisionID: params.DivisionID, SubdivisionID: params.SubdivisionID, Status: status,
+		Q: q, BranchID: params.BranchID, DivisionID: params.DivisionID, SubdivisionID: params.SubdivisionID, Status: status,
 		PageLimit: params.Page.Limit(), PageOffset: params.Page.Offset(),
 	})
 	if err != nil {
@@ -286,6 +339,13 @@ func (s *Service) Get(ctx context.Context, p auth.Principal, id uuid.UUID) (Empl
 	out := []Employee{present(p, row)}
 	if err := s.attachAccounts(ctx, p, out, []uuid.UUID{id}); err != nil {
 		return Employee{}, err
+	}
+	if seesChildren(p) || id == p.EmployeeID {
+		children, err := s.ListChildren(ctx, id)
+		if err != nil {
+			return Employee{}, err
+		}
+		out[0].Children = &children
 	}
 	return out[0], nil
 }
@@ -324,7 +384,7 @@ func (s *Service) assertShift(ctx context.Context, id uuid.NullUUID) error {
 	return err
 }
 
-// Create membuat data Pejuang, akun belum aktif, dan undangan aktivasi (F3).
+// Create membuat data Pejuang dan akun aktif dengan kata sandi awal yang wajib diganti (D53).
 func (s *Service) Create(ctx context.Context, p auth.Principal, ip audit.Entry, in Input, now time.Time) (Created, error) {
 	// Selain SDM tidak mengurus ubar: Pejuang dibuat dengan ubar 0 dan SDM yang mengisinya (D34).
 	if !permission.ManagesSalary(p.Role) {
@@ -336,7 +396,7 @@ func (s *Service) Create(ctx context.Context, p auth.Principal, ip audit.Entry, 
 	if in.Status == "" {
 		in.Status = "active"
 	}
-	v, err := in.validate()
+	v, err := in.validate(pgconv.WorkDate(now))
 	if err != nil {
 		return Created{}, err
 	}
@@ -347,49 +407,18 @@ func (s *Service) Create(ctx context.Context, p auth.Principal, ip audit.Entry, 
 		return Created{}, err
 	}
 	// Argon2 sengaja lambat, jadi dihitung sebelum transaksi dibuka.
-	unusable, err := auth.UnusablePasswordHash()
+	credential, hash, err := auth.InitialPasswordHash(v.FullName, now)
 	if err != nil {
 		return Created{}, err
 	}
-	var activation auth.Activation
 	if !v.JoinDate.Valid {
 		v.JoinDate = pgconv.Date(pgconv.WorkDate(now))
 	}
 	var id uuid.UUID
 	err = database.InTx(ctx, s.pool, func(q *store.Queries) error {
-		nip := v.Nip
-		if nip == "" {
-			seq, err := q.NextNipSequence(ctx)
-			if err != nil {
-				return err
-			}
-			nip = fmt.Sprintf("PJ%d%04d", now.In(pgconv.WIB).Year(), seq)
-		}
 		var err error
-		id, err = q.CreateEmployee(ctx, store.CreateEmployeeParams{
-			Nip: nip, FullName: v.FullName, Email: v.Email, Phone: v.Phone,
-			SubdivisionID: v.SubdivisionID, Position: v.Position, JoinDate: v.JoinDate,
-			BaseSalary: v.BaseSalary, Status: v.Status, DefaultShiftID: v.DefaultShiftID,
-		})
-		if err != nil {
-			return mapUnique(err)
-		}
-		userID, err := q.CreateInactiveUser(ctx, store.CreateInactiveUserParams{
-			EmployeeID: id, Email: v.Email.String, PasswordHash: unusable, Role: store.UserRolePejuang,
-		})
-		if err != nil {
-			return mapUnique(err)
-		}
-		if activation, err = auth.IssueInvite(ctx, q, userID, now); err != nil {
-			return err
-		}
-		entry := ip
-		entry.Action, entry.Entity, entry.EntityID = audit.EmployeeCreated, "employee", id
-		if err := audit.Write(ctx, q, entry); err != nil {
-			return err
-		}
-		entry.Action, entry.Entity, entry.EntityID = audit.UserCreated, "user", userID
-		return audit.Write(ctx, q, entry)
+		id, err = s.insert(ctx, q, ip, v, hash, credential.Expires(), now)
+		return err
 	})
 	if err != nil {
 		return Created{}, err
@@ -398,7 +427,73 @@ func (s *Service) Create(ctx context.Context, p auth.Principal, ip audit.Entry, 
 	if err != nil {
 		return Created{}, err
 	}
-	return Created{Employee: employee, Activation: activation}, nil
+	return Created{Employee: employee, InitialCredential: credential}, nil
+}
+
+// insert menulis data Pejuang baru, data anak, dan akunnya dalam transaksi pemanggil. Dipakai
+// tambah satu per satu dan impor massal.
+func (s *Service) insert(ctx context.Context, q *store.Queries, ip audit.Entry, v validated, passwordHash string, expires pgtype.Timestamptz, now time.Time) (uuid.UUID, error) {
+	nip := v.Nip
+	if nip == "" {
+		seq, err := q.NextNipSequence(ctx)
+		if err != nil {
+			return uuid.Nil, err
+		}
+		nip = fmt.Sprintf("PJ%d%04d", now.In(pgconv.WIB).Year(), seq)
+	}
+	id, err := q.CreateEmployee(ctx, store.CreateEmployeeParams{
+		Nip: nip, FullName: v.FullName, Email: v.Email, Phone: v.Phone,
+		SubdivisionID: v.SubdivisionID, Position: v.Position, JoinDate: v.JoinDate,
+		BaseSalary: v.BaseSalary, Status: v.Status, DefaultShiftID: v.DefaultShiftID,
+		Gender: v.Gender, MaritalStatus: v.MaritalStatus, HasChildren: v.HasChildren, ChildrenCount: v.ChildrenCount,
+	})
+	if err != nil {
+		return uuid.Nil, mapUnique(err)
+	}
+	if err := replaceChildren(ctx, q, id, v.Children); err != nil {
+		return uuid.Nil, err
+	}
+	userID, err := q.CreateUserWithInitialPassword(ctx, store.CreateUserWithInitialPasswordParams{
+		EmployeeID: id, Email: v.Email, PasswordHash: passwordHash, Role: store.UserRolePejuang,
+	})
+	if err != nil {
+		return uuid.Nil, mapUnique(err)
+	}
+	entry := ip
+	entry.Action, entry.Entity, entry.EntityID = audit.EmployeeCreated, "employee", id
+	if err := audit.Write(ctx, q, entry); err != nil {
+		return uuid.Nil, err
+	}
+	entry.Action, entry.Entity, entry.EntityID = audit.UserCreated, "user", userID
+	return id, audit.Write(ctx, q, entry)
+}
+
+// currentInput mengisi Input dengan data tersimpan, agar PATCH hanya menimpa field yang dikirim.
+func currentInput(current store.GetEmployeeScopedRow) Input {
+	nip := current.Nip
+	in := Input{
+		Nip:            &nip,
+		FullName:       current.FullName,
+		Email:          pgconv.TextPtr(current.Email),
+		Phone:          pgconv.TextPtr(current.Phone),
+		Gender:         pgconv.TextPtr(current.Gender),
+		MaritalStatus:  pgconv.TextPtr(current.MaritalStatus),
+		SubdivisionID:  current.SubdivisionID.String(),
+		Position:       pgconv.TextPtr(current.Position),
+		JoinDate:       pgconv.DateString(current.JoinDate),
+		BaseSalary:     current.BaseSalary.StringFixed(2),
+		Status:         current.Status,
+		DefaultShiftID: pgconv.UUIDPtr(current.DefaultShiftID),
+	}
+	if current.HasChildren.Valid {
+		v := current.HasChildren.Bool
+		in.HasChildren = &v
+	}
+	if current.ChildrenCount.Valid {
+		v := int(current.ChildrenCount.Int16)
+		in.ChildrenCount = &v
+	}
+	return in
 }
 
 // Update memuat data lama lebih dulu, lalu menimpa dengan field yang dikirim klien.
@@ -410,26 +505,14 @@ func (s *Service) Update(ctx context.Context, p auth.Principal, ip audit.Entry, 
 	if err := auth.AssertEmployeeNotProtected(ctx, s.q, p, id); err != nil {
 		return Employee{}, err
 	}
-	nip := current.Nip
-	in := Input{
-		Nip:            &nip,
-		FullName:       current.FullName,
-		Email:          pgconv.TextPtr(current.Email),
-		Phone:          pgconv.TextPtr(current.Phone),
-		SubdivisionID:  current.SubdivisionID.String(),
-		Position:       pgconv.TextPtr(current.Position),
-		JoinDate:       pgconv.DateString(current.JoinDate),
-		BaseSalary:     current.BaseSalary.StringFixed(2),
-		Status:         current.Status,
-		DefaultShiftID: pgconv.UUIDPtr(current.DefaultShiftID),
-	}
+	in := currentInput(current)
 	if err := decode(&in); err != nil {
 		return Employee{}, err
 	}
 	if !permission.ManagesSalary(p.Role) && in.BaseSalary != current.BaseSalary.StringFixed(2) {
 		return Employee{}, httpx.ErrForbidden()
 	}
-	v, err := in.validate()
+	v, err := in.validate(pgconv.WorkDate(time.Now()))
 	if err != nil {
 		return Employee{}, err
 	}
@@ -446,52 +529,64 @@ func (s *Service) Update(ctx context.Context, p auth.Principal, ip audit.Entry, 
 		return Employee{}, errSelfDeactivate()
 	}
 	err = database.InTx(ctx, s.pool, func(q *store.Queries) error {
-		affected, err := q.UpdateEmployee(ctx, store.UpdateEmployeeParams{
-			ID: id, Nip: v.Nip, FullName: v.FullName, Email: v.Email, Phone: v.Phone,
-			SubdivisionID: v.SubdivisionID, Position: v.Position, JoinDate: v.JoinDate,
-			BaseSalary: v.BaseSalary, Status: v.Status, DefaultShiftID: v.DefaultShiftID,
-		})
-		if err != nil {
-			return mapUnique(err)
-		}
-		if affected == 0 {
-			return httpx.ErrNotFound()
-		}
-		if v.Status == "inactive" || v.SubdivisionID != current.SubdivisionID {
-			if err := q.ClearHeadOfEmployee(ctx, uuid.NullUUID{UUID: id, Valid: true}); err != nil {
-				return err
-			}
-		}
-		// Email login hanya ikut berubah bila email Pejuang memang diganti, karena keduanya bisa berbeda.
-		if v.Email.String != current.Email.String {
-			if err := q.UpdateUserEmail(ctx, store.UpdateUserEmailParams{EmployeeID: id, Email: v.Email.String}); err != nil {
-				return mapUnique(err)
-			}
-		}
-		if v.Status == "inactive" && current.Status != "inactive" {
-			if err := offboardAccount(ctx, q, id); err != nil {
-				return err
-			}
-		}
-		entry := ip
-		entry.Action, entry.Entity, entry.EntityID = audit.EmployeeUpdated, "employee", id
-		if v.DefaultShiftID != current.DefaultShiftID {
-			entry.Detail = map[string]any{"default_shift_id": pgconv.UUIDPtr(v.DefaultShiftID)}
-		}
-		if err := audit.Write(ctx, q, entry); err != nil {
-			return err
-		}
-		if !v.BaseSalary.Equal(current.BaseSalary) {
-			entry.Action = audit.EmployeeSalaryChanged
-			entry.Detail = map[string]any{"from": current.BaseSalary.StringFixed(2), "to": v.BaseSalary.StringFixed(2)}
-			return audit.Write(ctx, q, entry)
-		}
-		return nil
+		return update(ctx, q, ip, id, current, v)
 	})
 	if err != nil {
 		return Employee{}, err
 	}
 	return s.Get(ctx, p, id)
+}
+
+// update menulis perubahan data Pejuang dalam transaksi pemanggil. Dipakai ubah satu per satu dan
+// impor massal (NIPY yang sudah ada).
+func update(ctx context.Context, q *store.Queries, ip audit.Entry, id uuid.UUID, current store.GetEmployeeScopedRow, v validated) error {
+	affected, err := q.UpdateEmployee(ctx, store.UpdateEmployeeParams{
+		ID: id, Nip: v.Nip, FullName: v.FullName, Email: v.Email, Phone: v.Phone,
+		SubdivisionID: v.SubdivisionID, Position: v.Position, JoinDate: v.JoinDate,
+		BaseSalary: v.BaseSalary, Status: v.Status, DefaultShiftID: v.DefaultShiftID,
+		Gender: v.Gender, MaritalStatus: v.MaritalStatus, HasChildren: v.HasChildren, ChildrenCount: v.ChildrenCount,
+	})
+	if err != nil {
+		return mapUnique(err)
+	}
+	if affected == 0 {
+		return httpx.ErrNotFound()
+	}
+	if v.SetChildren {
+		if err := replaceChildren(ctx, q, id, v.Children); err != nil {
+			return err
+		}
+	}
+	if v.Status == "inactive" || v.SubdivisionID != current.SubdivisionID {
+		if err := q.ClearHeadOfEmployee(ctx, uuid.NullUUID{UUID: id, Valid: true}); err != nil {
+			return err
+		}
+	}
+	// Email login ikut berubah bersama email Pejuang agar keduanya selalu sama (D53).
+	if v.Email != current.Email {
+		if err := q.UpdateUserEmail(ctx, store.UpdateUserEmailParams{EmployeeID: id, Email: v.Email}); err != nil {
+			return mapUnique(err)
+		}
+	}
+	if v.Status == "inactive" && current.Status != "inactive" {
+		if err := offboardAccount(ctx, q, id); err != nil {
+			return err
+		}
+	}
+	entry := ip
+	entry.Action, entry.Entity, entry.EntityID = audit.EmployeeUpdated, "employee", id
+	if v.DefaultShiftID != current.DefaultShiftID {
+		entry.Detail = map[string]any{"default_shift_id": pgconv.UUIDPtr(v.DefaultShiftID)}
+	}
+	if err := audit.Write(ctx, q, entry); err != nil {
+		return err
+	}
+	if !v.BaseSalary.Equal(current.BaseSalary) {
+		entry.Action = audit.EmployeeSalaryChanged
+		entry.Detail = map[string]any{"from": current.BaseSalary.StringFixed(2), "to": v.BaseSalary.StringFixed(2)}
+		return audit.Write(ctx, q, entry)
+	}
+	return nil
 }
 
 func errSelfDeactivate() error {
@@ -559,8 +654,10 @@ func present(p auth.Principal, r store.GetEmployeeScopedRow) Employee {
 	e := Employee{
 		ID: r.ID.String(), Nip: r.Nip, FullName: r.FullName,
 		Email: pgconv.TextPtr(r.Email), Phone: pgconv.TextPtr(r.Phone),
+		Gender: pgconv.TextPtr(r.Gender), MaritalStatus: pgconv.TextPtr(r.MaritalStatus),
 		SubdivisionID: r.SubdivisionID.String(), SubdivisionName: r.SubdivisionName,
 		DivisionID: r.DivisionID.String(), DivisionName: r.DivisionName,
+		BranchID: r.BranchID.String(), BranchName: r.BranchName,
 		Position: pgconv.TextPtr(r.Position), JoinDate: pgconv.DateString(r.JoinDate),
 		Status:         r.Status,
 		DefaultShiftID: pgconv.UUIDPtr(r.DefaultShiftID), DefaultShiftName: pgconv.TextPtr(r.DefaultShiftName),
@@ -569,6 +666,17 @@ func present(p auth.Principal, r store.GetEmployeeScopedRow) Employee {
 	if permission.ManagesSalary(p.Role) || r.ID == p.EmployeeID {
 		salary := r.BaseSalary.StringFixed(2)
 		e.BaseSalary = &salary
+	}
+	if !seesChildren(p) && r.ID != p.EmployeeID {
+		return e
+	}
+	if r.HasChildren.Valid {
+		v := r.HasChildren.Bool
+		e.HasChildren = &v
+	}
+	if r.ChildrenCount.Valid {
+		v := int(r.ChildrenCount.Int16)
+		e.ChildrenCount = &v
 	}
 	return e
 }

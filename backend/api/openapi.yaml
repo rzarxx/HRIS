@@ -15,6 +15,8 @@ servers:
 tags:
   - name: Auth
   - name: Profil
+  - name: Cabang
+    description: Cabang yayasan dengan struktur sendiri (D53)
   - name: Divisi
   - name: Subdiv
   - name: Pejuang
@@ -54,14 +56,14 @@ paths:
     post:
       tags: [Auth]
       summary: Login web admin
-      description: Menyetel cookie sesi. Gagal 5 kali berturut-turut mengunci akun 15 menit.
+      description: "Menyetel cookie sesi. `identifier` boleh NIPY, email, atau nomor WA (D53). Gagal 5 kali berturut-turut mengunci akun 15 menit. Kata sandi awal yang lewat 72 jam dijawab `AUTH_INITIAL_PASSWORD_EXPIRED`."
       security: []
       requestBody:
         required: true
         content:
           application/json:
             schema: { $ref: "#/components/schemas/LoginRequest" }
-            example: { email: "{{email}}", password: "{{password}}" }
+            example: { identifier: "{{identifier}}", password: "{{password}}" }
       responses:
         "200":
           description: Berhasil, cookie disetel
@@ -162,21 +164,6 @@ paths:
                 properties:
                   data: { $ref: "#/components/schemas/MobileTokens" }
         "401": { $ref: "#/components/responses/Error" }
-  /v1/auth/activate:
-    post:
-      tags: [Auth]
-      summary: Aktivasi akun dari undangan dan tetapkan kata sandi
-      security: []
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema: { $ref: "#/components/schemas/ActivateRequest" }
-      responses:
-        "204": { description: "Akun aktif, silakan masuk" }
-        "400": { $ref: "#/components/responses/ValidationFailed" }
-        "422": { $ref: "#/components/responses/Error" }
-        "429": { $ref: "#/components/responses/Error" }
   /v1/branding:
     get:
       tags: [Sistem]
@@ -195,29 +182,6 @@ paths:
                 required: [data]
                 properties:
                   data: { $ref: "#/components/schemas/Branding" }
-  /v1/auth/activate/check:
-    post:
-      tags: [Auth]
-      summary: Periksa tautan aktivasi sebelum form ditampilkan
-      description: Tidak memakai tautan. Menjawab ACTIVATION_USED, ACTIVATION_EXPIRED, atau ACTIVATION_INVALID bila tautan tidak berlaku.
-      security: []
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema: { $ref: "#/components/schemas/ActivationCheckRequest" }
-      responses:
-        "200":
-          description: Tautan masih berlaku
-          content:
-            application/json:
-              schema:
-                type: object
-                required: [data]
-                properties:
-                  data: { $ref: "#/components/schemas/ActivationCheck" }
-        "422": { $ref: "#/components/responses/Error" }
-        "429": { $ref: "#/components/responses/Error" }
   /v1/auth/password/change:
     post:
       tags: [Auth]
@@ -312,11 +276,85 @@ paths:
                   data: { $ref: "#/components/schemas/Me" }
         "401": { $ref: "#/components/responses/Error" }
 
+  /v1/admin/branches:
+    get:
+      tags: [Cabang]
+      summary: Daftar cabang
+      description: "Permission `org:write`. Cabang punya divisi, subdiv, dan atasan sendiri (D53)."
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: "#/components/schemas/Branch" }
+        "403": { $ref: "#/components/responses/Error" }
+    post:
+      tags: [Cabang]
+      summary: Tambah cabang
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/BranchInput" }
+            example: { code: CRB, name: Cabang Cirebon }
+      responses:
+        "201":
+          description: Dibuat
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data: { $ref: "#/components/schemas/Branch" }
+        "400": { $ref: "#/components/responses/ValidationFailed" }
+        "409": { $ref: "#/components/responses/Error" }
+  /v1/admin/branches/{id}:
+    parameters:
+      - $ref: "#/components/parameters/Id"
+    patch:
+      tags: [Cabang]
+      summary: Ubah cabang
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/BranchPatch" }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data: { $ref: "#/components/schemas/Branch" }
+        "400": { $ref: "#/components/responses/ValidationFailed" }
+        "404": { $ref: "#/components/responses/Error" }
+        "409": { $ref: "#/components/responses/Error" }
+    delete:
+      tags: [Cabang]
+      summary: Hapus cabang
+      description: Ditolak `CONFLICT_HAS_DEPENDENTS` bila masih memiliki divisi.
+      responses:
+        "204": { description: Dihapus }
+        "404": { $ref: "#/components/responses/Error" }
+        "409": { $ref: "#/components/responses/Error" }
+
   /v1/admin/divisions:
     get:
       tags: [Divisi]
       summary: Daftar divisi
       description: "Permission `org:write`."
+      parameters:
+        - { name: branch_id, in: query, schema: { type: string, format: uuid } }
       responses:
         "200":
           description: OK
@@ -338,7 +376,7 @@ paths:
         content:
           application/json:
             schema: { $ref: "#/components/schemas/DivisionInput" }
-            example: { code: OPS, name: Operasional, head_employee_id: null }
+            example: { branch_id: 00000000-0000-4000-8000-000000000000, code: OPS, name: Operasional, head_employee_id: null }
       responses:
         "201":
           description: Dibuat
@@ -463,7 +501,8 @@ paths:
       parameters:
         - $ref: "#/components/parameters/Page"
         - $ref: "#/components/parameters/PerPage"
-        - { name: q, in: query, description: "Cari nama, NIPY, email, jabatan", schema: { type: string } }
+        - { name: q, in: query, description: "Cari nama, NIPY, email, nomor WA, jabatan", schema: { type: string } }
+        - { name: branch_id, in: query, schema: { type: string, format: uuid } }
         - { name: division_id, in: query, schema: { type: string, format: uuid } }
         - { name: subdivision_id, in: query, schema: { type: string, format: uuid } }
         - { name: status, in: query, schema: { $ref: "#/components/schemas/EmployeeStatus" } }
@@ -483,7 +522,7 @@ paths:
     post:
       tags: [Pejuang]
       summary: Tambah Pejuang
-      description: "Permission `employee:write`. `nip` kosong = dibuat otomatis. Membuat akun belum aktif beserta undangan aktivasi (F3)."
+      description: "Permission `employee:write`. `nip` kosong = dibuat otomatis. Membuat akun aktif dengan kata sandi awal `@NamaDepan`+tahun yang wajib diganti saat login pertama (D53). Kata sandi awal hanya tampil di respons ini."
       requestBody:
         required: true
         content:
@@ -494,6 +533,12 @@ paths:
               nip: null
               email: rudi.hartono@pejuang.id
               phone: "081234567890"
+              gender: L
+              marital_status: menikah
+              has_children: true
+              children_count: 1
+              children:
+                - { child_order: 1, full_name: Aisyah, gender: P, birth_place: Cirebon, birth_date: "2015-04-02", relation: kandung, education: sd_mi, school_name: MI Al Bahjah }
               subdivision_id: 00000000-0000-4000-8000-000000000000
               position: Staf Lapangan
               join_date: "2026-11-02"
@@ -517,7 +562,7 @@ paths:
     get:
       tags: [Pejuang]
       summary: Detail Pejuang
-      description: Objek di luar scope dijawab 404.
+      description: "Objek di luar scope dijawab 404. `children` hanya untuk SDM, super admin, dan Pejuang sendiri (D53)."
       responses:
         "200":
           description: OK
@@ -574,8 +619,8 @@ paths:
       - { name: user_id, in: path, required: true, schema: { type: string, format: uuid } }
     post:
       tags: [Akun]
-      summary: Terbitkan undangan baru untuk menetapkan sandi
-      description: "Permission `user:manage`. Mencabut semua sesi. SDM tidak pernah mengetahui kata sandi."
+      summary: Kembalikan akun ke kata sandi awal
+      description: "Permission `user:manage`. Mencabut semua sesi dan membuka kunci. Kata sandi awal `@NamaDepan`+tahun wajib diganti saat login berikutnya (D53)."
       responses:
         "200":
           description: OK
@@ -585,7 +630,7 @@ paths:
                 type: object
                 required: [data]
                 properties:
-                  data: { $ref: "#/components/schemas/Activation" }
+                  data: { $ref: "#/components/schemas/InitialCredential" }
         "403": { $ref: "#/components/responses/Error" }
         "404": { $ref: "#/components/responses/Error" }
   /v1/admin/users/{user_id}/lock:
@@ -2200,10 +2245,8 @@ components:
         - ATTENDANCE_BLOCKED
         - LEAVE_ACTIVE
         - READ_TOO_SOON
-        - ACTIVATION_INVALID
-        - ACTIVATION_USED
-        - ACTIVATION_EXPIRED
         - AUTH_ACCOUNT_LOCKED
+        - AUTH_INITIAL_PASSWORD_EXPIRED
         - APP_UPDATE_REQUIRED
         - RATE_LIMITED
         - API_ACCESS_DENIED
@@ -2281,15 +2324,17 @@ components:
         name: { type: string }
     LoginRequest:
       type: object
-      required: [email, password]
+      required: [identifier, password]
       properties:
-        email: { type: string, format: email }
+        identifier: { type: string, description: "NIPY, email, atau nomor WA (D53)" }
+        email: { type: string, deprecated: true, description: Dipakai bila identifier kosong, untuk aplikasi versi lama }
         password: { type: string }
     MobileLoginRequest:
       type: object
-      required: [email, password, device]
+      required: [identifier, password, device]
       properties:
-        email: { type: string, format: email }
+        identifier: { type: string, description: "NIPY, email, atau nomor WA (D53)" }
+        email: { type: string, deprecated: true, description: Dipakai bila identifier kosong, untuk aplikasi versi lama }
         password: { type: string }
         mfa_code: { type: string, description: Wajib bila akun memakai MFA }
         device: { $ref: "#/components/schemas/DeviceRegisterInput" }
@@ -2317,7 +2362,7 @@ components:
         role: { $ref: "#/components/schemas/Role" }
         full_name: { type: string }
         nip: { type: string }
-        email: { type: string }
+        email: { type: string, nullable: true }
         position: { type: string, nullable: true }
         subdivision: { $ref: "#/components/schemas/Ref" }
         division: { $ref: "#/components/schemas/Ref" }
@@ -2332,23 +2377,47 @@ components:
           enum: [pending, approved, revoked, null]
           description: Status perangkat sesi aplikasi. Null untuk sesi web.
         face_enrolled: { type: boolean, description: "Wajah sudah terdaftar. Bila false, aplikasi membuka alur daftar wajah (F7)." }
+    BranchInput:
+      allOf:
+        - $ref: "#/components/schemas/BranchPatch"
+        - type: object
+          required: [code, name]
+    BranchPatch:
+      type: object
+      description: Pada PATCH, field yang tidak dikirim tetap nilai lamanya.
+      properties:
+        code: { type: string, minLength: 2, maxLength: 20, pattern: '^[A-Za-z0-9-]+$' }
+        name: { type: string, maxLength: 80 }
+    Branch:
+      type: object
+      required: [id, code, name, division_count, employee_count, created_at]
+      properties:
+        id: { type: string, format: uuid }
+        code: { type: string }
+        name: { type: string }
+        division_count: { type: integer }
+        employee_count: { type: integer }
+        created_at: { type: string, format: date-time }
     DivisionInput:
       allOf:
         - $ref: "#/components/schemas/DivisionPatch"
         - type: object
-          required: [code, name]
+          required: [branch_id, code, name]
     DivisionPatch:
       type: object
-      description: Pada PATCH, field yang tidak dikirim tetap nilai lamanya.
+      description: Pada PATCH, field yang tidak dikirim tetap nilai lamanya. Kode divisi unik per cabang.
       properties:
+        branch_id: { type: string, format: uuid }
         code: { type: string, maxLength: 10, pattern: '^[A-Za-z0-9-]+$' }
         name: { type: string, maxLength: 80 }
         head_employee_id: { type: string, format: uuid, nullable: true }
     Division:
       type: object
-      required: [id, code, name, head_employee_id, head_name, subdivision_count, employee_count, created_at]
+      required: [id, branch_id, branch_name, code, name, head_employee_id, head_name, subdivision_count, employee_count, created_at]
       properties:
         id: { type: string, format: uuid }
+        branch_id: { type: string, format: uuid }
+        branch_name: { type: string }
         code: { type: string }
         name: { type: string }
         head_employee_id: { type: string, format: uuid, nullable: true }
@@ -2371,11 +2440,13 @@ components:
         head_employee_id: { type: string, format: uuid, nullable: true }
     Subdivision:
       type: object
-      required: [id, division_id, division_name, code, name, head_employee_id, head_name, employee_count, created_at]
+      required: [id, division_id, division_name, branch_id, branch_name, code, name, head_employee_id, head_name, employee_count, created_at]
       properties:
         id: { type: string, format: uuid }
         division_id: { type: string, format: uuid }
         division_name: { type: string }
+        branch_id: { type: string, format: uuid }
+        branch_name: { type: string }
         code: { type: string }
         name: { type: string }
         head_employee_id: { type: string, format: uuid, nullable: true }
@@ -2386,8 +2457,8 @@ components:
       allOf:
         - $ref: "#/components/schemas/EmployeePatch"
         - type: object
-          required: [full_name, email, subdivision_id]
-          description: "`base_salary` wajib untuk SDM. Super admin tidak boleh mengirimnya; ubar dimulai dari 0 dan diisi SDM."
+          required: [full_name, subdivision_id]
+          description: "`base_salary` wajib untuk SDM. Super admin tidak boleh mengirimnya; ubar dimulai dari 0 dan diisi SDM. Email opsional karena login bisa memakai NIPY atau nomor WA (D53)."
     EmployeePatch:
       type: object
       description: Pada PATCH, field yang tidak dikirim tetap nilai lamanya.
@@ -2395,7 +2466,16 @@ components:
         nip: { type: string, nullable: true, description: Kosong = dibuat otomatis }
         full_name: { type: string, minLength: 3, maxLength: 100 }
         email: { type: string, format: email, nullable: true }
-        phone: { type: string, nullable: true }
+        phone: { type: string, nullable: true, description: "Nomor WA, boleh 08…, +62…, atau 62…; disimpan sebagai 62… dan unik" }
+        gender: { $ref: "#/components/schemas/Gender" }
+        marital_status: { $ref: "#/components/schemas/MaritalStatus" }
+        has_children: { type: boolean, nullable: true }
+        children_count: { type: integer, minimum: 0, maximum: 30, nullable: true }
+        children:
+          type: array
+          maxItems: 10
+          description: Bila dikirim, mengganti seluruh data anak. Tidak dikirim = data anak tetap.
+          items: { $ref: "#/components/schemas/EmployeeChild" }
         subdivision_id: { type: string, format: uuid }
         position: { type: string, nullable: true }
         join_date: { type: string, format: date, nullable: true }
@@ -2405,17 +2485,33 @@ components:
     Employee:
       type: object
       required:
-        [id, nip, full_name, email, phone, subdivision_id, subdivision_name, division_id, division_name, position, join_date, status, default_shift_id, default_shift_name, face_enrolled]
+        [id, nip, full_name, email, phone, gender, marital_status, subdivision_id, subdivision_name, division_id, division_name, branch_id, branch_name, position, join_date, status, default_shift_id, default_shift_name, face_enrolled]
       properties:
         id: { type: string, format: uuid }
         nip: { type: string }
         full_name: { type: string }
         email: { type: string, nullable: true }
-        phone: { type: string, nullable: true }
+        phone: { type: string, nullable: true, description: Nomor WA dalam bentuk 62… }
+        gender: { $ref: "#/components/schemas/Gender" }
+        marital_status: { $ref: "#/components/schemas/MaritalStatus" }
+        has_children:
+          type: boolean
+          nullable: true
+          description: Hanya untuk SDM, super admin, dan Pejuang sendiri
+        children_count:
+          type: integer
+          nullable: true
+          description: Hanya untuk SDM, super admin, dan Pejuang sendiri
+        children:
+          type: array
+          items: { $ref: "#/components/schemas/EmployeeChild" }
+          description: Hanya di detail, untuk SDM, super admin, dan Pejuang sendiri
         subdivision_id: { type: string, format: uuid }
         subdivision_name: { type: string }
         division_id: { type: string, format: uuid }
         division_name: { type: string }
+        branch_id: { type: string, format: uuid }
+        branch_name: { type: string }
         position: { type: string, nullable: true }
         join_date: { type: string, format: date, nullable: true }
         status: { $ref: "#/components/schemas/EmployeeStatus" }
@@ -2434,45 +2530,52 @@ components:
       properties:
         user_id: { type: string, format: uuid }
         role: { $ref: "#/components/schemas/Role" }
-        is_active: { type: boolean, description: false = belum aktivasi atau dinonaktifkan }
+        is_active: { type: boolean, description: false = akun dinonaktifkan }
         is_locked: { type: boolean }
         mfa_enabled: { type: boolean }
     EmployeeCreated:
       allOf:
         - $ref: "#/components/schemas/Employee"
         - type: object
-          required: [activation]
+          required: [initial_password, expires_at]
           properties:
-            activation: { $ref: "#/components/schemas/Activation" }
-    Activation:
+            initial_password: { type: string, description: "Kata sandi awal @NamaDepan+tahun (D53). Hanya tampil sekali." }
+            expires_at: { type: string, format: date-time, description: "Batas berlaku kata sandi awal, 72 jam sejak dibuat" }
+    InitialCredential:
       type: object
-      required: [token, expires_at]
-      description: Hanya tampil sekali; server menyimpan hash-nya saja.
+      required: [initial_password, expires_at]
       properties:
-        token: { type: string }
-        expires_at: { type: string, format: date-time }
+        initial_password: { type: string, description: "Kata sandi awal @NamaDepan+tahun, wajib diganti saat login (D53). Hanya tampil sekali." }
+        expires_at: { type: string, format: date-time, description: "Batas berlaku kata sandi awal, 72 jam sejak dibuat. Lewat dari itu login dijawab AUTH_INITIAL_PASSWORD_EXPIRED." }
+    Gender:
+      type: string
+      nullable: true
+      enum: [L, P, null]
+    MaritalStatus:
+      type: string
+      nullable: true
+      enum: [belum_menikah, menikah, cerai_hidup, cerai_mati, null]
+    EmployeeChild:
+      type: object
+      required: [child_order, full_name]
+      properties:
+        child_order: { type: integer, minimum: 1, maximum: 30, description: Anak ke-, unik per Pejuang }
+        full_name: { type: string, minLength: 2, maxLength: 100 }
+        gender: { $ref: "#/components/schemas/Gender" }
+        birth_place: { type: string, nullable: true, maxLength: 80 }
+        birth_date: { type: string, format: date, nullable: true }
+        relation: { type: string, nullable: true, enum: [kandung, angkat, tiri, null] }
+        education:
+          type: string
+          nullable: true
+          enum: [belum_sekolah, paud, tk_ra, sd_mi, smp_mts, sma_sederajat, perguruan_tinggi, pondok_pesantren, null]
+        school_name: { type: string, nullable: true, maxLength: 120 }
     MfaVerifyRequest:
       type: object
       required: [mfa_token, code]
       properties:
         mfa_token: { type: string }
         code: { type: string, description: Kode TOTP 6 digit atau kode pemulihan }
-    ActivateRequest:
-      type: object
-      required: [token, password]
-      properties:
-        token: { type: string }
-        password: { type: string, minLength: 10, maxLength: 256 }
-    ActivationCheckRequest:
-      type: object
-      required: [token]
-      properties:
-        token: { type: string }
-    ActivationCheck:
-      type: object
-      required: [expires_at]
-      properties:
-        expires_at: { type: string, format: date-time }
     PasswordChangeRequest:
       type: object
       required: [current_password, new_password]

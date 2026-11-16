@@ -36,6 +36,7 @@ export const NAV: NavItem[] = [
     label: "Master Data",
     icon: Database,
     children: [
+      { label: "Cabang", href: "/master/cabang", permission: "org:write" },
       { label: "Divisi", href: "/master/divisi", permission: "org:write" },
       { label: "Subdiv", href: "/master/subdiv", permission: "org:write" },
       { label: "Pejuang", href: "/master/pejuang", permission: "employee:read" },

@@ -58,14 +58,22 @@ Aplikasi didistribusikan dan diperbarui langsung melalui **Google Play Store** (
 ### Langkah Build di Android Studio
 
 1. Buka folder `mobile/` di Android Studio dan tunggu proses *Gradle Sync* selesai (atau buat wrapper sekali
-   dengan `gradle wrapper --gradle-version 8.11.1`).
+   dengan `gradle wrapper --gradle-version 9.2.1`).
 2. Sebelum rilis baru, naikkan `releaseVersionName` (format `x.y.z`) dan `releaseVersionCode` di
    `mobile/app/build.gradle.kts` (bawaan `1.0.0` / `1000000`).
 3. Pilih menu **Build → Generate Signed App Bundle / APK...** → pilih **Android App Bundle**.
 4. Gunakan keystore rilis yang tetap (jangan sampai hilang/berganti antarversi), pilih variant **`release`**,
    lalu unggah berkas `mobile/app/release/app-release.aab` ke **Google Play Console**.
 
-Build dan tes lokal dari terminal (butuh JDK 17 dan Android SDK):
+Cara lain tanpa Android Studio: dorong tag `vX.Y.Z`. Workflow `release.yml` membangun App Bundle dengan
+`versionName` dari tag dan `versionCode` = `X*1000000 + Y*1000 + Z`, menandatanganinya dengan kunci unggah dari
+secret `ANDROID_KEYSTORE_BASE64`, `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS`, dan `ANDROID_KEY_PASSWORD`,
+lalu menyimpannya sebagai artefak workflow `hris-yayasan-albahjah-vX.Y.Z` (30 hari). Unduh artefak itu lalu
+unggah ke Play Console. Isi secret `HRIS_PLAY_CLOUD_PROJECT_NUMBER` agar Play Integrity (jalur A) aktif. APK
+tidak diterbitkan publik: HP yang pernah memasang APK dari GitHub Releases harus menghapus aplikasi lama
+sebelum memasang dari Play, karena tanda tangannya berbeda bila Play App Signing memakai kunci baru.
+
+Build dan tes lokal dari terminal (butuh JDK 21 dan Android SDK; aplikasi tetap dikompilasi untuk Java 17):
 
 ```bash
 cd mobile
@@ -220,11 +228,11 @@ Pustaka (Compose, Retrofit, CameraX, ML Kit, lokasi) diambil otomatis oleh Gradl
 
 | | Versi |
 |---|---|
-| Gradle | 8.11.1 |
-| Android Gradle Plugin | 8.7.3 |
-| Kotlin | 2.1.0 |
-| JDK | 17 |
-| `compileSdk` / `targetSdk` | 35 / 35. Naikkan mengikuti batas Google Play sebelum rilis |
+| Gradle | 9.2.1 (Paparazzi 2.0 butuh Gradle 9.1 ke atas) |
+| Android Gradle Plugin | 8.13.2 |
+| Kotlin | 2.3.21 |
+| JDK | 21 (Gradle dan Paparazzi 2.0); target kompilasi Java 17 |
+| `compileSdk` / `targetSdk` | 36 / 36. Google Play mewajibkan API 36 untuk aplikasi baru dan update sejak 31 Agustus 2026 |
 | Compose BOM | 2024.12.01 |
 | CameraX | 1.4.1 |
 | ML Kit face detection | 16.1.7 (model dibundel) |

@@ -7,12 +7,10 @@ const BASE_URL = (process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8080").re
 
 /** Pesan ramah per kode error; message dari server hanya cadangan (MASTER.md §7.7). */
 const ERROR_MESSAGES: Partial<Record<ErrorCode, string>> = {
-  AUTH_INVALID_CREDENTIALS: "Email atau kata sandi salah.",
+  AUTH_INVALID_CREDENTIALS: "NIPY, email, nomor WA, atau kata sandi salah.",
   AUTH_ACCOUNT_LOCKED: "Akun terkunci. Coba lagi nanti atau hubungi SDM.",
   AUTH_MFA_INVALID: "Kode verifikasi salah.",
-  ACTIVATION_INVALID: "Tautan aktivasi tidak valid. Periksa kembali tautannya atau minta tautan baru ke SDM.",
-  ACTIVATION_USED: "Tautan ini sudah dipakai atau sudah diganti tautan baru. Silakan masuk dengan kata sandi Anda, atau minta tautan baru ke SDM.",
-  ACTIVATION_EXPIRED: "Tautan ini sudah kedaluwarsa. Minta tautan baru ke SDM.",
+  AUTH_INITIAL_PASSWORD_EXPIRED: "Kata sandi awal sudah kedaluwarsa (berlaku 72 jam). Minta SDM mereset kata sandi Anda.",
   CONFLICT_HAS_DEPENDENTS: "Data masih dipakai data lain sehingga tidak bisa dihapus.",
   CONFLICT_SELF_ACTION: "Tindakan ini tidak dapat dilakukan pada akun atau perangkat Anda sendiri.",
   AUTH_TOKEN_INVALID: "Sesi berakhir, silakan masuk kembali.",
@@ -124,7 +122,8 @@ async function request<T>(method: string, path: string, opts: { query?: Query; b
     let message: string = (code === "CONFLICT_HAS_DEPENDENTS" ? err?.message : ERROR_MESSAGES[code]) ?? err?.message ?? "Terjadi kesalahan, coba lagi.";
     if (code === "INTERNAL_ERROR" && requestId) message = `Terjadi kesalahan pada server. Kode: ${requestId}`;
     // Sandi sementara atau MFA wajib: arahkan ke halaman yang bisa menyelesaikannya.
-    if (code === "PASSWORD_CHANGE_REQUIRED" || code === "MFA_SETUP_REQUIRED") redirectToSettings(code);
+    // PASSWORD_CHANGE_REQUIRED ditangani popup di AppShell, jadi tidak dialihkan.
+    if (code === "MFA_SETUP_REQUIRED") redirectToSettings(code);
     throw new ApiError(res.status, code, message, err?.details?.fields, requestId, err?.details);
   }
   return payload as T;

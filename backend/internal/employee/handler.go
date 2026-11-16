@@ -24,6 +24,10 @@ func (h *Handler) List(w http.ResponseWriter, r *http.Request) error {
 	if err != nil {
 		return err
 	}
+	branchID, err := httpx.QueryUUID(r, "branch_id")
+	if err != nil {
+		return err
+	}
 	divisionID, err := httpx.QueryUUID(r, "division_id")
 	if err != nil {
 		return err
@@ -39,6 +43,7 @@ func (h *Handler) List(w http.ResponseWriter, r *http.Request) error {
 	p, _ := actor(r)
 	rows, total, err := h.svc.List(r.Context(), p, ListParams{
 		Q:             strings.TrimSpace(r.URL.Query().Get("q")),
+		BranchID:      branchID,
 		DivisionID:    divisionID,
 		SubdivisionID: subdivisionID,
 		Status:        status,

@@ -92,8 +92,12 @@ func Seed(ctx context.Context, pool *pgxpool.Pool, sdmPassword string, now time.
 
 func seedAll(ctx context.Context, q *store.Queries, passwordHash string, now time.Time) error {
 	r := rand.New(rand.NewSource(20261102))
-	// Akun selain SDM belum aktif; hash acak yang sama cukup untuk data dummy.
-	unusable, err := auth.UnusablePasswordHash()
+	// Akun selain SDM dibuat nonaktif dengan hash acak yang sama; cukup untuk data dummy.
+	random, err := auth.NewOpaqueToken()
+	if err != nil {
+		return err
+	}
+	unusable, err := auth.HashPassword(random)
 	if err != nil {
 		return err
 	}
@@ -108,6 +112,12 @@ func seedAll(ctx context.Context, q *store.Queries, passwordHash string, now tim
 	}
 	_ = shiftID
 
+	branches, err := q.ListBranches(ctx)
+	if err != nil || len(branches) == 0 {
+		return fmt.Errorf("cabang Pusat dari migrasi tidak ditemukan: %w", err)
+	}
+	branchID := branches[0].ID
+
 	used := map[string]bool{}
 	seq := 1
 	divisionIDs := map[string]uuid.UUID{}
@@ -115,7 +125,7 @@ func seedAll(ctx context.Context, q *store.Queries, passwordHash string, now tim
 	var inactiveCandidate uuid.UUID
 
 	for _, div := range seedOrg {
-		division, err := q.CreateDivision(ctx, store.CreateDivisionParams{Code: div.code, Name: div.name})
+		division, err := q.CreateDivision(ctx, store.CreateDivisionParams{BranchID: branchID, Code: div.code, Name: div.name})
 		if err != nil {
 			return err
 		}
@@ -149,7 +159,7 @@ func seedAll(ctx context.Context, q *store.Queries, passwordHash string, now tim
 					Nip:           fmt.Sprintf("PJ%d%04d", year, seq),
 					FullName:      name,
 					Email:         pgtype.Text{String: emailOf(name), Valid: true},
-					Phone:         pgtype.Text{String: fmt.Sprintf("08%010d", 1_000_000_000+r.Int63n(8_999_999_999)), Valid: true},
+					Phone:         pgtype.Text{String: fmt.Sprintf("628%010d", 1_000_000_000+r.Int63n(8_999_999_999)), Valid: true},
 					SubdivisionID: subdivision.ID,
 					Position:      pgtype.Text{String: position, Valid: true},
 					JoinDate:      pgconv.Date(time.Date(year, time.Month(1+r.Intn(12)), 1+r.Intn(27), 0, 0, 0, 0, time.UTC)),
@@ -168,9 +178,13 @@ func seedAll(ctx context.Context, q *store.Queries, passwordHash string, now tim
 					case isHead:
 						role = store.UserRoleSubdiv
 					}
-					if _, err := q.CreateInactiveUser(ctx, store.CreateInactiveUserParams{
-						EmployeeID: id, Email: emailOf(name), PasswordHash: unusable, Role: role,
-					}); err != nil {
+					userID, err := q.CreateUserWithInitialPassword(ctx, store.CreateUserWithInitialPasswordParams{
+						EmployeeID: id, Email: pgtype.Text{String: emailOf(name), Valid: true}, PasswordHash: unusable, Role: role,
+					})
+					if err != nil {
+						return err
+					}
+					if err := q.SetUserActive(ctx, store.SetUserActiveParams{ID: userID, IsActive: false}); err != nil {
 						return err
 					}
 				}
@@ -202,7 +216,7 @@ func seedAll(ctx context.Context, q *store.Queries, passwordHash string, now tim
 
 	// must_change_password=false hanya untuk data dummy: ganti sandi hadir di Fase 1.
 	userID, err := q.CreateUser(ctx, store.CreateUserParams{
-		EmployeeID: sdmEmployee, Email: SeedSDMEmail, PasswordHash: passwordHash,
+		EmployeeID: sdmEmployee, Email: pgtype.Text{String: SeedSDMEmail, Valid: true}, PasswordHash: passwordHash,
 		Role: store.UserRoleSdm, MustChangePassword: false,
 	})
 	if err != nil {

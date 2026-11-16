@@ -11,6 +11,7 @@ export function Modal({
   children,
   footer,
   size = "md",
+  dismissible = true,
 }: {
   open: boolean;
   title: string;
@@ -18,6 +19,8 @@ export function Modal({
   children: React.ReactNode;
   footer?: React.ReactNode;
   size?: "sm" | "md" | "lg";
+  /** false = tidak bisa ditutup lewat Esc, klik latar, atau tombol tutup. */
+  dismissible?: boolean;
 }) {
   const ref = useRef<HTMLDialogElement>(null);
   const pressedBackdrop = useRef(false);
@@ -36,14 +39,18 @@ export function Modal({
       ref={ref}
       onCancel={(e) => {
         e.preventDefault();
-        onClose();
+        if (dismissible) onClose();
+      }}
+      onClose={() => {
+        // Chrome kadang tetap menutup dialog saat Esc walau cancel dicegah; modal wajib dibuka lagi.
+        if (!dismissible && open && ref.current && !ref.current.open) ref.current.showModal();
       }}
       onPointerDown={(e) => {
         pressedBackdrop.current = e.target === ref.current;
       }}
       onClick={(e) => {
         // Seret dari dalam modal lalu lepas di luar juga memicu click di dialog, dan tidak boleh menutup form.
-        if (e.target === ref.current && pressedBackdrop.current) onClose();
+        if (dismissible && e.target === ref.current && pressedBackdrop.current) onClose();
       }}
       className={`m-auto w-[calc(100%-2rem)] ${width} rounded-lg bg-white p-0 shadow-xl backdrop:bg-slate-900/40`}
     >
@@ -51,9 +58,11 @@ export function Modal({
         <div className="flex max-h-[85vh] flex-col">
           <div className="flex items-center justify-between border-b border-slate-200 px-5 py-3.5">
             <h2 className="text-base font-semibold text-slate-900">{title}</h2>
-            <IconButton label="Tutup" onClick={onClose}>
-              <X className="size-4" />
-            </IconButton>
+            {dismissible && (
+              <IconButton label="Tutup" onClick={onClose}>
+                <X className="size-4" />
+              </IconButton>
+            )}
           </div>
           <div className="overflow-y-auto px-5 py-4">{children}</div>
           {footer && <div className="flex justify-end gap-2 border-t border-slate-200 px-5 py-3">{footer}</div>}

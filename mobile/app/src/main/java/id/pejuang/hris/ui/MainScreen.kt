@@ -134,6 +134,13 @@ fun MainScreen(
         return
     }
 
+    // Masuk dengan kata sandi awal: layar ganti kata sandi langsung disodorkan dan tidak bisa dilewati (D53).
+    if (current.mustChangePassword) {
+        BackHandler { /* tidak bisa kembali sebelum kata sandi diganti; pakai tombol Keluar */ }
+        ChangePasswordScreen(repository, onBack = {}, onChanged = { reload++ }, required = true, onLogout = logout)
+        return
+    }
+
     when (sub) {
         SubPage.PersonalData -> {
             BackHandler { sub = null }
@@ -259,7 +266,7 @@ fun MainScreen(
             FigmaPopup(
                 icon = FigmaIcons.Logout,
                 title = "Keluar dari aplikasi?",
-                body = "Anda perlu masuk lagi dengan email dan kata sandi untuk presensi berikutnya.",
+                body = "Anda perlu masuk lagi dengan NIPY, email, atau nomor WA dan kata sandi untuk presensi berikutnya.",
                 primary = "Ya, keluar",
                 onPrimary = { askLogout = false; logout() },
                 secondary = "Batal",
@@ -384,7 +391,13 @@ fun ComingSoonContent(title: String, subtitle: String, body: String) {
 
 /** Layar ganti kata sandi dengan pemanggilan API. */
 @Composable
-fun ChangePasswordScreen(repository: Repository, onBack: () -> Unit, onChanged: () -> Unit) {
+fun ChangePasswordScreen(
+    repository: Repository,
+    onBack: () -> Unit,
+    onChanged: () -> Unit,
+    required: Boolean = false,
+    onLogout: () -> Unit = {},
+) {
     val scope = rememberCoroutineScope()
     var form by remember { mutableStateOf(PasswordForm()) }
     SecureScreen()
@@ -410,5 +423,7 @@ fun ChangePasswordScreen(repository: Repository, onBack: () -> Unit, onChanged: 
         },
         onBack = onBack,
         onFinished = onChanged,
+        required = required,
+        onLogout = onLogout,
     )
 }

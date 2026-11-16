@@ -441,7 +441,7 @@ func activeAccount(t *testing.T, role, subdivisionCode string) account {
 	if err != nil {
 		t.Fatalf("akun %s di %s: %v", role, subdivisionCode, err)
 	}
-	if _, err := ownerPool.Exec(ctx, `UPDATE users SET is_active = true, password_hash = $2 WHERE id = $1`, a.userID, testHash); err != nil {
+	if _, err := ownerPool.Exec(ctx, `UPDATE users SET is_active = true, must_change_password = false, password_hash = $2 WHERE id = $1`, a.userID, testHash); err != nil {
 		t.Fatal(err)
 	}
 	return a

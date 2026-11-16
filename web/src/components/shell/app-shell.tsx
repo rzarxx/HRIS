@@ -2,6 +2,7 @@
 
 import { X } from "lucide-react";
 import { useEffect, useState } from "react";
+import { ForcedPasswordModal } from "@/components/settings/forced-password-modal";
 import { IconButton } from "@/components/ui/button";
 import { Loading } from "@/components/ui/layout";
 import { api } from "@/lib/api-client";
@@ -58,6 +59,15 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     return (
       <div className="flex min-h-screen items-center justify-center">
         <Loading label={me.isError ? "Mengalihkan ke halaman masuk..." : "Memuat..."} />
+      </div>
+    );
+  }
+
+  // Masuk dengan kata sandi awal: langsung disodori popup ganti kata sandi sebelum halaman apa pun (D53).
+  if (me.data.must_change_password) {
+    return (
+      <div className="min-h-screen bg-slate-50">
+        <ForcedPasswordModal name={me.data.full_name} />
       </div>
     );
   }

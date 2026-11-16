@@ -73,7 +73,7 @@ unggah ke Play Console. Isi secret `HRIS_PLAY_CLOUD_PROJECT_NUMBER` agar Play In
 tidak diterbitkan publik: HP yang pernah memasang APK dari GitHub Releases harus menghapus aplikasi lama
 sebelum memasang dari Play, karena tanda tangannya berbeda bila Play App Signing memakai kunci baru.
 
-Build dan tes lokal dari terminal (butuh JDK 17 dan Android SDK):
+Build dan tes lokal dari terminal (butuh JDK 21 dan Android SDK; aplikasi tetap dikompilasi untuk Java 17):
 
 ```bash
 cd mobile
@@ -231,7 +231,7 @@ Pustaka (Compose, Retrofit, CameraX, ML Kit, lokasi) diambil otomatis oleh Gradl
 | Gradle | 8.11.1 |
 | Android Gradle Plugin | 8.7.3 |
 | Kotlin | 2.1.0 |
-| JDK | 17 |
+| JDK | 21 (Gradle dan Paparazzi 2.0); target kompilasi Java 17 |
 | `compileSdk` / `targetSdk` | 36 / 36. Google Play mewajibkan API 36 untuk aplikasi baru dan update sejak 31 Agustus 2026 |
 | Compose BOM | 2024.12.01 |
 | CameraX | 1.4.1 |

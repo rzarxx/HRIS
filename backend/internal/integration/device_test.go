@@ -394,7 +394,6 @@ func TestResetSuperadminFromServer(t *testing.T) {
 	admin.do(http.MethodGet, "/v1/admin/devices", nil).wantError(t, http.StatusForbidden, "PASSWORD_CHANGE_REQUIRED")
 	changePassword(t, admin, credential.InitialPassword, newPassword)
 	login(t, srv, acc.email, newPassword).do(http.MethodGet, "/v1/admin/devices", nil).want(t, http.StatusOK)
-	login(t, srv, acc.email, "kata-sandi-baru-kuat-2").do(http.MethodGet, "/v1/admin/devices", nil).want(t, http.StatusOK) // gitleaks:allow
 	if _, err := auth.ResetSuperadmin(context.Background(), appPool, "sdm@pejuang.id", time.Now()); err == nil {
 		t.Error("akun SDM tidak boleh direset lewat perintah ini")
 	}

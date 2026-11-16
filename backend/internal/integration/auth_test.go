@@ -204,6 +204,15 @@ type createdEmployee struct {
 	BaseSalary string `json:"base_salary"`
 }
 
+func branchID(t *testing.T, code string) string {
+	t.Helper()
+	var id string
+	if err := ownerPool.QueryRow(context.Background(), `SELECT id::text FROM branches WHERE code = $1`, code).Scan(&id); err != nil {
+		t.Fatal(err)
+	}
+	return id
+}
+
 func subdivisionID(t *testing.T, code string) string {
 	t.Helper()
 	var id string
@@ -260,7 +269,7 @@ func TestInitialPasswordFlow(t *testing.T) {
 	if me.Role != "pejuang" || !me.MustChangePassword {
 		t.Errorf("me = %+v", me)
 	}
-	c.do(http.MethodGet, "/v1/me/attendance", nil).wantError(t, http.StatusForbidden, "PASSWORD_CHANGE_REQUIRED")
+	c.do(http.MethodGet, "/v1/announcements/active", nil).wantError(t, http.StatusForbidden, "PASSWORD_CHANGE_REQUIRED")
 	if f := c.do(http.MethodPost, "/v1/auth/password/change", map[string]any{"current_password": created.InitialPassword, "new_password": "pendek"}).
 		want(t, http.StatusBadRequest).fields(); f["new_password"] == nil {
 		t.Errorf("sandi pendek: %v", f)
@@ -270,7 +279,7 @@ func TestInitialPasswordFlow(t *testing.T) {
 	// Kata sandi awal tidak berlaku lagi; sandi baru berlaku lewat email.
 	newClient(t, srv).do(http.MethodPost, "/v1/auth/web/login", map[string]any{"identifier": created.Nip, "password": created.InitialPassword}).
 		wantError(t, http.StatusUnauthorized, "AUTH_INVALID_CREDENTIALS")
-	login(t, srv, email, newPassword).do(http.MethodGet, "/v1/me/attendance", nil).want(t, http.StatusOK)
+	login(t, srv, email, newPassword).do(http.MethodGet, "/v1/announcements/active", nil).want(t, http.StatusOK)
 	if countAudit(t, "employee.created") != 1 || countAudit(t, "user.created") != 1 || countAudit(t, "auth.password_changed") != 1 {
 		t.Error("pembuatan akun dan ganti kata sandi harus tercatat")
 	}
@@ -283,7 +292,7 @@ func TestInitialPasswordFlow(t *testing.T) {
 	if reset.InitialPassword != want {
 		t.Errorf("reset = %q, mau %q", reset.InitialPassword, want)
 	}
-	login(t, srv, created.Nip, reset.InitialPassword).do(http.MethodGet, "/v1/me/attendance", nil).wantError(t, http.StatusForbidden, "PASSWORD_CHANGE_REQUIRED")
+	login(t, srv, created.Nip, reset.InitialPassword).do(http.MethodGet, "/v1/announcements/active", nil).wantError(t, http.StatusForbidden, "PASSWORD_CHANGE_REQUIRED")
 }
 
 // D53: login bisa memakai NIPY, email, atau nomor WA dalam bentuk apa pun.

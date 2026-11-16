@@ -187,9 +187,9 @@ func TestManageAccounts(t *testing.T) {
 	newClient(t, srv).do(http.MethodPost, "/v1/auth/web/login", map[string]any{"email": target.email, "password": seedPassword}).
 		wantError(t, http.StatusUnauthorized, "AUTH_INVALID_CREDENTIALS")
 	first := login(t, srv, target.email, reset.InitialPassword)
-	first.do(http.MethodGet, "/v1/me/attendance", nil).wantError(t, http.StatusForbidden, "PASSWORD_CHANGE_REQUIRED")
+	first.do(http.MethodGet, "/v1/announcements/active", nil).wantError(t, http.StatusForbidden, "PASSWORD_CHANGE_REQUIRED")
 	changePassword(t, first, reset.InitialPassword, newPassword)
-	login(t, srv, target.email, newPassword).do(http.MethodGet, "/v1/me/attendance", nil).want(t, http.StatusOK)
+	login(t, srv, target.email, newPassword).do(http.MethodGet, "/v1/announcements/active", nil).want(t, http.StatusOK)
 
 	// Tidak boleh pada akun sendiri, dan akun tak dikenal dijawab 404.
 	me := data[struct {

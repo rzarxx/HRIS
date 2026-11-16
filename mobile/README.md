@@ -58,7 +58,7 @@ Aplikasi didistribusikan dan diperbarui langsung melalui **Google Play Store** (
 ### Langkah Build di Android Studio
 
 1. Buka folder `mobile/` di Android Studio dan tunggu proses *Gradle Sync* selesai (atau buat wrapper sekali
-   dengan `gradle wrapper --gradle-version 8.13`).
+   dengan `gradle wrapper --gradle-version 9.2.1`).
 2. Sebelum rilis baru, naikkan `releaseVersionName` (format `x.y.z`) dan `releaseVersionCode` di
    `mobile/app/build.gradle.kts` (bawaan `1.0.0` / `1000000`).
 3. Pilih menu **Build → Generate Signed App Bundle / APK...** → pilih **Android App Bundle**.
@@ -228,7 +228,7 @@ Pustaka (Compose, Retrofit, CameraX, ML Kit, lokasi) diambil otomatis oleh Gradl
 
 | | Versi |
 |---|---|
-| Gradle | 8.13 |
+| Gradle | 9.2.1 (Paparazzi 2.0 butuh Gradle 9.1 ke atas) |
 | Android Gradle Plugin | 8.13.2 |
 | Kotlin | 2.3.21 |
 | JDK | 21 (Gradle dan Paparazzi 2.0); target kompilasi Java 17 |

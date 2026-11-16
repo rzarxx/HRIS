@@ -170,7 +170,7 @@ jobs:
           java-version: "21"
       - uses: gradle/actions/setup-gradle@v4
         with:
-          gradle-version: "8.13"
+          gradle-version: "9.2.1"
       # recordPaparazziDebug menjalankan semua tes unit sekaligus merender layar ke PNG.
       - name: Build APK debug, tes unit, dan screenshot
         run: gradle --no-daemon --stacktrace assembleDebug recordPaparazziDebug assembleRelease -Phris.apiBaseUrl=https://example.invalid/

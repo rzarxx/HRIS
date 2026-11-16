@@ -265,5 +265,6 @@ cd /opt/hris && runuser -u hris -- ./hris-superadmin grant --email orang@contoh.
 ```
 
 `--email` juga menerima NIPY atau nomor WA. Bila akun lama belum pernah aktif, kata sandi awal tampil di
-terminal dan wajib diganti saat login pertama. Untuk mencabut, pakai `revoke`. Bila super admin lupa
+terminal dan wajib diganti saat login pertama. Kata sandi hanya ditulis ke terminal interaktif (`/dev/tty`), tidak ke
+keluaran biasa, jadi tidak ikut tersimpan bila keluaran dialihkan ke berkas log; tanpa terminal, perintah menolak berjalan. Untuk mencabut, pakai `revoke`. Bila super admin lupa
 kata sandi, pakai `reset`: akun kembali ke kata sandi awal, karena SDM tidak bisa mereset akun super admin.

@@ -45,7 +45,9 @@ Perubahan penting yang terlihat oleh Pejuang, SDM, atau pengelola server. Keputu
 
 ### Diubah
 - **Akun baru langsung aktif dengan kata sandi awal** `@` + nama depan + tahun dibuat (contoh `@Siti2026`) yang
-  wajib diganti saat login pertama (D53). Tautan aktivasi, halaman `/aktivasi`, dan endpoint
+  wajib diganti saat login pertama (D53). Kata sandi awal hanya berlaku 72 jam; lewat dari itu login ditolak
+  `AUTH_INITIAL_PASSWORD_EXPIRED` dan SDM perlu mereset ulang. Setelah masuk, web dan aplikasi langsung menampilkan
+  popup ganti kata sandi. Tautan aktivasi, halaman `/aktivasi`, dan endpoint
   `/v1/auth/activate` dihapus. Reset kata sandi oleh SDM dan `hris-superadmin reset` mengembalikan akun ke kata
   sandi awal.
 - Nomor WA disimpan dalam bentuk `62…` dan unik; masukan `08…`, `+62…`, atau dengan spasi dan tanda minus

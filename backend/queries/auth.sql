@@ -84,7 +84,8 @@ SELECT * FROM users WHERE id = $1;
 
 -- name: SetUserPassword :exec
 UPDATE users
-SET password_hash = @password_hash, must_change_password = false, password_changed_at = now()
+SET password_hash = @password_hash, must_change_password = false, password_changed_at = now(),
+    initial_password_expires_at = NULL
 WHERE id = @id;
 
 -- name: RevokeOtherSessions :exec
@@ -138,14 +139,14 @@ SELECT * FROM users WHERE employee_id = $1;
 
 -- Akun baru langsung aktif dengan kata sandi awal yang wajib diganti saat login pertama (D53).
 -- name: CreateUserWithInitialPassword :one
-INSERT INTO users (employee_id, email, password_hash, role, is_active, must_change_password)
-VALUES ($1, $2, $3, $4, true, true)
+INSERT INTO users (employee_id, email, password_hash, role, is_active, must_change_password, initial_password_expires_at)
+VALUES (@employee_id, @email, @password_hash, @role, true, true, @initial_password_expires_at)
 RETURNING id;
 
 -- name: SetInitialPassword :exec
 UPDATE users
 SET password_hash = @password_hash, must_change_password = true, password_changed_at = now(),
-    failed_login_count = 0, locked_until = NULL
+    initial_password_expires_at = @initial_password_expires_at, failed_login_count = 0, locked_until = NULL
 WHERE id = @id;
 
 -- name: GetEmployeeAccount :one

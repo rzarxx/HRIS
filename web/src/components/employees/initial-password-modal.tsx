@@ -5,11 +5,24 @@ import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Modal } from "@/components/ui/modal";
 import { copyText } from "@/lib/clipboard";
+import { dateTime } from "@/lib/format";
 
 const COPIED_MS = 2500;
 
 /** Kata sandi awal hanya tampil di layar ini; server menyimpan hash-nya saja (D53). */
-export function InitialPasswordModal({ name, nip, password, onClose }: { name: string; nip?: string; password: string; onClose: () => void }) {
+export function InitialPasswordModal({
+  name,
+  nip,
+  password,
+  expiresAt,
+  onClose,
+}: {
+  name: string;
+  nip?: string;
+  password: string;
+  expiresAt: string;
+  onClose: () => void;
+}) {
   const [status, setStatus] = useState<"idle" | "copied" | "failed">("idle");
   const timer = useRef<ReturnType<typeof setTimeout>>(undefined);
   const box = useRef<HTMLDivElement>(null);
@@ -36,7 +49,10 @@ export function InitialPasswordModal({ name, nip, password, onClose }: { name: s
       <div ref={box} className="mt-3 rounded-md bg-slate-50 p-3 font-mono text-base break-all text-slate-800 select-all">
         {password}
       </div>
-      <p className="mt-2 text-xs text-slate-500">Kata sandi ini tidak akan ditampilkan lagi. Bila terlupa, gunakan Reset kata sandi.</p>
+      <p className="mt-2 text-xs text-slate-500">
+        Berlaku sampai <strong className="text-slate-700">{dateTime(expiresAt)}</strong> (72 jam) dan tidak akan ditampilkan lagi. Bila terlupa atau kedaluwarsa,
+        gunakan Reset kata sandi.
+      </p>
       <div className="mt-3 flex flex-wrap items-center gap-3">
         <Button variant={status === "copied" ? "success" : "secondary"} size="sm" onClick={copy}>
           {status === "copied" ? <Check className="size-4" aria-hidden /> : <Copy className="size-4" aria-hidden />}

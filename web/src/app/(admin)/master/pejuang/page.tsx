@@ -85,14 +85,14 @@ function EmployeesView() {
   });
 
   const [bulkOpen, setBulkOpen] = useState(false);
-  const [credential, setCredential] = useState<{ name: string; nip?: string; password: string } | null>(null);
+  const [credential, setCredential] = useState<{ name: string; nip?: string; password: string; expiresAt: string } | null>(null);
   const [resetting, setResetting] = useState<EmployeeListItem | null>(null);
   const resetPassword = useSave(
     (e: EmployeeListItem) => api.post<ItemResponse<InitialCredential>>(`/admin/users/${e.account!.user_id}/reset-password`),
     {
       success: "Kata sandi dikembalikan ke kata sandi awal. Sesi Pejuang ini dicabut.",
       onDone: (res) => {
-        setCredential({ name: resetting?.full_name ?? "", nip: resetting?.nip, password: res.data.initial_password });
+        setCredential({ name: resetting?.full_name ?? "", nip: resetting?.nip, password: res.data.initial_password, expiresAt: res.data.expires_at });
         setResetting(null);
       },
     },
@@ -308,7 +308,7 @@ function EmployeesView() {
         <EmployeeForm
           employee={editing === "new" ? null : editing}
           onClose={() => setEditing(null)}
-          onCreated={(c) => setCredential({ name: c.full_name, nip: c.nip, password: c.initial_password })}
+          onCreated={(c) => setCredential({ name: c.full_name, nip: c.nip, password: c.initial_password, expiresAt: c.expires_at })}
         />
       )}
 
@@ -321,7 +321,7 @@ function EmployeesView() {
 
       {bulkOpen && <BulkArrangementModal onClose={() => setBulkOpen(false)} />}
 
-      {credential && <InitialPasswordModal name={credential.name} nip={credential.nip} password={credential.password} onClose={() => setCredential(null)} />}
+      {credential && <InitialPasswordModal name={credential.name} nip={credential.nip} password={credential.password} expiresAt={credential.expiresAt} onClose={() => setCredential(null)} />}
 
       <ConfirmDialog
         open={resetting !== null}

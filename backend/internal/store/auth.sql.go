@@ -74,16 +74,17 @@ func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (uuid.UU
 }
 
 const createUserWithInitialPassword = `-- name: CreateUserWithInitialPassword :one
-INSERT INTO users (employee_id, email, password_hash, role, is_active, must_change_password)
-VALUES ($1, $2, $3, $4, true, true)
+INSERT INTO users (employee_id, email, password_hash, role, is_active, must_change_password, initial_password_expires_at)
+VALUES ($1, $2, $3, $4, true, true, $5)
 RETURNING id
 `
 
 type CreateUserWithInitialPasswordParams struct {
-	EmployeeID   uuid.UUID
-	Email        pgtype.Text
-	PasswordHash string
-	Role         UserRole
+	EmployeeID               uuid.UUID
+	Email                    pgtype.Text
+	PasswordHash             string
+	Role                     UserRole
+	InitialPasswordExpiresAt pgtype.Timestamptz
 }
 
 // Akun baru langsung aktif dengan kata sandi awal yang wajib diganti saat login pertama (D53).
@@ -93,6 +94,7 @@ func (q *Queries) CreateUserWithInitialPassword(ctx context.Context, arg CreateU
 		arg.Email,
 		arg.PasswordHash,
 		arg.Role,
+		arg.InitialPasswordExpiresAt,
 	)
 	var id uuid.UUID
 	err := row.Scan(&id)
@@ -333,7 +335,7 @@ func (q *Queries) GetSessionByRefreshHash(ctx context.Context, refreshHash strin
 }
 
 const getUserByEmployee = `-- name: GetUserByEmployee :one
-SELECT id, employee_id, email, password_hash, role, is_active, failed_login_count, locked_until, must_change_password, password_changed_at, last_login_at, created_at FROM users WHERE employee_id = $1
+SELECT id, employee_id, email, password_hash, role, is_active, failed_login_count, locked_until, must_change_password, password_changed_at, last_login_at, created_at, initial_password_expires_at FROM users WHERE employee_id = $1
 `
 
 func (q *Queries) GetUserByEmployee(ctx context.Context, employeeID uuid.UUID) (User, error) {
@@ -352,12 +354,13 @@ func (q *Queries) GetUserByEmployee(ctx context.Context, employeeID uuid.UUID) (
 		&i.PasswordChangedAt,
 		&i.LastLoginAt,
 		&i.CreatedAt,
+		&i.InitialPasswordExpiresAt,
 	)
 	return i, err
 }
 
 const getUserByID = `-- name: GetUserByID :one
-SELECT id, employee_id, email, password_hash, role, is_active, failed_login_count, locked_until, must_change_password, password_changed_at, last_login_at, created_at FROM users WHERE id = $1
+SELECT id, employee_id, email, password_hash, role, is_active, failed_login_count, locked_until, must_change_password, password_changed_at, last_login_at, created_at, initial_password_expires_at FROM users WHERE id = $1
 `
 
 func (q *Queries) GetUserByID(ctx context.Context, id uuid.UUID) (User, error) {
@@ -376,12 +379,13 @@ func (q *Queries) GetUserByID(ctx context.Context, id uuid.UUID) (User, error) {
 		&i.PasswordChangedAt,
 		&i.LastLoginAt,
 		&i.CreatedAt,
+		&i.InitialPasswordExpiresAt,
 	)
 	return i, err
 }
 
 const getUserForLogin = `-- name: GetUserForLogin :one
-SELECT u.id, u.employee_id, u.email, u.password_hash, u.role, u.is_active, u.failed_login_count, u.locked_until, u.must_change_password, u.password_changed_at, u.last_login_at, u.created_at, e.full_name
+SELECT u.id, u.employee_id, u.email, u.password_hash, u.role, u.is_active, u.failed_login_count, u.locked_until, u.must_change_password, u.password_changed_at, u.last_login_at, u.created_at, u.initial_password_expires_at, e.full_name
 FROM users u JOIN employees e ON e.id = u.employee_id
 WHERE e.deleted_at IS NULL
   AND (($1::text IS NOT NULL AND lower(u.email) = lower($1))
@@ -396,19 +400,20 @@ type GetUserForLoginParams struct {
 }
 
 type GetUserForLoginRow struct {
-	ID                 uuid.UUID
-	EmployeeID         uuid.UUID
-	Email              pgtype.Text
-	PasswordHash       string
-	Role               UserRole
-	IsActive           bool
-	FailedLoginCount   int32
-	LockedUntil        pgtype.Timestamptz
-	MustChangePassword bool
-	PasswordChangedAt  pgtype.Timestamptz
-	LastLoginAt        pgtype.Timestamptz
-	CreatedAt          pgtype.Timestamptz
-	FullName           string
+	ID                       uuid.UUID
+	EmployeeID               uuid.UUID
+	Email                    pgtype.Text
+	PasswordHash             string
+	Role                     UserRole
+	IsActive                 bool
+	FailedLoginCount         int32
+	LockedUntil              pgtype.Timestamptz
+	MustChangePassword       bool
+	PasswordChangedAt        pgtype.Timestamptz
+	LastLoginAt              pgtype.Timestamptz
+	CreatedAt                pgtype.Timestamptz
+	InitialPasswordExpiresAt pgtype.Timestamptz
+	FullName                 string
 }
 
 // Login memakai NIPY, email, atau nomor WA (D53). Pemanggil mengisi tepat satu parameter.
@@ -428,6 +433,7 @@ func (q *Queries) GetUserForLogin(ctx context.Context, arg GetUserForLoginParams
 		&i.PasswordChangedAt,
 		&i.LastLoginAt,
 		&i.CreatedAt,
+		&i.InitialPasswordExpiresAt,
 		&i.FullName,
 	)
 	return i, err
@@ -749,17 +755,18 @@ func (q *Queries) RotateSession(ctx context.Context, arg RotateSessionParams) er
 const setInitialPassword = `-- name: SetInitialPassword :exec
 UPDATE users
 SET password_hash = $1, must_change_password = true, password_changed_at = now(),
-    failed_login_count = 0, locked_until = NULL
-WHERE id = $2
+    initial_password_expires_at = $2, failed_login_count = 0, locked_until = NULL
+WHERE id = $3
 `
 
 type SetInitialPasswordParams struct {
-	PasswordHash string
-	ID           uuid.UUID
+	PasswordHash             string
+	InitialPasswordExpiresAt pgtype.Timestamptz
+	ID                       uuid.UUID
 }
 
 func (q *Queries) SetInitialPassword(ctx context.Context, arg SetInitialPasswordParams) error {
-	_, err := q.db.Exec(ctx, setInitialPassword, arg.PasswordHash, arg.ID)
+	_, err := q.db.Exec(ctx, setInitialPassword, arg.PasswordHash, arg.InitialPasswordExpiresAt, arg.ID)
 	return err
 }
 
@@ -825,7 +832,8 @@ func (q *Queries) SetUserLock(ctx context.Context, arg SetUserLockParams) error 
 
 const setUserPassword = `-- name: SetUserPassword :exec
 UPDATE users
-SET password_hash = $1, must_change_password = false, password_changed_at = now()
+SET password_hash = $1, must_change_password = false, password_changed_at = now(),
+    initial_password_expires_at = NULL
 WHERE id = $2
 `
 

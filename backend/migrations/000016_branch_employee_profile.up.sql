@@ -57,3 +57,6 @@ CREATE TABLE employee_children (
 
 -- Email tidak lagi wajib: login bisa memakai NIPY atau nomor WA.
 ALTER TABLE users ALTER COLUMN email DROP NOT NULL;
+
+-- Kata sandi awal mudah ditebak, jadi hanya berlaku sebentar; NULL = kata sandi pilihan sendiri.
+ALTER TABLE users ADD COLUMN initial_password_expires_at TIMESTAMPTZ;

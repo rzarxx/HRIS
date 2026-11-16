@@ -739,18 +739,19 @@ type Subdivision struct {
 }
 
 type User struct {
-	ID                 uuid.UUID
-	EmployeeID         uuid.UUID
-	Email              pgtype.Text
-	PasswordHash       string
-	Role               UserRole
-	IsActive           bool
-	FailedLoginCount   int32
-	LockedUntil        pgtype.Timestamptz
-	MustChangePassword bool
-	PasswordChangedAt  pgtype.Timestamptz
-	LastLoginAt        pgtype.Timestamptz
-	CreatedAt          pgtype.Timestamptz
+	ID                       uuid.UUID
+	EmployeeID               uuid.UUID
+	Email                    pgtype.Text
+	PasswordHash             string
+	Role                     UserRole
+	IsActive                 bool
+	FailedLoginCount         int32
+	LockedUntil              pgtype.Timestamptz
+	MustChangePassword       bool
+	PasswordChangedAt        pgtype.Timestamptz
+	LastLoginAt              pgtype.Timestamptz
+	CreatedAt                pgtype.Timestamptz
+	InitialPasswordExpiresAt pgtype.Timestamptz
 }
 
 type UserInvite struct {

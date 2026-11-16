@@ -51,7 +51,7 @@ func resetToInitialPassword(ctx context.Context, q *store.Queries, user store.Us
 	if err != nil {
 		return InitialCredential{}, err
 	}
-	if err := q.SetInitialPassword(ctx, store.SetInitialPasswordParams{ID: user.ID, PasswordHash: hash}); err != nil {
+	if err := q.SetInitialPassword(ctx, store.SetInitialPasswordParams{ID: user.ID, PasswordHash: hash, InitialPasswordExpiresAt: out.Expires()}); err != nil {
 		return InitialCredential{}, err
 	}
 	if err := q.InvalidateUserInvites(ctx, user.ID); err != nil {

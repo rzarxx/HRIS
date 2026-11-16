@@ -90,7 +90,7 @@ export interface paths {
         put?: never;
         /**
          * Login web admin
-         * @description Menyetel cookie sesi. `identifier` boleh NIPY, email, atau nomor WA (D53). Gagal 5 kali berturut-turut mengunci akun 15 menit.
+         * @description Menyetel cookie sesi. `identifier` boleh NIPY, email, atau nomor WA (D53). Gagal 5 kali berturut-turut mengunci akun 15 menit. Kata sandi awal yang lewat 72 jam dijawab `AUTH_INITIAL_PASSWORD_EXPIRED`.
          */
         post: {
             parameters: {
@@ -4511,7 +4511,7 @@ export interface components {
          * @description Registry MASTER.md §7.4
          * @enum {string}
          */
-        ErrorCode: "VALIDATION_FAILED" | "AUTH_INVALID_CREDENTIALS" | "AUTH_TOKEN_INVALID" | "AUTH_MFA_REQUIRED" | "AUTH_MFA_INVALID" | "FORBIDDEN_ROLE" | "CSRF_INVALID" | "PASSWORD_CHANGE_REQUIRED" | "MFA_SETUP_REQUIRED" | "DEVICE_NOT_REGISTERED" | "DEVICE_PENDING_APPROVAL" | "DEVICE_REVOKED" | "APPROVAL_NOT_YOUR_TURN" | "APPROVAL_SELF_FORBIDDEN" | "MAKER_CHECKER_VIOLATION" | "NOT_FOUND" | "METHOD_NOT_ALLOWED" | "ALREADY_CLOCKED_IN" | "ALREADY_CLOCKED_OUT" | "SHIFT_NOT_ASSIGNED" | "NOT_CLOCKED_IN" | "REQUEST_NOT_PENDING" | "PERIOD_LOCKED" | "DUPLICATE_REQUEST" | "CONFLICT_DUPLICATE" | "CONFLICT_HAS_DEPENDENTS" | "CONFLICT_SELF_ACTION" | "MFA_ALREADY_ENABLED" | "PAYLOAD_TOO_LARGE" | "UNSUPPORTED_MEDIA_TYPE" | "GEOFENCE_OUT" | "FACE_NOT_ENROLLED" | "FACE_MISMATCH" | "LIVENESS_FAILED" | "FACE_NOT_DETECTED" | "FACE_SERVICE_UNAVAILABLE" | "CHALLENGE_EXPIRED" | "ATTENDANCE_BLOCKED" | "LEAVE_ACTIVE" | "READ_TOO_SOON" | "AUTH_ACCOUNT_LOCKED" | "APP_UPDATE_REQUIRED" | "RATE_LIMITED" | "API_ACCESS_DENIED" | "INTERNAL_ERROR";
+        ErrorCode: "VALIDATION_FAILED" | "AUTH_INVALID_CREDENTIALS" | "AUTH_TOKEN_INVALID" | "AUTH_MFA_REQUIRED" | "AUTH_MFA_INVALID" | "FORBIDDEN_ROLE" | "CSRF_INVALID" | "PASSWORD_CHANGE_REQUIRED" | "MFA_SETUP_REQUIRED" | "DEVICE_NOT_REGISTERED" | "DEVICE_PENDING_APPROVAL" | "DEVICE_REVOKED" | "APPROVAL_NOT_YOUR_TURN" | "APPROVAL_SELF_FORBIDDEN" | "MAKER_CHECKER_VIOLATION" | "NOT_FOUND" | "METHOD_NOT_ALLOWED" | "ALREADY_CLOCKED_IN" | "ALREADY_CLOCKED_OUT" | "SHIFT_NOT_ASSIGNED" | "NOT_CLOCKED_IN" | "REQUEST_NOT_PENDING" | "PERIOD_LOCKED" | "DUPLICATE_REQUEST" | "CONFLICT_DUPLICATE" | "CONFLICT_HAS_DEPENDENTS" | "CONFLICT_SELF_ACTION" | "MFA_ALREADY_ENABLED" | "PAYLOAD_TOO_LARGE" | "UNSUPPORTED_MEDIA_TYPE" | "GEOFENCE_OUT" | "FACE_NOT_ENROLLED" | "FACE_MISMATCH" | "LIVENESS_FAILED" | "FACE_NOT_DETECTED" | "FACE_SERVICE_UNAVAILABLE" | "CHALLENGE_EXPIRED" | "ATTENDANCE_BLOCKED" | "LEAVE_ACTIVE" | "READ_TOO_SOON" | "AUTH_ACCOUNT_LOCKED" | "AUTH_INITIAL_PASSWORD_EXPIRED" | "APP_UPDATE_REQUIRED" | "RATE_LIMITED" | "API_ACCESS_DENIED" | "INTERNAL_ERROR";
         /**
          * @description Matriks MASTER.md §3.2
          * @enum {string}
@@ -4754,10 +4754,20 @@ export interface components {
         EmployeeCreated: components["schemas"]["Employee"] & {
             /** @description Kata sandi awal @NamaDepan+tahun (D53). Hanya tampil sekali. */
             initial_password: string;
+            /**
+             * Format: date-time
+             * @description Batas berlaku kata sandi awal, 72 jam sejak dibuat
+             */
+            expires_at: string;
         };
         InitialCredential: {
             /** @description Kata sandi awal @NamaDepan+tahun, wajib diganti saat login (D53). Hanya tampil sekali. */
             initial_password: string;
+            /**
+             * Format: date-time
+             * @description Batas berlaku kata sandi awal, 72 jam sejak dibuat. Lewat dari itu login dijawab AUTH_INITIAL_PASSWORD_EXPIRED.
+             */
+            expires_at: string;
         };
         /** @enum {string|null} */
         Gender: "L" | "P" | null;

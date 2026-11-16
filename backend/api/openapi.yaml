@@ -56,7 +56,7 @@ paths:
     post:
       tags: [Auth]
       summary: Login web admin
-      description: "Menyetel cookie sesi. `identifier` boleh NIPY, email, atau nomor WA (D53). Gagal 5 kali berturut-turut mengunci akun 15 menit."
+      description: "Menyetel cookie sesi. `identifier` boleh NIPY, email, atau nomor WA (D53). Gagal 5 kali berturut-turut mengunci akun 15 menit. Kata sandi awal yang lewat 72 jam dijawab `AUTH_INITIAL_PASSWORD_EXPIRED`."
       security: []
       requestBody:
         required: true
@@ -2246,6 +2246,7 @@ components:
         - LEAVE_ACTIVE
         - READ_TOO_SOON
         - AUTH_ACCOUNT_LOCKED
+        - AUTH_INITIAL_PASSWORD_EXPIRED
         - APP_UPDATE_REQUIRED
         - RATE_LIMITED
         - API_ACCESS_DENIED
@@ -2536,14 +2537,16 @@ components:
       allOf:
         - $ref: "#/components/schemas/Employee"
         - type: object
-          required: [initial_password]
+          required: [initial_password, expires_at]
           properties:
             initial_password: { type: string, description: "Kata sandi awal @NamaDepan+tahun (D53). Hanya tampil sekali." }
+            expires_at: { type: string, format: date-time, description: "Batas berlaku kata sandi awal, 72 jam sejak dibuat" }
     InitialCredential:
       type: object
-      required: [initial_password]
+      required: [initial_password, expires_at]
       properties:
         initial_password: { type: string, description: "Kata sandi awal @NamaDepan+tahun, wajib diganti saat login (D53). Hanya tampil sekali." }
+        expires_at: { type: string, format: date-time, description: "Batas berlaku kata sandi awal, 72 jam sejak dibuat. Lewat dari itu login dijawab AUTH_INITIAL_PASSWORD_EXPIRED." }
     Gender:
       type: string
       nullable: true

@@ -417,7 +417,7 @@ func (s *Service) Create(ctx context.Context, p auth.Principal, ip audit.Entry, 
 	var id uuid.UUID
 	err = database.InTx(ctx, s.pool, func(q *store.Queries) error {
 		var err error
-		id, err = s.insert(ctx, q, ip, v, hash, now)
+		id, err = s.insert(ctx, q, ip, v, hash, credential.Expires(), now)
 		return err
 	})
 	if err != nil {
@@ -432,7 +432,7 @@ func (s *Service) Create(ctx context.Context, p auth.Principal, ip audit.Entry, 
 
 // insert menulis data Pejuang baru, data anak, dan akunnya dalam transaksi pemanggil. Dipakai
 // tambah satu per satu dan impor massal.
-func (s *Service) insert(ctx context.Context, q *store.Queries, ip audit.Entry, v validated, passwordHash string, now time.Time) (uuid.UUID, error) {
+func (s *Service) insert(ctx context.Context, q *store.Queries, ip audit.Entry, v validated, passwordHash string, expires pgtype.Timestamptz, now time.Time) (uuid.UUID, error) {
 	nip := v.Nip
 	if nip == "" {
 		seq, err := q.NextNipSequence(ctx)

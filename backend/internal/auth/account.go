@@ -58,6 +58,13 @@ func ValidatePassword(password, email string) string {
 // direset (D53). Menggantikan tautan aktivasi.
 type InitialCredential struct {
 	InitialPassword string `json:"initial_password"`
+	ExpiresAt       string `json:"expires_at"`
+	expires         time.Time
+}
+
+// Expires adalah batas berlaku kata sandi awal untuk disimpan di users.initial_password_expires_at.
+func (c InitialCredential) Expires() pgtype.Timestamptz {
+	return pgtype.Timestamptz{Time: c.expires, Valid: true}
 }
 
 // InitialPasswordHash membuat kata sandi awal beserta hash-nya. Argon2 sengaja lambat, jadi
@@ -65,7 +72,8 @@ type InitialCredential struct {
 func InitialPasswordHash(fullName string, now time.Time) (InitialCredential, string, error) {
 	password := InitialPassword(fullName, now)
 	hash, err := HashPassword(password)
-	return InitialCredential{InitialPassword: password}, hash, err
+	expires := now.Add(InitialPasswordTTL)
+	return InitialCredential{InitialPassword: password, ExpiresAt: expires.UTC().Format(time.RFC3339), expires: expires}, hash, err
 }
 
 // ChangePassword memeriksa sandi lama dan mencabut sesi lain.
@@ -337,7 +345,7 @@ func (s *Service) ResetPassword(ctx context.Context, actor Principal, id uuid.UU
 		return InitialCredential{}, err
 	}
 	err = database.InTx(ctx, s.pool, func(q *store.Queries) error {
-		if err := q.SetInitialPassword(ctx, store.SetInitialPasswordParams{ID: id, PasswordHash: hash}); err != nil {
+		if err := q.SetInitialPassword(ctx, store.SetInitialPasswordParams{ID: id, PasswordHash: hash, InitialPasswordExpiresAt: out.Expires()}); err != nil {
 			return err
 		}
 		// Akun lama yang belum pernah aktivasi (sebelum D53) ikut diaktifkan, kecuali Pejuangnya sudah nonaktif.

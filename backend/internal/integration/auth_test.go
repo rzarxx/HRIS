@@ -196,6 +196,7 @@ type createdEmployee struct {
 	Nip             string `json:"nip"`
 	FullName        string `json:"full_name"`
 	InitialPassword string `json:"initial_password"`
+	ExpiresAt       string `json:"expires_at"`
 	Account         struct {
 		UserID   string `json:"user_id"`
 		Role     string `json:"role"`
@@ -293,6 +294,44 @@ func TestInitialPasswordFlow(t *testing.T) {
 		t.Errorf("reset = %q, mau %q", reset.InitialPassword, want)
 	}
 	login(t, srv, created.Nip, reset.InitialPassword).do(http.MethodGet, "/v1/announcements/active", nil).wantError(t, http.StatusForbidden, "PASSWORD_CHANGE_REQUIRED")
+}
+
+// D53: kata sandi awal hanya berlaku 72 jam; lewat dari itu SDM harus mereset ulang.
+func TestInitialPasswordExpires(t *testing.T) {
+	srv := fresh(t, options{})
+	sdm := loginSDM(t, srv)
+	created := createEmployee(t, sdm, "kedaluwarsa@pejuang.id")
+	expires, err := time.Parse(time.RFC3339, created.ExpiresAt)
+	if err != nil {
+		t.Fatalf("expires_at = %q: %v", created.ExpiresAt, err)
+	}
+	if d := time.Until(expires); d < auth.InitialPasswordTTL-time.Minute || d > auth.InitialPasswordTTL {
+		t.Errorf("berlaku %v, mau sekitar %v", d, auth.InitialPasswordTTL)
+	}
+	exec(t, `UPDATE users SET initial_password_expires_at = now() - interval '1 minute' WHERE id = $1`, created.Account.UserID)
+
+	// Kata sandi salah tetap dijawab umum; kata sandi benar yang kedaluwarsa dijawab khusus.
+	newClient(t, srv).do(http.MethodPost, "/v1/auth/web/login", map[string]any{"identifier": created.Nip, "password": wrongPassword}).
+		wantError(t, http.StatusUnauthorized, "AUTH_INVALID_CREDENTIALS")
+	newClient(t, srv).do(http.MethodPost, "/v1/auth/web/login", map[string]any{"identifier": created.Nip, "password": created.InitialPassword}).
+		wantError(t, http.StatusUnauthorized, "AUTH_INITIAL_PASSWORD_EXPIRED")
+
+	// Reset menerbitkan kata sandi awal baru dengan batas baru.
+	reset := data[auth.InitialCredential](t, sdm.do(http.MethodPost, "/v1/admin/users/"+created.Account.UserID+"/reset-password", nil).want(t, http.StatusOK))
+	if reset.ExpiresAt == "" {
+		t.Fatal("reset tanpa expires_at")
+	}
+	c := login(t, srv, created.Nip, reset.InitialPassword)
+	changePassword(t, c, reset.InitialPassword, newPassword)
+
+	// Kata sandi pilihan sendiri tidak ikut kedaluwarsa.
+	var stillSet bool
+	if err := ownerPool.QueryRow(context.Background(), `SELECT initial_password_expires_at IS NOT NULL FROM users WHERE id = $1`, created.Account.UserID).Scan(&stillSet); err != nil {
+		t.Fatal(err)
+	}
+	if stillSet {
+		t.Error("batas kata sandi awal harus hilang setelah diganti")
+	}
 }
 
 // D53: login bisa memakai NIPY, email, atau nomor WA dalam bentuk apa pun.

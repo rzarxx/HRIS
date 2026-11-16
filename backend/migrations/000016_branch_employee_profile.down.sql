@@ -1,3 +1,5 @@
+ALTER TABLE users DROP COLUMN initial_password_expires_at;
+
 -- Akun tanpa email tidak bisa dipertahankan setelah kolom kembali wajib.
 DELETE FROM sessions WHERE user_id IN (SELECT id FROM users WHERE email IS NULL);
 UPDATE users SET email = 'tanpa-email-' || id || '@invalid' WHERE email IS NULL;

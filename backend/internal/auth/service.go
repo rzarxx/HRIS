@@ -149,6 +149,11 @@ func (s *Service) checkPassword(ctx context.Context, identifier, password string
 		}
 		return user, errInvalidCredentials()
 	}
+	// Kata sandi awal yang tidak segera diganti tidak boleh dipakai siapa pun yang menebaknya (D53).
+	if user.MustChangePassword && user.InitialPasswordExpiresAt.Valid && !now.Before(user.InitialPasswordExpiresAt.Time) {
+		s.auditBestEffort(ctx, audit.Entry{UserID: audit.Actor(user.ID), Action: audit.AuthLoginFailed, Entity: "user", EntityID: user.ID, IP: ip, Detail: map[string]any{"reason": "initial_password_expired"}})
+		return user, httpx.NewError(http.StatusUnauthorized, "AUTH_INITIAL_PASSWORD_EXPIRED", "Kata sandi awal sudah kedaluwarsa. Minta SDM mereset kata sandi Anda.")
+	}
 	return user, nil
 }
 

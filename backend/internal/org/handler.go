@@ -18,7 +18,11 @@ func actorFrom(r *http.Request) audit.Entry {
 }
 
 func (h *Handler) ListDivisions(w http.ResponseWriter, r *http.Request) error {
-	rows, err := h.svc.ListDivisions(r.Context())
+	branchID, err := httpx.QueryUUID(r, "branch_id")
+	if err != nil {
+		return err
+	}
+	rows, err := h.svc.ListDivisions(r.Context(), branchID)
 	if err != nil {
 		return err
 	}

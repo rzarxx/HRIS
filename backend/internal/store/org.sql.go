@@ -24,6 +24,17 @@ func (q *Queries) ClearHeadOfEmployee(ctx context.Context, employeeID uuid.NullU
 	return err
 }
 
+const countDivisionsInBranch = `-- name: CountDivisionsInBranch :one
+SELECT count(*) FROM divisions WHERE branch_id = $1
+`
+
+func (q *Queries) CountDivisionsInBranch(ctx context.Context, branchID uuid.UUID) (int64, error) {
+	row := q.db.QueryRow(ctx, countDivisionsInBranch, branchID)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const countEmployeesAnyStateInSubdivision = `-- name: CountEmployeesAnyStateInSubdivision :one
 SELECT count(*) FROM employees WHERE subdivision_id = $1
 `
@@ -57,18 +68,45 @@ func (q *Queries) CountSubdivisionsInDivision(ctx context.Context, divisionID uu
 	return count, err
 }
 
+const createBranch = `-- name: CreateBranch :one
+INSERT INTO branches (code, name) VALUES ($1, $2) RETURNING id, code, name, created_at
+`
+
+type CreateBranchParams struct {
+	Code string
+	Name string
+}
+
+func (q *Queries) CreateBranch(ctx context.Context, arg CreateBranchParams) (Branch, error) {
+	row := q.db.QueryRow(ctx, createBranch, arg.Code, arg.Name)
+	var i Branch
+	err := row.Scan(
+		&i.ID,
+		&i.Code,
+		&i.Name,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
 const createDivision = `-- name: CreateDivision :one
-INSERT INTO divisions (code, name, head_employee_id) VALUES ($1, $2, $3) RETURNING id, code, name, created_at, head_employee_id
+INSERT INTO divisions (branch_id, code, name, head_employee_id) VALUES ($1, $2, $3, $4) RETURNING id, code, name, created_at, head_employee_id, branch_id
 `
 
 type CreateDivisionParams struct {
+	BranchID       uuid.UUID
 	Code           string
 	Name           string
 	HeadEmployeeID uuid.NullUUID
 }
 
 func (q *Queries) CreateDivision(ctx context.Context, arg CreateDivisionParams) (Division, error) {
-	row := q.db.QueryRow(ctx, createDivision, arg.Code, arg.Name, arg.HeadEmployeeID)
+	row := q.db.QueryRow(ctx, createDivision,
+		arg.BranchID,
+		arg.Code,
+		arg.Name,
+		arg.HeadEmployeeID,
+	)
 	var i Division
 	err := row.Scan(
 		&i.ID,
@@ -76,6 +114,7 @@ func (q *Queries) CreateDivision(ctx context.Context, arg CreateDivisionParams) 
 		&i.Name,
 		&i.CreatedAt,
 		&i.HeadEmployeeID,
+		&i.BranchID,
 	)
 	return i, err
 }
@@ -108,6 +147,18 @@ func (q *Queries) CreateSubdivision(ctx context.Context, arg CreateSubdivisionPa
 		&i.CreatedAt,
 	)
 	return i, err
+}
+
+const deleteBranch = `-- name: DeleteBranch :execrows
+DELETE FROM branches WHERE id = $1
+`
+
+func (q *Queries) DeleteBranch(ctx context.Context, id uuid.UUID) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteBranch, id)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }
 
 const deleteDivision = `-- name: DeleteDivision :execrows
@@ -171,8 +222,24 @@ func (q *Queries) EmployeeBelongsToSubdivision(ctx context.Context, arg Employee
 	return exists, err
 }
 
+const getBranch = `-- name: GetBranch :one
+SELECT id, code, name, created_at FROM branches WHERE id = $1
+`
+
+func (q *Queries) GetBranch(ctx context.Context, id uuid.UUID) (Branch, error) {
+	row := q.db.QueryRow(ctx, getBranch, id)
+	var i Branch
+	err := row.Scan(
+		&i.ID,
+		&i.Code,
+		&i.Name,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
 const getDivision = `-- name: GetDivision :one
-SELECT id, code, name, created_at, head_employee_id FROM divisions WHERE id = $1
+SELECT id, code, name, created_at, head_employee_id, branch_id FROM divisions WHERE id = $1
 `
 
 func (q *Queries) GetDivision(ctx context.Context, id uuid.UUID) (Division, error) {
@@ -184,17 +251,20 @@ func (q *Queries) GetDivision(ctx context.Context, id uuid.UUID) (Division, erro
 		&i.Name,
 		&i.CreatedAt,
 		&i.HeadEmployeeID,
+		&i.BranchID,
 	)
 	return i, err
 }
 
 const getDivisionDetail = `-- name: GetDivisionDetail :one
-SELECT d.id, d.code, d.name, d.created_at, d.head_employee_id,
+SELECT d.id, d.code, d.name, d.created_at, d.head_employee_id, d.branch_id,
+       b.name AS branch_name,
        h.full_name AS head_name,
        (SELECT count(*) FROM subdivisions s WHERE s.division_id = d.id) AS subdivision_count,
        (SELECT count(*) FROM employees e JOIN subdivisions s ON s.id = e.subdivision_id
          WHERE s.division_id = d.id AND e.deleted_at IS NULL AND e.status = 'active') AS employee_count
 FROM divisions d
+JOIN branches b ON b.id = d.branch_id
 LEFT JOIN employees h ON h.id = d.head_employee_id
 WHERE d.id = $1
 `
@@ -205,6 +275,8 @@ type GetDivisionDetailRow struct {
 	Name             string
 	CreatedAt        pgtype.Timestamptz
 	HeadEmployeeID   uuid.NullUUID
+	BranchID         uuid.UUID
+	BranchName       string
 	HeadName         pgtype.Text
 	SubdivisionCount int64
 	EmployeeCount    int64
@@ -219,6 +291,8 @@ func (q *Queries) GetDivisionDetail(ctx context.Context, id uuid.UUID) (GetDivis
 		&i.Name,
 		&i.CreatedAt,
 		&i.HeadEmployeeID,
+		&i.BranchID,
+		&i.BranchName,
 		&i.HeadName,
 		&i.SubdivisionCount,
 		&i.EmployeeCount,
@@ -273,12 +347,13 @@ func (q *Queries) GetSubdivision(ctx context.Context, id uuid.UUID) (Subdivision
 }
 
 const getSubdivisionDetail = `-- name: GetSubdivisionDetail :one
-SELECT s.id, s.division_id, s.code, s.name, s.head_employee_id, s.created_at, d.name AS division_name,
+SELECT s.id, s.division_id, s.code, s.name, s.head_employee_id, s.created_at, d.name AS division_name, d.branch_id, b.name AS branch_name,
        h.full_name AS head_name,
        (SELECT count(*) FROM employees e
          WHERE e.subdivision_id = s.id AND e.deleted_at IS NULL AND e.status = 'active') AS employee_count
 FROM subdivisions s
 JOIN divisions d ON d.id = s.division_id
+JOIN branches b ON b.id = d.branch_id
 LEFT JOIN employees h ON h.id = s.head_employee_id
 WHERE s.id = $1
 `
@@ -291,6 +366,8 @@ type GetSubdivisionDetailRow struct {
 	HeadEmployeeID uuid.NullUUID
 	CreatedAt      pgtype.Timestamptz
 	DivisionName   string
+	BranchID       uuid.UUID
+	BranchName     string
 	HeadName       pgtype.Text
 	EmployeeCount  int64
 }
@@ -306,21 +383,73 @@ func (q *Queries) GetSubdivisionDetail(ctx context.Context, id uuid.UUID) (GetSu
 		&i.HeadEmployeeID,
 		&i.CreatedAt,
 		&i.DivisionName,
+		&i.BranchID,
+		&i.BranchName,
 		&i.HeadName,
 		&i.EmployeeCount,
 	)
 	return i, err
 }
 
+const listBranches = `-- name: ListBranches :many
+SELECT b.id, b.code, b.name, b.created_at,
+       (SELECT count(*) FROM divisions d WHERE d.branch_id = b.id) AS division_count,
+       (SELECT count(*) FROM employees e
+         JOIN subdivisions s ON s.id = e.subdivision_id
+         JOIN divisions d ON d.id = s.division_id
+         WHERE d.branch_id = b.id AND e.deleted_at IS NULL AND e.status = 'active') AS employee_count
+FROM branches b
+ORDER BY b.name
+`
+
+type ListBranchesRow struct {
+	ID            uuid.UUID
+	Code          string
+	Name          string
+	CreatedAt     pgtype.Timestamptz
+	DivisionCount int64
+	EmployeeCount int64
+}
+
+func (q *Queries) ListBranches(ctx context.Context) ([]ListBranchesRow, error) {
+	rows, err := q.db.Query(ctx, listBranches)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListBranchesRow{}
+	for rows.Next() {
+		var i ListBranchesRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Code,
+			&i.Name,
+			&i.CreatedAt,
+			&i.DivisionCount,
+			&i.EmployeeCount,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listDivisions = `-- name: ListDivisions :many
-SELECT d.id, d.code, d.name, d.created_at, d.head_employee_id,
+SELECT d.id, d.code, d.name, d.created_at, d.head_employee_id, d.branch_id,
+       b.name AS branch_name,
        h.full_name AS head_name,
        (SELECT count(*) FROM subdivisions s WHERE s.division_id = d.id) AS subdivision_count,
        (SELECT count(*) FROM employees e JOIN subdivisions s ON s.id = e.subdivision_id
          WHERE s.division_id = d.id AND e.deleted_at IS NULL AND e.status = 'active') AS employee_count
 FROM divisions d
+JOIN branches b ON b.id = d.branch_id
 LEFT JOIN employees h ON h.id = d.head_employee_id
-ORDER BY d.name
+WHERE ($1::uuid IS NULL OR d.branch_id = $1)
+ORDER BY b.name, d.name
 `
 
 type ListDivisionsRow struct {
@@ -329,13 +458,15 @@ type ListDivisionsRow struct {
 	Name             string
 	CreatedAt        pgtype.Timestamptz
 	HeadEmployeeID   uuid.NullUUID
+	BranchID         uuid.UUID
+	BranchName       string
 	HeadName         pgtype.Text
 	SubdivisionCount int64
 	EmployeeCount    int64
 }
 
-func (q *Queries) ListDivisions(ctx context.Context) ([]ListDivisionsRow, error) {
-	rows, err := q.db.Query(ctx, listDivisions)
+func (q *Queries) ListDivisions(ctx context.Context, branchID uuid.NullUUID) ([]ListDivisionsRow, error) {
+	rows, err := q.db.Query(ctx, listDivisions, branchID)
 	if err != nil {
 		return nil, err
 	}
@@ -349,6 +480,8 @@ func (q *Queries) ListDivisions(ctx context.Context) ([]ListDivisionsRow, error)
 			&i.Name,
 			&i.CreatedAt,
 			&i.HeadEmployeeID,
+			&i.BranchID,
+			&i.BranchName,
 			&i.HeadName,
 			&i.SubdivisionCount,
 			&i.EmployeeCount,
@@ -364,15 +497,16 @@ func (q *Queries) ListDivisions(ctx context.Context) ([]ListDivisionsRow, error)
 }
 
 const listSubdivisions = `-- name: ListSubdivisions :many
-SELECT s.id, s.division_id, s.code, s.name, s.head_employee_id, s.created_at, d.name AS division_name,
+SELECT s.id, s.division_id, s.code, s.name, s.head_employee_id, s.created_at, d.name AS division_name, d.branch_id, b.name AS branch_name,
        h.full_name AS head_name,
        (SELECT count(*) FROM employees e
          WHERE e.subdivision_id = s.id AND e.deleted_at IS NULL AND e.status = 'active') AS employee_count
 FROM subdivisions s
 JOIN divisions d ON d.id = s.division_id
+JOIN branches b ON b.id = d.branch_id
 LEFT JOIN employees h ON h.id = s.head_employee_id
 WHERE ($1::uuid IS NULL OR s.division_id = $1)
-ORDER BY d.name, s.name
+ORDER BY b.name, d.name, s.name
 `
 
 type ListSubdivisionsRow struct {
@@ -383,6 +517,8 @@ type ListSubdivisionsRow struct {
 	HeadEmployeeID uuid.NullUUID
 	CreatedAt      pgtype.Timestamptz
 	DivisionName   string
+	BranchID       uuid.UUID
+	BranchName     string
 	HeadName       pgtype.Text
 	EmployeeCount  int64
 }
@@ -404,6 +540,8 @@ func (q *Queries) ListSubdivisions(ctx context.Context, divisionID uuid.NullUUID
 			&i.HeadEmployeeID,
 			&i.CreatedAt,
 			&i.DivisionName,
+			&i.BranchID,
+			&i.BranchName,
 			&i.HeadName,
 			&i.EmployeeCount,
 		); err != nil {
@@ -445,12 +583,35 @@ func (q *Queries) SetSubdivisionHead(ctx context.Context, arg SetSubdivisionHead
 	return err
 }
 
+const updateBranch = `-- name: UpdateBranch :one
+UPDATE branches SET code = $2, name = $3 WHERE id = $1 RETURNING id, code, name, created_at
+`
+
+type UpdateBranchParams struct {
+	ID   uuid.UUID
+	Code string
+	Name string
+}
+
+func (q *Queries) UpdateBranch(ctx context.Context, arg UpdateBranchParams) (Branch, error) {
+	row := q.db.QueryRow(ctx, updateBranch, arg.ID, arg.Code, arg.Name)
+	var i Branch
+	err := row.Scan(
+		&i.ID,
+		&i.Code,
+		&i.Name,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
 const updateDivision = `-- name: UpdateDivision :one
-UPDATE divisions SET code = $2, name = $3, head_employee_id = $4 WHERE id = $1 RETURNING id, code, name, created_at, head_employee_id
+UPDATE divisions SET branch_id = $2, code = $3, name = $4, head_employee_id = $5 WHERE id = $1 RETURNING id, code, name, created_at, head_employee_id, branch_id
 `
 
 type UpdateDivisionParams struct {
 	ID             uuid.UUID
+	BranchID       uuid.UUID
 	Code           string
 	Name           string
 	HeadEmployeeID uuid.NullUUID
@@ -459,6 +620,7 @@ type UpdateDivisionParams struct {
 func (q *Queries) UpdateDivision(ctx context.Context, arg UpdateDivisionParams) (Division, error) {
 	row := q.db.QueryRow(ctx, updateDivision,
 		arg.ID,
+		arg.BranchID,
 		arg.Code,
 		arg.Name,
 		arg.HeadEmployeeID,
@@ -470,6 +632,7 @@ func (q *Queries) UpdateDivision(ctx context.Context, arg UpdateDivisionParams) 
 		&i.Name,
 		&i.CreatedAt,
 		&i.HeadEmployeeID,
+		&i.BranchID,
 	)
 	return i, err
 }

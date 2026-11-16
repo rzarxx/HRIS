@@ -90,7 +90,7 @@ export interface paths {
         put?: never;
         /**
          * Login web admin
-         * @description Menyetel cookie sesi. Gagal 5 kali berturut-turut mengunci akun 15 menit.
+         * @description Menyetel cookie sesi. `identifier` boleh NIPY, email, atau nomor WA (D53). Gagal 5 kali berturut-turut mengunci akun 15 menit. Kata sandi awal yang lewat 72 jam dijawab `AUTH_INITIAL_PASSWORD_EXPIRED`.
          */
         post: {
             parameters: {
@@ -103,7 +103,7 @@ export interface paths {
                 content: {
                     /**
                      * @example {
-                     *       "email": "{{email}}",
+                     *       "identifier": "{{identifier}}",
                      *       "password": "{{password}}"
                      *     }
                      */
@@ -349,47 +349,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/v1/auth/activate": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Aktivasi akun dari undangan dan tetapkan kata sandi */
-        post: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody: {
-                content: {
-                    "application/json": components["schemas"]["ActivateRequest"];
-                };
-            };
-            responses: {
-                /** @description Akun aktif, silakan masuk */
-                204: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content?: never;
-                };
-                400: components["responses"]["ValidationFailed"];
-                422: components["responses"]["Error"];
-                429: components["responses"]["Error"];
-            };
-        };
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/v1/branding": {
         parameters: {
             query?: never;
@@ -425,53 +384,6 @@ export interface paths {
         };
         put?: never;
         post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/v1/auth/activate/check": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Periksa tautan aktivasi sebelum form ditampilkan
-         * @description Tidak memakai tautan. Menjawab ACTIVATION_USED, ACTIVATION_EXPIRED, atau ACTIVATION_INVALID bila tautan tidak berlaku.
-         */
-        post: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody: {
-                content: {
-                    "application/json": components["schemas"]["ActivationCheckRequest"];
-                };
-            };
-            responses: {
-                /** @description Tautan masih berlaku */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": {
-                            data: components["schemas"]["ActivationCheck"];
-                        };
-                    };
-                };
-                422: components["responses"]["Error"];
-                429: components["responses"]["Error"];
-            };
-        };
         delete?: never;
         options?: never;
         head?: never;
@@ -726,6 +638,156 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/admin/branches": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Daftar cabang
+         * @description Permission `org:write`. Cabang punya divisi, subdiv, dan atasan sendiri (D53).
+         */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data: components["schemas"]["Branch"][];
+                        };
+                    };
+                };
+                403: components["responses"]["Error"];
+            };
+        };
+        put?: never;
+        /** Tambah cabang */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    /**
+                     * @example {
+                     *       "code": "CRB",
+                     *       "name": "Cabang Cirebon"
+                     *     }
+                     */
+                    "application/json": components["schemas"]["BranchInput"];
+                };
+            };
+            responses: {
+                /** @description Dibuat */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data: components["schemas"]["Branch"];
+                        };
+                    };
+                };
+                400: components["responses"]["ValidationFailed"];
+                409: components["responses"]["Error"];
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/branches/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Hapus cabang
+         * @description Ditolak `CONFLICT_HAS_DEPENDENTS` bila masih memiliki divisi.
+         */
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: components["parameters"]["Id"];
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Dihapus */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                404: components["responses"]["Error"];
+                409: components["responses"]["Error"];
+            };
+        };
+        options?: never;
+        head?: never;
+        /** Ubah cabang */
+        patch: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: components["parameters"]["Id"];
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["BranchPatch"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data: components["schemas"]["Branch"];
+                        };
+                    };
+                };
+                400: components["responses"]["ValidationFailed"];
+                404: components["responses"]["Error"];
+                409: components["responses"]["Error"];
+            };
+        };
+        trace?: never;
+    };
     "/v1/admin/divisions": {
         parameters: {
             query?: never;
@@ -739,7 +801,9 @@ export interface paths {
          */
         get: {
             parameters: {
-                query?: never;
+                query?: {
+                    branch_id?: string;
+                };
                 header?: never;
                 path?: never;
                 cookie?: never;
@@ -773,6 +837,7 @@ export interface paths {
                 content: {
                     /**
                      * @example {
+                     *       "branch_id": "00000000-0000-4000-8000-000000000000",
                      *       "code": "OPS",
                      *       "name": "Operasional",
                      *       "head_employee_id": null
@@ -1035,8 +1100,9 @@ export interface paths {
                 query?: {
                     page?: components["parameters"]["Page"];
                     per_page?: components["parameters"]["PerPage"];
-                    /** @description Cari nama, NIPY, email, jabatan */
+                    /** @description Cari nama, NIPY, email, nomor WA, jabatan */
                     q?: string;
+                    branch_id?: string;
                     division_id?: string;
                     subdivision_id?: string;
                     status?: components["schemas"]["EmployeeStatus"];
@@ -1064,7 +1130,7 @@ export interface paths {
         put?: never;
         /**
          * Tambah Pejuang
-         * @description Permission `employee:write`. `nip` kosong = dibuat otomatis. Membuat akun belum aktif beserta undangan aktivasi (F3).
+         * @description Permission `employee:write`. `nip` kosong = dibuat otomatis. Membuat akun aktif dengan kata sandi awal `@NamaDepan`+tahun yang wajib diganti saat login pertama (D53). Kata sandi awal hanya tampil di respons ini.
          */
         post: {
             parameters: {
@@ -1081,6 +1147,22 @@ export interface paths {
                      *       "nip": null,
                      *       "email": "rudi.hartono@pejuang.id",
                      *       "phone": "081234567890",
+                     *       "gender": "L",
+                     *       "marital_status": "menikah",
+                     *       "has_children": true,
+                     *       "children_count": 1,
+                     *       "children": [
+                     *         {
+                     *           "child_order": 1,
+                     *           "full_name": "Aisyah",
+                     *           "gender": "P",
+                     *           "birth_place": "Cirebon",
+                     *           "birth_date": "2015-04-02",
+                     *           "relation": "kandung",
+                     *           "education": "sd_mi",
+                     *           "school_name": "MI Al Bahjah"
+                     *         }
+                     *       ],
                      *       "subdivision_id": "00000000-0000-4000-8000-000000000000",
                      *       "position": "Staf Lapangan",
                      *       "join_date": "2026-11-02",
@@ -1124,7 +1206,7 @@ export interface paths {
         };
         /**
          * Detail Pejuang
-         * @description Objek di luar scope dijawab 404.
+         * @description Objek di luar scope dijawab 404. `children` hanya untuk SDM, super admin, dan Pejuang sendiri (D53).
          */
         get: {
             parameters: {
@@ -1248,8 +1330,8 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * Terbitkan undangan baru untuk menetapkan sandi
-         * @description Permission `user:manage`. Mencabut semua sesi. SDM tidak pernah mengetahui kata sandi.
+         * Kembalikan akun ke kata sandi awal
+         * @description Permission `user:manage`. Mencabut semua sesi dan membuka kunci. Kata sandi awal `@NamaDepan`+tahun wajib diganti saat login berikutnya (D53).
          */
         post: {
             parameters: {
@@ -1269,7 +1351,7 @@ export interface paths {
                     };
                     content: {
                         "application/json": {
-                            data: components["schemas"]["Activation"];
+                            data: components["schemas"]["InitialCredential"];
                         };
                     };
                 };
@@ -4429,7 +4511,7 @@ export interface components {
          * @description Registry MASTER.md §7.4
          * @enum {string}
          */
-        ErrorCode: "VALIDATION_FAILED" | "AUTH_INVALID_CREDENTIALS" | "AUTH_TOKEN_INVALID" | "AUTH_MFA_REQUIRED" | "AUTH_MFA_INVALID" | "FORBIDDEN_ROLE" | "CSRF_INVALID" | "PASSWORD_CHANGE_REQUIRED" | "MFA_SETUP_REQUIRED" | "DEVICE_NOT_REGISTERED" | "DEVICE_PENDING_APPROVAL" | "DEVICE_REVOKED" | "APPROVAL_NOT_YOUR_TURN" | "APPROVAL_SELF_FORBIDDEN" | "MAKER_CHECKER_VIOLATION" | "NOT_FOUND" | "METHOD_NOT_ALLOWED" | "ALREADY_CLOCKED_IN" | "ALREADY_CLOCKED_OUT" | "SHIFT_NOT_ASSIGNED" | "NOT_CLOCKED_IN" | "REQUEST_NOT_PENDING" | "PERIOD_LOCKED" | "DUPLICATE_REQUEST" | "CONFLICT_DUPLICATE" | "CONFLICT_HAS_DEPENDENTS" | "CONFLICT_SELF_ACTION" | "MFA_ALREADY_ENABLED" | "PAYLOAD_TOO_LARGE" | "UNSUPPORTED_MEDIA_TYPE" | "GEOFENCE_OUT" | "FACE_NOT_ENROLLED" | "FACE_MISMATCH" | "LIVENESS_FAILED" | "FACE_NOT_DETECTED" | "FACE_SERVICE_UNAVAILABLE" | "CHALLENGE_EXPIRED" | "ATTENDANCE_BLOCKED" | "LEAVE_ACTIVE" | "READ_TOO_SOON" | "ACTIVATION_INVALID" | "ACTIVATION_USED" | "ACTIVATION_EXPIRED" | "AUTH_ACCOUNT_LOCKED" | "APP_UPDATE_REQUIRED" | "RATE_LIMITED" | "API_ACCESS_DENIED" | "INTERNAL_ERROR";
+        ErrorCode: "VALIDATION_FAILED" | "AUTH_INVALID_CREDENTIALS" | "AUTH_TOKEN_INVALID" | "AUTH_MFA_REQUIRED" | "AUTH_MFA_INVALID" | "FORBIDDEN_ROLE" | "CSRF_INVALID" | "PASSWORD_CHANGE_REQUIRED" | "MFA_SETUP_REQUIRED" | "DEVICE_NOT_REGISTERED" | "DEVICE_PENDING_APPROVAL" | "DEVICE_REVOKED" | "APPROVAL_NOT_YOUR_TURN" | "APPROVAL_SELF_FORBIDDEN" | "MAKER_CHECKER_VIOLATION" | "NOT_FOUND" | "METHOD_NOT_ALLOWED" | "ALREADY_CLOCKED_IN" | "ALREADY_CLOCKED_OUT" | "SHIFT_NOT_ASSIGNED" | "NOT_CLOCKED_IN" | "REQUEST_NOT_PENDING" | "PERIOD_LOCKED" | "DUPLICATE_REQUEST" | "CONFLICT_DUPLICATE" | "CONFLICT_HAS_DEPENDENTS" | "CONFLICT_SELF_ACTION" | "MFA_ALREADY_ENABLED" | "PAYLOAD_TOO_LARGE" | "UNSUPPORTED_MEDIA_TYPE" | "GEOFENCE_OUT" | "FACE_NOT_ENROLLED" | "FACE_MISMATCH" | "LIVENESS_FAILED" | "FACE_NOT_DETECTED" | "FACE_SERVICE_UNAVAILABLE" | "CHALLENGE_EXPIRED" | "ATTENDANCE_BLOCKED" | "LEAVE_ACTIVE" | "READ_TOO_SOON" | "AUTH_ACCOUNT_LOCKED" | "AUTH_INITIAL_PASSWORD_EXPIRED" | "APP_UPDATE_REQUIRED" | "RATE_LIMITED" | "API_ACCESS_DENIED" | "INTERNAL_ERROR";
         /**
          * @description Matriks MASTER.md §3.2
          * @enum {string}
@@ -4459,13 +4541,23 @@ export interface components {
             name: string;
         };
         LoginRequest: {
-            /** Format: email */
-            email: string;
+            /** @description NIPY, email, atau nomor WA (D53) */
+            identifier: string;
+            /**
+             * @deprecated
+             * @description Dipakai bila identifier kosong
+             */
+            email?: string;
             password: string;
         };
         MobileLoginRequest: {
-            /** Format: email */
-            email: string;
+            /** @description NIPY, email, atau nomor WA (D53) */
+            identifier: string;
+            /**
+             * @deprecated
+             * @description Dipakai bila identifier kosong
+             */
+            email?: string;
             password: string;
             /** @description Wajib bila akun memakai MFA */
             mfa_code?: string;
@@ -4497,7 +4589,7 @@ export interface components {
             role: components["schemas"]["Role"];
             full_name: string;
             nip: string;
-            email: string;
+            email: string | null;
             position: string | null;
             subdivision: components["schemas"]["Ref"];
             division: components["schemas"]["Ref"];
@@ -4512,9 +4604,27 @@ export interface components {
             /** @description Wajah sudah terdaftar. Bila false, aplikasi membuka alur daftar wajah (F7). */
             face_enrolled: boolean;
         };
-        DivisionInput: components["schemas"]["DivisionPatch"] & Record<string, never>;
+        BranchInput: components["schemas"]["BranchPatch"] & Record<string, never>;
         /** @description Pada PATCH, field yang tidak dikirim tetap nilai lamanya. */
+        BranchPatch: {
+            code?: string;
+            name?: string;
+        };
+        Branch: {
+            /** Format: uuid */
+            id: string;
+            code: string;
+            name: string;
+            division_count: number;
+            employee_count: number;
+            /** Format: date-time */
+            created_at: string;
+        };
+        DivisionInput: components["schemas"]["DivisionPatch"] & Record<string, never>;
+        /** @description Pada PATCH, field yang tidak dikirim tetap nilai lamanya. Kode divisi unik per cabang. */
         DivisionPatch: {
+            /** Format: uuid */
+            branch_id?: string;
             code?: string;
             name?: string;
             /** Format: uuid */
@@ -4523,6 +4633,9 @@ export interface components {
         Division: {
             /** Format: uuid */
             id: string;
+            /** Format: uuid */
+            branch_id: string;
+            branch_name: string;
             code: string;
             name: string;
             /** Format: uuid */
@@ -4549,6 +4662,9 @@ export interface components {
             /** Format: uuid */
             division_id: string;
             division_name: string;
+            /** Format: uuid */
+            branch_id: string;
+            branch_name: string;
             code: string;
             name: string;
             /** Format: uuid */
@@ -4566,7 +4682,14 @@ export interface components {
             full_name?: string;
             /** Format: email */
             email?: string | null;
+            /** @description Nomor WA, boleh 08…, +62…, atau 62…; disimpan sebagai 62… dan unik */
             phone?: string | null;
+            gender?: components["schemas"]["Gender"];
+            marital_status?: components["schemas"]["MaritalStatus"];
+            has_children?: boolean | null;
+            children_count?: number | null;
+            /** @description Bila dikirim, mengganti seluruh data anak. Tidak dikirim = data anak tetap. */
+            children?: components["schemas"]["EmployeeChild"][];
             /** Format: uuid */
             subdivision_id?: string;
             position?: string | null;
@@ -4586,13 +4709,25 @@ export interface components {
             nip: string;
             full_name: string;
             email: string | null;
+            /** @description Nomor WA dalam bentuk 62… */
             phone: string | null;
+            gender: components["schemas"]["Gender"];
+            marital_status: components["schemas"]["MaritalStatus"];
+            /** @description Hanya untuk SDM, super admin, dan Pejuang sendiri */
+            has_children?: boolean | null;
+            /** @description Hanya untuk SDM, super admin, dan Pejuang sendiri */
+            children_count?: number | null;
+            /** @description Hanya di detail, untuk SDM, super admin, dan Pejuang sendiri */
+            children?: components["schemas"]["EmployeeChild"][];
             /** Format: uuid */
             subdivision_id: string;
             subdivision_name: string;
             /** Format: uuid */
             division_id: string;
             division_name: string;
+            /** Format: uuid */
+            branch_id: string;
+            branch_name: string;
             position: string | null;
             /** Format: date */
             join_date: string | null;
@@ -4611,35 +4746,51 @@ export interface components {
             /** Format: uuid */
             user_id: string;
             role: components["schemas"]["Role"];
-            /** @description false = belum aktivasi atau dinonaktifkan */
+            /** @description false = akun dinonaktifkan */
             is_active: boolean;
             is_locked: boolean;
             mfa_enabled: boolean;
         };
         EmployeeCreated: components["schemas"]["Employee"] & {
-            activation: components["schemas"]["Activation"];
-        };
-        /** @description Hanya tampil sekali; server menyimpan hash-nya saja. */
-        Activation: {
-            token: string;
-            /** Format: date-time */
+            /** @description Kata sandi awal @NamaDepan+tahun (D53). Hanya tampil sekali. */
+            initial_password: string;
+            /**
+             * Format: date-time
+             * @description Batas berlaku kata sandi awal, 72 jam sejak dibuat
+             */
             expires_at: string;
+        };
+        InitialCredential: {
+            /** @description Kata sandi awal @NamaDepan+tahun, wajib diganti saat login (D53). Hanya tampil sekali. */
+            initial_password: string;
+            /**
+             * Format: date-time
+             * @description Batas berlaku kata sandi awal, 72 jam sejak dibuat. Lewat dari itu login dijawab AUTH_INITIAL_PASSWORD_EXPIRED.
+             */
+            expires_at: string;
+        };
+        /** @enum {string|null} */
+        Gender: "L" | "P" | null;
+        /** @enum {string|null} */
+        MaritalStatus: "belum_menikah" | "menikah" | "cerai_hidup" | "cerai_mati" | null;
+        EmployeeChild: {
+            /** @description Anak ke- */
+            child_order: number;
+            full_name: string;
+            gender?: components["schemas"]["Gender"];
+            birth_place?: string | null;
+            /** Format: date */
+            birth_date?: string | null;
+            /** @enum {string|null} */
+            relation?: "kandung" | "angkat" | "tiri" | null;
+            /** @enum {string|null} */
+            education?: "belum_sekolah" | "paud" | "tk_ra" | "sd_mi" | "smp_mts" | "sma_sederajat" | "perguruan_tinggi" | "pondok_pesantren" | null;
+            school_name?: string | null;
         };
         MfaVerifyRequest: {
             mfa_token: string;
             /** @description Kode TOTP 6 digit atau kode pemulihan */
             code: string;
-        };
-        ActivateRequest: {
-            token: string;
-            password: string;
-        };
-        ActivationCheckRequest: {
-            token: string;
-        };
-        ActivationCheck: {
-            /** Format: date-time */
-            expires_at: string;
         };
         PasswordChangeRequest: {
             current_password: string;

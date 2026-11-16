@@ -180,11 +180,11 @@ class ScreenshotTest {
     @Test
     fun login() = shot {
         LoginContent(
-            form = LoginForm(email = "siti@pejuang.id", password = "rahasia"),
+            form = LoginForm(identifier = "2024.07.0153", password = "rahasia"),
             showServer = false,
             version = "0.4.0",
             crash = null,
-            onCopyCrash = {}, onDismissCrash = {}, onServer = {}, onEmail = {}, onPassword = {}, onMfa = {}, onSubmit = {}, footer = footer,
+            onCopyCrash = {}, onDismissCrash = {}, onServer = {}, onIdentifier = {}, onPassword = {}, onMfa = {}, onSubmit = {}, footer = footer,
         )
     }
 
@@ -193,15 +193,15 @@ class ScreenshotTest {
         LoginContent(
             form = LoginForm(
                 server = "http://192.168.1.10:8080",
-                email = "siti@pejuang.id",
+                identifier = "siti@pejuang.id",
                 password = "salah",
                 askMfa = true,
-                error = "Email atau kata sandi salah.",
+                error = "NIPY, email, nomor WA, atau kata sandi salah.",
             ),
             showServer = true,
             version = "0.4.0",
             crash = "2026-11-09 07:40:00 WIB · v0.2.0\njava.lang.IllegalStateException: contoh",
-            onCopyCrash = {}, onDismissCrash = {}, onServer = {}, onEmail = {}, onPassword = {}, onMfa = {}, onSubmit = {}, footer = footer,
+            onCopyCrash = {}, onDismissCrash = {}, onServer = {}, onIdentifier = {}, onPassword = {}, onMfa = {}, onSubmit = {}, footer = footer,
         )
     }
 
@@ -295,7 +295,7 @@ class ScreenshotTest {
             if (popup) {
                 FigmaPopup(
                     icon = FigmaIcons.Logout, title = "Keluar dari aplikasi?",
-                    body = "Anda perlu masuk lagi dengan email dan kata sandi untuk presensi berikutnya.",
+                    body = "Anda perlu masuk lagi dengan NIPY, email, atau nomor WA dan kata sandi untuk presensi berikutnya.",
                     primary = "Ya, keluar", onPrimary = {}, secondary = "Batal", danger = true,
                 )
             }

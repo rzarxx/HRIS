@@ -23,7 +23,7 @@ data class DeviceRegisterInput(
 // schema: MobileLoginRequest
 @Serializable
 data class MobileLoginRequest(
-    @SerialName("email") val email: String,
+    @SerialName("identifier") val identifier: String,
     @SerialName("password") val password: String,
     @SerialName("mfa_code") val mfaCode: String? = null,
     @SerialName("device") val device: DeviceRegisterInput,
@@ -58,7 +58,7 @@ data class Me(
     @SerialName("employee_id") val employeeId: String,
     @SerialName("full_name") val fullName: String,
     @SerialName("nip") val nip: String,
-    @SerialName("email") val email: String = "",
+    @SerialName("email") val email: String? = null,
     @SerialName("position") val position: String? = null,
     @SerialName("subdivision") val subdivision: Ref,
     @SerialName("division") val division: Ref,

@@ -59,20 +59,20 @@ func run() error {
 		return nil
 	}
 	if os.Args[1] == "reset" {
-		invite, err := auth.ResetSuperadmin(ctx, pool, *email, time.Now())
+		credential, err := auth.ResetSuperadmin(ctx, pool, *email, time.Now())
 		if err != nil {
 			return err
 		}
-		fmt.Printf("Kata sandi lama tidak berlaku lagi. Buka alamat web admin + /aktivasi/?token=%s\nBerlaku sampai %s.\n", invite.Token, invite.ExpiresAt)
+		fmt.Printf("Kata sandi lama tidak berlaku lagi. Kata sandi awal: %s\nWajib diganti saat login pertama.\n", credential.InitialPassword)
 		return nil
 	}
-	activation, err := auth.GrantSuperadmin(ctx, pool, *email, time.Now())
+	credential, err := auth.GrantSuperadmin(ctx, pool, *email, time.Now())
 	if err != nil {
 		return err
 	}
 	fmt.Println("Akun ini sekarang super admin. Sesi lamanya dicabut.")
-	if activation != nil {
-		fmt.Printf("Akun belum aktif. Buka alamat web admin + /aktivasi/?token=%s\nBerlaku sampai %s.\n", activation.Token, activation.ExpiresAt)
+	if credential != nil {
+		fmt.Printf("Akun diaktifkan. Kata sandi awal: %s\nWajib diganti saat login pertama.\n", credential.InitialPassword)
 	}
 	return nil
 }

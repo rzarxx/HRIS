@@ -175,29 +175,21 @@ func TestManageAccounts(t *testing.T) {
 	sdm.do(http.MethodPost, "/v1/admin/users/"+target.userID+"/revoke-sessions", nil).want(t, http.StatusNoContent)
 	session.do(http.MethodGet, "/v1/me", nil).wantError(t, http.StatusUnauthorized, "AUTH_TOKEN_INVALID")
 
-	// Reset: sandi lama tidak berlaku, tautan baru menetapkan sandi.
+	// Reset: sandi lama dan sesi gugur, akun kembali ke kata sandi awal yang wajib diganti (D53).
 	session = login(t, srv, target.email, seedPassword)
-	activation := data[struct {
-		Token string `json:"token"`
+	reset := data[struct {
+		InitialPassword string `json:"initial_password"`
 	}](t, sdm.do(http.MethodPost, "/v1/admin/users/"+target.userID+"/reset-password", nil).want(t, http.StatusOK))
+	if !strings.HasPrefix(reset.InitialPassword, "@") {
+		t.Fatalf("kata sandi awal = %q", reset.InitialPassword)
+	}
 	session.do(http.MethodGet, "/v1/me", nil).wantError(t, http.StatusUnauthorized, "AUTH_TOKEN_INVALID")
 	newClient(t, srv).do(http.MethodPost, "/v1/auth/web/login", map[string]any{"email": target.email, "password": seedPassword}).
 		wantError(t, http.StatusUnauthorized, "AUTH_INVALID_CREDENTIALS")
-	newClient(t, srv).do(http.MethodPost, "/v1/auth/activate", map[string]any{"token": activation.Token, "password": newPassword}).
-		want(t, http.StatusNoContent)
-	login(t, srv, target.email, newPassword)
-
-	// Undangan lama gugur saat undangan baru terbit.
-	first := data[struct {
-		Token string `json:"token"`
-	}](t, sdm.do(http.MethodPost, "/v1/admin/users/"+target.userID+"/reset-password", nil).want(t, http.StatusOK))
-	second := data[struct {
-		Token string `json:"token"`
-	}](t, sdm.do(http.MethodPost, "/v1/admin/users/"+target.userID+"/reset-password", nil).want(t, http.StatusOK))
-	newClient(t, srv).do(http.MethodPost, "/v1/auth/activate", map[string]any{"token": first.Token, "password": newPassword}).
-		wantError(t, http.StatusUnprocessableEntity, "ACTIVATION_USED")
-	newClient(t, srv).do(http.MethodPost, "/v1/auth/activate", map[string]any{"token": second.Token, "password": newPassword}).
-		want(t, http.StatusNoContent)
+	first := login(t, srv, target.email, reset.InitialPassword)
+	first.do(http.MethodGet, "/v1/announcements/active", nil).wantError(t, http.StatusForbidden, "PASSWORD_CHANGE_REQUIRED")
+	changePassword(t, first, reset.InitialPassword, newPassword)
+	login(t, srv, target.email, newPassword).do(http.MethodGet, "/v1/announcements/active", nil).want(t, http.StatusOK)
 
 	// Tidak boleh pada akun sendiri, dan akun tak dikenal dijawab 404.
 	me := data[struct {

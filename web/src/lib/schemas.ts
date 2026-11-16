@@ -9,11 +9,17 @@ const code = (max: number) =>
     .regex(/^[A-Za-z0-9-]+$/, "Kode hanya huruf, angka, dan tanda minus.");
 
 export const loginSchema = z.object({
-  email: required("Email").email("Format email tidak valid."),
+  identifier: required("NIPY, email, atau nomor WA"),
   password: required("Kata sandi"),
 });
 
+export const branchSchema = z.object({
+  code: code(20).min(2, "Kode minimal 2 karakter."),
+  name: required("Nama cabang").max(80, "Nama maksimal 80 karakter."),
+});
+
 export const divisionSchema = z.object({
+  branch_id: required("Cabang").uuid("Pilih cabang."),
   code: code(10),
   name: required("Nama divisi").max(80, "Nama maksimal 80 karakter."),
   head_employee_id: z.string().uuid().nullable().optional(),
@@ -28,11 +34,45 @@ export const subdivisionSchema = z.object({
 
 const blankOr = (test: (v: string) => boolean) => (v: string | null | undefined) => !v || test(v);
 
+// Nilai resmi formulir data Pejuang (MASTER.md §6.2, D53).
+export const GENDERS = { L: "Laki-laki", P: "Perempuan" } as const;
+export const MARITAL_STATUSES = { belum_menikah: "Belum menikah", menikah: "Menikah", cerai_hidup: "Cerai hidup", cerai_mati: "Cerai mati" } as const;
+export const CHILD_RELATIONS = { kandung: "Kandung", angkat: "Angkat", tiri: "Tiri" } as const;
+export const EDUCATION_LEVELS = {
+  belum_sekolah: "Belum sekolah",
+  paud: "PAUD",
+  tk_ra: "TK/RA",
+  sd_mi: "SD/MI",
+  smp_mts: "SMP/MTs",
+  sma_sederajat: "SMA/Sederajat",
+  perguruan_tinggi: "Perguruan tinggi",
+  pondok_pesantren: "Pondok pesantren",
+} as const;
+
+const enumKeys = <T extends Record<string, string>>(o: T) => Object.keys(o) as [keyof T & string, ...(keyof T & string)[]];
+const isoDate = (v: string) => /^\d{4}-\d{2}-\d{2}$/.test(v);
+
+export const childSchema = z.object({
+  child_order: z.number({ error: "Isi anak ke-." }).int().min(1, "Anak ke- 1 sampai 30.").max(30, "Anak ke- 1 sampai 30."),
+  full_name: required("Nama anak").min(2, "Nama anak minimal 2 karakter.").max(100, "Nama anak maksimal 100 karakter."),
+  gender: z.enum(enumKeys(GENDERS)).nullable().optional(),
+  birth_place: optionalText,
+  birth_date: optionalText.refine(blankOr(isoDate), "Tanggal lahir tidak valid."),
+  relation: z.enum(enumKeys(CHILD_RELATIONS)).nullable().optional(),
+  education: z.enum(enumKeys(EDUCATION_LEVELS)).nullable().optional(),
+  school_name: optionalText,
+});
+
 export const employeeSchema = z.object({
-  nip: optionalText.refine(blankOr((v) => /^[A-Za-z0-9-]{4,20}$/.test(v)), "NIPY 4-20 karakter huruf/angka."),
+  nip: optionalText.refine(blankOr((v) => /^[A-Za-z0-9.-]{4,20}$/.test(v)), "NIPY 4-20 karakter huruf, angka, titik, atau minus."),
   full_name: required("Nama lengkap").min(3, "Nama minimal 3 karakter.").max(100, "Nama maksimal 100 karakter."),
-  email: required("Email").email("Format email tidak valid."),
-  phone: optionalText.refine(blankOr((v) => /^(\+62|0)8[0-9]{7,12}$/.test(v)), "Nomor HP tidak valid (contoh 081234567890)."),
+  email: optionalText.refine(blankOr((v) => z.string().email().safeParse(v).success), "Format email tidak valid."),
+  phone: optionalText.refine(blankOr((v) => /^(\+?62|0)?8[0-9]{7,12}$/.test(v.replace(/[\s-]/g, ""))), "Nomor WA tidak valid (contoh 081234567890)."),
+  gender: z.enum(enumKeys(GENDERS)).nullable().optional(),
+  marital_status: z.enum(enumKeys(MARITAL_STATUSES)).nullable().optional(),
+  has_children: z.boolean().nullable().optional(),
+  children_count: z.number().int().min(0, "Jumlah anak 0 sampai 30.").max(30, "Jumlah anak 0 sampai 30.").nullable().optional(),
+  children: z.array(childSchema).max(10).optional(),
   subdivision_id: required("Subdiv").uuid("Pilih subdiv."),
   position: optionalText,
   join_date: optionalText.refine(blankOr((v) => /^\d{4}-\d{2}-\d{2}$/.test(v)), "Tanggal tidak valid."),
@@ -58,7 +98,9 @@ export const announcementSchema = z
   })
   .refine((v) => !v.ends_at || v.ends_at > v.starts_at, { path: ["ends_at"], message: "Berakhir harus setelah mulai tayang." });
 
+export type BranchInput = z.input<typeof branchSchema>;
 export type DivisionInput = z.input<typeof divisionSchema>;
+export type ChildInput = z.input<typeof childSchema>;
 export type SubdivisionInput = z.input<typeof subdivisionSchema>;
 export type EmployeeInput = z.input<typeof employeeSchema>;
 export type AnnouncementInput = z.input<typeof announcementSchema>;

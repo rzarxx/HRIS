@@ -7,6 +7,13 @@ Perubahan penting yang terlihat oleh Pejuang, SDM, atau pengelola server. Keputu
 ## Belum dirilis
 
 ### Ditambahkan
+- **Cabang (D53).** Master Data → Cabang untuk cabang yayasan dengan divisi, subdiv, dan atasan sendiri. Divisi
+  wajib memilih cabang dan kodenya unik per cabang. Daftar Pejuang dan divisi bisa disaring per cabang
+  (`branch_id`). Semua divisi lama masuk ke cabang **Pusat**.
+- **Data Pejuang mengikuti formulir yayasan.** Jenis kelamin, status pernikahan, memiliki anak, jumlah anak, dan
+  data tiap anak (nama, jenis kelamin, tempat dan tanggal lahir, anak ke-, status kandung/angkat/tiri, jenjang
+  pendidikan, nama sekolah). Data anak hanya untuk SDM, super admin, dan Pejuang sendiri.
+- **Login dengan NIPY, email, atau nomor WA** di web dan aplikasi. Email tidak lagi wajib.
 - **Penyelesaian Fase 1 (Fondasi Produksi):**
   - CLI `hris-bootstrap` (`backend/cmd/bootstrap`) untuk membuat akun SDM pertama secara aman di `APP_ENV=production` tanpa data dummy (`must_change_password = true`, menolak berjalan bila akun SDM sudah ada).
   - Otomasi backup harian terenkripsi AES-256-CBC (`backend/deploy/backup.sh`, `hris-backup.timer`) dan verifikasi restore otomatis mingguan ke database sementara (`backend/deploy/restore-verify.sh`, `hris-restore-verify.timer`).
@@ -37,6 +44,14 @@ Perubahan penting yang terlihat oleh Pejuang, SDM, atau pengelola server. Keputu
   presensi dan ikut diekspor ke CSV, termasuk satu kolom per jenis cuti.
 
 ### Diubah
+- **Akun baru langsung aktif dengan kata sandi awal** `@` + nama depan + tahun dibuat (contoh `@Siti2026`) yang
+  wajib diganti saat login pertama (D53). Kata sandi awal hanya berlaku 72 jam; lewat dari itu login ditolak
+  `AUTH_INITIAL_PASSWORD_EXPIRED` dan SDM perlu mereset ulang. Setelah masuk, web dan aplikasi langsung menampilkan
+  popup ganti kata sandi. Tautan aktivasi, halaman `/aktivasi`, dan endpoint
+  `/v1/auth/activate` dihapus. Reset kata sandi oleh SDM dan `hris-superadmin reset` mengembalikan akun ke kata
+  sandi awal.
+- Nomor WA disimpan dalam bentuk `62…` dan unik; masukan `08…`, `+62…`, atau dengan spasi dan tanda minus
+  diterima.
 - Aplikasi Android menargetkan API 36 (Android 16), syarat Google Play sejak 31 Agustus 2026; Android Gradle
   Plugin dinaikkan ke 8.13.2 (Gradle 9.2.1). Kotlin naik ke 2.3.21 dan Paparazzi ke 2.0.0-alpha04 (layoutlib API 36),
   sehingga Gradle di CI dan lokal butuh JDK 21.
@@ -62,6 +77,13 @@ Perubahan penting yang terlihat oleh Pejuang, SDM, atau pengelola server. Keputu
 - Tes integrasi cuti tidak lagi gagal saat tanggal ujinya sama dengan hari ini.
 
 ### Perhatian saat memperbarui
+- **Migrasi 000016** membuat cabang Pusat, menormalkan nomor WA ke `62…`, dan **mengosongkan nomor yang tidak
+  valid atau dipakai lebih dari satu Pejuang** (nomor yang tersisa harus unik). Periksa nomor WA di Master Data
+  setelah migrasi.
+- Akun lama yang belum pernah aktivasi tetap nonaktif. SDM menekan Reset kata sandi untuk menerbitkan kata sandi
+  awal; akun super admin lewat `hris-superadmin grant`.
+- Aplikasi Android lama masih bisa login dengan email karena server tetap menerima field `email`; login dengan
+  NIPY atau nomor WA butuh aplikasi baru.
 - **Server dan aplikasi harus diperbarui bersamaan.** Server baru menolak aplikasi lama yang tidak mengirim foto
   gerakan (`VALIDATION_FAILED`, field `gesture`), dan server lama menolak payload aplikasi baru.
 - Ambang toleh kepala (selfie lurus ≤ 0.20, foto gerakan ≥ 0.18, selisih ≥ 0.10, kemiripan ≥ 0.30) adalah nilai

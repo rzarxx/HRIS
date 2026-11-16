@@ -54,114 +54,26 @@ func ValidatePassword(password, email string) string {
 	return ""
 }
 
-// Activation adalah undangan sekali pakai. Token asli hanya dikembalikan sekali.
-type Activation struct {
-	Token     string `json:"token"`
-	ExpiresAt string `json:"expires_at"`
+// InitialCredential adalah kata sandi awal yang ditampilkan ke SDM setelah akun dibuat atau
+// direset (D53). Menggantikan tautan aktivasi.
+type InitialCredential struct {
+	InitialPassword string `json:"initial_password"`
+	ExpiresAt       string `json:"expires_at"`
+	expires         time.Time
 }
 
-// IssueInvite mencabut undangan lama lalu membuat yang baru dalam transaksi pemanggil.
-func IssueInvite(ctx context.Context, q *store.Queries, userID uuid.UUID, now time.Time) (Activation, error) {
-	if err := q.InvalidateUserInvites(ctx, userID); err != nil {
-		return Activation{}, err
-	}
-	token, err := NewOpaqueToken()
-	if err != nil {
-		return Activation{}, err
-	}
-	expires := now.Add(inviteTTL)
-	if err := q.CreateUserInvite(ctx, store.CreateUserInviteParams{
-		UserID: userID, TokenHash: HashToken(token), ExpiresAt: pgconv.Time(expires),
-	}); err != nil {
-		return Activation{}, err
-	}
-	return Activation{Token: token, ExpiresAt: expires.UTC().Format(time.RFC3339)}, nil
+// Expires adalah batas berlaku kata sandi awal untuk disimpan di users.initial_password_expires_at.
+func (c InitialCredential) Expires() pgtype.Timestamptz {
+	return pgtype.Timestamptz{Time: c.expires, Valid: true}
 }
 
-// UnusablePasswordHash menghasilkan hash sandi acak yang tidak diketahui siapa pun,
-// dipakai sampai pemilik akun mengaktivasi.
-func UnusablePasswordHash() (string, error) {
-	random, err := NewOpaqueToken()
-	if err != nil {
-		return "", err
-	}
-	return HashPassword(random)
-}
-
-func errActivationInvalid() error {
-	return httpx.NewError(http.StatusUnprocessableEntity, "ACTIVATION_INVALID", "Tautan aktivasi tidak valid. Periksa kembali tautannya atau minta tautan baru ke SDM.")
-}
-
-// checkInvite mengembalikan masa berlaku undangan, atau error yang menjelaskan kenapa tidak bisa dipakai.
-// Token acak dan panjang, jadi status ini hanya terbaca oleh yang memegang tautannya.
-func checkInvite(ctx context.Context, q *store.Queries, tokenHash string) (time.Time, error) {
-	state, err := q.GetInviteState(ctx, tokenHash)
-	if pgconv.IsNoRows(err) {
-		return time.Time{}, errActivationInvalid()
-	}
-	if err != nil {
-		return time.Time{}, err
-	}
-	if state.Used {
-		// Undangan yang diganti tautan baru juga ditandai terpakai (IssueInvite).
-		return time.Time{}, httpx.NewError(http.StatusUnprocessableEntity, "ACTIVATION_USED", "Tautan ini sudah dipakai atau sudah diganti tautan baru. Silakan masuk dengan kata sandi Anda, atau minta tautan baru ke SDM.")
-	}
-	if state.Expired {
-		return time.Time{}, httpx.NewError(http.StatusUnprocessableEntity, "ACTIVATION_EXPIRED", "Tautan ini sudah kedaluwarsa. Minta tautan baru ke SDM.")
-	}
-	return state.ExpiresAt.Time, nil
-}
-
-// CheckActivation dipakai halaman aktivasi agar tautan yang tidak berlaku tidak menampilkan form.
-func (s *Service) CheckActivation(ctx context.Context, token string) (time.Time, error) {
-	if token == "" {
-		return time.Time{}, errActivationInvalid()
-	}
-	return checkInvite(ctx, s.q, HashToken(token))
-}
-
-// Activate menetapkan sandi dari undangan dan mengaktifkan akun (F3).
-func (s *Service) Activate(ctx context.Context, token, password string, ip *netip.Addr) error {
-	if token == "" {
-		return errActivationInvalid()
-	}
-	// Hash dihitung di luar transaksi karena argon2 sengaja lambat.
-	if msg := ValidatePassword(password, ""); msg != "" {
-		return httpx.Validation(map[string]string{"password": msg})
-	}
+// InitialPasswordHash membuat kata sandi awal beserta hash-nya. Argon2 sengaja lambat, jadi
+// pemanggil menghitungnya di luar transaksi.
+func InitialPasswordHash(fullName string, now time.Time) (InitialCredential, string, error) {
+	password := InitialPassword(fullName, now)
 	hash, err := HashPassword(password)
-	if err != nil {
-		return err
-	}
-	return database.InTx(ctx, s.pool, func(q *store.Queries) error {
-		userID, err := q.ConsumeInvite(ctx, HashToken(token))
-		if pgconv.IsNoRows(err) {
-			if _, problem := checkInvite(ctx, q, HashToken(token)); problem != nil {
-				return problem
-			}
-			return errActivationInvalid()
-		}
-		if err != nil {
-			return err
-		}
-		user, err := q.GetUserByID(ctx, userID)
-		if err != nil {
-			return err
-		}
-		if msg := ValidatePassword(password, user.Email); msg != "" {
-			// Transaksi dibatalkan sehingga undangan tetap bisa dipakai.
-			return httpx.Validation(map[string]string{"password": msg})
-		}
-		if err := q.SetUserPassword(ctx, store.SetUserPasswordParams{ID: userID, PasswordHash: hash}); err != nil {
-			return err
-		}
-		if err := q.ActivateUser(ctx, userID); err != nil {
-			return err
-		}
-		return audit.Write(ctx, q, audit.Entry{
-			UserID: audit.Actor(userID), Action: audit.AuthPasswordChanged, Entity: "user", EntityID: userID, IP: ip,
-		})
-	})
+	expires := now.Add(InitialPasswordTTL)
+	return InitialCredential{InitialPassword: password, ExpiresAt: expires.UTC().Format(time.RFC3339), expires: expires}, hash, err
 }
 
 // ChangePassword memeriksa sandi lama dan mencabut sesi lain.
@@ -177,7 +89,7 @@ func (s *Service) ChangePassword(ctx context.Context, p Principal, current, next
 	if !ok {
 		return httpx.Validation(map[string]string{"current_password": "Kata sandi saat ini salah."})
 	}
-	if msg := ValidatePassword(next, user.Email); msg != "" {
+	if msg := ValidatePassword(next, user.Email.String); msg != "" {
 		return httpx.Validation(map[string]string{"new_password": msg})
 	}
 	if current == next {
@@ -283,7 +195,15 @@ func (s *Service) SetupMFA(ctx context.Context, p Principal) (MFASetup, error) {
 	if err := s.q.UpsertPendingMfa(ctx, store.UpsertPendingMfaParams{UserID: p.UserID, SecretEnc: enc}); err != nil {
 		return MFASetup{}, err
 	}
-	return MFASetup{Secret: secret, OtpauthURL: TOTPURL(secret, user.Email)}, nil
+	label := user.Email.String
+	if label == "" {
+		me, err := s.q.GetMe(ctx, p.UserID)
+		if err != nil {
+			return MFASetup{}, err
+		}
+		label = me.Nip
+	}
+	return MFASetup{Secret: secret, OtpauthURL: TOTPURL(secret, label)}, nil
 }
 
 // EnableMFA mengaktifkan TOTP dan mengembalikan kode pemulihan sekali saja.
@@ -402,32 +322,48 @@ func errSelfAction(message string) error {
 	return httpx.NewError(http.StatusConflict, "CONFLICT_SELF_ACTION", message)
 }
 
-// ResetPassword menerbitkan undangan baru. SDM tidak pernah mengetahui kata sandi (§5.2).
-func (s *Service) ResetPassword(ctx context.Context, actor Principal, id uuid.UUID, ip *netip.Addr, now time.Time) (Activation, error) {
+// ResetPassword mengembalikan akun ke kata sandi awal (D53) yang wajib diganti saat login berikutnya,
+// dan mencabut semua sesinya.
+func (s *Service) ResetPassword(ctx context.Context, actor Principal, id uuid.UUID, ip *netip.Addr, now time.Time) (InitialCredential, error) {
 	if id == actor.UserID {
-		return Activation{}, errSelfAction("Gunakan menu ganti kata sandi untuk akun sendiri.")
+		return InitialCredential{}, errSelfAction("Gunakan menu ganti kata sandi untuk akun sendiri.")
 	}
 	user, err := s.managedTarget(ctx, actor, id)
 	if err != nil {
-		return Activation{}, err
+		return InitialCredential{}, err
 	}
-	// Tautan tampil ke yang menekan tombol, dan akun SDM memegang data keuangan (D33).
+	// Kata sandi tampil ke yang menekan tombol, dan akun SDM memegang data keuangan (D33).
 	if actor.Role == permission.RoleSuperadmin && user.Role == store.UserRoleSdm {
-		return Activation{}, httpx.ErrForbidden()
+		return InitialCredential{}, httpx.ErrForbidden()
 	}
-	var out Activation
+	me, err := s.q.GetMe(ctx, id)
+	if err != nil {
+		return InitialCredential{}, err
+	}
+	out, hash, err := InitialPasswordHash(me.FullName, now)
+	if err != nil {
+		return InitialCredential{}, err
+	}
 	err = database.InTx(ctx, s.pool, func(q *store.Queries) error {
-		hash, err := UnusablePasswordHash()
-		if err != nil {
+		if err := q.SetInitialPassword(ctx, store.SetInitialPasswordParams{ID: id, PasswordHash: hash, InitialPasswordExpiresAt: out.Expires()}); err != nil {
 			return err
 		}
-		if err := q.SetUserPassword(ctx, store.SetUserPasswordParams{ID: id, PasswordHash: hash}); err != nil {
+		// Akun lama yang belum pernah aktivasi (sebelum D53) ikut diaktifkan, kecuali Pejuangnya sudah nonaktif.
+		if !user.IsActive {
+			status, err := q.GetEmployeeStatus(ctx, user.EmployeeID)
+			if err != nil {
+				return err
+			}
+			if status == "active" {
+				if err := q.SetUserActive(ctx, store.SetUserActiveParams{ID: id, IsActive: true}); err != nil {
+					return err
+				}
+			}
+		}
+		if err := q.InvalidateUserInvites(ctx, id); err != nil {
 			return err
 		}
 		if err := q.RevokeAllSessions(ctx, store.RevokeAllSessionsParams{UserID: id, Reason: pgtype.Text{String: "password_reset", Valid: true}}); err != nil {
-			return err
-		}
-		if out, err = IssueInvite(ctx, q, id, now); err != nil {
 			return err
 		}
 		return audit.Write(ctx, q, audit.Entry{

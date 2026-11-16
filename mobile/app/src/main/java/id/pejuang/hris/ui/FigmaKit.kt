@@ -177,14 +177,17 @@ fun FigmaCircleButton(icon: ImageVector, description: String, background: Color,
 
 /** Header halaman turunan: tombol kembali bulat putih dan judul di tengah, di atas latar halaman. */
 @Composable
-fun FigmaHeader(title: String, onBack: () -> Unit) {
+fun FigmaHeader(title: String, onBack: (() -> Unit)?) {
     StatusBarIcons(dark = true)
     Box(
         Modifier.fillMaxWidth().background(Hc.Canvas).statusBarsPadding()
             .padding(horizontal = 16.dp).padding(top = 8.dp, bottom = 8.dp).heightIn(min = 48.dp),
     ) {
-        Box(Modifier.align(Alignment.CenterStart)) {
-            FigmaCircleButton(FigmaIcons.ArrowLeftOutline, "Kembali", Hc.Surface, Hc.Ink, onBack)
+        // null = layar wajib yang tidak bisa ditinggalkan, mis. ganti kata sandi awal.
+        if (onBack != null) {
+            Box(Modifier.align(Alignment.CenterStart)) {
+                FigmaCircleButton(FigmaIcons.ArrowLeftOutline, "Kembali", Hc.Surface, Hc.Ink, onBack)
+            }
         }
         Text(
             title,

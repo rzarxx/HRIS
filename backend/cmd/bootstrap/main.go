@@ -42,7 +42,8 @@ type bootstrapRepo interface {
 	HasSDMUser(ctx context.Context) (bool, error)
 	ListShifts(ctx context.Context) ([]store.Shift, error)
 	InsertShift(ctx context.Context, arg store.InsertShiftParams) (store.Shift, error)
-	ListDivisions(ctx context.Context) ([]store.ListDivisionsRow, error)
+	ListBranches(ctx context.Context) ([]store.ListBranchesRow, error)
+	ListDivisions(ctx context.Context, branchID uuid.NullUUID) ([]store.ListDivisionsRow, error)
 	CreateDivision(ctx context.Context, arg store.CreateDivisionParams) (store.Division, error)
 	ListSubdivisions(ctx context.Context, divisionID uuid.NullUUID) ([]store.ListSubdivisionsRow, error)
 	CreateSubdivision(ctx context.Context, arg store.CreateSubdivisionParams) (store.Subdivision, error)
@@ -181,7 +182,7 @@ func bootstrapSDM(ctx context.Context, repo bootstrapRepo, opts options, now tim
 	}
 	userID, err := repo.CreateUser(ctx, store.CreateUserParams{
 		EmployeeID:         empID,
-		Email:              opts.Email,
+		Email:              pgtype.Text{String: opts.Email, Valid: true},
 		PasswordHash:       hash,
 		Role:               store.UserRoleSdm,
 		MustChangePassword: true,
@@ -241,7 +242,14 @@ func ensureShift(ctx context.Context, repo bootstrapRepo) (uuid.UUID, error) {
 }
 
 func ensureDivision(ctx context.Context, repo bootstrapRepo, code, name string) (uuid.UUID, error) {
-	divisions, err := repo.ListDivisions(ctx)
+	branches, err := repo.ListBranches(ctx)
+	if err != nil {
+		return uuid.Nil, err
+	}
+	if len(branches) == 0 {
+		return uuid.Nil, errors.New("cabang Pusat dari migrasi tidak ditemukan; jalankan hris-migrate up")
+	}
+	divisions, err := repo.ListDivisions(ctx, uuid.NullUUID{})
 	if err != nil {
 		return uuid.Nil, err
 	}
@@ -251,8 +259,9 @@ func ensureDivision(ctx context.Context, repo bootstrapRepo, code, name string) 
 		}
 	}
 	created, err := repo.CreateDivision(ctx, store.CreateDivisionParams{
-		Code: code,
-		Name: name,
+		BranchID: branches[0].ID,
+		Code:     code,
+		Name:     name,
 	})
 	if err != nil {
 		return uuid.Nil, err

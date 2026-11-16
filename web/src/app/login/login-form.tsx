@@ -12,7 +12,7 @@ const DEMO = process.env.NEXT_PUBLIC_DEMO_MODE === "1";
 
 export function LoginForm() {
   const next = useSearchParams().get("next");
-  const [email, setEmail] = useState(DEMO ? "sdm@pejuang.id" : "");
+  const [identifier, setIdentifier] = useState(DEMO ? "sdm@pejuang.id" : "");
   const [password, setPassword] = useState("");
   const [show, setShow] = useState(false);
   const [mfaToken, setMfaToken] = useState("");
@@ -29,13 +29,13 @@ export function LoginForm() {
   async function submitPassword(e: React.FormEvent) {
     e.preventDefault();
     setFormError("");
-    const fieldErrors = validate(loginSchema, { email, password });
+    const fieldErrors = validate(loginSchema, { identifier, password });
     setErrors(fieldErrors ?? {});
     if (fieldErrors) return;
 
     setLoading(true);
     try {
-      await api.post("/auth/web/login", { email, password });
+      await api.post("/auth/web/login", { identifier: identifier.trim(), password });
       goToApp();
     } catch (err) {
       setLoading(false);
@@ -119,15 +119,17 @@ export function LoginForm() {
   return (
     <form onSubmit={submitPassword} noValidate className="space-y-4">
       {alert}
-      <Field label="Email" htmlFor="email" error={errors.email}>
+      <Field label="NIPY, email, atau nomor WA" htmlFor="identifier" error={errors.identifier}>
         <Input
-          id="email"
-          type="email"
+          id="identifier"
+          type="text"
           autoComplete="username"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          invalid={!!errors.email}
-          placeholder="nama@pejuang.id"
+          autoCapitalize="none"
+          spellCheck={false}
+          value={identifier}
+          onChange={(e) => setIdentifier(e.target.value)}
+          invalid={!!errors.identifier}
+          placeholder="NIPY, nama@pejuang.id, atau 0812…"
         />
       </Field>
       <Field label="Kata sandi" htmlFor="password" error={errors.password}>

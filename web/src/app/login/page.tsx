@@ -15,7 +15,7 @@ export default function LoginPage() {
         </div>
         <div className="rounded-lg border border-t-4 border-slate-200 border-t-secondary-400 bg-white p-6 shadow-sm">
           <h1 className="text-lg font-semibold text-slate-900">Masuk ke akun Anda</h1>
-          <p className="mt-1 mb-5 text-sm text-slate-500">Gunakan email dan password yang terdaftar di SDM.</p>
+          <p className="mt-1 mb-5 text-sm text-slate-500">Masuk dengan NIPY, email, atau nomor WA yang terdaftar di SDM.</p>
           <Suspense>
             <LoginForm />
           </Suspense>

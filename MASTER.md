@@ -176,10 +176,10 @@ Scope dihitung dari struktur organisasi di DB (`subdivisions.head_employee_id`, 
 ### 3.2 Matriks Permission
 Role `superadmin` (D34) adalah role tertinggi dan tidak ditulis sebagai kolom di matriks ini: **semua izin SDM kecuali keuangan**.
 - Tidak punya `payroll:manage`, `payroll:finalize`, dan `cash_advance:read` milik orang lain. `base_salary` orang lain tidak tampil dan tidak bisa diubah; Pejuang yang dibuatnya bergaji 0 sampai diisi SDM.
-- Bisa mengelola semua akun, kecuali menerbitkan tautan sandi untuk akun SDM (D33).
+- Bisa mengelola semua akun, kecuali mereset kata sandi akun SDM (D33).
 - SDM tidak bisa mengunci, mereset, mengubah, menonaktifkan, mengatur lokasi absen, atau mencabut perangkat super admin. Bila lupa kata sandi: `hris-superadmin reset`.
 - SDM tetap bisa menyetujui perangkat baru super admin, karena perangkat sendiri harus disetujui peninjau lain. Bila HP super admin hilang, super admin sendiri yang mencabutnya; SDM tidak bisa menggantikan.
-- MFA wajib. Role diberikan lewat `hris-superadmin grant --email ...` di server, pada akun Pejuang biasa. Bila akun belum aktif, tautan aktivasi tampil di terminal, karena SMTP baru bisa diatur setelah akun itu ada.
+- MFA wajib. Role diberikan lewat `hris-superadmin grant --email ...` di server, pada akun Pejuang biasa; `--email` juga menerima NIPY atau nomor WA (D53). Bila akun lama belum pernah aktif, kata sandi awal tampil di terminal dan wajib diganti saat login pertama.
 - Penampil audit yang dibuat nanti wajib menyembunyikan nilai `employee.salary_changed` dari super admin.
 - `settings:manage` (pengaturan aplikasi: footer web dan aplikasi, SMTP) **hanya milik super admin**, tidak dimiliki SDM.
 
@@ -297,13 +297,22 @@ Domain terpisah: `admin.<domain>` (web statis) dan `api.<domain>` (API), keduany
 
 **Kata sandi:** argon2id (titik awal m=64 MiB, t=3, p=2; setel agar ± 250-500 ms), minimal 10 karakter, tolak daftar sandi umum, ganti wajib saat login pertama. Login jarang terjadi (refresh tidak memakai argon2), jadi tidak membebani jam masuk.
 
-**Lockout:** 5 kegagalan berturut-turut mengunci akun 15 menit (naik bertahap), plus rate limit per IP. Pesan gagal selalu generik ("Email atau kata sandi salah").
+**Lockout:** 5 kegagalan berturut-turut mengunci akun 15 menit (naik bertahap), plus rate limit per IP. Pesan gagal selalu generik ("NIPY, email, nomor WA, atau kata sandi salah.").
 
-**Aktivasi akun:** SDM membuat Pejuang → sistem membuat undangan sekali pakai (hash di DB, berlaku 24 jam) → Pejuang menetapkan kata sandi sendiri. SDM tidak pernah mengetahui kata sandi siapa pun. Tautan yang sudah dipakai, diganti, atau kedaluwarsa tidak menampilkan form; halaman menjelaskan keadaannya.
+**Akun baru dan kata sandi awal (D53):** SDM membuat Pejuang, satu per satu atau lewat impor xlsx, dan akun langsung aktif dengan kata sandi awal `@` + nama depan + tahun dibuat (WIB), contoh `@Siti2026`.
+- Nama depan adalah kata pertama nama lengkap yang memuat minimal dua huruf. Huruf pertamanya kapital, sisanya kecil, tanda baca dibuang. Bila tidak ada kata yang memenuhi, dipakai `Pejuang`.
+- Kata sandi awal hanya tampil sekali di respons pembuatan atau reset, untuk disampaikan SDM ke Pejuang. Yang disimpan hanya hash argon2id.
+- Kata sandi awal **berlaku 72 jam** (`users.initial_password_expires_at`). Lewat dari itu, login dengan kata sandi yang benar dijawab `AUTH_INITIAL_PASSWORD_EXPIRED` dan SDM perlu mereset ulang. Batas ini hilang setelah Pejuang memilih kata sandi sendiri.
+- Setelah masuk dengan kata sandi awal, web dan aplikasi langsung menampilkan popup ganti kata sandi yang tidak bisa dilewati.
+- `must_change_password=true`, jadi server menolak semua fitur selain profil, logout, dan ganti kata sandi (`PASSWORD_CHANGE_REQUIRED`) sampai Pejuang memilih kata sandi sendiri. Kata sandi pilihan sendiri tetap minimal 10 karakter.
+- Reset oleh SDM atau super admin (`/v1/admin/users/{user_id}/reset-password`) mengembalikan akun ke kata sandi awal, membuka kunci, dan mencabut semua sesi.
+
+**Login dengan NIPY, email, atau nomor WA (D53):** body login memakai `identifier`. Bila memuat `@` dicari sebagai email, selain itu sebagai NIPY lalu sebagai nomor WA yang dinormalisasi ke bentuk `62…`. Field `email` lama tetap diterima agar aplikasi versi lama bisa masuk. Nomor WA disimpan dalam bentuk `62…` dan unik.
 
 ### 5.2.1 Akses Akun Lewat Email Terdaftar (D30)
 
-- Tautan aktivasi dan reset kata sandi **hanya dikirim ke email terdaftar**. Di luar `APP_ENV=development`, API tidak mengembalikan token dan layar SDM tidak menampilkannya; SDM hanya melihat status terkirim atau gagal, dan bisa mengirim ulang.
+- Akun baru tidak lagi memakai tautan aktivasi (D53). Bagian ini berlaku untuk lupa kata sandi, ganti email, dan pemberitahuan keamanan setelah SMTP siap.
+- Tautan reset kata sandi **hanya dikirim ke email terdaftar**. Di luar `APP_ENV=development`, API tidak mengembalikan token dan layar SDM tidak menampilkannya; SDM hanya melihat status terkirim atau gagal, dan bisa mengirim ulang.
 - **Email tidak pernah memuat kata sandi**, hanya tautan sekali pakai. Yang disimpan di DB hanya hash-nya. Masa berlaku: aktivasi 24 jam, reset 1 jam. Mengirim ulang membatalkan tautan lama.
 - **Lupa kata sandi:** `POST /v1/auth/password/forgot` selalu menjawab `202` dengan pesan yang sama agar tidak membocorkan email mana yang terdaftar, dan dibatasi rate limit per email + IP.
 - Reset berhasil mencabut semua sesi. MFA tetap diminta saat login berikutnya; reset kata sandi tidak melewati MFA.
@@ -505,14 +514,16 @@ DDL dasar ada di `QUERY.sql`; perubahan di **Lampiran A** (yang berlaku). Beriku
 ### 6.1 Tabel
 | Tabel | Kolom kunci | Catatan |
 |---|---|---|
-| `divisions` | `id`, `code`, `name`, `head_employee_id` | |
-| `subdivisions` | `id`, `division_id`, `code`, `name`, `head_employee_id` | |
-| `employees` | `id`, `nip`, `full_name`, `email`, `phone`, `subdivision_id`, `position`, `join_date`, `exit_date`, `base_salary`, `default_shift_id`, `status`, `deleted_at` | Soft delete |
-| `users` | `id`, `employee_id`, `email`, `password_hash`, `role`, `is_active`, `failed_login_count`, `locked_until`, `must_change_password` | 1:1 employee |
+| `branches` | `id`, `code`, `name`, `created_at` | Cabang yayasan dengan struktur sendiri; baris awal `PUSAT` (D53, migrasi 000016) |
+| `divisions` | `id`, `branch_id`, `code`, `name`, `head_employee_id` | Kode unik per cabang |
+| `subdivisions` | `id`, `division_id`, `code`, `name`, `head_employee_id` | Kode unik per divisi |
+| `employees` | `id`, `nip`, `full_name`, `email`, `phone`, `gender`, `marital_status`, `has_children`, `children_count`, `subdivision_id`, `position`, `join_date`, `exit_date`, `base_salary`, `default_shift_id`, `status`, `deleted_at` | Soft delete. `phone` = nomor WA bentuk `62…`, unik |
+| `employee_children` | `id`, `employee_id`, `child_order`, `full_name`, `gender`, `birth_place`, `birth_date`, `relation`, `education`, `school_name` | Unik `(employee_id, child_order)`; hanya untuk SDM, super admin, dan Pejuang sendiri (D53) |
+| `users` | `id`, `employee_id`, `email` (boleh kosong), `password_hash`, `role`, `is_active`, `failed_login_count`, `locked_until`, `must_change_password`, `initial_password_expires_at` | 1:1 employee. `initial_password_expires_at` terisi selama kata sandi awal belum diganti (D53) |
 | `user_mfa` | `user_id`, `secret_enc`, `enabled_at`, `recovery_hashes` | |
 | `app_settings` | `key`, `value`, `updated_by`, `updated_at` | Kunci-nilai; `footer_template` untuk footer web dan aplikasi, tanpa baris berarti teks bawaan |
 | `mail_settings` | `host`, `port`, `username`, `password_enc`, `key_id`, `from_address`, `from_name`, `verified_at`, `updated_by` | Satu baris aktif, D30 |
-| `user_invites` | `id`, `user_id`, `purpose` (`activation`/`password_reset`/`email_change`), `token_hash`, `expires_at`, `used_at` | D30 |
+| `user_invites` | `id`, `user_id`, `purpose` (`activation`/`password_reset`/`email_change`), `token_hash`, `expires_at`, `used_at` | D30. `activation` tidak dipakai lagi sejak D53; baris lama disimpan untuk riwayat |
 | `sessions` | `id`, `user_id`, `client`, `device_id`, `refresh_hash`, `prev_refresh_hash`, `idle_expires_at`, `absolute_expires_at`, `revoked_at` | |
 | `devices` | `id`, `employee_id`, `device_hash`, `model`, `os_version`, `fcm_token`, `status`, `integrity_tier`, `manual_approved_until`, `public_key`, `key_bound_at`, `tier_changed_by`, `tier_changed_at`, `approved_by`, `approved_at`, `revoked_by`, `revoked_at`, `revoked_reason`, `last_seen_at` | §5.4.1. `integrity_tier` (`play`/`attestation`/`manual`/`kiosk`), `manual_approved_until`, dan `public_key` ECDSA P-256 (migrasi 000015) |
 | `face_templates` | `id`, `employee_id`, `embedding_enc`, `key_id`, `model_version`, `is_active` | |
@@ -556,6 +567,10 @@ DDL dasar ada di `QUERY.sql`; perubahan di **Lampiran A** (yang berlaku). Beriku
 | `sp_level` | `sp1`, `sp2`, `sp3` |
 | `ann_type` | `popup`, `banner` |
 | `employee_status` | `active`, `inactive` |
+| `employees.gender`, `employee_children.gender` (CHECK) | `L`, `P` |
+| `employees.marital_status` (CHECK) | `belum_menikah`, `menikah`, `cerai_hidup`, `cerai_mati` |
+| `employee_children.relation` (CHECK) | `kandung`, `angkat`, `tiri` |
+| `employee_children.education` (CHECK) | `belum_sekolah`, `paud`, `tk_ra`, `sd_mi`, `smp_mts`, `sma_sederajat`, `perguruan_tinggi`, `pondok_pesantren` |
 | `upload_purpose` | `leave_attachment`, `announcement_image` |
 | `consent_type` | `biometric_face`, `location` |
 | `notification_type` | `approval_requested`, `approval_result`, `announcement_new`, `payslip_ready`, `warning_issued`, `device_decision`, `attendance_review_result` |
@@ -643,9 +658,7 @@ Daftar memakai `?page=&per_page=&q=&sort=` (contoh `sort=-created_at`) dan filte
 | 422 | `FACE_NOT_DETECTED` | Selfie tanpa wajah, lebih dari satu wajah, atau tidak bisa dibaca |
 | 422 | `CHALLENGE_EXPIRED` | Tantangan kedaluwarsa/terpakai; minta baru |
 | 422 | `ATTENDANCE_BLOCKED` | Presensi ditolak (alasan keamanan; detail hanya untuk SDM) |
-| 422 | `ACTIVATION_INVALID` | Token undangan tidak dikenal |
-| 422 | `ACTIVATION_USED` | Token undangan sudah dipakai atau sudah diganti tautan baru |
-| 422 | `ACTIVATION_EXPIRED` | Token undangan sudah kedaluwarsa |
+| 401 | `AUTH_INITIAL_PASSWORD_EXPIRED` | Kata sandi awal benar tetapi lewat 72 jam; SDM perlu mereset ulang (D53) |
 | 423 | `AUTH_ACCOUNT_LOCKED` | Akun terkunci sementara (`details.retry_after_seconds`) |
 | 426 | `APP_UPDATE_REQUIRED` | Versi aplikasi terlalu lama |
 | 429 | `RATE_LIMITED` | Terlalu banyak permintaan (`Retry-After`) |
@@ -659,14 +672,12 @@ Setiap `code` baru wajib ditambahkan di tabel ini.
 **Auth (publik/sesi)**
 | Method | Path | Catatan |
 |---|---|---|
-| POST | `/v1/auth/web/login` | Set cookie; bisa menjawab `AUTH_MFA_REQUIRED` |
+| POST | `/v1/auth/web/login` | Body `identifier` (NIPY, email, atau nomor WA) dan `password`; set cookie; bisa menjawab `AUTH_MFA_REQUIRED` |
 | POST | `/v1/auth/web/mfa/verify` | |
 | POST | `/v1/auth/web/refresh` | |
 | POST | `/v1/auth/mobile/login` | Token di body; mendaftarkan atau mengenali perangkat (F5); akun ber-MFA wajib `mfa_code` (D40) |
 | POST | `/v1/auth/mobile/refresh` | Body `refresh_token`; rotasi seperti F6 |
 | POST | `/v1/auth/logout` | Cabut sesi saat ini |
-| POST | `/v1/auth/activate` | Aktivasi dari undangan, set sandi |
-| POST | `/v1/auth/activate/check` | Periksa tautan tanpa memakainya, agar tautan yang tidak berlaku tidak menampilkan form |
 | POST | `/v1/auth/password/forgot` | Minta tautan reset ke email terdaftar, selalu `202` (D30) |
 | POST | `/v1/auth/password/reset` | Set sandi baru dari tautan reset (D30) |
 | POST | `/v1/auth/password/change` | |
@@ -715,11 +726,11 @@ Setiap `code` baru wajib ditambahkan di tabel ini.
 **Admin (SDM; kadiv untuk laporan scope division)**
 | Method | Path | Permission |
 |---|---|---|
-| CRUD | `/v1/admin/divisions`, `/v1/admin/subdivisions` | `org:write` |
-| GET, POST, PATCH | `/v1/admin/employees`, `/v1/admin/employees/{id}` | `employee:read` / `employee:write` |
+| CRUD | `/v1/admin/branches`, `/v1/admin/divisions?branch_id=`, `/v1/admin/subdivisions` | `org:write`. Cabang tidak bisa dihapus selama masih punya divisi |
+| GET, POST, PATCH | `/v1/admin/employees?branch_id=`, `/v1/admin/employees/{id}` | `employee:read` / `employee:write`. Pembuatan menjawab `initial_password` (D53) |
 | POST | `/v1/admin/employees/{id}/deactivate` | `employee:write` |
 | PUT | `/v1/admin/employees/{id}/locations` | `employee:write` |
-| POST | `/v1/admin/users/{user_id}/reset-password`, `/lock`, `/unlock`, `/revoke-sessions` | `user:manage` |
+| POST | `/v1/admin/users/{user_id}/reset-password`, `/lock`, `/unlock`, `/revoke-sessions` | `user:manage`. Reset menjawab `initial_password` (D53) |
 | GET | `/v1/admin/devices?status=` | `device:review` |
 | POST | `/v1/admin/devices/{id}/approve`, `/revoke`, `/tier` | `device:review` |
 | POST | `/v1/admin/employees/{id}/face/reset` | `face:reset` |
@@ -765,16 +776,19 @@ Setiap `code` baru wajib ditambahkan di tabel ini.
 ```
 `device_status` hanya terisi untuk sesi aplikasi dan bernilai `null` untuk sesi web. `face_enrolled` bernilai `true` bila Pejuang punya template wajah aktif; bila `false`, aplikasi membuka alur F7.
 
-**Login mobile** — request: `{ "email", "password", "device": { "device_hash", "model", "os_version", "fcm_token" } }`
+**Login web/mobile** — request: `{ "identifier", "password" }`, ditambah `"device": { "device_hash", "model", "os_version", "fcm_token" }` untuk mobile. `identifier` = NIPY, email, atau nomor WA (D53); field `email` lama masih diterima.
 respons: `{ "data": { "access_token", "refresh_token", "expires_in", "device_id", "device_status" } }`
 
 **Employee**
 ```json
-{ "id": "uuid", "nip": "1001", "full_name": "...", "email": "...", "phone": "...",
-  "subdivision_id": "uuid", "position": "...", "join_date": "2024-01-15",
-  "status": "active", "base_salary": "5000000.00" }
+{ "id": "uuid", "nip": "1001", "full_name": "...", "email": null, "phone": "6281234567890",
+  "gender": "L", "marital_status": "menikah", "has_children": true, "children_count": 2,
+  "branch_id": "uuid", "branch_name": "Pusat", "division_id": "uuid", "subdivision_id": "uuid",
+  "position": "...", "join_date": "2024-01-15", "status": "active", "base_salary": "5000000.00",
+  "children": [ { "child_order": 1, "full_name": "Aisyah", "gender": "P", "birth_place": "Cirebon",
+    "birth_date": "2015-04-02", "relation": "kandung", "education": "sd_mi", "school_name": "MI Al Bahjah" } ] }
 ```
-`base_salary` hanya muncul untuk `sdm` dan pemilik data.
+`base_salary` hanya muncul untuk `sdm` dan pemilik data. `has_children`, `children_count`, dan `children` hanya untuk SDM, super admin, dan Pejuang sendiri; `children` hanya di detail. Mengirim `children` saat PATCH mengganti seluruh data anak.
 
 **Challenge** — `POST /v1/attendance/challenge`
 request: `{ "purpose": "clock_in" }` → respons: `{ "data": { "challenge_id": "uuid", "nonce": "string", "expires_at": "2026-11-02T01:01:30Z" } }`
@@ -918,13 +932,13 @@ flowchart TD
     O --> P["Respons envelope data atau error"]
 ```
 
-### F3. Pembuatan Akun & Aktivasi
+### F3. Pembuatan Akun & Kata Sandi Awal (D53)
 ```mermaid
 flowchart TD
-    A["SDM membuat data Pejuang"] --> B["API membuat employee dan user, status belum aktif"]
-    B --> C["Buat undangan sekali pakai: hash di DB, berlaku 24 jam"]
-    C --> D["Kirim tautan aktivasi ke email terdaftar"]
-    D --> E["Pejuang membuka tautan dan menetapkan kata sandi"]
+    A["SDM membuat data Pejuang, manual atau impor xlsx"] --> B["API membuat employee dan user aktif"]
+    B --> C["Kata sandi awal: @ + nama depan + tahun, hash argon2id, must_change_password"]
+    C --> D["SDM menyampaikan kata sandi awal ke Pejuang"]
+    D --> E["Pejuang masuk dengan NIPY, email, atau nomor WA lalu wajib mengganti kata sandi"]
     E --> F{"Role sdm?"}
     F -- Ya --> G["Wajib setup MFA TOTP dan simpan recovery codes"]
     F -- Tidak --> H["Akun aktif"]
@@ -935,7 +949,7 @@ flowchart TD
 ### F4. Login Web Admin
 ```mermaid
 flowchart TD
-    A["Input email dan kata sandi"] --> B{"Akun terkunci?"}
+    A["Input NIPY, email, atau nomor WA dan kata sandi"] --> B{"Akun terkunci?"}
     B -- Ya --> B1["423 AUTH_ACCOUNT_LOCKED"]
     B -- Tidak --> C{"Kredensial benar?"}
     C -- Tidak --> C1["Tambah failed_login_count, kunci setelah 5x, audit auth.login_failed, 401 AUTH_INVALID_CREDENTIALS"]
@@ -1522,7 +1536,7 @@ Estimasi untuk tim kecil; sesuaikan setelah kapasitas tim jelas.
 **Fase 1: Fondasi (Selesai)**
 - [x] Refresh token rotasi + deteksi reuse (tes integrasi)
 - [x] MFA TOTP untuk `sdm` (tes integrasi; dikonfirmasi berjalan di server)
-- [x] Aktivasi lewat undangan sekali pakai (tes integrasi; dikonfirmasi berjalan di server)
+- [x] Aktivasi lewat undangan sekali pakai (tes integrasi; dikonfirmasi berjalan di server). Diganti kata sandi awal yang wajib diganti (D53)
 - [x] Rate limit + lockout (tes integrasi; memori, Redis menyusul)
 - [x] `audit_logs` append-only (`REVOKE`) (tes integrasi sebagai `hris_app`)
 - [x] Tes integrasi dengan PostgreSQL asli, dijalankan di CI (`backend/internal/integration`)
@@ -1610,7 +1624,7 @@ Estimasi untuk tim kecil; sesuaikan setelah kapasitas tim jelas.
 | D13 | PostGIS ditunda ke migrasi Fase 2, Redis ke Fase 1 | Alur demo Fase 0 tidak memakai geofence maupun rate limit lengkap; sesi dicek ke database |
 | D14 | Web memakai komponen sendiri + Tailwind + TanStack Query, bukan Refine + Ant Design | UI sudah berjalan dan §10.1 mengizinkan penggantian UI kit; kontrak API tidak berubah |
 | D16 | Rate limit fase awal memakai penyimpanan memori lewat antarmuka `Limiter` | Cukup untuk satu instance API; implementasi Redis menggantikannya saat lebih dari satu instance. Batas per IP dibuat longgar karena satu kantor bisa berbagi IP publik; batas ketat ada per akun |
-| D17 | Tautan aktivasi ditampilkan ke SDM untuk diteruskan manual. **Digantikan D30; hanya tersisa di `APP_ENV=development`** | Layanan email/WhatsApp belum diputuskan (§14.2 no. 14). Konsekuensi: SDM sempat memegang token aktivasi |
+| D17 | Tautan aktivasi ditampilkan ke SDM untuk diteruskan manual. **Digantikan D30, lalu D53** | Layanan email/WhatsApp belum diputuskan (§14.2 no. 14). Konsekuensi: SDM sempat memegang token aktivasi |
 | D18 | Email wajib saat membuat Pejuang | Email menjadi identitas login akun (F3) |
 | D19 | Server development memakai aaPanel: Nginx + SSL dari panel, API sebagai layanan systemd, tanpa Docker. Deploy dari branch `develop` lewat `git pull` manual (`backend/deploy/deploy.sh`) | Panel sudah terpasang. Konsekuensi: server perlu Go dan Node, deploy tidak otomatis, dan langkah build/scan image di F22 ditunda sampai produksi. §4 tetap berlaku untuk zona jaringan |
 | D20 | Migrasi tidak memakai `pgcrypto` | PostgreSQL bawaan aaPanel tidak menyertakan ekstensi contrib. Migrasi 000001 diedit sekali ini karena belum pernah berhasil diterapkan di server mana pun. Konsekuensi: PostGIS di Fase 2 harus dipasang terpisah atau memakai PostgreSQL lain |
@@ -1623,7 +1637,7 @@ Estimasi untuk tim kecil; sesuaikan setelah kapasitas tim jelas.
 | D27 | Timer sebelum "Sudah baca" ditegakkan server | Timer yang hanya ada di app bisa dilewati lewat app yang dimodifikasi. Timer membuktikan isi sudah terbuka selama waktu itu, bukan bahwa isinya benar-benar dibaca |
 | D28 | Peta area memakai Leaflet dengan OpenStreetMap, pencarian tempat memakai Nominatim | Tanpa kunci API dan biaya, cukup untuk panel admin bervolume kecil. Konsekuensi: peta butuh internet dan koordinat yang dilihat terkirim ke OpenStreetMap; bila pemakaian membesar, ganti penyedia peta |
 | D29 | Aturan potongan dan lembur berupa parameter berversi yang diatur SDM lewat panel | Keputusan pemilik proyek agar perubahan hitungan tidak bergantung pada kode. Konsekuensi: SDM bertanggung jawab atas angka yang dimasukkan, dan rumus sementara di `internal/report` harus diganti di Fase 5 |
-| D30 | Aktivasi, reset, dan pemberitahuan akses akun dikirim ke email terdaftar | Keputusan pemilik proyek. SDM tidak lagi memegang token. Email perusahaan dipakai lewat SMTP yang diatur super admin di panel. Konsekuensi: butuh pengaturan SMTP, domain publik, dan HTTPS sebelum akun sungguhan dipakai; keamanan akun kini bergantung pada keamanan kotak email Pejuang |
+| D30 | Aktivasi, reset, dan pemberitahuan akses akun dikirim ke email terdaftar. **Aktivasi digantikan D53**; lupa kata sandi lewat email tetap rencana | Keputusan pemilik proyek. SDM tidak lagi memegang token. Email perusahaan dipakai lewat SMTP yang diatur super admin di panel. Konsekuensi: butuh pengaturan SMTP, domain publik, dan HTTPS sebelum akun sungguhan dipakai; keamanan akun kini bergantung pada keamanan kotak email Pejuang |
 | D31 | Jam kerja dihitung dengan cutoff periode (nilai awal tanggal 25) dan cutoff harian (nilai awal 04:00) yang diatur SDM | Permintaan pemilik proyek agar penghitungan lebih sistematis. Konsekuensi: rekap dan laporan upah yang kini per bulan kalender harus pindah ke rentang periode, dan koreksi setelah finalize tidak mengubah periode lama |
 | D32 | Perangkat langsung `approved` hanya bila akun belum pernah punya perangkat | Bila dihitung dari perangkat yang masih aktif, pencuri kata sandi mendapat persetujuan otomatis setelah HP korban dicabut. Konsekuensi: setiap ganti HP butuh persetujuan |
 | D33 | Super admin tidak bisa menerbitkan tautan sandi untuk akun SDM | Tautan tampil ke yang menekan tombol (D17), sehingga bisa dipakai masuk ke akun SDM dan melihat data keuangan. Konsekuensi: lewat tautan akun Pejuang biasa, super admin masih bisa melihat gaji Pejuang itu sendiri; tercatat di audit dan tertutup setelah tautan hanya terkirim ke email (D30) |
@@ -1646,6 +1660,7 @@ Estimasi untuk tim kecil; sesuaikan setelah kapasitas tim jelas.
 | D50 | Istilah mengikuti adab yayasan: "presensi" menggantikan "absen" (karena absen berarti tidak hadir), "ubar" menggantikan upah/gaji, "pinjaman" menggantikan kasbon, dan "Pejuang" menggantikan karyawan/pegawai, di aplikasi, web, pesan API, dan dokumen baru | Keputusan pemilik proyek. Nama kode, path API, dan nilai enum (mis. `absent`, `/pengajuan/kasbon`) tidak diubah agar kontrak tetap stabil |
 | D51 | Liveness dibuktikan server dari dua foto: selfie lurus dan foto saat kepala menoleh (`gesture`), yang hash-nya ikut diikat ke `request_hash`. Server memeriksa dari lima titik YuNet bahwa selfie lurus (rasio toleh ≤ 0.20), foto gerakan menoleh (≥ 0.18, selisih ≥ 0.10), dan wajahnya orang yang sama (kemiripan ≥ 0.30). Challenge hanya meminta `turn_left`/`turn_right`. `liveness_retry` dihitung server dari upaya wajah yang ditolak, dan aplikasi mendeteksi root, emulator, serta aplikasi pemalsu lokasi sebelum meminta challenge | Keputusan pemilik proyek: sebelumnya server hanya mempercayai `liveness_passed` dari aplikasi. Kedip dan senyum tidak bisa dibuktikan dari lima titik, jadi tidak diminta lagi. Konsekuensi: foto cetak atau layar yang diam ditolak, tetapi video wajah yang diputar ulang masih bisa lolos; anti-spoof berbasis model atau layanan komersial tetap pilihan berikutnya. Ambang toleh adalah nilai awal dari geometri wajah dan wajib dikalibrasi dengan foto HP sungguhan. Aplikasi lama yang belum mengirim foto gerakan ditolak `VALIDATION_FAILED` (`gesture`), jadi server dan aplikasi harus diperbarui bersamaan. Deteksi di HP bersifat saran dan konservatif (tidak memakai `test-keys`) |
 | D52 | Distribusi dan pembaruan aplikasi Android beralih dari GitHub Releases ke **Google Play Store** (dibangun menggunakan Android Studio sebagai Android App Bundle `.aab`, tanpa pembaruan mandiri dari GitHub dan tanpa izin `REQUEST_INSTALL_PACKAGES`). Domain produksi ditetapkan di `hris.albahjah.or.id` (web admin, direktori `/www/wwwroot/HRIS`) dan `api.albahjah.or.id` (API). Menggantikan D45 | Keputusan pemilik proyek untuk distribusi resmi lewat Play Store. Menghapus `REQUEST_INSTALL_PACKAGES` dan kode updater GitHub agar lolos review Google Play (`Device and Network Abuse`). Build rilis di `mobile/app/build.gradle.kts` langsung mengarah ke `https://api.albahjah.or.id`, dan skrip `backend/deploy/` menggunakan domain `hris.albahjah.or.id` dan `api.albahjah.or.id` |
+| D53 | Akun Pejuang dibuat langsung aktif dengan kata sandi awal `@` + nama depan + tahun dibuat (WIB) yang wajib diganti saat login pertama, menggantikan tautan aktivasi (D17, D30). Login memakai NIPY, email, atau nomor WA; email tidak lagi wajib dan nomor WA disimpan `62…` serta unik. Cabang (`branches`) menjadi induk divisi dengan struktur dan atasan sendiri; SDM pusat dan super admin melihat semua cabang. Data Pejuang mengikuti formulir yayasan (jenis kelamin, status pernikahan, anak, dan data tiap anak); data anak hanya untuk SDM, super admin, dan Pejuang sendiri | Keputusan pemilik proyek: Pejuang banyak yang belum punya email dan SMTP belum siap, jadi penyerahan akun lewat SDM. Konsekuensi: kata sandi awal mudah ditebak rekan kerja yang tahu nama dan tahun. Mitigasinya kata sandi awal hanya berlaku 72 jam, kunci 5 kali gagal, popup wajib ganti sebelum fitur lain bisa dipakai, dan reset tercatat `user.password_reset`. SDM sempat mengetahui kata sandi awal |
 | D15 | `/v1/admin/reports/payroll-preview` mewajibkan `attendance:report` dan `payroll:manage` | Respons memuat gaji, sedangkan §7.6 membatasi `base_salary` untuk `sdm` dan pemilik data |
 
 ### 14.2 Pertanyaan yang Harus Dijawab (blokir pekerjaan terkait)

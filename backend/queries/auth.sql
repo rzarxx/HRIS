@@ -1,7 +1,11 @@
--- name: GetUserByEmail :one
+-- Login memakai NIPY, email, atau nomor WA (D53). Pemanggil mengisi tepat satu parameter.
+-- name: GetUserForLogin :one
 SELECT u.*, e.full_name
 FROM users u JOIN employees e ON e.id = u.employee_id
-WHERE lower(u.email) = lower($1) AND e.deleted_at IS NULL;
+WHERE e.deleted_at IS NULL
+  AND ((sqlc.narg(email)::text IS NOT NULL AND lower(u.email) = lower(sqlc.narg(email)))
+    OR (sqlc.narg(nip)::text IS NOT NULL AND upper(e.nip) = upper(sqlc.narg(nip)))
+    OR (sqlc.narg(phone)::text IS NOT NULL AND e.phone = sqlc.narg(phone)));
 
 -- name: RegisterLoginFailure :one
 UPDATE users
@@ -80,7 +84,8 @@ SELECT * FROM users WHERE id = $1;
 
 -- name: SetUserPassword :exec
 UPDATE users
-SET password_hash = @password_hash, must_change_password = false, password_changed_at = now()
+SET password_hash = @password_hash, must_change_password = false, password_changed_at = now(),
+    initial_password_expires_at = NULL
 WHERE id = @id;
 
 -- name: RevokeOtherSessions :exec
@@ -120,24 +125,8 @@ UPDATE user_mfa SET last_used_step = @step WHERE user_id = @user_id AND last_use
 -- name: SetMfaRecoveryHashes :exec
 UPDATE user_mfa SET recovery_hashes = @recovery_hashes WHERE user_id = @user_id;
 
--- name: CreateUserInvite :exec
-INSERT INTO user_invites (user_id, token_hash, expires_at) VALUES ($1, $2, $3);
-
 -- name: InvalidateUserInvites :exec
 UPDATE user_invites SET used_at = now() WHERE user_id = $1 AND used_at IS NULL;
-
--- name: ConsumeInvite :one
--- Sekali pakai: UPDATE bersyarat agar dua permintaan bersamaan tidak sama-sama lolos.
-UPDATE user_invites SET used_at = now()
-WHERE token_hash = @token_hash AND used_at IS NULL AND expires_at > now()
-RETURNING user_id;
-
--- name: GetInviteState :one
-SELECT (used_at IS NOT NULL)::bool AS used, (expires_at <= now())::bool AS expired, expires_at
-FROM user_invites WHERE token_hash = @token_hash;
-
--- name: ActivateUser :exec
-UPDATE users SET is_active = true WHERE id = $1;
 
 -- name: SetUserLock :exec
 UPDATE users SET locked_until = @locked_until, failed_login_count = 0 WHERE id = @id;
@@ -148,10 +137,17 @@ UPDATE users SET is_active = @is_active WHERE id = @id;
 -- name: GetUserByEmployee :one
 SELECT * FROM users WHERE employee_id = $1;
 
--- name: CreateInactiveUser :one
-INSERT INTO users (employee_id, email, password_hash, role, is_active, must_change_password)
-VALUES ($1, $2, $3, $4, false, false)
+-- Akun baru langsung aktif dengan kata sandi awal yang wajib diganti saat login pertama (D53).
+-- name: CreateUserWithInitialPassword :one
+INSERT INTO users (employee_id, email, password_hash, role, is_active, must_change_password, initial_password_expires_at)
+VALUES (@employee_id, @email, @password_hash, @role, true, true, @initial_password_expires_at)
 RETURNING id;
+
+-- name: SetInitialPassword :exec
+UPDATE users
+SET password_hash = @password_hash, must_change_password = true, password_changed_at = now(),
+    initial_password_expires_at = @initial_password_expires_at, failed_login_count = 0, locked_until = NULL
+WHERE id = @id;
 
 -- name: GetEmployeeAccount :one
 SELECT u.id AS user_id, u.role, u.is_active, u.locked_until,
@@ -168,7 +164,7 @@ LEFT JOIN user_mfa m ON m.user_id = u.id
 WHERE u.employee_id = ANY(@employee_ids::uuid[]);
 
 -- name: UpdateUserEmail :exec
-UPDATE users SET email = @email WHERE employee_id = @employee_id;
+UPDATE users SET email = sqlc.narg(email) WHERE employee_id = @employee_id;
 
 -- name: GetDeviceStatus :one
 SELECT status FROM devices WHERE id = $1;

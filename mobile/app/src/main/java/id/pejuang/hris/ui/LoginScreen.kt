@@ -19,7 +19,7 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Email
+import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Warning
@@ -56,7 +56,7 @@ import kotlinx.coroutines.launch
 /** Isian layar masuk; dipisah dari [LoginScreen] agar bisa dirender tanpa jaringan. */
 data class LoginForm(
     val server: String = "",
-    val email: String = "",
+    val identifier: String = "",
     val password: String = "",
     val mfa: String = "",
     val askMfa: Boolean = false,
@@ -69,7 +69,7 @@ fun LoginScreen(repository: Repository, crash: String?, onDismissCrash: () -> Un
     val scope = rememberCoroutineScope()
     val clipboard = LocalClipboardManager.current
     var server by rememberSaveable { mutableStateOf(repository.serverUrl) }
-    var email by rememberSaveable { mutableStateOf("") }
+    var identifier by rememberSaveable { mutableStateOf("") }
     var password by rememberSaveable { mutableStateOf("") }
     var mfa by rememberSaveable { mutableStateOf("") }
     var askMfa by rememberSaveable { mutableStateOf(false) }
@@ -80,14 +80,14 @@ fun LoginScreen(repository: Repository, crash: String?, onDismissCrash: () -> Un
     LaunchedEffect(Unit) { repository.refreshBranding() }
     LoginContent(
         footer = repository.prefs.footer,
-        form = LoginForm(server, email, password, mfa, askMfa, busy, error),
+        form = LoginForm(server, identifier, password, mfa, askMfa, busy, error),
         showServer = BuildConfig.SERVER_EDITABLE,
         version = BuildConfig.VERSION_NAME,
         crash = crash,
         onCopyCrash = { crash?.let { clipboard.setText(AnnotatedString(it)) } },
         onDismissCrash = onDismissCrash,
         onServer = { server = it },
-        onEmail = { email = it },
+        onIdentifier = { identifier = it },
         onPassword = { password = it },
         onMfa = { mfa = it.filter(Char::isDigit).take(6) },
         onSubmit = {
@@ -96,7 +96,7 @@ fun LoginScreen(repository: Repository, crash: String?, onDismissCrash: () -> Un
             error = null
             scope.launch {
                 try {
-                    repository.login(server, email, password, if (askMfa) mfa else null)
+                    repository.login(server, identifier, password, if (askMfa) mfa else null)
                     onLoggedIn()
                 } catch (e: Exception) {
                     val err = e.toApiError()
@@ -119,7 +119,7 @@ fun LoginContent(
     onCopyCrash: () -> Unit,
     onDismissCrash: () -> Unit,
     onServer: (String) -> Unit,
-    onEmail: (String) -> Unit,
+    onIdentifier: (String) -> Unit,
     onPassword: (String) -> Unit,
     onMfa: (String) -> Unit,
     onSubmit: () -> Unit,
@@ -127,7 +127,7 @@ fun LoginContent(
 ) {
     StatusBarIcons(dark = true)
     var showPassword by rememberSaveable { mutableStateOf(false) }
-    val canSubmit = form.email.isNotBlank() && form.password.isNotEmpty() &&
+    val canSubmit = form.identifier.isNotBlank() && form.password.isNotEmpty() &&
         (!showServer || form.server.isNotBlank()) && (!form.askMfa || form.mfa.length == 6)
 
     Box(Modifier.fillMaxSize().background(Hc.Surface)) {
@@ -156,10 +156,10 @@ fun LoginContent(
                 Spacer(Modifier.height(32.dp))
                 Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
                     Field(
-                        value = form.email,
-                        onChange = onEmail,
-                        label = "Email",
-                        icon = Icons.Filled.Email,
+                        value = form.identifier,
+                        onChange = onIdentifier,
+                        label = "NIPY, email, atau nomor WA",
+                        icon = Icons.Filled.Person,
                         keyboard = KeyboardOptions(keyboardType = KeyboardType.Email, imeAction = ImeAction.Next),
                     )
                     Field(

@@ -108,7 +108,7 @@ fun ProfileContent(
                 )
             }
             ProfileGroup("Kontak") {
-                ProfileRow(FigmaIcons.Sms, me.email.ifBlank { "Email belum tercatat" })
+                ProfileRow(FigmaIcons.Sms, me.email?.takeIf { it.isNotBlank() } ?: "Email belum tercatat")
                 RowDivider()
                 ProfileRow(FigmaIcons.LocationTick, "${me.subdivision.name} · ${me.division.name}")
             }
@@ -196,7 +196,7 @@ fun PersonalDataContent(me: Me, onBack: () -> Unit) {
                 }
                 FigmaInput("Nama lengkap", me.fullName, {}, FigmaIcons.User, readOnly = true)
                 FigmaInput("NIPY", me.nip, {}, FigmaIcons.Keyboard, readOnly = true)
-                FigmaInput("Email", me.email.ifBlank { "-" }, {}, FigmaIcons.Sms, readOnly = true)
+                FigmaInput("Email", me.email?.takeIf { it.isNotBlank() } ?: "-", {}, FigmaIcons.Sms, readOnly = true)
                 FigmaInput("Jabatan", me.position ?: "-", {}, FigmaIcons.Keyboard, readOnly = true)
                 FigmaInput("Divisi", me.division.name, {}, FigmaIcons.LocationTickLinear, readOnly = true)
                 FigmaInput("Subdivisi", me.subdivision.name, {}, FigmaIcons.LocationTickLinear, readOnly = true)
@@ -231,27 +231,38 @@ fun ChangePasswordContent(
     onSubmit: () -> Unit,
     onBack: () -> Unit,
     onFinished: () -> Unit,
+    // true = masuk dengan kata sandi awal (D53): layar tidak bisa ditinggalkan selain dengan keluar.
+    required: Boolean = false,
+    onLogout: () -> Unit = {},
 ) {
-    val canSubmit = form.current.isNotEmpty() && form.next.length >= 10 && form.repeat == form.next && !form.busy
+    val canSubmit = form.current.isNotEmpty() && form.next.length >= 10 && form.repeat == form.next && form.next != form.current && !form.busy
     Box(Modifier.fillMaxSize().background(Fg.PageProfile)) {
         Column(Modifier.fillMaxSize().imePadding()) {
-            FigmaHeader("Ganti Kata Sandi", onBack)
+            FigmaHeader(if (required) "Buat Kata Sandi Baru" else "Ganti Kata Sandi", if (required) null else onBack)
             Column(Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(horizontal = 12.dp, vertical = 16.dp)) {
                 FigmaCard(
                     title = "Kata sandi baru",
-                    subtitle = "Minimal 10 karakter. Setelah diganti, sesi di perangkat lain akan keluar.",
+                    subtitle = if (required) {
+                        "Anda masuk dengan kata sandi awal dari SDM. Demi keamanan akun, buat kata sandi sendiri sekarang. Minimal 10 karakter."
+                    } else {
+                        "Minimal 10 karakter. Setelah diganti, sesi di perangkat lain akan keluar."
+                    },
                     top = 24.dp,
                     bottom = 24.dp,
                     gap = 16.dp,
                 ) {
                     val lock = Icons.Filled.Lock
                     FigmaInput(
-                        "Kata sandi saat ini", form.current, onCurrent, lock, password = true,
+                        if (required) "Kata sandi awal" else "Kata sandi saat ini", form.current, onCurrent, lock, password = true,
                         keyboard = KeyboardOptions(keyboardType = KeyboardType.Password, imeAction = ImeAction.Next),
                     )
                     FigmaInput(
                         "Kata sandi baru", form.next, onNext, lock, password = true,
-                        error = "Minimal 10 karakter.".takeIf { form.next.isNotEmpty() && form.next.length < 10 },
+                        error = when {
+                            form.next.isNotEmpty() && form.next.length < 10 -> "Minimal 10 karakter."
+                            form.next.isNotEmpty() && form.next == form.current -> "Harus berbeda dari kata sandi saat ini."
+                            else -> null
+                        },
                         keyboard = KeyboardOptions(keyboardType = KeyboardType.Password, imeAction = ImeAction.Next),
                     )
                     FigmaInput(
@@ -265,7 +276,10 @@ fun ChangePasswordContent(
             }
             // Komponen "Bottom Button": bilah putih 76dp berisi tombol utama.
             Box(Modifier.fillMaxWidth().background(Fg.Card).navigationBarsPadding().padding(horizontal = 16.dp, vertical = 14.dp)) {
-                FigmaPrimaryButton("Simpan kata sandi", onSubmit, enabled = canSubmit, loading = form.busy)
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    FigmaPrimaryButton("Simpan kata sandi", onSubmit, enabled = canSubmit, loading = form.busy)
+                    if (required) FigmaSecondaryButton("Keluar", onLogout, Modifier.fillMaxWidth())
+                }
             }
         }
         if (form.done) {

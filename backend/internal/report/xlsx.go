@@ -221,8 +221,8 @@ type divisionGroup struct {
 	Employees []store.AttendanceExportEmployeesRow
 }
 
-// BuildAttendanceXLSX membangun berkas .xlsx dengan 2 worksheet ("Fingerprint" dan "Manual")
-// yang identik 100% dengan format rekap presensi SDM.
+// BuildAttendanceXLSX membangun berkas .xlsx dengan 2 worksheet ("Presensi Wajah" dan "Rekap Kehadiran")
+// yang identik dengan format rekap presensi SDM.
 func BuildAttendanceXLSX(data ExportData) ([]byte, error) {
 	from, to := data.From, data.To
 	if from.IsZero() || to.IsZero() {
@@ -1009,8 +1009,8 @@ const workbookXML = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
   <workbookPr/>
   <sheets>
-    <sheet state="visible" name="Fingerprint" sheetId="1" r:id="rId1"/>
-    <sheet state="visible" name="Manual" sheetId="2" r:id="rId2"/>
+    <sheet state="visible" name="Presensi Wajah" sheetId="1" r:id="rId1"/>
+    <sheet state="visible" name="Rekap Kehadiran" sheetId="2" r:id="rId2"/>
   </sheets>
   <calcPr fullCalcOnLoad="1"/>
 </workbook>`

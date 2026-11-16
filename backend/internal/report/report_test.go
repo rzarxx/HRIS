@@ -170,8 +170,8 @@ func TestBuildAttendanceXLSX(t *testing.T) {
 	}
 
 	wb := files["xl/workbook.xml"]
-	if !strings.Contains(wb, `name="Fingerprint"`) || !strings.Contains(wb, `name="Manual"`) {
-		t.Fatalf("workbook harus punya sheet Fingerprint dan Manual: %s", wb)
+	if !strings.Contains(wb, `name="Presensi Wajah"`) || !strings.Contains(wb, `name="Rekap Kehadiran"`) {
+		t.Fatalf("workbook harus punya sheet Presensi Wajah dan Rekap Kehadiran: %s", wb)
 	}
 
 	sst := files["xl/sharedStrings.xml"]

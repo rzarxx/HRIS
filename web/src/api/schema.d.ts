@@ -4328,7 +4328,7 @@ export interface paths {
         };
         /**
          * Ekspor rekap presensi format Excel SDM (.xlsx)
-         * @description Permission `attendance:report`, dibatasi scope. Menghasilkan berkas Excel `.xlsx` dengan 2 worksheet (`Fingerprint` untuk jam Masuk/Pulang harian dan `Manual` untuk kode status H/S/I/A/L/C/IS/T/WFH serta rumus COUNTIF, Jumlah HK, dan Persentase) untuk periode cutoff tanggal 26 bulan sebelumnya s.d. tanggal 25 bulan yang dipilih.
+         * @description Permission `attendance:report`, dibatasi scope. Menghasilkan berkas Excel `.xlsx` dengan 2 worksheet (`Presensi Wajah` untuk jam Masuk/Pulang harian dan `Rekap Kehadiran` untuk kode status H/S/I/A/L/C/IS/T/WFH serta rumus COUNTIF, Jumlah HK, dan Persentase) untuk periode cutoff tanggal 26 bulan sebelumnya s.d. tanggal 25 bulan yang dipilih.
          */
         get: {
             parameters: {

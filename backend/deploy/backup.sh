@@ -5,6 +5,12 @@
 set -euo pipefail
 umask 077
 
+# PostgreSQL dari aaPanel terpasang di /www/server/pgsql/bin, di luar PATH bawaan systemd dan root.
+# Ditaruh di akhir PATH agar pg_dump sistem (bila ada) tetap didahulukan.
+for pg_dir in /www/server/pgsql/bin /usr/local/pgsql/bin; do
+  [ -d "$pg_dir" ] && PATH="$PATH:$pg_dir"
+done
+
 APP_DIR="${APP_DIR:-/opt/hris}"
 ENV_FILE="$APP_DIR/.env"
 DEPLOY_ENV="$APP_DIR/deploy.env"

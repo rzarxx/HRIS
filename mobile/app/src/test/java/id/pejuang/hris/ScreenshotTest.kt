@@ -9,6 +9,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import app.cash.paparazzi.DeviceConfig
 import app.cash.paparazzi.Paparazzi
+import app.cash.paparazzi.detectEnvironment
 import id.pejuang.hris.data.ApprovalItem
 import id.pejuang.hris.data.ApprovalRequester
 import id.pejuang.hris.data.ApprovalStep
@@ -66,6 +67,11 @@ import java.time.ZonedDateTime
 class ScreenshotTest {
     @get:Rule
     val paparazzi = Paparazzi(
+        // Paparazzi 1.3 belum punya layoutlib untuk API 36, jadi layar dirender dengan platform API 34.
+        // Aplikasinya tetap dikompilasi dan menargetkan API 36.
+        environment = detectEnvironment().run {
+            copy(compileSdkVersion = 34, platformDir = platformDir.replace("android-36", "android-34"))
+        },
         deviceConfig = DeviceConfig.PIXEL_5,
         theme = "android:Theme.Material.Light.NoActionBar",
         maxPercentDifference = 0.1,

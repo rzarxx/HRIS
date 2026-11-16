@@ -36,13 +36,13 @@ for (url in listOf(releaseApiBaseUrl, debugApiBaseUrl)) {
 
 android {
     namespace = "id.pejuang.hris"
-    compileSdk = 35
+    compileSdk = 36
 
     defaultConfig {
         applicationId = "id.pejuang.hris"
         minSdk = 26
-        // Naikkan mengikuti batas target API Google Play sebelum rilis.
-        targetSdk = 35
+        // Google Play mewajibkan API 36 (Android 16) untuk aplikasi baru dan update sejak 31 Agu 2026.
+        targetSdk = 36
         versionCode = releaseVersionCode
         versionName = releaseVersionName
         buildConfigField("long", "PLAY_CLOUD_PROJECT_NUMBER", "${playCloudProjectNumber}L")
@@ -113,7 +113,7 @@ dependencies {
     implementation("com.squareup.retrofit2:retrofit:2.11.0")
     implementation("com.squareup.retrofit2:converter-kotlinx-serialization:2.11.0")
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
-    implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.7.3")
+    implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.9.0")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-play-services:1.9.0")
 
     val camerax = "1.4.1"

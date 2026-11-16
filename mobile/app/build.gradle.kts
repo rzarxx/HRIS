@@ -36,13 +36,13 @@ for (url in listOf(releaseApiBaseUrl, debugApiBaseUrl)) {
 
 android {
     namespace = "id.pejuang.hris"
-    compileSdk = 35
+    compileSdk = 36
 
     defaultConfig {
         applicationId = "id.pejuang.hris"
         minSdk = 26
-        // Naikkan mengikuti batas target API Google Play sebelum rilis.
-        targetSdk = 35
+        // Google Play mewajibkan API 36 (Android 16) untuk aplikasi baru dan update sejak 31 Agu 2026.
+        targetSdk = 36
         versionCode = releaseVersionCode
         versionName = releaseVersionName
         buildConfigField("long", "PLAY_CLOUD_PROJECT_NUMBER", "${playCloudProjectNumber}L")

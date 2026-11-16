@@ -37,6 +37,13 @@ Perubahan penting yang terlihat oleh Pejuang, SDM, atau pengelola server. Keputu
   presensi dan ikut diekspor ke CSV, termasuk satu kolom per jenis cuti.
 
 ### Diubah
+- Aplikasi Android menargetkan API 36 (Android 16), syarat Google Play sejak 31 Agustus 2026; Android Gradle
+  Plugin dinaikkan ke 8.9.1.
+- Workflow rilis (`release.yml`) kini membangun Android App Bundle bertanda tangan kunci unggah sebagai artefak
+  workflow untuk diunggah ke Play Console. APK tidak lagi diterbitkan publik di GitHub Releases; rilis GitHub hanya
+  berisi catatan perubahan.
+- Web admin bernama **HRIS Yayasan Al Bahjah** dengan logo PUTI di sidebar, halaman masuk, dan ikon tab.
+- Web admin memasang Content-Security-Policy (MASTER.md §5.8) lewat `<meta>` dengan hash skrip inline.
 - Distribusi dan pembaruan aplikasi Android beralih dari GitHub Releases ke Google Play Store (build Android App
   Bundle `.aab` dari Android Studio, izin `REQUEST_INSTALL_PACKAGES` dan modul pembaruan GitHub dihapus, D52);
   domain produksi ditetapkan ke `hris.albahjah.or.id` (`/www/wwwroot/HRIS`) dan `api.albahjah.or.id`.
@@ -49,6 +56,8 @@ Perubahan penting yang terlihat oleh Pejuang, SDM, atau pengelola server. Keputu
   masuk ke kolom mana pun.
 
 ### Diperbaiki
+- `setup-production.sh` kini juga mengisi `CORS_ALLOWED_ORIGINS`. Sebelumnya hanya `WEB_ORIGIN` yang diganti,
+  sehingga web admin di `hris.albahjah.or.id` ditolak API setelah pindah ke produksi.
 - Tes integrasi cuti tidak lagi gagal saat tanggal ujinya sama dengan hari ini.
 
 ### Perhatian saat memperbarui

@@ -65,6 +65,14 @@ Aplikasi didistribusikan dan diperbarui langsung melalui **Google Play Store** (
 4. Gunakan keystore rilis yang tetap (jangan sampai hilang/berganti antarversi), pilih variant **`release`**,
    lalu unggah berkas `mobile/app/release/app-release.aab` ke **Google Play Console**.
 
+Cara lain tanpa Android Studio: dorong tag `vX.Y.Z`. Workflow `release.yml` membangun App Bundle dengan
+`versionName` dari tag dan `versionCode` = `X*1000000 + Y*1000 + Z`, menandatanganinya dengan kunci unggah dari
+secret `ANDROID_KEYSTORE_BASE64`, `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS`, dan `ANDROID_KEY_PASSWORD`,
+lalu menyimpannya sebagai artefak workflow `hris-yayasan-albahjah-vX.Y.Z` (30 hari). Unduh artefak itu lalu
+unggah ke Play Console. Isi secret `HRIS_PLAY_CLOUD_PROJECT_NUMBER` agar Play Integrity (jalur A) aktif. APK
+tidak diterbitkan publik: HP yang pernah memasang APK dari GitHub Releases harus menghapus aplikasi lama
+sebelum memasang dari Play, karena tanda tangannya berbeda bila Play App Signing memakai kunci baru.
+
 Build dan tes lokal dari terminal (butuh JDK 17 dan Android SDK):
 
 ```bash
@@ -224,7 +232,7 @@ Pustaka (Compose, Retrofit, CameraX, ML Kit, lokasi) diambil otomatis oleh Gradl
 | Android Gradle Plugin | 8.7.3 |
 | Kotlin | 2.1.0 |
 | JDK | 17 |
-| `compileSdk` / `targetSdk` | 35 / 35. Naikkan mengikuti batas Google Play sebelum rilis |
+| `compileSdk` / `targetSdk` | 36 / 36. Google Play mewajibkan API 36 untuk aplikasi baru dan update sejak 31 Agustus 2026 |
 | Compose BOM | 2024.12.01 |
 | CameraX | 1.4.1 |
 | ML Kit face detection | 16.1.7 (model dibundel) |

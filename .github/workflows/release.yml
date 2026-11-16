@@ -47,22 +47,23 @@ jobs:
           if (( code < 1 )); then echo 'versionCode harus positif' >&2; exit 1; fi
           echo "name=${TAG#v}" >> "$GITHUB_OUTPUT"
           echo "code=$code" >> "$GITHUB_OUTPUT"
-      - name: Build dan tes APK
+      # Aplikasi didistribusikan lewat Google Play (D52): build rilis selalu mengarah ke alamat
+      # produksi bawaan (https://api.albahjah.or.id) dan dikemas sebagai Android App Bundle.
+      - name: Build dan tes App Bundle
         working-directory: mobile
         env:
-          API_BASE_URL: ${{ secrets.HRIS_RELEASE_API_BASE_URL }}
           VERSION_NAME: ${{ steps.version.outputs.name }}
           VERSION_CODE: ${{ steps.version.outputs.code }}
+          PLAY_CLOUD_PROJECT_NUMBER: ${{ secrets.HRIS_PLAY_CLOUD_PROJECT_NUMBER }}
         shell: bash
         run: |
           set -euo pipefail
-          if [[ -z "$API_BASE_URL" || "$API_BASE_URL" != https://* ]]; then
-            echo 'Secret HRIS_RELEASE_API_BASE_URL harus berupa URL HTTPS' >&2
-            exit 1
+          args=("-Phris.versionName=$VERSION_NAME" "-Phris.versionCode=$VERSION_CODE")
+          if [[ -n "$PLAY_CLOUD_PROJECT_NUMBER" ]]; then
+            args+=("-Phris.playCloudProjectNumber=$PLAY_CLOUD_PROJECT_NUMBER")
           fi
-          gradle --no-daemon recordPaparazziDebug assembleRelease \
-            "-Phris.apiBaseUrl=$API_BASE_URL" "-Phris.versionName=$VERSION_NAME" "-Phris.versionCode=$VERSION_CODE"
-      - name: Tanda tangani dan periksa APK
+          gradle --no-daemon recordPaparazziDebug bundleRelease "${args[@]}"
+      - name: Tanda tangani App Bundle dengan kunci unggah
         env:
           KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
           KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
@@ -71,12 +72,20 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          bash .github/scripts/sign-android-release.sh
-      - name: Publikasikan GitHub Release
+          bash .github/scripts/sign-android-bundle.sh
+      # Bundle tidak diterbitkan publik: diunduh pengelola dari artefak workflow lalu diunggah ke
+      # Play Console. GitHub Release hanya berisi catatan perubahan.
+      - uses: actions/upload-artifact@v4
+        with:
+          name: hris-yayasan-albahjah-${{ github.ref_name }}
+          path: hris-yayasan-albahjah.aab
+          retention-days: 30
+          if-no-files-found: error
+      - name: Catat GitHub Release tanpa berkas aplikasi
         env:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ github.ref_name }}
         shell: bash
         run: |
           set -euo pipefail
-          gh release create "$TAG" hris-pejuang-release.apk --verify-tag --title "$TAG" --generate-notes --latest
+          gh release create "$TAG" --verify-tag --title "$TAG" --generate-notes --latest

@@ -469,7 +469,7 @@ Data biometrik tergolong data pribadi bersifat spesifik dalam UU PDP (UU 27/2022
 
 ### 5.8 Kontrol Web
 - Token tidak pernah di `localStorage`/`sessionStorage`.
-- CSP ketat: `default-src 'self'`; tanpa `unsafe-inline` untuk script. Pengecualian untuk peta (D28): `img-src https://tile.openstreetmap.org` dan `connect-src https://nominatim.openstreetmap.org`. `Referrer-Policy: no-referrer` tetap berlaku untuk seluruh web; hanya permintaan peta yang memakai `strict-origin`, karena OpenStreetMap memblokir permintaan tanpa `Referer`.
+- CSP ketat: `default-src 'self'`; tanpa `unsafe-inline` untuk script. Karena web berupa file statis, CSP dipasang sebagai `<meta>` oleh `web/scripts/csp.mjs` setelah `next build`, dengan hash sha256 untuk setiap skrip inline buatan Next.js dan `connect-src` ke alamat API (`NEXT_PUBLIC_API_URL`); perlindungan bingkai tetap lewat header `X-Frame-Options: DENY` di Nginx. Pengecualian untuk peta (D28): `img-src https://tile.openstreetmap.org` dan `connect-src https://nominatim.openstreetmap.org`. `Referrer-Policy: no-referrer` tetap berlaku untuk seluruh web; hanya permintaan peta yang memakai `strict-origin`, karena OpenStreetMap memblokir permintaan tanpa `Referer`.
 - Isi pengumuman ditampilkan sebagai teks atau disanitasi (DOMPurify).
 - Ekspor CSV/Excel menetralkan *formula injection* (sel berawalan `=`, `+`, `-`, `@` diberi awalan `'`).
 - Idle logout 30 menit; aksi destruktif memakai dialog konfirmasi.
@@ -1578,9 +1578,9 @@ Estimasi untuk tim kecil; sesuaikan setelah kapasitas tim jelas.
 
 **Fase 6: Rilis**
 - [ ] Email akun lewat SMTP yang diatur super admin, lupa kata sandi, ganti email, dan pemberitahuan keamanan (D30). Wajib sebelum akun sungguhan dipakai
-- [ ] Staging HTTPS dengan `APP_ENV=production` dan MFA aktif (ditangguhkan dari Fase 1, D21)
-- [ ] Backup terenkripsi di lokasi terpisah + uji restore (ditangguhkan dari Fase 1, D21)
-- [ ] Cara membuat akun SDM pertama di produksi (seed ditolak di luar development)
+- [ ] Staging HTTPS dengan `APP_ENV=production` dan MFA aktif (ditangguhkan dari Fase 1, D21). Skrip `setup-production.sh` sudah ada; tinggal dijalankan di server dengan domain `albahjah.or.id`
+- [ ] Backup terenkripsi di lokasi terpisah + uji restore (ditangguhkan dari Fase 1, D21). Backup harian dan uji restore mingguan sudah otomatis; salinan ke lokasi terpisah aktif setelah `BACKUP_REMOTE_DEST` diisi
+- [x] Cara membuat akun SDM pertama di produksi (seed ditolak di luar development): `hris-bootstrap`
 - [ ] Uji beban jam masuk
 - [ ] Audit keamanan + uji penetrasi ringan
 - [ ] Kebijakan privasi + consent biometrik

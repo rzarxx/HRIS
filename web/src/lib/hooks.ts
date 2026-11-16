@@ -3,6 +3,7 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, ApiError } from "./api-client";
 import type {
+  Branch,
   AdminDevice,
   AnnouncementListItem,
   AnnouncementReader,
@@ -51,6 +52,12 @@ export const useOrgChart = () =>
   useQuery({
     queryKey: ["org-chart"],
     queryFn: () => api.get<ItemResponse<OrgChartData>>("/admin/dashboard/org-chart").then((r) => r.data),
+  });
+
+export const useBranches = () =>
+  useQuery({
+    queryKey: ["branches"],
+    queryFn: () => api.get<ListResponse<Branch>>("/admin/branches").then((r) => r.data),
   });
 
 export const useDivisions = () =>
@@ -127,6 +134,7 @@ export const useAdminDevices = (f: { status: string; page: number; per_page: num
 
 export interface EmployeeFilter {
   q?: string;
+  branch_id?: string;
   division_id?: string;
   subdivision_id?: string;
   status?: string;
@@ -139,6 +147,14 @@ export const useEmployees = (filter: EmployeeFilter) =>
     queryKey: ["employees", filter],
     queryFn: () => api.get<Paginated<EmployeeListItem>>("/admin/employees", { ...filter }),
     placeholderData: keepPreviousData,
+  });
+
+/** Detail satu Pejuang, termasuk data anak untuk SDM dan super admin. */
+export const useEmployee = (id: string | null) =>
+  useQuery({
+    queryKey: ["employees", "detail", id],
+    queryFn: () => api.get<ItemResponse<EmployeeListItem>>(`/admin/employees/${id}`).then((r) => r.data),
+    enabled: id !== null,
   });
 
 /** Pejuang aktif untuk pilihan kepala divisi/subdiv (maksimum per_page API = 100). */

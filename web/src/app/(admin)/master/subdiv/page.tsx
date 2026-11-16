@@ -19,6 +19,8 @@ const EMPTY: SubdivisionInput = { division_id: "", code: "", name: "", head_empl
 export default function SubdivisionsPage() {
   const list = useSubdivisions();
   const divisions = useDivisions();
+  // Nama divisi bisa sama di cabang berbeda, jadi cabang ikut ditampilkan bila lebih dari satu.
+  const multiBranch = new Set((divisions.data ?? []).map((d) => d.branch_id)).size > 1;
   const employees = useAllEmployees();
   const [q, setQ] = useState("");
   const [divisionFilter, setDivisionFilter] = useState("");
@@ -87,6 +89,7 @@ export default function SubdivisionsPage() {
             {divisions.data?.map((d) => (
               <option key={d.id} value={d.id}>
                 {d.name}
+                {multiBranch ? ` · ${d.branch_name}` : ""}
               </option>
             ))}
           </Select>
@@ -116,7 +119,10 @@ export default function SubdivisionsPage() {
                 <tr key={s.id} className="hover:bg-slate-50">
                   <Td className="font-mono text-xs">{s.code}</Td>
                   <Td className="font-medium text-slate-900">{s.name}</Td>
-                  <Td>{s.division_name}</Td>
+                  <Td>
+                    {s.division_name}
+                    {multiBranch && <span className="text-xs text-slate-500"> · {s.branch_name}</span>}
+                  </Td>
                   <Td>{s.head_name ?? <span className="text-slate-400">Belum ditentukan</span>}</Td>
                   <Td align="right">
                     <Link href={`/master/pejuang?subdivision_id=${s.id}`} className="text-primary-600 hover:underline">
@@ -165,6 +171,7 @@ export default function SubdivisionsPage() {
               {divisions.data?.map((d) => (
                 <option key={d.id} value={d.id}>
                   {d.name}
+                  {multiBranch ? ` · ${d.branch_name}` : ""}
                 </option>
               ))}
             </Select>

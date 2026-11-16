@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/netip"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -18,6 +19,7 @@ import (
 	"github.com/rzarxx/HRIS/backend/internal/platform/fieldcrypt"
 	"github.com/rzarxx/HRIS/backend/internal/platform/httpx"
 	"github.com/rzarxx/HRIS/backend/internal/platform/pgconv"
+	"github.com/rzarxx/HRIS/backend/internal/platform/phone"
 	"github.com/rzarxx/HRIS/backend/internal/store"
 )
 
@@ -59,12 +61,12 @@ type Tokens struct {
 }
 
 func errInvalidCredentials() error {
-	return httpx.NewError(http.StatusUnauthorized, "AUTH_INVALID_CREDENTIALS", "Email atau kata sandi salah.")
+	return httpx.NewError(http.StatusUnauthorized, "AUTH_INVALID_CREDENTIALS", "NIPY, email, nomor WA, atau kata sandi salah.")
 }
 
 // Login mengembalikan user ID dan token. Pesan gagal selalu generik.
-func (s *Service) Login(ctx context.Context, email, password string, ip *netip.Addr, userAgent string, now time.Time) (uuid.UUID, Tokens, error) {
-	user, err := s.checkPassword(ctx, email, password, ip, now)
+func (s *Service) Login(ctx context.Context, identifier, password string, ip *netip.Addr, userAgent string, now time.Time) (uuid.UUID, Tokens, error) {
+	user, err := s.checkPassword(ctx, identifier, password, ip, now)
 	if err != nil {
 		return uuid.Nil, Tokens{}, err
 	}
@@ -94,9 +96,31 @@ func (s *Service) Login(ctx context.Context, email, password string, ip *netip.A
 }
 
 // VerifyMFA menyelesaikan login dari token sementara dan kode TOTP atau kode pemulihan.
-// checkPassword memeriksa email, sandi, kunci akun, dan status aktif, lalu mencatat kegagalan (F4).
-func (s *Service) checkPassword(ctx context.Context, email, password string, ip *netip.Addr, now time.Time) (store.GetUserByEmailRow, error) {
-	user, err := s.q.GetUserByEmail(ctx, email)
+// findLoginUser mencari akun dari NIPY, email, atau nomor WA (D53). Identitas berisi "@" selalu
+// dibaca sebagai email; selain itu NIPY dicoba lebih dulu, lalu nomor WA, agar NIPY yang kebetulan
+// berupa angka tidak tertukar dengan nomor orang lain.
+func (s *Service) findLoginUser(ctx context.Context, identifier string) (store.GetUserForLoginRow, error) {
+	return lookupLoginUser(ctx, s.q, identifier)
+}
+
+func lookupLoginUser(ctx context.Context, q *store.Queries, identifier string) (store.GetUserForLoginRow, error) {
+	identifier = strings.TrimSpace(identifier)
+	if strings.Contains(identifier, "@") {
+		return q.GetUserForLogin(ctx, store.GetUserForLoginParams{Email: pgtype.Text{String: identifier, Valid: true}})
+	}
+	user, err := q.GetUserForLogin(ctx, store.GetUserForLoginParams{Nip: pgtype.Text{String: identifier, Valid: true}})
+	if !pgconv.IsNoRows(err) {
+		return user, err
+	}
+	if normalized, ok := phone.Normalize(identifier); ok {
+		return q.GetUserForLogin(ctx, store.GetUserForLoginParams{Phone: pgtype.Text{String: normalized, Valid: true}})
+	}
+	return user, err
+}
+
+// checkPassword memeriksa identitas, sandi, kunci akun, dan status aktif, lalu mencatat kegagalan (F4).
+func (s *Service) checkPassword(ctx context.Context, identifier, password string, ip *netip.Addr, now time.Time) (store.GetUserForLoginRow, error) {
+	user, err := s.findLoginUser(ctx, identifier)
 	if pgconv.IsNoRows(err) {
 		_, _ = VerifyPassword(password, s.dummyHash)
 		s.auditBestEffort(ctx, audit.Entry{Action: audit.AuthLoginFailed, IP: ip})
@@ -330,7 +354,7 @@ type Me struct {
 	Role               string   `json:"role"`
 	FullName           string   `json:"full_name"`
 	Nip                string   `json:"nip"`
-	Email              string   `json:"email"`
+	Email              *string  `json:"email"`
 	Position           *string  `json:"position"`
 	Subdivision        Ref      `json:"subdivision"`
 	Division           Ref      `json:"division"`
@@ -383,7 +407,7 @@ func (s *Service) Me(ctx context.Context, userID, deviceID uuid.UUID) (Me, error
 		Role:               role,
 		FullName:           row.FullName,
 		Nip:                row.Nip,
-		Email:              row.Email,
+		Email:              pgconv.TextPtr(row.Email),
 		Position:           pgconv.TextPtr(row.Position),
 		Subdivision:        Ref{ID: row.SubdivisionID.String(), Name: row.SubdivisionName},
 		Division:           Ref{ID: row.DivisionID.String(), Name: row.DivisionName},

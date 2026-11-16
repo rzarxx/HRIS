@@ -9,14 +9,16 @@ import { ConfirmDialog, Modal } from "@/components/ui/modal";
 import { Table, Td, Th } from "@/components/ui/table";
 import { api } from "@/lib/api-client";
 import { number } from "@/lib/format";
-import { useAllEmployees, useDivisions, useSave } from "@/lib/hooks";
+import { useAllEmployees, useBranches, useDivisions, useSave } from "@/lib/hooks";
 import { divisionSchema, validate, type DivisionInput } from "@/lib/schemas";
 import type { DivisionWithStats } from "@/lib/types";
 
-const EMPTY: DivisionInput = { code: "", name: "", head_employee_id: null };
+const EMPTY: DivisionInput = { branch_id: "", code: "", name: "", head_employee_id: null };
 
 export default function DivisionsPage() {
   const list = useDivisions();
+  const branches = useBranches();
+  const multiBranch = (branches.data?.length ?? 0) > 1;
   const employees = useAllEmployees();
   const [q, setQ] = useState("");
   const [editing, setEditing] = useState<DivisionWithStats | "new" | null>(null);
@@ -26,7 +28,7 @@ export default function DivisionsPage() {
 
   const rows = useMemo(() => {
     const term = q.trim().toLowerCase();
-    return (list.data ?? []).filter((d) => !term || d.name.toLowerCase().includes(term) || d.code.toLowerCase().includes(term));
+    return (list.data ?? []).filter((d) => !term || d.name.toLowerCase().includes(term) || d.code.toLowerCase().includes(term) || d.branch_name.toLowerCase().includes(term));
   }, [list.data, q]);
 
   const save = useSave(
@@ -40,7 +42,9 @@ export default function DivisionsPage() {
 
   function open(d: DivisionWithStats | "new") {
     setErrors({});
-    setForm(d === "new" ? EMPTY : { code: d.code, name: d.name, head_employee_id: d.head_employee_id });
+    // Satu cabang saja: langsung terpilih agar SDM tidak perlu memilih.
+    const onlyBranch = branches.data?.length === 1 ? branches.data[0].id : "";
+    setForm(d === "new" ? { ...EMPTY, branch_id: onlyBranch } : { branch_id: d.branch_id, code: d.code, name: d.name, head_employee_id: d.head_employee_id });
     setEditing(d);
   }
 
@@ -57,7 +61,7 @@ export default function DivisionsPage() {
     <>
       <PageHeader
         title="Divisi"
-        description="Struktur organisasi tingkat divisi."
+        description="Struktur organisasi tingkat divisi. Kode divisi unik per cabang."
         actions={
           <Button onClick={() => open("new")}>
             <Plus className="size-4" /> Tambah divisi
@@ -83,6 +87,7 @@ export default function DivisionsPage() {
               <tr>
                 <Th>Kode</Th>
                 <Th>Nama divisi</Th>
+                {multiBranch && <Th>Cabang</Th>}
                 <Th>Kepala divisi</Th>
                 <Th align="right">Subdiv</Th>
                 <Th align="right">Pejuang</Th>
@@ -96,6 +101,7 @@ export default function DivisionsPage() {
                 <tr key={d.id} className="hover:bg-slate-50">
                   <Td className="font-mono text-xs">{d.code}</Td>
                   <Td className="font-medium text-slate-900">{d.name}</Td>
+                  {multiBranch && <Td>{d.branch_name}</Td>}
                   <Td>{d.head_name ?? <span className="text-slate-400">Belum ditentukan</span>}</Td>
                   <Td align="right">{number(d.subdivision_count)}</Td>
                   <Td align="right">{number(d.employee_count)}</Td>
@@ -130,6 +136,16 @@ export default function DivisionsPage() {
         }
       >
         <form id="division-form" onSubmit={submit} noValidate className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+          <Field label="Cabang" htmlFor="branch_id" error={errors.branch_id} required className="sm:col-span-3">
+            <Select id="branch_id" value={form.branch_id} onChange={(e) => setForm({ ...form, branch_id: e.target.value })} invalid={!!errors.branch_id}>
+              <option value="">— Pilih cabang —</option>
+              {branches.data?.map((b) => (
+                <option key={b.id} value={b.id}>
+                  {b.name}
+                </option>
+              ))}
+            </Select>
+          </Field>
           <Field label="Kode" htmlFor="code" error={errors.code} required>
             <Input id="code" value={form.code} onChange={(e) => setForm({ ...form, code: e.target.value })} invalid={!!errors.code} placeholder="OPS" />
           </Field>

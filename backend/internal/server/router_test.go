@@ -171,8 +171,6 @@ var publicPaths = map[string]bool{
 	"/v1/auth/web/login":      true,
 	"/v1/auth/web/refresh":    true,
 	"/v1/auth/web/mfa/verify": true,
-	"/v1/auth/activate":       true,
-	"/v1/auth/activate/check": true,
 	"/v1/auth/mobile/login":   true,
 	"/v1/auth/mobile/refresh": true,
 	"/v1/branding":            true,

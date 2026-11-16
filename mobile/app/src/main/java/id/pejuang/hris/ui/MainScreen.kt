@@ -259,7 +259,7 @@ fun MainScreen(
             FigmaPopup(
                 icon = FigmaIcons.Logout,
                 title = "Keluar dari aplikasi?",
-                body = "Anda perlu masuk lagi dengan email dan kata sandi untuk presensi berikutnya.",
+                body = "Anda perlu masuk lagi dengan NIPY, email, atau nomor WA dan kata sandi untuk presensi berikutnya.",
                 primary = "Ya, keluar",
                 onPrimary = { askLogout = false; logout() },
                 secondary = "Batal",

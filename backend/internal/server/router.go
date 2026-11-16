@@ -75,8 +75,6 @@ func routes(d Deps) []Route {
 		{http.MethodPost, "/v1/auth/web/mfa/verify", Public, nil, d.Auth.MFAVerify},
 		{http.MethodPost, "/v1/auth/mobile/login", Public, nil, d.Auth.MobileLogin},
 		{http.MethodPost, "/v1/auth/mobile/refresh", Public, nil, d.Auth.MobileRefresh},
-		{http.MethodPost, "/v1/auth/activate", Public, nil, d.Auth.Activate},
-		{http.MethodPost, "/v1/auth/activate/check", Public, nil, d.Auth.CheckActivation},
 		// Footer dan merek tampil di layar masuk web dan aplikasi, sebelum login.
 		{http.MethodGet, "/v1/branding", Public, nil, d.Settings.Branding},
 		{http.MethodPost, "/v1/auth/logout", AnyUser, nil, d.Auth.Logout},
@@ -92,6 +90,11 @@ func routes(d Deps) []Route {
 		guarded(http.MethodPost, "/v1/admin/users/{user_id}/lock", d.Auth.AdminLock, permission.UserManage),
 		guarded(http.MethodPost, "/v1/admin/users/{user_id}/unlock", d.Auth.AdminUnlock, permission.UserManage),
 		guarded(http.MethodPost, "/v1/admin/users/{user_id}/revoke-sessions", d.Auth.AdminRevokeSessions, permission.UserManage),
+
+		guarded(http.MethodGet, "/v1/admin/branches", d.Org.ListBranches, permission.OrgWrite),
+		guarded(http.MethodPost, "/v1/admin/branches", d.Org.CreateBranch, permission.OrgWrite),
+		guarded(http.MethodPatch, "/v1/admin/branches/{id}", d.Org.UpdateBranch, permission.OrgWrite),
+		guarded(http.MethodDelete, "/v1/admin/branches/{id}", d.Org.DeleteBranch, permission.OrgWrite),
 
 		guarded(http.MethodGet, "/v1/admin/divisions", d.Org.ListDivisions, permission.OrgWrite),
 		guarded(http.MethodPost, "/v1/admin/divisions", d.Org.CreateDivision, permission.OrgWrite),

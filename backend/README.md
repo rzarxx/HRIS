@@ -91,7 +91,7 @@ Lapisan: handler (HTTP, decode) → service (aturan, scope, transaksi) → store
 
 ## Tes integrasi
 
-`internal/integration` menguji API lengkap sebagai role `hris_app`: login, lockout, rotasi token, MFA, aktivasi, scope 404,
+`internal/integration` menguji API lengkap sebagai role `hris_app`: login, lockout, rotasi token, MFA, kata sandi awal dan login NIPY/email/WA, scope 404,
 audit append-only, master data, dan laporan upah. Tes dilewati bila `HRIS_TEST_DATABASE_URL` kosong, dan selalu dijalankan di CI.
 
 **Tes mengosongkan database yang dituju.** Karena itu nama databasenya wajib mengandung kata `test`, dan role superuser diperlukan.

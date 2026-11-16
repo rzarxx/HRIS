@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgtype"
@@ -30,10 +29,11 @@ func changeRole(ctx context.Context, q *store.Queries, user store.User, to store
 	})
 }
 
-func userByEmail(ctx context.Context, q *store.Queries, email string) (store.User, error) {
-	row, err := q.GetUserByEmail(ctx, strings.ToLower(strings.TrimSpace(email)))
+// userByIdentifier mencari akun dari NIPY, email, atau nomor WA, sama dengan login (D53).
+func userByIdentifier(ctx context.Context, q *store.Queries, identifier string) (store.User, error) {
+	row, err := lookupLoginUser(ctx, q, identifier)
 	if pgconv.IsNoRows(err) {
-		return store.User{}, fmt.Errorf("akun dengan email %q tidak ditemukan", email)
+		return store.User{}, fmt.Errorf("akun %q tidak ditemukan", identifier)
 	}
 	if err != nil {
 		return store.User{}, err
@@ -41,13 +41,35 @@ func userByEmail(ctx context.Context, q *store.Queries, email string) (store.Use
 	return q.GetUserByID(ctx, row.ID)
 }
 
+// resetToInitialPassword memasang kata sandi awal (D53) dan mencabut semua sesi akun.
+func resetToInitialPassword(ctx context.Context, q *store.Queries, user store.User, now time.Time) (InitialCredential, error) {
+	me, err := q.GetMe(ctx, user.ID)
+	if err != nil {
+		return InitialCredential{}, err
+	}
+	out, hash, err := InitialPasswordHash(me.FullName, now)
+	if err != nil {
+		return InitialCredential{}, err
+	}
+	if err := q.SetInitialPassword(ctx, store.SetInitialPasswordParams{ID: user.ID, PasswordHash: hash}); err != nil {
+		return InitialCredential{}, err
+	}
+	if err := q.InvalidateUserInvites(ctx, user.ID); err != nil {
+		return InitialCredential{}, err
+	}
+	if err := q.RevokeAllSessions(ctx, store.RevokeAllSessionsParams{UserID: user.ID, Reason: pgtype.Text{String: "password_reset", Valid: true}}); err != nil {
+		return InitialCredential{}, err
+	}
+	return out, nil
+}
+
 // GrantSuperadmin menjadikan akun Pejuang biasa sebagai super admin. Hanya lewat perintah
-// di server, karena tidak ada endpoint ubah role (D25). Bila akun belum diaktivasi, undangan
-// aktivasi dikembalikan agar akun pertama tidak bergantung pada SMTP yang belum diatur.
-func GrantSuperadmin(ctx context.Context, pool *pgxpool.Pool, email string, now time.Time) (*Activation, error) {
-	var activation *Activation
+// di server, karena tidak ada endpoint ubah role (D25). Akun lama yang belum pernah aktif
+// diaktifkan dengan kata sandi awal yang wajib diganti saat login pertama.
+func GrantSuperadmin(ctx context.Context, pool *pgxpool.Pool, identifier string, now time.Time) (*InitialCredential, error) {
+	var credential *InitialCredential
 	err := database.InTx(ctx, pool, func(q *store.Queries) error {
-		user, err := userByEmail(ctx, q, email)
+		user, err := userByIdentifier(ctx, q, identifier)
 		if err != nil {
 			return err
 		}
@@ -68,40 +90,33 @@ func GrantSuperadmin(ctx context.Context, pool *pgxpool.Pool, email string, now 
 			return fmt.Errorf("akun ber-role %s tidak bisa dijadikan super admin; pakai akun Pejuang biasa", user.Role)
 		}
 		if !user.IsActive {
-			invite, err := IssueInvite(ctx, q, user.ID, now)
+			out, err := resetToInitialPassword(ctx, q, user, now)
 			if err != nil {
 				return err
 			}
-			activation = &invite
+			if err := q.SetUserActive(ctx, store.SetUserActiveParams{ID: user.ID, IsActive: true}); err != nil {
+				return err
+			}
+			credential = &out
 		}
 		return nil
 	})
-	return activation, err
+	return credential, err
 }
 
-// ResetSuperadmin menerbitkan tautan sandi baru dari server. Hanya sesama super admin yang
-// bisa melakukannya lewat web, jadi ini jalan keluar bila super admin satu-satunya lupa sandi.
-func ResetSuperadmin(ctx context.Context, pool *pgxpool.Pool, email string, now time.Time) (Activation, error) {
-	hash, err := UnusablePasswordHash()
-	if err != nil {
-		return Activation{}, err
-	}
-	var out Activation
-	err = database.InTx(ctx, pool, func(q *store.Queries) error {
-		user, err := userByEmail(ctx, q, email)
+// ResetSuperadmin mengembalikan super admin ke kata sandi awal dari server. Hanya sesama super admin
+// yang bisa melakukannya lewat web, jadi ini jalan keluar bila super admin satu-satunya lupa sandi.
+func ResetSuperadmin(ctx context.Context, pool *pgxpool.Pool, identifier string, now time.Time) (InitialCredential, error) {
+	var out InitialCredential
+	err := database.InTx(ctx, pool, func(q *store.Queries) error {
+		user, err := userByIdentifier(ctx, q, identifier)
 		if err != nil {
 			return err
 		}
 		if user.Role != store.UserRoleSuperadmin {
 			return fmt.Errorf("akun ini ber-role %s, bukan super admin", user.Role)
 		}
-		if err := q.SetUserPassword(ctx, store.SetUserPasswordParams{ID: user.ID, PasswordHash: hash}); err != nil {
-			return err
-		}
-		if err := q.RevokeAllSessions(ctx, store.RevokeAllSessionsParams{UserID: user.ID, Reason: pgtype.Text{String: "password_reset", Valid: true}}); err != nil {
-			return err
-		}
-		if out, err = IssueInvite(ctx, q, user.ID, now); err != nil {
+		if out, err = resetToInitialPassword(ctx, q, user, now); err != nil {
 			return err
 		}
 		return audit.Write(ctx, q, audit.Entry{
@@ -112,9 +127,9 @@ func ResetSuperadmin(ctx context.Context, pool *pgxpool.Pool, email string, now 
 }
 
 // RevokeSuperadmin mengembalikan super admin menjadi Pejuang biasa.
-func RevokeSuperadmin(ctx context.Context, pool *pgxpool.Pool, email string) error {
+func RevokeSuperadmin(ctx context.Context, pool *pgxpool.Pool, identifier string) error {
 	return database.InTx(ctx, pool, func(q *store.Queries) error {
-		user, err := userByEmail(ctx, q, email)
+		user, err := userByIdentifier(ctx, q, identifier)
 		if err != nil {
 			return err
 		}

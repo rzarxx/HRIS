@@ -3,12 +3,12 @@
 import { CalendarClock, CalendarRange, KeyRound, Lock, LockOpen, MapPin, Pencil, Plus, ScanFace, Search, UserX, Video } from "lucide-react";
 import { useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useState } from "react";
-import { ActivationLinkModal } from "@/components/employees/activation-link-modal";
 import { BulkArrangementModal } from "@/components/employees/bulk-arrangement-modal";
 import { EmployeeArrangementsModal } from "@/components/employees/employee-arrangements-modal";
 import { EmployeeForm } from "@/components/employees/employee-form";
 import { EmployeeLocationsModal } from "@/components/employees/employee-locations-modal";
 import { FaceResetModal } from "@/components/employees/face-reset-modal";
+import { InitialPasswordModal } from "@/components/employees/initial-password-modal";
 import { RemoteFaceModal } from "@/components/employees/remote-face-modal";
 import { Button, IconButton } from "@/components/ui/button";
 import { Input, Select } from "@/components/ui/form";
@@ -17,8 +17,8 @@ import { ConfirmDialog } from "@/components/ui/modal";
 import { Pagination, Table, Td, Th } from "@/components/ui/table";
 import { api } from "@/lib/api-client";
 import { rupiah } from "@/lib/format";
-import { useDivisions, useEmployees, useMe, useSave, useSubdivisions } from "@/lib/hooks";
-import type { Activation, EmployeeListItem, ItemResponse } from "@/lib/types";
+import { useBranches, useDivisions, useEmployees, useMe, useSave, useSubdivisions } from "@/lib/hooks";
+import type { EmployeeListItem, InitialCredential, ItemResponse } from "@/lib/types";
 
 const PER_PAGE = 10;
 
@@ -33,6 +33,7 @@ function useDebounced<T>(value: T, ms = 300) {
 
 function EmployeesView() {
   const params = useSearchParams();
+  const branches = useBranches();
   const divisions = useDivisions();
   const subdivisions = useSubdivisions();
   const me = useMe();
@@ -52,6 +53,7 @@ function EmployeesView() {
   const [remoteFace, setRemoteFace] = useState<EmployeeListItem | null>(null);
 
   const [q, setQ] = useState(params.get("q") ?? "");
+  const [branchId, setBranchId] = useState("");
   const [divisionId, setDivisionId] = useState("");
   const [subdivisionId, setSubdivisionId] = useState(params.get("subdivision_id") ?? "");
   const [status, setStatus] = useState("");
@@ -63,10 +65,11 @@ function EmployeesView() {
   useEffect(() => {
     if (urlQ !== null) setQ(urlQ);
   }, [urlQ]);
-  useEffect(() => setPage(1), [debouncedQ, divisionId, subdivisionId, status]);
+  useEffect(() => setPage(1), [debouncedQ, branchId, divisionId, subdivisionId, status]);
 
   const list = useEmployees({
     q: debouncedQ,
+    branch_id: branchId,
     division_id: divisionId,
     subdivision_id: subdivisionId,
     status,
@@ -82,14 +85,14 @@ function EmployeesView() {
   });
 
   const [bulkOpen, setBulkOpen] = useState(false);
-  const [activation, setActivation] = useState<{ name: string; activation: Activation } | null>(null);
+  const [credential, setCredential] = useState<{ name: string; nip?: string; password: string } | null>(null);
   const [resetting, setResetting] = useState<EmployeeListItem | null>(null);
   const resetPassword = useSave(
-    (e: EmployeeListItem) => api.post<ItemResponse<Activation>>(`/admin/users/${e.account!.user_id}/reset-password`),
+    (e: EmployeeListItem) => api.post<ItemResponse<InitialCredential>>(`/admin/users/${e.account!.user_id}/reset-password`),
     {
-      success: "Tautan baru diterbitkan. Sesi Pejuang ini dicabut.",
+      success: "Kata sandi dikembalikan ke kata sandi awal. Sesi Pejuang ini dicabut.",
       onDone: (res) => {
-        setActivation({ name: resetting?.full_name ?? "", activation: res.data });
+        setCredential({ name: resetting?.full_name ?? "", nip: resetting?.nip, password: res.data.initial_password });
         setResetting(null);
       },
     },
@@ -99,7 +102,8 @@ function EmployeesView() {
     { success: "Status akun diperbarui." },
   );
 
-  const subOptions = (subdivisions.data ?? []).filter((s) => !divisionId || s.division_id === divisionId);
+  const divOptions = (divisions.data ?? []).filter((d) => !branchId || d.branch_id === branchId);
+  const subOptions = (subdivisions.data ?? []).filter((s) => (!divisionId || s.division_id === divisionId) && (!branchId || s.branch_id === branchId));
 
   return (
     <>
@@ -127,13 +131,32 @@ function EmployeesView() {
               type="search"
               value={q}
               onChange={(e) => setQ(e.target.value)}
-              placeholder="Cari nama, NIPY, email, jabatan..."
+              placeholder="Cari nama, NIPY, email, WA, jabatan..."
               aria-label="Cari Pejuang"
               className="pl-9"
             />
           </div>
           {canFilterOrg && (
             <>
+              {(branches.data?.length ?? 0) > 1 && (
+                <Select
+                  value={branchId}
+                  onChange={(e) => {
+                    setBranchId(e.target.value);
+                    setDivisionId("");
+                    setSubdivisionId("");
+                  }}
+                  aria-label="Filter cabang"
+                  className="w-full sm:w-auto sm:min-w-40"
+                >
+                  <option value="">Semua cabang</option>
+                  {branches.data?.map((b) => (
+                    <option key={b.id} value={b.id}>
+                      {b.name}
+                    </option>
+                  ))}
+                </Select>
+              )}
               <Select
                 value={divisionId}
                 onChange={(e) => {
@@ -144,9 +167,10 @@ function EmployeesView() {
                 className="w-full sm:w-auto sm:min-w-44"
               >
                 <option value="">Semua divisi</option>
-                {divisions.data?.map((d) => (
+                {divOptions.map((d) => (
                   <option key={d.id} value={d.id}>
                     {d.name}
+                    {!branchId && (branches.data?.length ?? 0) > 1 ? ` · ${d.branch_name}` : ""}
                   </option>
                 ))}
               </Select>
@@ -155,6 +179,7 @@ function EmployeesView() {
                 {subOptions.map((s) => (
                   <option key={s.id} value={s.id}>
                     {s.name}
+                    {!divisionId && (branches.data?.length ?? 0) > 1 ? ` · ${s.branch_name}` : ""}
                   </option>
                 ))}
               </Select>
@@ -195,7 +220,7 @@ function EmployeesView() {
                     <Td className="font-mono text-xs whitespace-nowrap">{e.nip}</Td>
                     <Td>
                       <p className="font-medium text-slate-900">{e.full_name}</p>
-                      <p className="text-xs text-slate-500">{e.email ?? "-"}</p>
+                      <p className="text-xs text-slate-500">{e.email ?? e.phone ?? "-"}</p>
                     </Td>
                     <Td>
                       <p>{e.position ?? "-"}</p>
@@ -203,7 +228,10 @@ function EmployeesView() {
                     </Td>
                     <Td>
                       <p>{e.subdivision_name}</p>
-                      <p className="text-xs text-slate-500">{e.division_name}</p>
+                      <p className="text-xs text-slate-500">
+                        {e.division_name}
+                        {(branches.data?.length ?? 0) > 1 && ` · ${e.branch_name}`}
+                      </p>
                     </Td>
                     {!isSuperadmin && (
                       <Td align="right" className="tabular-nums whitespace-nowrap">
@@ -213,7 +241,6 @@ function EmployeesView() {
                     <Td>
                       <div className="flex flex-col items-start gap-1">
                         {e.status === "active" ? <Badge tone="green">Aktif</Badge> : <Badge>Nonaktif</Badge>}
-                        {e.status === "active" && e.account && !e.account.is_active && <Badge tone="amber">Belum aktivasi</Badge>}
                         {e.account?.is_locked && <Badge tone="red">Terkunci</Badge>}
                         {e.status === "active" && e.account?.is_active && !e.face_enrolled && <Badge tone="amber">Wajah belum terdaftar</Badge>}
                       </div>
@@ -247,7 +274,7 @@ function EmployeesView() {
                       {e.status === "active" && e.account && !isProtected(e) && !isSelf(e) && (
                         <>
                           {canReset && !(isSuperadmin && e.account.role === "sdm") && (
-                            <IconButton label={`Terbitkan tautan sandi untuk ${e.full_name}`} onClick={() => setResetting(e)}>
+                            <IconButton label={`Reset kata sandi ${e.full_name}`} onClick={() => setResetting(e)}>
                               <KeyRound className="size-4" />
                             </IconButton>
                           )}
@@ -281,7 +308,7 @@ function EmployeesView() {
         <EmployeeForm
           employee={editing === "new" ? null : editing}
           onClose={() => setEditing(null)}
-          onCreated={(c) => setActivation({ name: c.full_name, activation: c.activation })}
+          onCreated={(c) => setCredential({ name: c.full_name, nip: c.nip, password: c.initial_password })}
         />
       )}
 
@@ -294,16 +321,16 @@ function EmployeesView() {
 
       {bulkOpen && <BulkArrangementModal onClose={() => setBulkOpen(false)} />}
 
-      {activation && <ActivationLinkModal name={activation.name} activation={activation.activation} onClose={() => setActivation(null)} />}
+      {credential && <InitialPasswordModal name={credential.name} nip={credential.nip} password={credential.password} onClose={() => setCredential(null)} />}
 
       <ConfirmDialog
         open={resetting !== null}
-        title="Terbitkan tautan kata sandi baru?"
-        confirmLabel="Terbitkan"
+        title="Reset ke kata sandi awal?"
+        confirmLabel="Reset"
         message={
           <>
-            Kata sandi lama <strong className="text-slate-800">{resetting?.full_name}</strong> tidak berlaku lagi dan seluruh sesinya dicabut. Anda mendapat
-            tautan untuk diteruskan kepada yang bersangkutan.
+            Kata sandi lama <strong className="text-slate-800">{resetting?.full_name}</strong> tidak berlaku lagi dan seluruh sesinya dicabut. Akun kembali ke
+            kata sandi awal yang wajib diganti saat login berikutnya.
           </>
         }
         loading={resetPassword.isPending}

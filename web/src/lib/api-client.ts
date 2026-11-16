@@ -7,12 +7,9 @@ const BASE_URL = (process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8080").re
 
 /** Pesan ramah per kode error; message dari server hanya cadangan (MASTER.md §7.7). */
 const ERROR_MESSAGES: Partial<Record<ErrorCode, string>> = {
-  AUTH_INVALID_CREDENTIALS: "Email atau kata sandi salah.",
+  AUTH_INVALID_CREDENTIALS: "NIPY, email, nomor WA, atau kata sandi salah.",
   AUTH_ACCOUNT_LOCKED: "Akun terkunci. Coba lagi nanti atau hubungi SDM.",
   AUTH_MFA_INVALID: "Kode verifikasi salah.",
-  ACTIVATION_INVALID: "Tautan aktivasi tidak valid. Periksa kembali tautannya atau minta tautan baru ke SDM.",
-  ACTIVATION_USED: "Tautan ini sudah dipakai atau sudah diganti tautan baru. Silakan masuk dengan kata sandi Anda, atau minta tautan baru ke SDM.",
-  ACTIVATION_EXPIRED: "Tautan ini sudah kedaluwarsa. Minta tautan baru ke SDM.",
   CONFLICT_HAS_DEPENDENTS: "Data masih dipakai data lain sehingga tidak bisa dihapus.",
   CONFLICT_SELF_ACTION: "Tindakan ini tidak dapat dilakukan pada akun atau perangkat Anda sendiri.",
   AUTH_TOKEN_INVALID: "Sesi berakhir, silakan masuk kembali.",

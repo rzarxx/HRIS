@@ -384,12 +384,17 @@ func TestSuperadminAllExceptFinance(t *testing.T) {
 func TestResetSuperadminFromServer(t *testing.T) {
 	srv := fresh(t, options{})
 	_, acc := superadminClient(t, srv, "IT-INF")
-	invite, err := auth.ResetSuperadmin(context.Background(), appPool, acc.email, time.Now())
-	if err != nil || invite.Token == "" {
-		t.Fatalf("reset: %v %v", invite, err)
+	credential, err := auth.ResetSuperadmin(context.Background(), appPool, acc.email, time.Now())
+	if err != nil || credential.InitialPassword == "" {
+		t.Fatalf("reset: %v %v", credential, err)
 	}
-	newClient(t, srv).do(http.MethodPost, "/v1/auth/activate", map[string]any{"token": invite.Token, "password": "kata-sandi-baru-kuat-2"}).want(t, http.StatusNoContent) // gitleaks:allow
-	login(t, srv, acc.email, "kata-sandi-baru-kuat-2").do(http.MethodGet, "/v1/admin/devices", nil).want(t, http.StatusOK)                                                // gitleaks:allow
+	newClient(t, srv).do(http.MethodPost, "/v1/auth/web/login", map[string]any{"identifier": acc.email, "password": seedPassword}).
+		wantError(t, http.StatusUnauthorized, "AUTH_INVALID_CREDENTIALS")
+	admin := login(t, srv, acc.email, credential.InitialPassword)
+	admin.do(http.MethodGet, "/v1/admin/devices", nil).wantError(t, http.StatusForbidden, "PASSWORD_CHANGE_REQUIRED")
+	changePassword(t, admin, credential.InitialPassword, newPassword)
+	login(t, srv, acc.email, newPassword).do(http.MethodGet, "/v1/admin/devices", nil).want(t, http.StatusOK)
+	login(t, srv, acc.email, "kata-sandi-baru-kuat-2").do(http.MethodGet, "/v1/admin/devices", nil).want(t, http.StatusOK) // gitleaks:allow
 	if _, err := auth.ResetSuperadmin(context.Background(), appPool, "sdm@pejuang.id", time.Now()); err == nil {
 		t.Error("akun SDM tidak boleh direset lewat perintah ini")
 	}
@@ -437,16 +442,26 @@ func TestGrantSuperadmin(t *testing.T) {
 		t.Error("email tak dikenal harus gagal")
 	}
 
-	// Akun yang belum aktif mendapat tautan aktivasi yang benar-benar berfungsi.
+	// Akun baru sudah aktif (D53), jadi grant tidak menerbitkan kata sandi baru.
 	sdm := loginSDM(t, srv)
 	created := createEmployee(t, sdm, "admin.it@pejuang.id")
-	invite, err = auth.GrantSuperadmin(ctx, appPool, "admin.it@pejuang.id", time.Now())
-	if err != nil || invite == nil || invite.Token == "" {
-		t.Fatalf("grant akun baru: %v %v", invite, err)
+	if credential, err := auth.GrantSuperadmin(ctx, appPool, created.Nip, time.Now()); err != nil || credential != nil {
+		t.Fatalf("grant akun baru: %v %v", credential, err)
 	}
-	newClient := newClient(t, srv)
-	newClient.do(http.MethodPost, "/v1/auth/activate", map[string]any{"token": invite.Token, "password": "kata-sandi-baru-kuat-1"}).want(t, http.StatusNoContent)
-	login(t, srv, "admin.it@pejuang.id", "kata-sandi-baru-kuat-1").do(http.MethodGet, "/v1/admin/devices", nil).want(t, http.StatusOK) // gitleaks:allow
+	if err := auth.RevokeSuperadmin(ctx, appPool, "admin.it@pejuang.id"); err != nil {
+		t.Fatal(err)
+	}
+	// Akun lama yang belum pernah aktif diaktifkan dengan kata sandi awal yang benar-benar berfungsi.
+	if _, err := ownerPool.Exec(ctx, `UPDATE users SET is_active = false WHERE id = $1`, created.Account.UserID); err != nil {
+		t.Fatal(err)
+	}
+	credential, err := auth.GrantSuperadmin(ctx, appPool, "admin.it@pejuang.id", time.Now())
+	if err != nil || credential == nil || credential.InitialPassword == "" {
+		t.Fatalf("grant akun belum aktif: %v %v", credential, err)
+	}
+	it := login(t, srv, created.Nip, credential.InitialPassword)
+	changePassword(t, it, credential.InitialPassword, newPassword)
+	login(t, srv, "admin.it@pejuang.id", newPassword).do(http.MethodGet, "/v1/admin/devices", nil).want(t, http.StatusOK)
 
 	if err := auth.RevokeSuperadmin(ctx, appPool, "admin.it@pejuang.id"); err != nil {
 		t.Fatal(err)

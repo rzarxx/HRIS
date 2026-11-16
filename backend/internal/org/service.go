@@ -30,6 +30,8 @@ func NewService(pool *pgxpool.Pool) *Service { return &Service{pool: pool, q: st
 // Division adalah objek baku respons divisi.
 type Division struct {
 	ID               string  `json:"id"`
+	BranchID         string  `json:"branch_id"`
+	BranchName       string  `json:"branch_name"`
 	Code             string  `json:"code"`
 	Name             string  `json:"name"`
 	HeadEmployeeID   *string `json:"head_employee_id"`
@@ -44,6 +46,8 @@ type Subdivision struct {
 	ID             string  `json:"id"`
 	DivisionID     string  `json:"division_id"`
 	DivisionName   string  `json:"division_name"`
+	BranchID       string  `json:"branch_id"`
+	BranchName     string  `json:"branch_name"`
 	Code           string  `json:"code"`
 	Name           string  `json:"name"`
 	HeadEmployeeID *string `json:"head_employee_id"`
@@ -54,6 +58,7 @@ type Subdivision struct {
 
 // DivisionInput juga dipakai untuk PATCH: field yang tidak dikirim tetap nilai lamanya.
 type DivisionInput struct {
+	BranchID       string  `json:"branch_id"`
 	Code           string  `json:"code"`
 	Name           string  `json:"name"`
 	HeadEmployeeID *string `json:"head_employee_id"`
@@ -83,19 +88,23 @@ func validateCodeName(code, name string, maxCode int, fields map[string]string) 
 	}
 }
 
-func (in *DivisionInput) normalize() (uuid.NullUUID, error) {
+func (in *DivisionInput) normalize() (uuid.UUID, uuid.NullUUID, error) {
 	in.Code = strings.ToUpper(strings.TrimSpace(in.Code))
 	in.Name = strings.TrimSpace(in.Name)
 	fields := map[string]string{}
 	validateCodeName(in.Code, in.Name, 10, fields)
+	branchID, err := uuid.Parse(in.BranchID)
+	if err != nil {
+		fields["branch_id"] = "Pilih cabang."
+	}
 	head, err := pgconv.ParseOptionalUUID(in.HeadEmployeeID)
 	if err != nil {
 		fields["head_employee_id"] = "Kepala divisi tidak valid."
 	}
 	if len(fields) > 0 {
-		return head, httpx.Validation(fields)
+		return branchID, head, httpx.Validation(fields)
 	}
-	return head, nil
+	return branchID, head, nil
 }
 
 func (in *SubdivisionInput) normalize() (uuid.UUID, uuid.NullUUID, error) {
@@ -128,15 +137,15 @@ func mapUnique(err error, label string) error {
 	return err
 }
 
-func (s *Service) ListDivisions(ctx context.Context) ([]Division, error) {
-	rows, err := s.q.ListDivisions(ctx)
+func (s *Service) ListDivisions(ctx context.Context, branchID uuid.NullUUID) ([]Division, error) {
+	rows, err := s.q.ListDivisions(ctx, branchID)
 	if err != nil {
 		return nil, err
 	}
 	out := make([]Division, 0, len(rows))
 	for _, r := range rows {
 		out = append(out, Division{
-			ID: r.ID.String(), Code: r.Code, Name: r.Name,
+			ID: r.ID.String(), BranchID: r.BranchID.String(), BranchName: r.BranchName, Code: r.Code, Name: r.Name,
 			HeadEmployeeID: pgconv.UUIDPtr(r.HeadEmployeeID), HeadName: pgconv.TextPtr(r.HeadName),
 			SubdivisionCount: r.SubdivisionCount, EmployeeCount: r.EmployeeCount,
 			CreatedAt: pgconv.TimeString(r.CreatedAt),
@@ -154,7 +163,7 @@ func (s *Service) divisionDetail(ctx context.Context, id uuid.UUID) (Division, e
 		return Division{}, err
 	}
 	return Division{
-		ID: r.ID.String(), Code: r.Code, Name: r.Name,
+		ID: r.ID.String(), BranchID: r.BranchID.String(), BranchName: r.BranchName, Code: r.Code, Name: r.Name,
 		HeadEmployeeID: pgconv.UUIDPtr(r.HeadEmployeeID), HeadName: pgconv.TextPtr(r.HeadName),
 		SubdivisionCount: r.SubdivisionCount, EmployeeCount: r.EmployeeCount,
 		CreatedAt: pgconv.TimeString(r.CreatedAt),
@@ -162,16 +171,19 @@ func (s *Service) divisionDetail(ctx context.Context, id uuid.UUID) (Division, e
 }
 
 func (s *Service) CreateDivision(ctx context.Context, actor audit.Entry, in DivisionInput) (Division, error) {
-	head, err := in.normalize()
+	branchID, head, err := in.normalize()
 	if err != nil {
 		return Division{}, err
 	}
 	if head.Valid {
 		return Division{}, httpx.Validation(map[string]string{"head_employee_id": "Divisi baru belum memiliki Pejuang."})
 	}
+	if err := s.assertBranchExists(ctx, branchID); err != nil {
+		return Division{}, err
+	}
 	var id uuid.UUID
 	err = database.InTx(ctx, s.pool, func(q *store.Queries) error {
-		row, err := q.CreateDivision(ctx, store.CreateDivisionParams{Code: in.Code, Name: in.Name, HeadEmployeeID: head})
+		row, err := q.CreateDivision(ctx, store.CreateDivisionParams{BranchID: branchID, Code: in.Code, Name: in.Name, HeadEmployeeID: head})
 		if err != nil {
 			return mapUnique(err, "divisi")
 		}
@@ -192,12 +204,15 @@ func (s *Service) UpdateDivision(ctx context.Context, actor audit.Entry, id uuid
 	if err != nil {
 		return Division{}, err
 	}
-	in := DivisionInput{Code: current.Code, Name: current.Name, HeadEmployeeID: pgconv.UUIDPtr(current.HeadEmployeeID)}
+	in := DivisionInput{BranchID: current.BranchID.String(), Code: current.Code, Name: current.Name, HeadEmployeeID: pgconv.UUIDPtr(current.HeadEmployeeID)}
 	if err := decode(&in); err != nil {
 		return Division{}, err
 	}
-	head, err := in.normalize()
+	branchID, head, err := in.normalize()
 	if err != nil {
+		return Division{}, err
+	}
+	if err := s.assertBranchExists(ctx, branchID); err != nil {
 		return Division{}, err
 	}
 	if head.Valid {
@@ -210,7 +225,7 @@ func (s *Service) UpdateDivision(ctx context.Context, actor audit.Entry, id uuid
 		}
 	}
 	err = database.InTx(ctx, s.pool, func(q *store.Queries) error {
-		if _, err := q.UpdateDivision(ctx, store.UpdateDivisionParams{ID: id, Code: in.Code, Name: in.Name, HeadEmployeeID: head}); err != nil {
+		if _, err := q.UpdateDivision(ctx, store.UpdateDivisionParams{ID: id, BranchID: branchID, Code: in.Code, Name: in.Name, HeadEmployeeID: head}); err != nil {
 			return mapUnique(err, "divisi")
 		}
 		if err := syncHeadRoles(ctx, q, actor, current.HeadEmployeeID, head); err != nil {
@@ -253,6 +268,7 @@ func (s *Service) ListSubdivisions(ctx context.Context, divisionID uuid.NullUUID
 	for _, r := range rows {
 		out = append(out, Subdivision{
 			ID: r.ID.String(), DivisionID: r.DivisionID.String(), DivisionName: r.DivisionName,
+			BranchID: r.BranchID.String(), BranchName: r.BranchName,
 			Code: r.Code, Name: r.Name,
 			HeadEmployeeID: pgconv.UUIDPtr(r.HeadEmployeeID), HeadName: pgconv.TextPtr(r.HeadName),
 			EmployeeCount: r.EmployeeCount, CreatedAt: pgconv.TimeString(r.CreatedAt),
@@ -271,6 +287,7 @@ func (s *Service) subdivisionDetail(ctx context.Context, id uuid.UUID) (Subdivis
 	}
 	return Subdivision{
 		ID: r.ID.String(), DivisionID: r.DivisionID.String(), DivisionName: r.DivisionName,
+		BranchID: r.BranchID.String(), BranchName: r.BranchName,
 		Code: r.Code, Name: r.Name,
 		HeadEmployeeID: pgconv.UUIDPtr(r.HeadEmployeeID), HeadName: pgconv.TextPtr(r.HeadName),
 		EmployeeCount: r.EmployeeCount, CreatedAt: pgconv.TimeString(r.CreatedAt),

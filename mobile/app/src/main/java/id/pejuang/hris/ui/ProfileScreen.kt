@@ -108,7 +108,7 @@ fun ProfileContent(
                 )
             }
             ProfileGroup("Kontak") {
-                ProfileRow(FigmaIcons.Sms, me.email.ifBlank { "Email belum tercatat" })
+                ProfileRow(FigmaIcons.Sms, me.email?.takeIf { it.isNotBlank() } ?: "Email belum tercatat")
                 RowDivider()
                 ProfileRow(FigmaIcons.LocationTick, "${me.subdivision.name} · ${me.division.name}")
             }
@@ -196,7 +196,7 @@ fun PersonalDataContent(me: Me, onBack: () -> Unit) {
                 }
                 FigmaInput("Nama lengkap", me.fullName, {}, FigmaIcons.User, readOnly = true)
                 FigmaInput("NIPY", me.nip, {}, FigmaIcons.Keyboard, readOnly = true)
-                FigmaInput("Email", me.email.ifBlank { "-" }, {}, FigmaIcons.Sms, readOnly = true)
+                FigmaInput("Email", me.email?.takeIf { it.isNotBlank() } ?: "-", {}, FigmaIcons.Sms, readOnly = true)
                 FigmaInput("Jabatan", me.position ?: "-", {}, FigmaIcons.Keyboard, readOnly = true)
                 FigmaInput("Divisi", me.division.name, {}, FigmaIcons.LocationTickLinear, readOnly = true)
                 FigmaInput("Subdivisi", me.subdivision.name, {}, FigmaIcons.LocationTickLinear, readOnly = true)

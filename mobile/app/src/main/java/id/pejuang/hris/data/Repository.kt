@@ -64,12 +64,12 @@ class Repository(
         }
     }
 
-    suspend fun login(server: String, email: String, password: String, mfaCode: String?): MobileTokens {
+    suspend fun login(server: String, identifier: String, password: String, mfaCode: String?): MobileTokens {
         if (BuildConfig.SERVER_EDITABLE) session.serverUrl = server.trim()
         val tokens = call {
             login(
                 MobileLoginRequest(
-                    email = email.trim(),
+                    identifier = identifier.trim(),
                     password = password,
                     mfaCode = mfaCode?.trim()?.takeIf { it.isNotEmpty() },
                     device = DeviceRegisterInput(

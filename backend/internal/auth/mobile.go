@@ -54,11 +54,11 @@ type MobileTokens struct {
 
 // LoginMobile menerbitkan sesi yang terikat perangkat (F5). Akun ber-MFA tetap wajib memasukkan kode,
 // karena token mobile juga bisa membuka route admin sesuai role-nya (D40).
-func (s *Service) LoginMobile(ctx context.Context, email, password, mfaCode string, device MobileDevice, ip *netip.Addr, userAgent string, now time.Time) (MobileTokens, error) {
+func (s *Service) LoginMobile(ctx context.Context, identifier, password, mfaCode string, device MobileDevice, ip *netip.Addr, userAgent string, now time.Time) (MobileTokens, error) {
 	if s.bindDevice == nil {
 		return MobileTokens{}, errors.New("pengikat perangkat untuk login mobile belum dipasang")
 	}
-	user, err := s.checkPassword(ctx, email, password, ip, now)
+	user, err := s.checkPassword(ctx, identifier, password, ip, now)
 	if err != nil {
 		return MobileTokens{}, err
 	}

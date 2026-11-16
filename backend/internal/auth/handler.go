@@ -15,10 +15,8 @@ import (
 )
 
 const (
-	loginAttemptLimit    = 5
-	loginAttemptWindow   = 15 * time.Minute
-	activateLimit        = 10
-	activationCheckLimit = 60
+	loginAttemptLimit  = 5
+	loginAttemptWindow = 15 * time.Minute
 )
 
 // Handler melayani /v1/auth/* dan /v1/me.
@@ -34,16 +32,22 @@ func NewHandler(svc *Service, secure bool, cookieDomain string, limiter Limiter)
 	return &Handler{svc: svc, secure: secure, cookieDomain: cookieDomain, limiter: limiter}
 }
 
+// loginRequest menerima identifier (NIPY, email, atau nomor WA, D53). Field email tetap diterima
+// agar aplikasi versi lama masih bisa masuk.
 type loginRequest struct {
-	Email    string `json:"email"`
-	Password string `json:"password"`
+	Identifier string `json:"identifier"`
+	Email      string `json:"email"`
+	Password   string `json:"password"`
 }
 
 func (req *loginRequest) problems() map[string]string {
-	req.Email = strings.TrimSpace(req.Email)
+	req.Identifier = strings.TrimSpace(req.Identifier)
+	if req.Identifier == "" {
+		req.Identifier = strings.TrimSpace(req.Email)
+	}
 	fields := map[string]string{}
-	if req.Email == "" || !strings.Contains(req.Email, "@") || len(req.Email) > 254 {
-		fields["email"] = "Email tidak valid."
+	if req.Identifier == "" || len(req.Identifier) > 254 {
+		fields["identifier"] = "Isi NIPY, email, atau nomor WA."
 	}
 	if req.Password == "" {
 		fields["password"] = "Kata sandi wajib diisi."
@@ -63,11 +67,11 @@ func (h *Handler) Login(w http.ResponseWriter, r *http.Request) error {
 	}
 
 	// Batas per akun + IP (MASTER.md §5.7), melengkapi lockout per akun.
-	limitKey := "login:" + strings.ToLower(req.Email)
+	limitKey := "login:" + strings.ToLower(req.Identifier)
 	if err := h.checkLimit(w, r, limitKey, loginAttemptLimit, loginAttemptWindow); err != nil {
 		return err
 	}
-	userID, tokens, err := h.svc.Login(r.Context(), req.Email, req.Password, audit.ClientIP(r), r.UserAgent(), time.Now())
+	userID, tokens, err := h.svc.Login(r.Context(), req.Identifier, req.Password, audit.ClientIP(r), r.UserAgent(), time.Now())
 	// Sandi benar (termasuk yang lanjut ke langkah MFA) tidak dihitung sebagai percobaan gagal.
 	var apiErr *httpx.Error
 	if err == nil || (errors.As(err, &apiErr) && apiErr.Code == "AUTH_MFA_REQUIRED") {
@@ -98,11 +102,11 @@ func (h *Handler) MobileLogin(w http.ResponseWriter, r *http.Request) error {
 	if len(fields) > 0 {
 		return httpx.Validation(fields)
 	}
-	limitKey := "login:" + strings.ToLower(req.Email)
+	limitKey := "login:" + strings.ToLower(req.Identifier)
 	if err := h.checkLimit(w, r, limitKey, loginAttemptLimit, loginAttemptWindow); err != nil {
 		return err
 	}
-	tokens, err := h.svc.LoginMobile(r.Context(), req.Email, req.Password, strings.TrimSpace(req.MFACode), req.Device, audit.ClientIP(r), r.UserAgent(), time.Now())
+	tokens, err := h.svc.LoginMobile(r.Context(), req.Identifier, req.Password, strings.TrimSpace(req.MFACode), req.Device, audit.ClientIP(r), r.UserAgent(), time.Now())
 	if err != nil {
 		return err
 	}
@@ -189,49 +193,6 @@ func (h *Handler) MFAVerify(w http.ResponseWriter, r *http.Request) error {
 		return err
 	}
 	return h.finishLogin(w, r, userID, tokens)
-}
-
-type activateRequest struct {
-	Token    string `json:"token"`
-	Password string `json:"password"`
-}
-
-func (h *Handler) Activate(w http.ResponseWriter, r *http.Request) error {
-	var req activateRequest
-	if err := httpx.Decode(r, &req); err != nil {
-		return err
-	}
-	if err := h.checkLimit(w, r, "activate", activateLimit, loginAttemptWindow); err != nil {
-		return err
-	}
-	if err := h.svc.Activate(r.Context(), req.Token, req.Password, audit.ClientIP(r)); err != nil {
-		return err
-	}
-	return httpx.NoContent(w)
-}
-
-type activationCheckRequest struct {
-	Token string `json:"token"`
-}
-
-type activationCheckResponse struct {
-	ExpiresAt string `json:"expires_at"`
-}
-
-// CheckActivation tidak mengubah apa pun. Batasnya lebih longgar dari aktivasi karena dipanggil setiap halaman dibuka.
-func (h *Handler) CheckActivation(w http.ResponseWriter, r *http.Request) error {
-	var req activationCheckRequest
-	if err := httpx.Decode(r, &req); err != nil {
-		return err
-	}
-	if err := h.checkLimit(w, r, "activate-check", activationCheckLimit, loginAttemptWindow); err != nil {
-		return err
-	}
-	expires, err := h.svc.CheckActivation(r.Context(), req.Token)
-	if err != nil {
-		return err
-	}
-	return httpx.Data(w, http.StatusOK, activationCheckResponse{ExpiresAt: expires.UTC().Format(time.RFC3339)})
 }
 
 type passwordChangeRequest struct {

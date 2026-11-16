@@ -13,54 +13,6 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
-const activateUser = `-- name: ActivateUser :exec
-UPDATE users SET is_active = true WHERE id = $1
-`
-
-func (q *Queries) ActivateUser(ctx context.Context, id uuid.UUID) error {
-	_, err := q.db.Exec(ctx, activateUser, id)
-	return err
-}
-
-const consumeInvite = `-- name: ConsumeInvite :one
-UPDATE user_invites SET used_at = now()
-WHERE token_hash = $1 AND used_at IS NULL AND expires_at > now()
-RETURNING user_id
-`
-
-// Sekali pakai: UPDATE bersyarat agar dua permintaan bersamaan tidak sama-sama lolos.
-func (q *Queries) ConsumeInvite(ctx context.Context, tokenHash string) (uuid.UUID, error) {
-	row := q.db.QueryRow(ctx, consumeInvite, tokenHash)
-	var user_id uuid.UUID
-	err := row.Scan(&user_id)
-	return user_id, err
-}
-
-const createInactiveUser = `-- name: CreateInactiveUser :one
-INSERT INTO users (employee_id, email, password_hash, role, is_active, must_change_password)
-VALUES ($1, $2, $3, $4, false, false)
-RETURNING id
-`
-
-type CreateInactiveUserParams struct {
-	EmployeeID   uuid.UUID
-	Email        string
-	PasswordHash string
-	Role         UserRole
-}
-
-func (q *Queries) CreateInactiveUser(ctx context.Context, arg CreateInactiveUserParams) (uuid.UUID, error) {
-	row := q.db.QueryRow(ctx, createInactiveUser,
-		arg.EmployeeID,
-		arg.Email,
-		arg.PasswordHash,
-		arg.Role,
-	)
-	var id uuid.UUID
-	err := row.Scan(&id)
-	return id, err
-}
-
 const createSession = `-- name: CreateSession :one
 INSERT INTO sessions (user_id, client, device_id, refresh_hash, ip, user_agent, idle_expires_at, absolute_expires_at)
 VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
@@ -102,7 +54,7 @@ RETURNING id
 
 type CreateUserParams struct {
 	EmployeeID         uuid.UUID
-	Email              string
+	Email              pgtype.Text
 	PasswordHash       string
 	Role               UserRole
 	MustChangePassword bool
@@ -121,19 +73,30 @@ func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (uuid.UU
 	return id, err
 }
 
-const createUserInvite = `-- name: CreateUserInvite :exec
-INSERT INTO user_invites (user_id, token_hash, expires_at) VALUES ($1, $2, $3)
+const createUserWithInitialPassword = `-- name: CreateUserWithInitialPassword :one
+INSERT INTO users (employee_id, email, password_hash, role, is_active, must_change_password)
+VALUES ($1, $2, $3, $4, true, true)
+RETURNING id
 `
 
-type CreateUserInviteParams struct {
-	UserID    uuid.UUID
-	TokenHash string
-	ExpiresAt pgtype.Timestamptz
+type CreateUserWithInitialPasswordParams struct {
+	EmployeeID   uuid.UUID
+	Email        pgtype.Text
+	PasswordHash string
+	Role         UserRole
 }
 
-func (q *Queries) CreateUserInvite(ctx context.Context, arg CreateUserInviteParams) error {
-	_, err := q.db.Exec(ctx, createUserInvite, arg.UserID, arg.TokenHash, arg.ExpiresAt)
-	return err
+// Akun baru langsung aktif dengan kata sandi awal yang wajib diganti saat login pertama (D53).
+func (q *Queries) CreateUserWithInitialPassword(ctx context.Context, arg CreateUserWithInitialPasswordParams) (uuid.UUID, error) {
+	row := q.db.QueryRow(ctx, createUserWithInitialPassword,
+		arg.EmployeeID,
+		arg.Email,
+		arg.PasswordHash,
+		arg.Role,
+	)
+	var id uuid.UUID
+	err := row.Scan(&id)
+	return id, err
 }
 
 const employeeHasFace = `-- name: EmployeeHasFace :one
@@ -203,24 +166,6 @@ func (q *Queries) GetEmployeeAccount(ctx context.Context, employeeID uuid.UUID) 
 	return i, err
 }
 
-const getInviteState = `-- name: GetInviteState :one
-SELECT (used_at IS NOT NULL)::bool AS used, (expires_at <= now())::bool AS expired, expires_at
-FROM user_invites WHERE token_hash = $1
-`
-
-type GetInviteStateRow struct {
-	Used      bool
-	Expired   bool
-	ExpiresAt pgtype.Timestamptz
-}
-
-func (q *Queries) GetInviteState(ctx context.Context, tokenHash string) (GetInviteStateRow, error) {
-	row := q.db.QueryRow(ctx, getInviteState, tokenHash)
-	var i GetInviteStateRow
-	err := row.Scan(&i.Used, &i.Expired, &i.ExpiresAt)
-	return i, err
-}
-
 const getMe = `-- name: GetMe :one
 SELECT u.id AS user_id, u.employee_id, u.role, u.email, u.must_change_password,
        e.full_name, e.nip, e.position,
@@ -237,7 +182,7 @@ type GetMeRow struct {
 	UserID             uuid.UUID
 	EmployeeID         uuid.UUID
 	Role               UserRole
-	Email              string
+	Email              pgtype.Text
 	MustChangePassword bool
 	FullName           string
 	Nip                string
@@ -387,49 +332,6 @@ func (q *Queries) GetSessionByRefreshHash(ctx context.Context, refreshHash strin
 	return i, err
 }
 
-const getUserByEmail = `-- name: GetUserByEmail :one
-SELECT u.id, u.employee_id, u.email, u.password_hash, u.role, u.is_active, u.failed_login_count, u.locked_until, u.must_change_password, u.password_changed_at, u.last_login_at, u.created_at, e.full_name
-FROM users u JOIN employees e ON e.id = u.employee_id
-WHERE lower(u.email) = lower($1) AND e.deleted_at IS NULL
-`
-
-type GetUserByEmailRow struct {
-	ID                 uuid.UUID
-	EmployeeID         uuid.UUID
-	Email              string
-	PasswordHash       string
-	Role               UserRole
-	IsActive           bool
-	FailedLoginCount   int32
-	LockedUntil        pgtype.Timestamptz
-	MustChangePassword bool
-	PasswordChangedAt  pgtype.Timestamptz
-	LastLoginAt        pgtype.Timestamptz
-	CreatedAt          pgtype.Timestamptz
-	FullName           string
-}
-
-func (q *Queries) GetUserByEmail(ctx context.Context, lower string) (GetUserByEmailRow, error) {
-	row := q.db.QueryRow(ctx, getUserByEmail, lower)
-	var i GetUserByEmailRow
-	err := row.Scan(
-		&i.ID,
-		&i.EmployeeID,
-		&i.Email,
-		&i.PasswordHash,
-		&i.Role,
-		&i.IsActive,
-		&i.FailedLoginCount,
-		&i.LockedUntil,
-		&i.MustChangePassword,
-		&i.PasswordChangedAt,
-		&i.LastLoginAt,
-		&i.CreatedAt,
-		&i.FullName,
-	)
-	return i, err
-}
-
 const getUserByEmployee = `-- name: GetUserByEmployee :one
 SELECT id, employee_id, email, password_hash, role, is_active, failed_login_count, locked_until, must_change_password, password_changed_at, last_login_at, created_at FROM users WHERE employee_id = $1
 `
@@ -474,6 +376,59 @@ func (q *Queries) GetUserByID(ctx context.Context, id uuid.UUID) (User, error) {
 		&i.PasswordChangedAt,
 		&i.LastLoginAt,
 		&i.CreatedAt,
+	)
+	return i, err
+}
+
+const getUserForLogin = `-- name: GetUserForLogin :one
+SELECT u.id, u.employee_id, u.email, u.password_hash, u.role, u.is_active, u.failed_login_count, u.locked_until, u.must_change_password, u.password_changed_at, u.last_login_at, u.created_at, e.full_name
+FROM users u JOIN employees e ON e.id = u.employee_id
+WHERE e.deleted_at IS NULL
+  AND (($1::text IS NOT NULL AND lower(u.email) = lower($1))
+    OR ($2::text IS NOT NULL AND upper(e.nip) = upper($2))
+    OR ($3::text IS NOT NULL AND e.phone = $3))
+`
+
+type GetUserForLoginParams struct {
+	Email pgtype.Text
+	Nip   pgtype.Text
+	Phone pgtype.Text
+}
+
+type GetUserForLoginRow struct {
+	ID                 uuid.UUID
+	EmployeeID         uuid.UUID
+	Email              pgtype.Text
+	PasswordHash       string
+	Role               UserRole
+	IsActive           bool
+	FailedLoginCount   int32
+	LockedUntil        pgtype.Timestamptz
+	MustChangePassword bool
+	PasswordChangedAt  pgtype.Timestamptz
+	LastLoginAt        pgtype.Timestamptz
+	CreatedAt          pgtype.Timestamptz
+	FullName           string
+}
+
+// Login memakai NIPY, email, atau nomor WA (D53). Pemanggil mengisi tepat satu parameter.
+func (q *Queries) GetUserForLogin(ctx context.Context, arg GetUserForLoginParams) (GetUserForLoginRow, error) {
+	row := q.db.QueryRow(ctx, getUserForLogin, arg.Email, arg.Nip, arg.Phone)
+	var i GetUserForLoginRow
+	err := row.Scan(
+		&i.ID,
+		&i.EmployeeID,
+		&i.Email,
+		&i.PasswordHash,
+		&i.Role,
+		&i.IsActive,
+		&i.FailedLoginCount,
+		&i.LockedUntil,
+		&i.MustChangePassword,
+		&i.PasswordChangedAt,
+		&i.LastLoginAt,
+		&i.CreatedAt,
+		&i.FullName,
 	)
 	return i, err
 }
@@ -791,6 +746,23 @@ func (q *Queries) RotateSession(ctx context.Context, arg RotateSessionParams) er
 	return err
 }
 
+const setInitialPassword = `-- name: SetInitialPassword :exec
+UPDATE users
+SET password_hash = $1, must_change_password = true, password_changed_at = now(),
+    failed_login_count = 0, locked_until = NULL
+WHERE id = $2
+`
+
+type SetInitialPasswordParams struct {
+	PasswordHash string
+	ID           uuid.UUID
+}
+
+func (q *Queries) SetInitialPassword(ctx context.Context, arg SetInitialPasswordParams) error {
+	_, err := q.db.Exec(ctx, setInitialPassword, arg.PasswordHash, arg.ID)
+	return err
+}
+
 const setMfaLastStep = `-- name: SetMfaLastStep :execrows
 UPDATE user_mfa SET last_used_step = $1 WHERE user_id = $2 AND last_used_step < $1
 `
@@ -872,7 +844,7 @@ UPDATE users SET email = $1 WHERE employee_id = $2
 `
 
 type UpdateUserEmailParams struct {
-	Email      string
+	Email      pgtype.Text
 	EmployeeID uuid.UUID
 }
 

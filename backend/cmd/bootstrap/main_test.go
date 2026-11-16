@@ -34,7 +34,11 @@ func (f *fakeBootstrapRepo) InsertShift(_ context.Context, arg store.InsertShift
 	return s, nil
 }
 
-func (f *fakeBootstrapRepo) ListDivisions(context.Context) ([]store.ListDivisionsRow, error) {
+func (f *fakeBootstrapRepo) ListBranches(context.Context) ([]store.ListBranchesRow, error) {
+	return []store.ListBranchesRow{{ID: uuid.New(), Code: "PUSAT", Name: "Pusat"}}, nil
+}
+
+func (f *fakeBootstrapRepo) ListDivisions(context.Context, uuid.NullUUID) ([]store.ListDivisionsRow, error) {
 	return f.divisions, nil
 }
 

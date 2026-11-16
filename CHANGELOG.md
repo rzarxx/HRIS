@@ -72,6 +72,8 @@ Perubahan penting yang terlihat oleh Pejuang, SDM, atau pengelola server. Keputu
   masuk ke kolom mana pun.
 
 ### Diperbaiki
+- `backup.sh` dan `restore-verify.sh` kini menemukan `pg_dump`, `pg_restore`, dan `psql` dari PostgreSQL aaPanel
+  (`/www/server/pgsql/bin`). Sebelumnya backup harian di server aaPanel gagal dengan "Perintah wajib tidak ditemukan: pg_dump".
 - `setup-production.sh` kini juga mengisi `CORS_ALLOWED_ORIGINS`. Sebelumnya hanya `WEB_ORIGIN` yang diganti,
   sehingga web admin di `hris.albahjah.or.id` ditolak API setelah pindah ke produksi.
 - Tes integrasi cuti tidak lagi gagal saat tanggal ujinya sama dengan hari ini.

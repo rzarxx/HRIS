@@ -38,7 +38,7 @@ Perubahan penting yang terlihat oleh Pejuang, SDM, atau pengelola server. Keputu
 
 ### Diubah
 - Aplikasi Android menargetkan API 36 (Android 16), syarat Google Play sejak 31 Agustus 2026; Android Gradle
-  Plugin dinaikkan ke 8.13.2 (Gradle 8.13). Kotlin naik ke 2.3.21 dan Paparazzi ke 2.0.0-alpha04 (layoutlib API 36),
+  Plugin dinaikkan ke 8.13.2 (Gradle 9.2.1). Kotlin naik ke 2.3.21 dan Paparazzi ke 2.0.0-alpha04 (layoutlib API 36),
   sehingga Gradle di CI dan lokal butuh JDK 21.
 - Workflow rilis (`release.yml`) kini membangun Android App Bundle bertanda tangan kunci unggah sebagai artefak
   workflow untuk diunggah ke Play Console. APK tidak lagi diterbitkan publik di GitHub Releases; rilis GitHub hanya

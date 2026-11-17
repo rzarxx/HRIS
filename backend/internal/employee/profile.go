@@ -83,12 +83,14 @@ func validateChildren(children []Child, today time.Time, fields map[string]strin
 	out := make([]store.InsertEmployeeChildParams, 0, len(children))
 	for i, c := range children {
 		prefix := fmt.Sprintf("children.%d.", i)
-		row := store.InsertEmployeeChildParams{ChildOrder: int16(c.ChildOrder), FullName: strings.TrimSpace(c.FullName)}
+		row := store.InsertEmployeeChildParams{FullName: strings.TrimSpace(c.FullName)}
 		switch {
 		case c.ChildOrder < 1 || c.ChildOrder > maxChildren:
 			fields[prefix+"child_order"] = fmt.Sprintf("Anak ke- 1 sampai %d.", maxChildren)
 		case seen[c.ChildOrder]:
 			fields[prefix+"child_order"] = "Urutan anak perlu berbeda satu sama lain."
+		default:
+			row.ChildOrder = int16(c.ChildOrder)
 		}
 		seen[c.ChildOrder] = true
 		if n := len([]rune(row.FullName)); n < 2 || n > 100 {

@@ -19,9 +19,9 @@ const ERROR_MESSAGES: Partial<Record<ErrorCode, string>> = {
   NOT_FOUND: "Data yang dicari belum tersedia.",
   RATE_LIMITED: "Terlalu banyak permintaan. Tunggu sebentar lalu coba lagi.",
   PAYLOAD_TOO_LARGE: "Ukuran berkas melebihi batas. Perkecil berkas lalu coba lagi.",
-  APPROVAL_SELF_FORBIDDEN: "Pengajuan Anda sendiri diputuskan oleh approver lain.",
-  APPROVAL_NOT_YOUR_TURN: "Belum giliran Anda. Langkah sebelumnya belum diputuskan.",
-  REQUEST_NOT_PENDING: "Pengajuan ini sudah diputuskan atau dibatalkan. Muat ulang untuk melihat status terbaru.",
+  APPROVAL_SELF_FORBIDDEN: "Pengajuan Anda sendiri ditindaklanjuti oleh approver lain.",
+  APPROVAL_NOT_YOUR_TURN: "Belum giliran Anda. Langkah sebelumnya belum diproses.",
+  REQUEST_NOT_PENDING: "Pengajuan ini sudah diproses atau dibatalkan. Muat ulang untuk melihat status terbaru.",
 };
 
 export class ApiError extends Error {

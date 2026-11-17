@@ -284,7 +284,7 @@ function FlowCard() {
 
           <ul className="mt-4 list-disc space-y-1 pl-5 text-xs leading-relaxed text-slate-500">
             <li>Langkah dilewati otomatis bila kepalanya belum ditunjuk atau kepala itu sendiri yang mengajukan.</li>
-            <li>Bila semua langkah terlewati, pengajuan tetap diputuskan SDM.</li>
+            <li>Bila semua langkah terlewati, pengajuan tetap ditindaklanjuti SDM.</li>
             <li>Perubahan berlaku untuk pengajuan baru; pengajuan yang sedang berjalan memakai alur lamanya.</li>
           </ul>
 

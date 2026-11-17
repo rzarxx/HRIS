@@ -369,7 +369,7 @@ func (s *Service) decide(ctx context.Context, p auth.Principal, ip *netip.Addr, 
 		return Item{}, err
 	}
 	if head.RequesterEmployeeID == p.EmployeeID {
-		return Item{}, httpx.NewError(http.StatusForbidden, "APPROVAL_SELF_FORBIDDEN", "Pengajuan Anda sendiri diputuskan oleh atasan atau SDM.")
+		return Item{}, httpx.NewError(http.StatusForbidden, "APPROVAL_SELF_FORBIDDEN", "Pengajuan Anda sendiri ditindaklanjuti oleh atasan atau SDM.")
 	}
 	if !mayAct(p, head.AssignedEmployeeID) {
 		return Item{}, httpx.NewError(http.StatusForbidden, "APPROVAL_NOT_YOUR_TURN", "Langkah ini ditangani approver lain.")
@@ -394,7 +394,7 @@ func (s *Service) decide(ctx context.Context, p auth.Principal, ip *netip.Addr, 
 		switch a.Status {
 		case store.ApprovalStepStatusPending:
 		case store.ApprovalStepStatusWaiting:
-			return httpx.NewError(http.StatusForbidden, "APPROVAL_NOT_YOUR_TURN", "Langkah sebelumnya belum diputuskan.")
+			return httpx.NewError(http.StatusForbidden, "APPROVAL_NOT_YOUR_TURN", "Langkah sebelumnya belum diproses.")
 		default:
 			return notPending()
 		}
@@ -445,7 +445,7 @@ func (s *Service) decide(ctx context.Context, p auth.Principal, ip *netip.Addr, 
 }
 
 func notPending() error {
-	return httpx.NewError(http.StatusConflict, "REQUEST_NOT_PENDING", "Pengajuan ini sudah diputuskan atau dibatalkan.")
+	return httpx.NewError(http.StatusConflict, "REQUEST_NOT_PENDING", "Pengajuan ini sudah diproses atau dibatalkan.")
 }
 
 // Flow mengembalikan alur satu jenis pengajuan.

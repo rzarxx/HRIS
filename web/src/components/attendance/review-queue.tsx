@@ -193,7 +193,7 @@ export function ReviewQueue() {
 
   return (
     <>
-      <PageHeader title="Review Presensi" description="Presensi berisiko menunggu keputusan. Belum dihitung hadir sampai diputuskan." />
+      <PageHeader title="Review Presensi" description="Presensi berisiko menunggu keputusan. Belum dihitung hadir sampai ditinjau." />
       <Card bodyClassName="">
         <div className="border-b border-slate-100 p-4">
           <Select

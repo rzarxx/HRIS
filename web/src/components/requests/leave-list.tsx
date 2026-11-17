@@ -26,7 +26,7 @@ function yearRange() {
 function progressText(r: LeaveRequest) {
   const step = currentStep(r.approvals);
   if (r.status === "pending" && step) return `Di ${APPROVER_ROLE[step.approver_role]} · ${approverName(step)}`;
-  if (r.decided_at) return `${r.status === "cancelled" ? "Dibatalkan" : "Diputuskan"} ${dateTime(r.decided_at)}`;
+  if (r.decided_at) return `${r.status === "cancelled" ? "Dibatalkan" : "Diproses"} ${dateTime(r.decided_at)}`;
   return "";
 }
 
@@ -64,7 +64,7 @@ export function LeaveList() {
   function exportCsv() {
     downloadCsv(
       `cuti-izin-${range.from}-${range.to}.csv`,
-      ["Pejuang", "Subdiv", "Jenis", "Mulai", "Selesai", "Hari kerja", "Status", "Alasan", "Diajukan", "Diputuskan"],
+      ["Pejuang", "Subdiv", "Jenis", "Mulai", "Selesai", "Hari kerja", "Status", "Alasan", "Diajukan", "Diproses"],
       rows.map((r) => [
         r.employee_name ?? "",
         r.subdivision_name ?? "",
@@ -289,7 +289,7 @@ function LeaveDetailModal({ leave, canDecide, onClose }: { leave: LeaveRequest; 
         <>
           {leave.status === "pending" && canDecide && (
             <Link href="/pengajuan/persetujuan" className="mr-auto inline-flex h-9 items-center text-sm font-medium text-primary-700 hover:underline">
-              Putuskan di kotak persetujuan
+              Tindak lanjuti di kotak persetujuan
             </Link>
           )}
           <Button variant="secondary" onClick={onClose}>
@@ -314,7 +314,7 @@ function LeaveDetailModal({ leave, canDecide, onClose }: { leave: LeaveRequest; 
         <dd className="col-span-2 break-words whitespace-pre-line text-slate-800">{leave.reason}</dd>
         {leave.decided_at && (
           <>
-            <dt className="text-slate-500">Diputuskan</dt>
+            <dt className="text-slate-500">Diproses</dt>
             <dd className="col-span-2 text-slate-800">{dateTime(leave.decided_at)}</dd>
           </>
         )}

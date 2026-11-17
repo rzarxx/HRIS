@@ -662,7 +662,7 @@ func (s *Service) planImportRow(ctx context.Context, p auth.Principal, in import
 		}
 	}
 	if v := get("children_count"); v != "" {
-		n, err := strconv.Atoi(strings.TrimSuffix(v, ".0"))
+		n, err := parseSmallInt(v)
 		if err != nil {
 			issue("children_count", "Isi dengan angka, contoh 2.")
 		} else {
@@ -700,7 +700,7 @@ func (s *Service) planImportRow(ctx context.Context, p auth.Principal, in import
 		}
 		child := Child{ChildOrder: k, FullName: name}
 		if v := get(key("order")); v != "" {
-			n, err := strconv.Atoi(strings.TrimSuffix(v, ".0"))
+			n, err := parseSmallInt(v)
 			if err != nil {
 				issue(key("order"), "Isi dengan angka, contoh 1.")
 			} else {
@@ -977,4 +977,11 @@ func (s *Service) ImportTemplate(ctx context.Context) ([]byte, error) {
 // errImportTooLarge dipakai handler saat berkas melebihi ImportMaxBytes.
 func errImportTooLarge() error {
 	return httpx.NewError(http.StatusRequestEntityTooLarge, "PAYLOAD_TOO_LARGE", "Ukuran berkas paling besar 5 MB.")
+}
+
+// parseSmallInt membaca angka kecil dari sel (mis. "2" atau "2.0"). Hasilnya dibatasi 16 bit karena
+// disimpan sebagai SMALLINT; nilai di luar jangkauan dianggap bukan angka yang sah.
+func parseSmallInt(v string) (int, error) {
+	n, err := strconv.ParseInt(strings.TrimSuffix(v, ".0"), 10, 16)
+	return int(n), err
 }

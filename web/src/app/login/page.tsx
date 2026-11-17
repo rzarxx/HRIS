@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { Suspense } from "react";
 import { Logo } from "@/components/logo";
 import { SiteFooter } from "@/components/shell/site-footer";
@@ -20,7 +21,12 @@ export default function LoginPage() {
             <LoginForm />
           </Suspense>
         </div>
-        <SiteFooter className="mt-2" />
+        <p className="mt-4 text-center text-xs">
+          <Link href="/kebijakan-privasi/" className="text-slate-500 hover:text-slate-700 hover:underline">
+            Kebijakan Privasi
+          </Link>
+        </p>
+        <SiteFooter className="mt-0 pt-2" />
       </div>
     </main>
   );

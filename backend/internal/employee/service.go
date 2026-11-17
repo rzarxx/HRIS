@@ -162,8 +162,9 @@ func (in Input) validate(today time.Time) (validated, error) {
 	if in.ChildrenCount != nil {
 		if *in.ChildrenCount < 0 || *in.ChildrenCount > maxChildren {
 			fields["children_count"] = fmt.Sprintf("Jumlah anak 0 sampai %d.", maxChildren)
+		} else {
+			v.ChildrenCount = pgtype.Int2{Int16: int16(*in.ChildrenCount), Valid: true}
 		}
-		v.ChildrenCount = pgtype.Int2{Int16: int16(*in.ChildrenCount), Valid: true}
 	}
 	switch {
 	case v.HasChildren.Valid && !v.HasChildren.Bool && ((v.ChildrenCount.Valid && v.ChildrenCount.Int16 > 0) || len(v.Children) > 0):

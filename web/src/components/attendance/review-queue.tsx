@@ -34,7 +34,7 @@ const FLAG_LABEL: Record<string, string> = {
   new_device_recent: "Perangkat baru disetujui",
   off_schedule: "Di luar jadwal shift",
   face_borderline: "Kemiripan wajah di batas bawah",
-  liveness_retry: "Beberapa kali gagal verifikasi wajah",
+  liveness_retry: "Beberapa kali verifikasi wajah belum berhasil",
   unverified_integrity: "Tanpa verifikasi perangkat (development)",
 };
 
@@ -91,7 +91,7 @@ function ReviewModal({ item, onClose }: { item: AttendanceReviewItem; onClose: (
     e.preventDefault();
     const text = note.trim();
     if (decision === "absent" && text.length < 3) {
-      setErrors({ note: "Catatan wajib diisi bila presensi tidak valid, minimal 3 karakter." });
+      setErrors({ note: "Mohon isi catatan minimal 3 karakter bila presensi tidak disahkan." });
       return;
     }
     setErrors({});
@@ -173,7 +173,7 @@ function ReviewModal({ item, onClose }: { item: AttendanceReviewItem; onClose: (
             <Select id="review_decision" value={decision} onChange={(e) => setDecision(e.target.value as AttendanceResolveInput["decision"])} invalid={!!errors.decision}>
               {isLate && <option value="late">Valid, tetap telat {item.late_minutes} menit</option>}
               <option value="present">{isLate ? "Valid, hapus keterlambatan" : "Valid, hadir"}</option>
-              <option value="absent">Tidak valid, tidak hadir</option>
+              <option value="absent">Tidak disahkan, dicatat tidak hadir</option>
             </Select>
           </Field>
           <Field label="Catatan" htmlFor="review_note" error={errors.note} required={decision === "absent"} hint={decision === "absent" ? undefined : "Opsional."}>

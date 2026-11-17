@@ -82,20 +82,20 @@ func (in Input) validate() (validated, error) {
 		fields["name"] = "Nama maksimal 80 karakter."
 	}
 	if !clockPattern.MatchString(in.StartTime) {
-		fields["start_time"] = "Jam masuk harus berformat JJ:MM."
+		fields["start_time"] = "Jam masuk ditulis dengan format JJ:MM, contoh 07:30."
 	} else {
 		v.StartTime = parseClock(in.StartTime)
 	}
 	if !clockPattern.MatchString(in.EndTime) {
-		fields["end_time"] = "Jam pulang harus berformat JJ:MM."
+		fields["end_time"] = "Jam pulang ditulis dengan format JJ:MM, contoh 16:00."
 	} else {
 		v.EndTime = parseClock(in.EndTime)
 	}
 	if fields["start_time"] == "" && fields["end_time"] == "" && in.StartTime == in.EndTime {
-		fields["end_time"] = "Jam pulang tidak boleh sama dengan jam masuk."
+		fields["end_time"] = "Jam pulang perlu berbeda dari jam masuk."
 	}
 	if in.LateToleranceMinutes == nil || *in.LateToleranceMinutes < 0 || *in.LateToleranceMinutes > maxLateTolerance {
-		fields["late_tolerance_minutes"] = "Toleransi telat harus 0 sampai 240 menit."
+		fields["late_tolerance_minutes"] = "Toleransi telat diisi 0 sampai 240 menit."
 	} else {
 		v.Tolerance = *in.LateToleranceMinutes
 	}
@@ -107,7 +107,7 @@ func (in Input) validate() (validated, error) {
 	days = slices.Compact(days)
 	for _, d := range days {
 		if d < 1 || d > 7 {
-			fields["work_days"] = "Hari kerja harus 1 (Senin) sampai 7 (Ahad)."
+			fields["work_days"] = "Hari kerja diisi angka 1 (Senin) sampai 7 (Ahad)."
 			break
 		}
 	}
@@ -245,7 +245,7 @@ func (s *Service) CreateHoliday(ctx context.Context, entry audit.Entry, in Holid
 	fields := map[string]string{}
 	date, err := pgconv.ParseDate(in.Date)
 	if err != nil {
-		fields["date"] = "Tanggal harus berformat TTTT-BB-HH."
+		fields["date"] = "Tanggal ditulis dengan format TTTT-BB-HH, contoh 2026-01-31."
 	}
 	name := strings.TrimSpace(in.Name)
 	switch {
@@ -345,7 +345,7 @@ func (h *Handler) Delete(w http.ResponseWriter, r *http.Request) error {
 func (h *Handler) ListHolidays(w http.ResponseWriter, r *http.Request) error {
 	year, err := strconv.Atoi(r.URL.Query().Get("year"))
 	if err != nil || year < 2000 || year > 2100 {
-		return httpx.Validation(map[string]string{"year": "Tahun tidak valid."})
+		return httpx.Validation(map[string]string{"year": "Mohon pilih tahun yang sesuai."})
 	}
 	rows, err := h.svc.ListHolidays(r.Context(), year)
 	if err != nil {

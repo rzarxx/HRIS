@@ -1,4 +1,4 @@
-# Aplikasi Android HRIS Yayasan Al Bahjah
+# Aplikasi Android HRIS Al Bahjah
 
 Aplikasi untuk Pejuang: login, absen dengan lokasi dan wajah, riwayat, pengajuan, dan slip upah. Acuannya tetap
 `MASTER.md` (§10.2 Mobile, §5.9 Kontrol Mobile, F5 Login Mobile). Stack: Kotlin, Jetpack Compose, Retrofit/OkHttp,
@@ -29,7 +29,7 @@ selfie (D42), jadi aplikasi tidak memuat model pengenalan wajah. Play Integrity 
   dengan teks gelap, huruf Plus Jakarta Sans (dibundel, lisensi OFL di `OFL-PlusJakartaSans.txt`). Beranda berisi
   satu kartu presensi hari ini dengan satu tombol besar dan akses cepat ke Riwayat, Cuti dan izin, Pengumuman, dan
   Slip ubar.
-- Nama aplikasi **HRIS Yayasan Al Bahjah** dengan ikon logo PUTI Al Bahjah (dari `logoputi.png`, ikon adaptif berlatar
+- Nama aplikasi **HRIS Al Bahjah** dengan ikon logo PUTI Al Bahjah (dari `logoputi.png`, ikon adaptif berlatar
   putih). Footer "© {tahun} PUTI (Pusat Teknologi Informasi) Al Bahjah" di Beranda, Profil, dan layar masuk; teksnya
   diambil dari `/v1/branding` (diatur super admin di web) dan disimpan untuk tampilan luring.
 - Ukuran huruf bisa dipilih di Profil → Ukuran huruf (Kecil, Normal, Besar, Sangat besar), tersimpan di HP dan
@@ -50,9 +50,9 @@ lagi, dengan tombol **Salin laporan** untuk dikirim ke tim.
 Aplikasi didistribusikan dan diperbarui langsung melalui **Google Play Store** (D52), sehingga izin
 `REQUEST_INSTALL_PACKAGES` dan pengecekan rilis GitHub tidak lagi digunakan.
 
-- Build debug memakai `applicationId` `id.pejuang.hris.debug` dan menampilkan kolom **Alamat server** di layar
+- Build debug memakai `applicationId` `id.albahjah.hris.debug` dan menampilkan kolom **Alamat server** di layar
   masuk, mis. `http://192.168.1.10:8080`.
-- Build rilis memakai `applicationId` `id.pejuang.hris`, secara bawaan mengarah ke `https://api.albahjah.or.id`
+- Build rilis memakai `applicationId` `id.albahjah.hris`, secara bawaan mengarah ke `https://api.albahjah.or.id`
   (bisa ditimpa dengan `-Phris.apiBaseUrl=https://...`), dan alamat server tidak bisa diganti di layar masuk.
 
 ### Langkah Build di Android Studio
@@ -68,7 +68,7 @@ Aplikasi didistribusikan dan diperbarui langsung melalui **Google Play Store** (
 Cara lain tanpa Android Studio: dorong tag `vX.Y.Z`. Workflow `release.yml` membangun App Bundle dengan
 `versionName` dari tag dan `versionCode` = `X*1000000 + Y*1000 + Z`, menandatanganinya dengan kunci unggah dari
 secret `ANDROID_KEYSTORE_BASE64`, `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS`, dan `ANDROID_KEY_PASSWORD`,
-lalu menyimpannya sebagai artefak workflow `hris-yayasan-albahjah-vX.Y.Z` (30 hari). Unduh artefak itu lalu
+lalu menyimpannya sebagai artefak workflow `hris-albahjah-vX.Y.Z` (30 hari). Unduh artefak itu lalu
 unggah ke Play Console. Isi secret `HRIS_PLAY_CLOUD_PROJECT_NUMBER` agar Play Integrity (jalur A) aktif. APK
 tidak diterbitkan publik: HP yang pernah memasang APK dari GitHub Releases harus menghapus aplikasi lama
 sebelum memasang dari Play, karena tanda tangannya berbeda bila Play App Signing memakai kunci baru.
@@ -253,7 +253,7 @@ Pustaka (Compose, Retrofit, CameraX, ML Kit, lokasi) diambil otomatis oleh Gradl
 - Pastikan **kunci penandatanganan rilis (keystore `.jks`)** disimpan dengan aman dan dicadangkan. Mengganti atau
   kehilangan kunci akan mencegah pembaruan aplikasi di Play Console (kecuali memakai *Play App Signing* dengan
   upload key reset).
-- Build debug (`id.pejuang.hris.debug`) dapat dipasang berdampingan dengan build Play Store (`id.pejuang.hris`)
+- Build debug (`id.albahjah.hris.debug`) dapat dipasang berdampingan dengan build Play Store (`id.albahjah.hris`)
   untuk pengujian lokal tanpa menimpa versi produksi.
 - Untuk menguji fitur presensi dan liveness di HP sungguhan sebelum rilis produksi, pastikan seluruh skenario
   `Perlu dicek di HP sungguhan` di atas sudah diverifikasi pada minimal 3 HP Android kelas bawah (`minSdk 26`).

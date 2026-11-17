@@ -45,11 +45,11 @@ func ValidatePassword(password, email string) string {
 	case utf8.RuneCountInString(password) < minPasswordRunes:
 		return fmt.Sprintf("Kata sandi minimal %d karakter.", minPasswordRunes)
 	case len(password) > maxPasswordBytes:
-		return "Kata sandi terlalu panjang."
+		return "Kata sandi melebihi panjang maksimal."
 	case commonPasswords[strings.ToLower(password)]:
-		return "Kata sandi terlalu umum, pilih yang lain."
+		return "Kata sandi ini mudah ditebak. Silakan pilih yang lain."
 	case email != "" && strings.EqualFold(password, email):
-		return "Kata sandi tidak boleh sama dengan email."
+		return "Kata sandi perlu berbeda dari email."
 	}
 	return ""
 }
@@ -70,10 +70,16 @@ func (c InitialCredential) Expires() pgtype.Timestamptz {
 // InitialPasswordHash membuat kata sandi awal beserta hash-nya. Argon2 sengaja lambat, jadi
 // pemanggil menghitungnya di luar transaksi.
 func InitialPasswordHash(fullName string, now time.Time) (InitialCredential, string, error) {
-	password := InitialPassword(fullName, now)
-	hash, err := HashPassword(password)
+	credential := NewInitialCredential(fullName, now)
+	hash, err := HashInitialPassword(credential.InitialPassword)
+	return credential, hash, err
+}
+
+// NewInitialCredential menyusun kata sandi awal dan batas berlakunya tanpa meng-hash, untuk impor
+// massal yang meng-hash banyak kata sandi sekaligus.
+func NewInitialCredential(fullName string, now time.Time) InitialCredential {
 	expires := now.Add(InitialPasswordTTL)
-	return InitialCredential{InitialPassword: password, ExpiresAt: expires.UTC().Format(time.RFC3339), expires: expires}, hash, err
+	return InitialCredential{InitialPassword: InitialPassword(fullName, now), ExpiresAt: expires.UTC().Format(time.RFC3339), expires: expires}
 }
 
 // ChangePassword memeriksa sandi lama dan mencabut sesi lain.
@@ -87,13 +93,13 @@ func (s *Service) ChangePassword(ctx context.Context, p Principal, current, next
 		return err
 	}
 	if !ok {
-		return httpx.Validation(map[string]string{"current_password": "Kata sandi saat ini salah."})
+		return httpx.Validation(map[string]string{"current_password": "Kata sandi saat ini belum sesuai. Silakan periksa kembali."})
 	}
 	if msg := ValidatePassword(next, user.Email.String); msg != "" {
 		return httpx.Validation(map[string]string{"new_password": msg})
 	}
 	if current == next {
-		return httpx.Validation(map[string]string{"new_password": "Kata sandi baru harus berbeda."})
+		return httpx.Validation(map[string]string{"new_password": "Kata sandi baru perlu berbeda dari yang lama."})
 	}
 	hash, err := HashPassword(next)
 	if err != nil {
@@ -245,7 +251,7 @@ func (s *Service) EnableMFA(ctx context.Context, p Principal, code string, ip *n
 }
 
 func errMFAInvalid() error {
-	return httpx.NewError(http.StatusUnauthorized, "AUTH_MFA_INVALID", "Kode tidak valid.")
+	return httpx.NewError(http.StatusUnauthorized, "AUTH_MFA_INVALID", "Kode belum sesuai. Silakan periksa kembali.")
 }
 
 // checkMFACode menerima kode TOTP atau kode pemulihan.

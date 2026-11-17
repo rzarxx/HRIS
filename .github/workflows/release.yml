@@ -78,8 +78,8 @@ jobs:
       # Play Console. GitHub Release hanya berisi catatan perubahan.
       - uses: actions/upload-artifact@v4
         with:
-          name: hris-yayasan-albahjah-${{ github.ref_name }}
-          path: hris-yayasan-albahjah.aab
+          name: hris-albahjah-${{ github.ref_name }}
+          path: hris-albahjah.aab
           retention-days: 30
           if-no-files-found: error
       - name: Catat GitHub Release tanpa berkas aplikasi

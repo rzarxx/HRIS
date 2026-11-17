@@ -22,6 +22,8 @@ const (
 	maxBodyBytes   = 1 << 20 // 1 MB, MASTER.md §5.7
 	maxUploadBytes = 5 << 20 // 5 MB untuk route yang menerima selfie
 	requestTimeout = 15 * time.Second
+	// longRequestTimeout untuk longRoutes; di bawah WriteTimeout server 30 detik.
+	longRequestTimeout = 25 * time.Second
 
 	// Batas per akun 120/menit (MASTER.md §5.7). Batas per IP dibuat longgar karena satu
 	// kantor bisa berbagi satu IP publik; fungsinya menahan banjir dari klien tak dikenal.
@@ -70,7 +72,7 @@ func blockDirectAccess(allowed []string) func(http.Handler) http.Handler {
 				http.Redirect(w, r, allowed[0]+"/", http.StatusFound)
 				return
 			}
-			httpx.WriteError(w, r, httpx.NewError(http.StatusForbidden, "API_ACCESS_DENIED", "Akses langsung ke API tidak diizinkan."))
+			httpx.WriteError(w, r, httpx.NewError(http.StatusForbidden, "API_ACCESS_DENIED", "Akses langsung ke API belum tersedia. Silakan gunakan aplikasi atau web resmi."))
 		})
 	}
 }
@@ -180,7 +182,7 @@ func recoverer(next http.Handler) http.Handler {
 					panic(rec)
 				}
 				slog.ErrorContext(r.Context(), "panic", "request_id", httpx.RequestID(r.Context()), "panic", rec)
-				httpx.WriteError(w, r, httpx.NewError(http.StatusInternalServerError, "INTERNAL_ERROR", "Terjadi kesalahan pada server."))
+				httpx.WriteError(w, r, httpx.NewError(http.StatusInternalServerError, "INTERNAL_ERROR", "Mohon maaf, server sedang mengalami kendala. Silakan coba lagi."))
 			}
 		}()
 		next.ServeHTTP(w, r)
@@ -214,11 +216,18 @@ func requestLogger(next http.Handler) http.Handler {
 	})
 }
 
-// uploadRoutes menerima selfie, jadi batas body-nya lebih besar (MASTER.md §5.7).
+// uploadRoutes menerima selfie atau berkas impor, jadi batas body-nya lebih besar (MASTER.md §5.7).
 var uploadRoutes = map[string]bool{
-	"/v1/attendance/clock-in":  true,
-	"/v1/attendance/clock-out": true,
-	"/v1/face/enroll":          true,
+	"/v1/attendance/clock-in":    true,
+	"/v1/attendance/clock-out":   true,
+	"/v1/face/enroll":            true,
+	"/v1/admin/employees/import": true,
+}
+
+// longRoutes boleh berjalan lebih lama, mis. impor massal yang meng-hash kata sandi awal ratusan Pejuang.
+// Tetap di bawah WriteTimeout server (30 detik).
+var longRoutes = map[string]bool{
+	"/v1/admin/employees/import": true,
 }
 
 func limitBody(next http.Handler) http.Handler {
@@ -234,7 +243,11 @@ func limitBody(next http.Handler) http.Handler {
 
 func withTimeout(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		ctx, cancel := context.WithTimeout(r.Context(), requestTimeout)
+		timeout := requestTimeout
+		if r.Method == http.MethodPost && longRoutes[r.URL.Path] {
+			timeout = longRequestTimeout
+		}
+		ctx, cancel := context.WithTimeout(r.Context(), timeout)
 		defer cancel()
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})

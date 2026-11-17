@@ -13,7 +13,7 @@ printf '%s' "$KEYSTORE_B64" | base64 --decode > "$keyfile"
 bundle=mobile/app/build/outputs/bundle/release/app-release.aab
 test -f "$bundle"
 jarsigner -keystore "$keyfile" -storepass:env KEYSTORE_PASSWORD -keypass:env KEY_PASSWORD \
-  -sigalg SHA256withRSA -digestalg SHA-256 -signedjar hris-yayasan-albahjah.aab "$bundle" "$KEY_ALIAS"
+  -sigalg SHA256withRSA -digestalg SHA-256 -signedjar hris-albahjah.aab "$bundle" "$KEY_ALIAS"
 # Kunci unggah self-signed tidak punya rantai CA, jadi -strict tanpa keystore selalu gagal (kode 4).
 # Verifikasi terhadap keystore unggah sekaligus memastikan bundle ditandatangani kunci ini.
-jarsigner -verify -strict -keystore "$keyfile" -storepass:env KEYSTORE_PASSWORD hris-yayasan-albahjah.aab "$KEY_ALIAS"
+jarsigner -verify -strict -keystore "$keyfile" -storepass:env KEYSTORE_PASSWORD hris-albahjah.aab "$KEY_ALIAS"

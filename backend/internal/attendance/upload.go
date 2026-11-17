@@ -21,7 +21,7 @@ import (
 const MaxSelfieBytes = 1 << 20
 
 func errTooLarge() error {
-	return httpx.NewError(http.StatusRequestEntityTooLarge, "PAYLOAD_TOO_LARGE", "Ukuran foto terlalu besar.")
+	return httpx.NewError(http.StatusRequestEntityTooLarge, "PAYLOAD_TOO_LARGE", "Ukuran foto melebihi batas. Silakan ambil ulang.")
 }
 
 // readUpload membaca body multipart (bagian `payload` berisi JSON dan berkas JPEG di field) atau
@@ -93,7 +93,7 @@ func readJPEG(h *multipart.FileHeader) ([]byte, error) {
 		return nil, errTooLarge()
 	}
 	if !face.IsJPEG(data) {
-		return nil, httpx.NewError(http.StatusUnsupportedMediaType, "UNSUPPORTED_MEDIA_TYPE", "Foto harus berformat JPEG.")
+		return nil, httpx.NewError(http.StatusUnsupportedMediaType, "UNSUPPORTED_MEDIA_TYPE", "Mohon kirim foto berformat JPEG.")
 	}
 	return data, nil
 }

@@ -29,7 +29,7 @@ export function MfaCard() {
       const res = await api.post<ItemResponse<MfaSetup>>("/auth/mfa/setup");
       setSetup(res.data);
     } catch (err) {
-      toast.error(err instanceof ApiError ? err.message : "Gagal memulai pendaftaran.");
+      toast.error(err instanceof ApiError ? err.message : "Pendaftaran belum bisa dimulai. Silakan coba lagi.");
     } finally {
       setLoading(false);
     }
@@ -49,7 +49,7 @@ export function MfaCard() {
       setSetup(null);
       await qc.invalidateQueries({ queryKey: ["me"] });
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Gagal mengaktifkan.");
+      setError(err instanceof ApiError ? err.message : "Verifikasi dua langkah belum berhasil diaktifkan. Silakan coba lagi.");
     } finally {
       setLoading(false);
     }

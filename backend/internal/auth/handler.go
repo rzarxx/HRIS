@@ -52,7 +52,7 @@ func (req *loginRequest) problems() map[string]string {
 	if req.Password == "" {
 		fields["password"] = "Kata sandi wajib diisi."
 	} else if len(req.Password) > 256 {
-		fields["password"] = "Kata sandi terlalu panjang."
+		fields["password"] = "Kata sandi melebihi panjang maksimal."
 	}
 	return fields
 }
@@ -97,7 +97,7 @@ func (h *Handler) MobileLogin(w http.ResponseWriter, r *http.Request) error {
 	}
 	fields := req.problems()
 	if len(req.MFACode) > 64 {
-		fields["mfa_code"] = "Kode terlalu panjang."
+		fields["mfa_code"] = "Kode melebihi panjang maksimal."
 	}
 	if len(fields) > 0 {
 		return httpx.Validation(fields)
@@ -344,7 +344,7 @@ func (h *Handler) AdminRevokeSessions(w http.ResponseWriter, r *http.Request) er
 
 func (h *Handler) Refresh(w http.ResponseWriter, r *http.Request) error {
 	if !CSRFValid(r) {
-		return httpx.NewError(http.StatusForbidden, "CSRF_INVALID", "Token keamanan tidak valid, muat ulang halaman.")
+		return httpx.NewError(http.StatusForbidden, "CSRF_INVALID", "Sesi keamanan halaman sudah berakhir. Silakan muat ulang halaman.")
 	}
 	refresh := ""
 	if c, err := r.Cookie(CookieRefresh); err == nil {

@@ -106,7 +106,7 @@ export function LeaveList() {
       <div className="mb-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
         <Stat label="Menunggu" value={counts.pending ?? 0} tone="text-amber-700" />
         <Stat label="Disetujui" value={counts.approved ?? 0} tone="text-emerald-700" />
-        <Stat label="Ditolak" value={counts.rejected ?? 0} tone="text-red-700" />
+        <Stat label="Tidak disetujui" value={counts.rejected ?? 0} tone="text-red-700" />
         <Stat label="Hari cuti disetujui" value={approvedDays} tone="text-slate-900" />
       </div>
 

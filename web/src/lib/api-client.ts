@@ -7,19 +7,19 @@ const BASE_URL = (process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8080").re
 
 /** Pesan ramah per kode error; message dari server hanya cadangan (MASTER.md §7.7). */
 const ERROR_MESSAGES: Partial<Record<ErrorCode, string>> = {
-  AUTH_INVALID_CREDENTIALS: "NIPY, email, nomor WA, atau kata sandi salah.",
-  AUTH_ACCOUNT_LOCKED: "Akun terkunci. Coba lagi nanti atau hubungi SDM.",
-  AUTH_MFA_INVALID: "Kode verifikasi salah.",
-  AUTH_INITIAL_PASSWORD_EXPIRED: "Kata sandi awal sudah kedaluwarsa (berlaku 72 jam). Minta SDM mereset kata sandi Anda.",
-  CONFLICT_HAS_DEPENDENTS: "Data masih dipakai data lain sehingga tidak bisa dihapus.",
+  AUTH_INVALID_CREDENTIALS: "NIPY, email, nomor WA, atau kata sandi belum sesuai. Silakan periksa kembali.",
+  AUTH_ACCOUNT_LOCKED: "Akun sedang dikunci sementara. Silakan coba lagi nanti atau hubungi SDM.",
+  AUTH_MFA_INVALID: "Kode verifikasi belum sesuai. Silakan periksa kembali.",
+  AUTH_INITIAL_PASSWORD_EXPIRED: "Masa berlaku kata sandi awal (72 jam) sudah habis. Silakan minta SDM untuk mengatur ulang kata sandi Anda.",
+  CONFLICT_HAS_DEPENDENTS: "Data ini masih digunakan data lain, jadi belum bisa dihapus.",
   CONFLICT_SELF_ACTION: "Tindakan ini tidak dapat dilakukan pada akun atau perangkat Anda sendiri.",
   AUTH_TOKEN_INVALID: "Sesi berakhir, silakan masuk kembali.",
-  FORBIDDEN_ROLE: "Anda tidak memiliki akses ke fitur ini.",
-  CSRF_INVALID: "Token keamanan tidak valid. Muat ulang halaman lalu coba lagi.",
-  NOT_FOUND: "Data tidak ditemukan.",
+  FORBIDDEN_ROLE: "Fitur ini belum tersedia untuk akun Anda.",
+  CSRF_INVALID: "Sesi keamanan halaman sudah berakhir. Silakan muat ulang halaman lalu coba lagi.",
+  NOT_FOUND: "Data yang dicari belum tersedia.",
   RATE_LIMITED: "Terlalu banyak permintaan. Tunggu sebentar lalu coba lagi.",
-  PAYLOAD_TOO_LARGE: "Ukuran data terlalu besar.",
-  APPROVAL_SELF_FORBIDDEN: "Pengajuan Anda sendiri harus diputuskan approver lain.",
+  PAYLOAD_TOO_LARGE: "Ukuran berkas melebihi batas. Perkecil berkas lalu coba lagi.",
+  APPROVAL_SELF_FORBIDDEN: "Pengajuan Anda sendiri diputuskan oleh approver lain.",
   APPROVAL_NOT_YOUR_TURN: "Belum giliran Anda. Langkah sebelumnya belum diputuskan.",
   REQUEST_NOT_PENDING: "Pengajuan ini sudah diputuskan atau dibatalkan. Muat ulang untuk melihat status terbaru.",
 };
@@ -57,13 +57,15 @@ function csrfToken() {
 
 function send(method: string, url: string, body?: unknown) {
   const headers: Record<string, string> = {};
-  if (body !== undefined) headers["Content-Type"] = "application/json";
+  // Berkas (mis. xlsx impor) dikirim apa adanya; selain itu JSON.
+  const raw = body instanceof Blob;
+  if (body !== undefined) headers["Content-Type"] = raw ? body.type || "application/octet-stream" : "application/json";
   if (method !== "GET") headers["X-CSRF-Token"] = csrfToken();
   return fetch(url, {
     method,
     credentials: "include",
     headers,
-    body: body !== undefined ? JSON.stringify(body) : undefined,
+    body: body === undefined ? undefined : raw ? body : JSON.stringify(body),
   });
 }
 
@@ -106,7 +108,7 @@ async function request<T>(method: string, path: string, opts: { query?: Query; b
       }
     }
   } catch {
-    throw new ApiError(0, "NETWORK_ERROR", "Tidak dapat terhubung ke server. Periksa koneksi Anda.");
+    throw new ApiError(0, "NETWORK_ERROR", "Belum terhubung ke server. Silakan periksa koneksi Anda.");
   }
 
   if (res.status === 204) return undefined as T;
@@ -119,8 +121,8 @@ async function request<T>(method: string, path: string, opts: { query?: Query; b
     const code = (err?.code ?? "UNKNOWN") as ErrorCode;
     const requestId: string | undefined = err?.request_id;
     // CONFLICT_HAS_DEPENDENTS memakai pesan server karena lebih spesifik.
-    let message: string = (code === "CONFLICT_HAS_DEPENDENTS" ? err?.message : ERROR_MESSAGES[code]) ?? err?.message ?? "Terjadi kesalahan, coba lagi.";
-    if (code === "INTERNAL_ERROR" && requestId) message = `Terjadi kesalahan pada server. Kode: ${requestId}`;
+    let message: string = (code === "CONFLICT_HAS_DEPENDENTS" ? err?.message : ERROR_MESSAGES[code]) ?? err?.message ?? "Mohon maaf, terjadi kendala. Silakan coba lagi.";
+    if (code === "INTERNAL_ERROR" && requestId) message = `Mohon maaf, server sedang mengalami kendala. Silakan coba lagi. Kode: ${requestId}`;
     // Sandi sementara atau MFA wajib: arahkan ke halaman yang bisa menyelesaikannya.
     // PASSWORD_CHANGE_REQUIRED ditangani popup di AppShell, jadi tidak dialihkan.
     if (code === "MFA_SETUP_REQUIRED") redirectToSettings(code);
@@ -133,6 +135,7 @@ export const api = {
   get: <T>(path: string, query?: Query) => request<T>("GET", path, { query }),
   blob: (path: string, query?: Query) => request<Blob>("GET", path, { query, blob: true }),
   post: <T>(path: string, body?: unknown) => request<T>("POST", path, { body }),
+  upload: <T>(path: string, file: Blob, query?: Query) => request<T>("POST", path, { body: file, query }),
   patch: <T>(path: string, body?: unknown) => request<T>("PATCH", path, { body }),
   put: <T>(path: string, body?: unknown) => request<T>("PUT", path, { body }),
   del: <T = void>(path: string) => request<T>("DELETE", path),

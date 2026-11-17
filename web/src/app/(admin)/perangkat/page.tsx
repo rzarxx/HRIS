@@ -246,7 +246,7 @@ export default function DevicesPage() {
               htmlFor="device-tier"
               hint={
                 isSelfDevice
-                  ? "Anda tidak dapat menurunkan perangkat sendiri ke jalur Manual atau Kiosk."
+                  ? "Perangkat sendiri diturunkan ke jalur Manual atau Kiosk oleh peninjau lain."
                   : "Gunakan jalur Manual hanya untuk HP sah tanpa GMS yang belum mendukung Key Attestation."
               }
             >

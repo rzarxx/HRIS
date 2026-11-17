@@ -1,6 +1,6 @@
 "use client";
 
-import { CalendarClock, CalendarRange, KeyRound, Lock, LockOpen, MapPin, Pencil, Plus, ScanFace, Search, UserX, Video } from "lucide-react";
+import { CalendarClock, CalendarRange, FileSpreadsheet, KeyRound, Lock, LockOpen, MapPin, Pencil, Plus, ScanFace, Search, UserX, Video } from "lucide-react";
 import { useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useState } from "react";
 import { BulkArrangementModal } from "@/components/employees/bulk-arrangement-modal";
@@ -8,6 +8,7 @@ import { EmployeeArrangementsModal } from "@/components/employees/employee-arran
 import { EmployeeForm } from "@/components/employees/employee-form";
 import { EmployeeLocationsModal } from "@/components/employees/employee-locations-modal";
 import { FaceResetModal } from "@/components/employees/face-reset-modal";
+import { ImportModal } from "@/components/employees/import-modal";
 import { InitialPasswordModal } from "@/components/employees/initial-password-modal";
 import { RemoteFaceModal } from "@/components/employees/remote-face-modal";
 import { Button, IconButton } from "@/components/ui/button";
@@ -85,6 +86,7 @@ function EmployeesView() {
   });
 
   const [bulkOpen, setBulkOpen] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
   const [credential, setCredential] = useState<{ name: string; nip?: string; password: string; expiresAt: string } | null>(null);
   const [resetting, setResetting] = useState<EmployeeListItem | null>(null);
   const resetPassword = useSave(
@@ -113,6 +115,9 @@ function EmployeesView() {
         actions={
           canWrite && (
             <>
+              <Button variant="secondary" onClick={() => setImportOpen(true)}>
+                <FileSpreadsheet className="size-4" /> Impor xlsx
+              </Button>
               <Button variant="secondary" onClick={() => setBulkOpen(true)}>
                 <CalendarRange className="size-4" /> Izin massal
               </Button>
@@ -320,6 +325,7 @@ function EmployeesView() {
       {remoteFace && <RemoteFaceModal employee={remoteFace} onClose={() => setRemoteFace(null)} />}
 
       {bulkOpen && <BulkArrangementModal onClose={() => setBulkOpen(false)} />}
+      {importOpen && <ImportModal onClose={() => setImportOpen(false)} />}
 
       {credential && <InitialPasswordModal name={credential.name} nip={credential.nip} password={credential.password} expiresAt={credential.expiresAt} onClose={() => setCredential(null)} />}
 

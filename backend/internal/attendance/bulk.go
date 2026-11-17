@@ -55,9 +55,9 @@ func (in BulkArrangementInput) unit() (uuid.NullUUID, uuid.NullUUID, error) {
 	case (in.DivisionID == nil) == (in.SubdivisionID == nil):
 		err = httpx.Validation(map[string]string{"division_id": "Pilih salah satu: divisi atau subdiv."})
 	case in.DivisionID != nil:
-		division, err = parse(in.DivisionID, "division_id", "Divisi tidak valid.")
+		division, err = parse(in.DivisionID, "division_id", "Mohon pilih divisi dari daftar.")
 	default:
-		subdivision, err = parse(in.SubdivisionID, "subdivision_id", "Subdiv tidak valid.")
+		subdivision, err = parse(in.SubdivisionID, "subdivision_id", "Mohon pilih subdiv dari daftar.")
 	}
 	return division, subdivision, err
 }

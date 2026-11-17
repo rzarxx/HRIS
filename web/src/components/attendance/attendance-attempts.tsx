@@ -13,16 +13,16 @@ const PER_PAGE = 25;
 const OUTCOME: Record<AttendanceAttempt["outcome"], { label: string; tone: "green" | "amber" | "red" }> = {
   accepted: { label: "Diterima", tone: "green" },
   review: { label: "Ditinjau", tone: "amber" },
-  rejected: { label: "Ditolak", tone: "red" },
+  rejected: { label: "Tidak diterima", tone: "red" },
 };
 
 // Kode alasan MASTER.md §6.3. Hanya untuk peninjau (D8); kode yang belum dikenal ditampilkan apa adanya.
 const REASON: Record<string, string> = {
   ok: "Lolos pemeriksaan",
-  challenge_invalid: "Tantangan presensi tidak valid",
+  challenge_invalid: "Sesi presensi tidak dikenali",
   challenge_expired: "Tantangan presensi kedaluwarsa",
   device_not_approved: "Perangkat belum disetujui atau bukan miliknya",
-  integrity_failed: "Verifikasi perangkat gagal",
+  integrity_failed: "Verifikasi perangkat belum berhasil",
   integrity_nonce_mismatch: "Bukti integritas tidak cocok",
   hard_signal: "Fake GPS, root, atau emulator",
   geofence_out: "Di luar area kantor",
@@ -32,7 +32,7 @@ const REASON: Record<string, string> = {
   not_clocked_in: "Belum presensi masuk",
   face_not_enrolled: "Wajah belum terdaftar",
   face_not_detected: "Wajah tidak terdeteksi di selfie",
-  liveness_failed: "Liveness gagal",
+  liveness_failed: "Gerakan wajah belum terdeteksi",
   face_mismatch: "Wajah tidak cocok",
   risk_too_high: "Skor risiko terlalu tinggi",
   risk_review: "Skor risiko perlu ditinjau",
@@ -50,7 +50,7 @@ export function AttendanceAttempts() {
 
   return (
     <>
-      <PageHeader title="Upaya Presensi" description="Semua upaya presensi, termasuk yang ditolak dan tidak pernah tercatat sebagai kehadiran." />
+      <PageHeader title="Upaya Presensi" description="Semua upaya presensi, termasuk yang tidak diterima sehingga belum tercatat sebagai kehadiran." />
       <Card bodyClassName="">
         <div className="flex flex-wrap items-center gap-3 border-b border-slate-100 p-4">
           <Input

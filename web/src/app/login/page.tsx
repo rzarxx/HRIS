@@ -11,7 +11,7 @@ export default function LoginPage() {
     <main className="flex min-h-screen items-center justify-center bg-slate-50 px-4">
       <div className="w-full max-w-sm">
         <div className="mb-6 flex justify-center">
-          <Logo />
+          <Logo size="lg" />
         </div>
         <div className="rounded-lg border border-t-4 border-slate-200 border-t-secondary-400 bg-white p-6 shadow-sm">
           <h1 className="text-lg font-semibold text-slate-900">Masuk ke akun Anda</h1>

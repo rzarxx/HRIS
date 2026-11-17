@@ -76,7 +76,7 @@ func validateCodeName(code, name string, maxCode int, fields map[string]string) 
 	case code == "":
 		fields["code"] = "Kode wajib diisi."
 	case len(code) > maxCode:
-		fields["code"] = "Kode terlalu panjang."
+		fields["code"] = "Kode melebihi panjang maksimal."
 	case !codePattern.MatchString(code):
 		fields["code"] = "Kode hanya huruf, angka, dan tanda minus."
 	}
@@ -99,7 +99,7 @@ func (in *DivisionInput) normalize() (uuid.UUID, uuid.NullUUID, error) {
 	}
 	head, err := pgconv.ParseOptionalUUID(in.HeadEmployeeID)
 	if err != nil {
-		fields["head_employee_id"] = "Kepala divisi tidak valid."
+		fields["head_employee_id"] = "Mohon pilih kepala divisi dari daftar."
 	}
 	if len(fields) > 0 {
 		return branchID, head, httpx.Validation(fields)
@@ -118,7 +118,7 @@ func (in *SubdivisionInput) normalize() (uuid.UUID, uuid.NullUUID, error) {
 	}
 	head, err := pgconv.ParseOptionalUUID(in.HeadEmployeeID)
 	if err != nil {
-		fields["head_employee_id"] = "Kepala subdiv tidak valid."
+		fields["head_employee_id"] = "Mohon pilih kepala subdiv dari daftar."
 	}
 	if len(fields) > 0 {
 		return divisionID, head, httpx.Validation(fields)
@@ -221,7 +221,7 @@ func (s *Service) UpdateDivision(ctx context.Context, actor audit.Entry, id uuid
 			return Division{}, err
 		}
 		if !ok {
-			return Division{}, httpx.Validation(map[string]string{"head_employee_id": "Kepala divisi harus Pejuang di divisi ini."})
+			return Division{}, httpx.Validation(map[string]string{"head_employee_id": "Kepala divisi dipilih dari Pejuang di divisi ini."})
 		}
 	}
 	err = database.InTx(ctx, s.pool, func(q *store.Queries) error {
@@ -297,7 +297,7 @@ func (s *Service) subdivisionDetail(ctx context.Context, id uuid.UUID) (Subdivis
 func (s *Service) assertDivisionExists(ctx context.Context, id uuid.UUID) error {
 	_, err := s.q.GetDivision(ctx, id)
 	if pgconv.IsNoRows(err) {
-		return httpx.Validation(map[string]string{"division_id": "Divisi tidak ditemukan."})
+		return httpx.Validation(map[string]string{"division_id": "Divisi belum terdaftar."})
 	}
 	return err
 }
@@ -356,7 +356,7 @@ func (s *Service) UpdateSubdivision(ctx context.Context, actor audit.Entry, id u
 			return Subdivision{}, err
 		}
 		if !ok {
-			return Subdivision{}, httpx.Validation(map[string]string{"head_employee_id": "Kepala subdiv harus Pejuang di subdiv ini."})
+			return Subdivision{}, httpx.Validation(map[string]string{"head_employee_id": "Kepala subdiv dipilih dari Pejuang di subdiv ini."})
 		}
 	}
 	err = database.InTx(ctx, s.pool, func(q *store.Queries) error {

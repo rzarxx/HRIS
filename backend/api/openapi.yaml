@@ -556,6 +556,48 @@ paths:
                   data: { $ref: "#/components/schemas/EmployeeCreated" }
         "400": { $ref: "#/components/responses/ValidationFailed" }
         "409": { $ref: "#/components/responses/Error" }
+  /v1/admin/employees/import-template:
+    get:
+      tags: [Pejuang]
+      summary: Unduh template xlsx impor Pejuang
+      description: "Permission `employee:write`. Sheet Pejuang berisi kolom formulir yayasan dengan daftar pilihan (cabang, divisi, subdiv, jenis kelamin, status pernikahan, status dan pendidikan anak), sheet Struktur berisi pasangan cabang–divisi–subdiv yang berlaku, dan sheet Petunjuk."
+      responses:
+        "200":
+          description: Berkas xlsx
+          content:
+            application/vnd.openxmlformats-officedocument.spreadsheetml.sheet:
+              schema: { type: string, format: binary }
+        "403": { $ref: "#/components/responses/Error" }
+  /v1/admin/employees/import:
+    post:
+      tags: [Pejuang]
+      summary: Impor massal Pejuang dari xlsx
+      description: >-
+        Permission `employee:write`. Body adalah isi berkas xlsx dari template (maks 5 MB, 1.000 baris).
+        Semua baris diperiksa lebih dulu; bila ada `issues`, tidak ada yang disimpan. NIPY yang sudah terdaftar
+        memperbarui data Pejuang tersebut tanpa mengubah kata sandinya, dan sel kosong tidak mengubah data lama.
+        Baris lain dibuat sebagai Pejuang baru dengan kata sandi awal (D53). `dry_run=true` (bawaan) memeriksa
+        semuanya di transaksi yang dibatalkan; `dry_run=false` menyimpan dalam satu transaksi.
+      parameters:
+        - { name: dry_run, in: query, schema: { type: boolean, default: true } }
+      requestBody:
+        required: true
+        content:
+          application/vnd.openxmlformats-officedocument.spreadsheetml.sheet:
+            schema: { type: string, format: binary }
+      responses:
+        "200":
+          description: Hasil pemeriksaan atau penyimpanan
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data: { $ref: "#/components/schemas/EmployeeImportResult" }
+        "400": { $ref: "#/components/responses/ValidationFailed" }
+        "403": { $ref: "#/components/responses/Error" }
+        "413": { $ref: "#/components/responses/Error" }
   /v1/admin/employees/{id}:
     parameters:
       - $ref: "#/components/parameters/Id"
@@ -2541,6 +2583,44 @@ components:
           properties:
             initial_password: { type: string, description: "Kata sandi awal @NamaDepan+tahun (D53). Hanya tampil sekali." }
             expires_at: { type: string, format: date-time, description: "Batas berlaku kata sandi awal, 72 jam sejak dibuat" }
+    EmployeeImportIssue:
+      type: object
+      required: [row, column, message]
+      properties:
+        row: { type: integer, description: Nomor baris di Excel }
+        column: { type: string, description: Judul kolom template }
+        message: { type: string }
+    EmployeeImportRow:
+      type: object
+      required: [row, action, nip, full_name, initial_password, expires_at]
+      properties:
+        row: { type: integer }
+        action: { type: string, enum: [create, update] }
+        nip: { type: string, nullable: true, description: Kosong pada pratinjau bila NIPY dibuat otomatis }
+        full_name: { type: string }
+        initial_password: { type: string, nullable: true, description: Hanya untuk Pejuang baru saat impor disimpan. Hanya tampil sekali. }
+        expires_at: { type: string, format: date-time, nullable: true }
+    EmployeeImportResult:
+      type: object
+      required: [dry_run, applied, total_rows, created, updated, issues, rows, credentials_file]
+      properties:
+        dry_run: { type: boolean }
+        applied: { type: boolean, description: true bila data sudah tersimpan }
+        total_rows: { type: integer }
+        created: { type: integer }
+        updated: { type: integer }
+        issues:
+          type: array
+          maxItems: 200
+          items: { $ref: "#/components/schemas/EmployeeImportIssue" }
+        rows:
+          type: array
+          items: { $ref: "#/components/schemas/EmployeeImportRow" }
+        credentials_file:
+          type: string
+          format: byte
+          nullable: true
+          description: Berkas xlsx (base64) berisi kata sandi awal Pejuang baru, hanya ada saat impor disimpan. Kata sandi tersimpan sebagai teks.
     InitialCredential:
       type: object
       required: [initial_password, expires_at]

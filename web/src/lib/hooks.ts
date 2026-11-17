@@ -271,7 +271,7 @@ export function useSave<TVars, TRes = unknown>(
     },
     onError: (e) => {
       if (e instanceof ApiError && e.fields && opts.onFieldErrors) opts.onFieldErrors(e.fields);
-      toast.error(e instanceof ApiError ? e.message : "Gagal menyimpan, periksa koneksi.");
+      toast.error(e instanceof ApiError ? e.message : "Data belum tersimpan. Silakan periksa koneksi lalu coba lagi.");
     },
   });
 }

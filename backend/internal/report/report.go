@@ -258,11 +258,11 @@ func readPeriod(r *http.Request) (Period, error) {
 	fields := map[string]string{}
 	year, err := strconv.Atoi(r.URL.Query().Get("year"))
 	if err != nil || year < 2000 || year > 2100 {
-		fields["year"] = "Tahun tidak valid."
+		fields["year"] = "Mohon pilih tahun yang sesuai."
 	}
 	month, err := strconv.Atoi(r.URL.Query().Get("month"))
 	if err != nil || month < 1 || month > 12 {
-		fields["month"] = "Bulan tidak valid."
+		fields["month"] = "Mohon pilih bulan yang sesuai."
 	}
 	if len(fields) > 0 {
 		return Period{}, httpx.Validation(fields)
@@ -281,7 +281,7 @@ func (h *Handler) Attendance(w http.ResponseWriter, r *http.Request) error {
 	}
 	period.WorkMode = r.URL.Query().Get("work_mode")
 	if period.WorkMode != "" && period.WorkMode != "onsite" && period.WorkMode != "wfa" && period.WorkMode != "field" {
-		return httpx.Validation(map[string]string{"work_mode": "Mode kerja tidak valid."})
+		return httpx.Validation(map[string]string{"work_mode": "Mohon pilih mode kerja dari daftar."})
 	}
 	p, _ := auth.PrincipalFrom(r.Context())
 	rows, err := h.svc.Attendance(r.Context(), p, period)

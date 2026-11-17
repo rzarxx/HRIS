@@ -31,6 +31,7 @@ const (
 	EmployeeCreated                = "employee.created"
 	EmployeeUpdated                = "employee.updated"
 	EmployeeDeactivated            = "employee.deactivated"
+	EmployeeImported               = "employee.imported"
 	EmployeeSalaryChanged          = "employee.salary_changed"
 	AnnouncementCreated            = "announcement.created"
 	AnnouncementUpdated            = "announcement.updated"

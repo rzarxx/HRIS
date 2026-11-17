@@ -83,12 +83,14 @@ func validateChildren(children []Child, today time.Time, fields map[string]strin
 	out := make([]store.InsertEmployeeChildParams, 0, len(children))
 	for i, c := range children {
 		prefix := fmt.Sprintf("children.%d.", i)
-		row := store.InsertEmployeeChildParams{ChildOrder: int16(c.ChildOrder), FullName: strings.TrimSpace(c.FullName)}
+		row := store.InsertEmployeeChildParams{FullName: strings.TrimSpace(c.FullName)}
 		switch {
 		case c.ChildOrder < 1 || c.ChildOrder > maxChildren:
 			fields[prefix+"child_order"] = fmt.Sprintf("Anak ke- 1 sampai %d.", maxChildren)
 		case seen[c.ChildOrder]:
-			fields[prefix+"child_order"] = "Urutan anak tidak boleh sama."
+			fields[prefix+"child_order"] = "Urutan anak perlu berbeda satu sama lain."
+		default:
+			row.ChildOrder = int16(c.ChildOrder)
 		}
 		seen[c.ChildOrder] = true
 		if n := len([]rune(row.FullName)); n < 2 || n > 100 {
@@ -98,10 +100,10 @@ func validateChildren(children []Child, today time.Time, fields map[string]strin
 		if row.Gender, msg = optionalEnum(c.Gender, Genders, "Jenis kelamin L atau P."); msg != "" {
 			fields[prefix+"gender"] = msg
 		}
-		if row.Relation, msg = optionalEnum(c.Relation, ChildRelations, "Status anak tidak valid."); msg != "" {
+		if row.Relation, msg = optionalEnum(c.Relation, ChildRelations, "Mohon pilih status anak dari daftar."); msg != "" {
 			fields[prefix+"relation"] = msg
 		}
-		if row.Education, msg = optionalEnum(c.Education, EducationLevels, "Jenjang pendidikan tidak valid."); msg != "" {
+		if row.Education, msg = optionalEnum(c.Education, EducationLevels, "Mohon pilih jenjang pendidikan dari daftar."); msg != "" {
 			fields[prefix+"education"] = msg
 		}
 		row.BirthPlace = optionalLimited(c.BirthPlace, 80, prefix+"birth_place", "Tempat lahir", fields)
@@ -110,9 +112,9 @@ func validateChildren(children []Child, today time.Time, fields map[string]strin
 			d, err := pgconv.ParseDate(strings.TrimSpace(*c.BirthDate))
 			switch {
 			case err != nil:
-				fields[prefix+"birth_date"] = "Tanggal lahir tidak valid."
+				fields[prefix+"birth_date"] = "Mohon periksa kembali tanggal lahir."
 			case d.Time.After(today):
-				fields[prefix+"birth_date"] = "Tanggal lahir tidak boleh di masa depan."
+				fields[prefix+"birth_date"] = "Tanggal lahir perlu sebelum hari ini."
 			}
 			row.BirthDate = d
 		}

@@ -139,7 +139,7 @@ func validateTierInput(in TierInput, now time.Time) (store.DeviceIntegrityTier, 
 	switch tier {
 	case store.DeviceIntegrityTierPlay, store.DeviceIntegrityTierAttestation, store.DeviceIntegrityTierManual, store.DeviceIntegrityTierKiosk:
 	default:
-		fields["integrity_tier"] = "Jalur verifikasi tidak valid."
+		fields["integrity_tier"] = "Mohon pilih jalur verifikasi dari daftar."
 	}
 	reason := strings.TrimSpace(in.Reason)
 	if len(reason) < minTierReasonLen || len(reason) > maxTierReasonLen {
@@ -152,9 +152,9 @@ func validateTierInput(in TierInput, now time.Time) (store.DeviceIntegrityTier, 
 		} else {
 			parsed, err := time.Parse(time.RFC3339, strings.TrimSpace(*in.ManualApprovedUntil))
 			if err != nil {
-				fields["manual_approved_until"] = "Format waktu tidak valid."
+				fields["manual_approved_until"] = "Mohon periksa kembali format waktu."
 			} else if !parsed.After(now) || parsed.After(now.AddDate(0, 0, maxManualApprovalDay)) {
-				fields["manual_approved_until"] = "Masa berlaku jalur manual harus di masa depan dan maksimal 90 hari."
+				fields["manual_approved_until"] = "Masa berlaku jalur manual diisi tanggal mendatang, paling lama 90 hari."
 			} else {
 				manualUntil = pgconv.Time(parsed.UTC())
 			}
@@ -167,7 +167,7 @@ func validateTierInput(in TierInput, now time.Time) (store.DeviceIntegrityTier, 
 }
 
 func errRevoked() error {
-	return httpx.NewError(http.StatusForbidden, "DEVICE_REVOKED", "Perangkat ini sudah dicabut. Hubungi SDM.")
+	return httpx.NewError(http.StatusForbidden, "DEVICE_REVOKED", "Perangkat ini sudah tidak terdaftar. Silakan hubungi SDM.")
 }
 
 // Service memuat aturan perangkat.
@@ -332,7 +332,7 @@ func (s *Service) List(ctx context.Context, status string, page httpx.Page) ([]A
 		case store.DeviceStatusPending, store.DeviceStatusApproved, store.DeviceStatusRevoked:
 			filter = store.NullDeviceStatus{DeviceStatus: store.DeviceStatus(status), Valid: true}
 		default:
-			return nil, 0, httpx.Validation(map[string]string{"status": "Status tidak valid."})
+			return nil, 0, httpx.Validation(map[string]string{"status": "Mohon pilih status dari daftar."})
 		}
 	}
 	total, err := s.q.CountDevices(ctx, filter)
@@ -384,7 +384,7 @@ func (s *Service) Approve(ctx context.Context, p auth.Principal, ip *netip.Addr,
 			return err
 		}
 		if d.EmployeeID == p.EmployeeID {
-			return httpx.NewError(http.StatusConflict, "CONFLICT_SELF_ACTION", "Perangkat sendiri harus disetujui peninjau lain.")
+			return httpx.NewError(http.StatusConflict, "CONFLICT_SELF_ACTION", "Perangkat sendiri disetujui oleh peninjau lain.")
 		}
 		switch d.Status {
 		case store.DeviceStatusApproved:
@@ -538,7 +538,7 @@ func (s *Service) SetTier(ctx context.Context, p auth.Principal, ip *netip.Addr,
 			return err
 		}
 		if d.EmployeeID == p.EmployeeID && tier != store.DeviceIntegrityTierPlay {
-			return httpx.NewError(http.StatusConflict, "CONFLICT_SELF_ACTION", "Jalur verifikasi perangkat sendiri harus diubah peninjau lain.")
+			return httpx.NewError(http.StatusConflict, "CONFLICT_SELF_ACTION", "Jalur verifikasi perangkat sendiri diubah oleh peninjau lain.")
 		}
 		if d.Status == store.DeviceStatusRevoked {
 			return errRevoked()

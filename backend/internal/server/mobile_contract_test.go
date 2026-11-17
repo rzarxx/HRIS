@@ -36,7 +36,7 @@ func TestMobileDTOsMatchOpenAPI(t *testing.T) {
 	if err := yaml.Unmarshal(raw, &doc); err != nil {
 		t.Fatal(err)
 	}
-	src, err := os.ReadFile("../../../mobile/app/src/main/java/id/pejuang/hris/data/Dto.kt")
+	src, err := os.ReadFile("../../../mobile/app/src/main/java/id/albahjah/hris/data/Dto.kt")
 	if err != nil {
 		t.Fatal(err)
 	}

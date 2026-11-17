@@ -23,7 +23,7 @@ type remoteFaceStatus struct {
 
 func (s *Service) remoteFacePermission(ctx context.Context, p auth.Principal, ip *netip.Addr, employeeID uuid.UUID, method, reason string) (*remoteFaceStatus, error) {
 	if employeeID == p.EmployeeID {
-		return nil, httpx.NewError(http.StatusConflict, "CONFLICT_SELF_ACTION", "Izin sendiri harus dikelola peninjau lain.")
+		return nil, httpx.NewError(http.StatusConflict, "CONFLICT_SELF_ACTION", "Izin untuk diri sendiri dikelola oleh peninjau lain.")
 	}
 	reason = strings.TrimSpace(reason)
 	if method == http.MethodPut && (reason == "" || len([]rune(reason)) > 500) {

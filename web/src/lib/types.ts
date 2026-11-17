@@ -16,6 +16,7 @@ export type SubdivisionWithStats = Schemas["Subdivision"];
 export type EmployeeListItem = Schemas["Employee"];
 export type EmployeeCreated = Schemas["EmployeeCreated"];
 export type InitialCredential = Schemas["InitialCredential"];
+export type EmployeeImportResult = Schemas["EmployeeImportResult"];
 export type Branch = Schemas["Branch"];
 export type EmployeeChild = Schemas["EmployeeChild"];
 export type Gender = NonNullable<Schemas["Gender"]>;

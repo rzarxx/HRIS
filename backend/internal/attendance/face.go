@@ -86,7 +86,7 @@ func errFaceNotEnrolled() error {
 }
 
 func errLiveness() error {
-	return httpx.NewError(http.StatusUnprocessableEntity, "LIVENESS_FAILED", "Verifikasi wajah hidup gagal, silakan ulangi.")
+	return httpx.NewError(http.StatusUnprocessableEntity, "LIVENESS_FAILED", "Verifikasi wajah belum berhasil. Silakan ulangi dengan wajah menghadap kamera.")
 }
 
 func errFaceNotDetected(detail string) error {
@@ -274,7 +274,7 @@ func (s *Service) checkFace(ctx context.Context, a *attempt, in ClockInput) (fac
 	}
 	switch {
 	case similarity < s.faceThresholdReview():
-		return faceResult{}, s.reject(ctx, *a, "face_mismatch", httpx.NewError(http.StatusUnprocessableEntity, "FACE_MISMATCH", "Wajah tidak cocok, silakan ulangi."))
+		return faceResult{}, s.reject(ctx, *a, "face_mismatch", httpx.NewError(http.StatusUnprocessableEntity, "FACE_MISMATCH", "Wajah belum cocok dengan data terdaftar. Silakan ulangi."))
 	case similarity < s.faceThresholdPass():
 		a.flags = append(a.flags, flagFaceBorderline)
 	}
@@ -358,7 +358,7 @@ func (in EnrollInput) validate() (uuid.UUID, Point, error) {
 	fields := map[string]string{}
 	challengeID, err := uuid.Parse(in.ChallengeID)
 	if err != nil {
-		fields["challenge_id"] = "Tantangan tidak valid."
+		fields["challenge_id"] = "Sesi presensi belum dikenali. Silakan ulangi."
 	}
 	if v := strings.TrimSpace(in.ConsentVersion); v == "" || len(v) > maxConsentLength {
 		fields["consent_version"] = "Persetujuan biometrik wajib diterima."
@@ -367,10 +367,10 @@ func (in EnrollInput) validate() (uuid.UUID, Point, error) {
 	if in.Latitude == nil || in.Longitude == nil {
 		fields["latitude"] = "Lokasi wajib dikirim."
 	} else if point = (Point{Latitude: *in.Latitude, Longitude: *in.Longitude}); !point.Valid() {
-		fields["latitude"] = "Lokasi tidak valid."
+		fields["latitude"] = "Lokasi belum terbaca. Silakan coba lagi."
 	}
 	if in.AccuracyM == nil || math.IsNaN(*in.AccuracyM) || *in.AccuracyM < 0 || *in.AccuracyM > maxAccuracyM {
-		fields["accuracy_m"] = "Akurasi lokasi tidak valid."
+		fields["accuracy_m"] = "Akurasi lokasi belum terbaca. Silakan coba lagi."
 	}
 	if n := len(in.samples); n < minFaceSamples || n > maxFaceSamples {
 		fields["samples"] = "Kirim 3 sampai 5 foto wajah."
@@ -385,7 +385,7 @@ func (in EnrollInput) validate() (uuid.UUID, Point, error) {
 				break
 			}
 			if seen[sum] {
-				fields["samples"] = "Setiap foto harus berbeda."
+				fields["samples"] = "Mohon ambil foto yang berbeda untuk setiap sampel."
 				break
 			}
 			seen[sum] = true
@@ -513,7 +513,7 @@ func (s *Service) Enroll(ctx context.Context, p auth.Principal, ip *netip.Addr, 
 	}
 	template := face.Template(vectors)
 	if template == nil {
-		return FaceStatus{}, httpx.Validation(map[string]string{"samples": "Foto wajah tidak valid, silakan ulangi."})
+		return FaceStatus{}, httpx.Validation(map[string]string{"samples": "Foto wajah belum terbaca dengan jelas. Silakan ulangi."})
 	}
 	enc, err := s.opt.Cipher.Encrypt(encodeEmbedding(template))
 	if err != nil {
@@ -528,7 +528,7 @@ func (s *Service) Enroll(ctx context.Context, p auth.Principal, ip *netip.Addr, 
 				return err
 			}
 			if consumed == 0 {
-				return httpx.NewError(http.StatusUnprocessableEntity, "GEOFENCE_OUT", "Izin pendaftaran jarak jauh tidak berlaku.")
+				return httpx.NewError(http.StatusUnprocessableEntity, "GEOFENCE_OUT", "Izin pendaftaran jarak jauh sudah tidak berlaku. Silakan hubungi SDM.")
 			}
 		}
 		replaced, err := q.DeactivateFaceTemplates(ctx, store.DeactivateFaceTemplatesParams{Actor: audit.Actor(p.UserID), EmployeeID: p.EmployeeID})
@@ -560,7 +560,7 @@ func (s *Service) Enroll(ctx context.Context, p auth.Principal, ip *netip.Addr, 
 // untuk dirinya sendiri, dan tidak untuk super admin (D34).
 func (s *Service) ResetFace(ctx context.Context, p auth.Principal, ip *netip.Addr, employeeID uuid.UUID, reason string) error {
 	if employeeID == p.EmployeeID {
-		return httpx.NewError(http.StatusConflict, "CONFLICT_SELF_ACTION", "Wajah sendiri harus direset peninjau lain.")
+		return httpx.NewError(http.StatusConflict, "CONFLICT_SELF_ACTION", "Wajah sendiri direset oleh peninjau lain.")
 	}
 	reason = strings.TrimSpace(reason)
 	if reason == "" || len([]rune(reason)) > 500 {
@@ -599,7 +599,7 @@ type ConsentInput struct {
 func (s *Service) RecordConsent(ctx context.Context, p auth.Principal, ip *netip.Addr, in ConsentInput) error {
 	fields := map[string]string{}
 	if in.Type != ConsentBiometricFace && in.Type != ConsentLocation {
-		fields["type"] = "Jenis persetujuan tidak valid."
+		fields["type"] = "Mohon pilih jenis persetujuan yang tersedia."
 	}
 	if v := strings.TrimSpace(in.Version); v == "" || len(v) > maxConsentLength {
 		fields["version"] = "Versi persetujuan wajib diisi."

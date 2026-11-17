@@ -60,7 +60,7 @@ export default function AttendanceReportPage() {
       a.click();
       URL.revokeObjectURL(url);
     } catch (err) {
-      toast.error(err instanceof ApiError ? err.message : "Gagal mengekspor berkas Excel.");
+      toast.error(err instanceof ApiError ? err.message : "Berkas Excel belum berhasil dibuat. Silakan coba lagi.");
     } finally {
       setExporting(false);
     }

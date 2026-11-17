@@ -36,7 +36,7 @@ func defaultTestAttestationOpts(challenge string, certDigest []byte) testAttesta
 		origin:            KeyOriginGenerated,
 		deviceLocked:      true,
 		verifiedBootState: VerifiedBootStateVerified,
-		packageName:       "id.pejuang.hris",
+		packageName:       "id.albahjah.hris",
 		certDigest:        certDigest,
 		serial:            100,
 	}
@@ -187,7 +187,7 @@ func TestKeyAttestationVerifier(t *testing.T) {
 		opts := defaultTestAttestationOpts(hash, certDigest[:])
 		chain, pubDER, roots := buildTestAttestationChain(t, now, opts)
 		v := KeyAttestationVerifier{
-			PackageName:       "id.pejuang.hris",
+			PackageName:       "id.albahjah.hris",
 			SigningCertSHA256: certDigest[:],
 			Roots:             roots,
 			Now:               func() time.Time { return now },
@@ -201,7 +201,7 @@ func TestKeyAttestationVerifier(t *testing.T) {
 		opts := defaultTestAttestationOpts(hash, certDigest[:])
 		opts.securityLevel = SecurityLevelSoftware
 		chain, pubDER, roots := buildTestAttestationChain(t, now, opts)
-		v := KeyAttestationVerifier{PackageName: "id.pejuang.hris", Roots: roots, Now: func() time.Time { return now }}
+		v := KeyAttestationVerifier{PackageName: "id.albahjah.hris", Roots: roots, Now: func() time.Time { return now }}
 		if err := v.Verify(chain, pubDER, hash); !errors.Is(err, ErrInvalid) {
 			t.Fatalf("ingin ErrInvalid untuk software keystore, dapat %v", err)
 		}
@@ -211,7 +211,7 @@ func TestKeyAttestationVerifier(t *testing.T) {
 		opts := defaultTestAttestationOpts(hash, certDigest[:])
 		opts.deviceLocked = false
 		chain, pubDER, roots := buildTestAttestationChain(t, now, opts)
-		v := KeyAttestationVerifier{PackageName: "id.pejuang.hris", Roots: roots, Now: func() time.Time { return now }}
+		v := KeyAttestationVerifier{PackageName: "id.albahjah.hris", Roots: roots, Now: func() time.Time { return now }}
 		if err := v.Verify(chain, pubDER, hash); !errors.Is(err, ErrInvalid) {
 			t.Fatalf("ingin ErrInvalid untuk bootloader terbuka, dapat %v", err)
 		}
@@ -221,7 +221,7 @@ func TestKeyAttestationVerifier(t *testing.T) {
 		otherHash, _ := AttendanceHash(strings.Repeat("f", 64), -6.2001, 106.8166, now, strings.Repeat("b", 64), strings.Repeat("c", 64))
 		opts := defaultTestAttestationOpts(otherHash, certDigest[:])
 		chain, pubDER, roots := buildTestAttestationChain(t, now, opts)
-		v := KeyAttestationVerifier{PackageName: "id.pejuang.hris", Roots: roots, Now: func() time.Time { return now }}
+		v := KeyAttestationVerifier{PackageName: "id.albahjah.hris", Roots: roots, Now: func() time.Time { return now }}
 		err := v.Verify(chain, pubDER, hash)
 		if !errors.Is(err, ErrInvalid) || !errors.Is(err, ErrNonceMismatch) {
 			t.Fatalf("ingin ErrNonceMismatch + ErrInvalid, dapat %v", err)
@@ -239,7 +239,7 @@ func TestKeyAttestationVerifier(t *testing.T) {
 
 		serialHex := strings.ToLower(hex.EncodeToString(big.NewInt(opts.serial).Bytes()))
 		vCRL := KeyAttestationVerifier{
-			PackageName:    "id.pejuang.hris",
+			PackageName:    "id.albahjah.hris",
 			Roots:          roots,
 			RevokedSerials: map[string]bool{serialHex: true},
 			Now:            func() time.Time { return now },
@@ -258,7 +258,7 @@ func TestKeyAttestationVerifier(t *testing.T) {
 		opts := defaultTestAttestationOpts(boundChallenge, certDigest[:])
 		chain, _, roots := buildTestAttestationChain(t, now, opts)
 		v := KeyAttestationVerifier{
-			PackageName:       "id.pejuang.hris",
+			PackageName:       "id.albahjah.hris",
 			SigningCertSHA256: certDigest[:],
 			Roots:             roots,
 			Now:               func() time.Time { return now },

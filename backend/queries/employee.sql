@@ -71,6 +71,11 @@ WHERE id = $1 AND deleted_at IS NULL;
 UPDATE employees SET status = 'inactive', exit_date = COALESCE(exit_date, @exit_date), updated_at = now()
 WHERE id = @id AND deleted_at IS NULL AND status = 'active';
 
+-- Impor massal: NIPY yang sudah ada diperbarui, bukan dibuat ulang.
+-- name: ListEmployeesByNips :many
+SELECT id, upper(nip)::text AS nip FROM employees
+WHERE deleted_at IS NULL AND upper(nip) = ANY(@nips::text[]);
+
 -- name: NextNipSequence :one
 SELECT COALESCE(MAX(NULLIF(regexp_replace(right(nip, 4), '\D', '', 'g'), '')::int), 0)::int + 1 AS next_seq FROM employees;
 

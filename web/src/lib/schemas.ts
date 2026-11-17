@@ -57,7 +57,7 @@ export const childSchema = z.object({
   full_name: required("Nama anak").min(2, "Nama anak minimal 2 karakter.").max(100, "Nama anak maksimal 100 karakter."),
   gender: z.enum(enumKeys(GENDERS)).nullable().optional(),
   birth_place: optionalText,
-  birth_date: optionalText.refine(blankOr(isoDate), "Tanggal lahir tidak valid."),
+  birth_date: optionalText.refine(blankOr(isoDate), "Mohon periksa kembali tanggal lahir."),
   relation: z.enum(enumKeys(CHILD_RELATIONS)).nullable().optional(),
   education: z.enum(enumKeys(EDUCATION_LEVELS)).nullable().optional(),
   school_name: optionalText,
@@ -66,8 +66,8 @@ export const childSchema = z.object({
 export const employeeSchema = z.object({
   nip: optionalText.refine(blankOr((v) => /^[A-Za-z0-9.-]{4,20}$/.test(v)), "NIPY 4-20 karakter huruf, angka, titik, atau minus."),
   full_name: required("Nama lengkap").min(3, "Nama minimal 3 karakter.").max(100, "Nama maksimal 100 karakter."),
-  email: optionalText.refine(blankOr((v) => z.string().email().safeParse(v).success), "Format email tidak valid."),
-  phone: optionalText.refine(blankOr((v) => /^(\+?62|0)?8[0-9]{7,12}$/.test(v.replace(/[\s-]/g, ""))), "Nomor WA tidak valid (contoh 081234567890)."),
+  email: optionalText.refine(blankOr((v) => z.string().email().safeParse(v).success), "Mohon periksa kembali format email, contoh nama@contoh.id."),
+  phone: optionalText.refine(blankOr((v) => /^(\+?62|0)?8[0-9]{7,12}$/.test(v.replace(/[\s-]/g, ""))), "Mohon periksa kembali nomor WA, contoh 081234567890."),
   gender: z.enum(enumKeys(GENDERS)).nullable().optional(),
   marital_status: z.enum(enumKeys(MARITAL_STATUSES)).nullable().optional(),
   has_children: z.boolean().nullable().optional(),
@@ -75,7 +75,7 @@ export const employeeSchema = z.object({
   children: z.array(childSchema).max(10).optional(),
   subdivision_id: required("Subdiv").uuid("Pilih subdiv."),
   position: optionalText,
-  join_date: optionalText.refine(blankOr((v) => /^\d{4}-\d{2}-\d{2}$/.test(v)), "Tanggal tidak valid."),
+  join_date: optionalText.refine(blankOr((v) => /^\d{4}-\d{2}-\d{2}$/.test(v)), "Mohon periksa kembali tanggal."),
   base_salary: required("Ubar pokok").regex(/^\d+(\.\d{1,2})?$/, "Ubar pokok harus angka.").optional(),
   status: z.enum(["active", "inactive"]),
   default_shift_id: z.string().uuid().nullable().optional(),
@@ -87,8 +87,8 @@ export const announcementSchema = z
     body: required("Isi").max(2000, "Isi maksimal 2000 karakter."),
     type: z.enum(["popup", "banner"], { error: "Pilih tipe." }),
     division_id: z.string().uuid().nullable().optional(),
-    starts_at: required("Mulai tayang").datetime({ error: "Tanggal mulai tidak valid." }),
-    ends_at: z.string().datetime({ error: "Tanggal berakhir tidak valid." }).nullable().optional(),
+    starts_at: required("Mulai tayang").datetime({ error: "Mohon periksa kembali tanggal mulai." }),
+    ends_at: z.string().datetime({ error: "Mohon periksa kembali tanggal berakhir." }).nullable().optional(),
     is_active: z.boolean(),
     min_read_seconds: z
       .number({ error: "Isi jeda baca dalam detik." })
@@ -127,7 +127,7 @@ export const locationSchema = z.object({
   name: required("Nama lokasi").max(120, "Nama maksimal 120 karakter."),
   latitude: coordinate("Lintang", 90),
   longitude: coordinate("Bujur", 180),
-  radius_m: required("Radius").refine((v) => Number.isInteger(Number(v)) && Number(v) >= 10 && Number(v) <= 5000, "Radius harus antara 10 dan 5000 meter."),
+  radius_m: required("Radius").refine((v) => Number.isInteger(Number(v)) && Number(v) >= 10 && Number(v) <= 5000, "Radius diisi antara 10 dan 5000 meter."),
   polygon: z.string().refine((v) => {
     if (!v.trim()) return true;
     const points = parsePolygon(v);
@@ -147,7 +147,7 @@ export const shiftSchema = z
     late_tolerance_minutes: required("Toleransi").refine((v) => Number.isInteger(Number(v)) && Number(v) >= 0 && Number(v) <= 240, "Toleransi harus 0 sampai 240 menit."),
     work_days: z.array(z.number()).min(1, "Pilih minimal satu hari kerja."),
   })
-  .refine((v) => v.start_time !== v.end_time, { path: ["end_time"], message: "Jam pulang tidak boleh sama dengan jam masuk." });
+  .refine((v) => v.start_time !== v.end_time, { path: ["end_time"], message: "Jam pulang perlu berbeda dari jam masuk." });
 export type ShiftForm = z.infer<typeof shiftSchema>;
 
 export const holidaySchema = z.object({
@@ -165,7 +165,7 @@ export const workArrangementSchema = z
     weekdays: z.array(z.number()),
     reason: required("Alasan").max(500, "Alasan maksimal 500 karakter."),
   })
-  .refine((v) => !v.ends_on || v.ends_on >= v.starts_on, { path: ["ends_on"], message: "Tanggal selesai tidak boleh sebelum tanggal mulai." });
+  .refine((v) => !v.ends_on || v.ends_on >= v.starts_on, { path: ["ends_on"], message: "Tanggal selesai perlu sama dengan atau setelah tanggal mulai." });
 
 /** Mengembalikan pesan error per field atau null bila valid. */
 export function validate(schema: z.ZodType, values: unknown): Record<string, string> | null {

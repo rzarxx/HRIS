@@ -5,7 +5,7 @@ import { useEffect, type ReactNode } from "react";
 
 export function PageHeader({ title, description, actions }: { title: string; description?: string; actions?: ReactNode }) {
   useEffect(() => {
-    document.title = `${title} · HRIS Yayasan Al Bahjah`;
+    document.title = `${title} · HRIS Al Bahjah`;
   }, [title]);
 
   return (

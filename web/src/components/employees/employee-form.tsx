@@ -180,7 +180,7 @@ export function EmployeeForm({
     if (managesSalary && base_salary === "") all.base_salary = "Ubar pokok wajib diisi.";
     if (count !== null && Number.isNaN(count)) all.children_count = "Jumlah anak harus angka.";
     if (values.has_children === false && ((count ?? 0) > 0 || (children?.length ?? 0) > 0)) all.has_children = 'Pilih "Ya" bila ada data anak.';
-    if (count !== null && children && count < children.length) all.children_count = "Jumlah anak tidak boleh lebih sedikit dari data anak yang diisi.";
+    if (count !== null && children && count < children.length) all.children_count = "Jumlah anak perlu sama atau lebih dari data anak yang diisi.";
     setErrors(all);
     if (Object.keys(all).length === 0) save.mutate(values);
   }

@@ -108,6 +108,8 @@ func routes(d Deps) []Route {
 
 		guarded(http.MethodGet, "/v1/admin/employees", d.Employee.List, permission.EmployeeRead),
 		guarded(http.MethodPost, "/v1/admin/employees", d.Employee.Create, permission.EmployeeWrite),
+		guarded(http.MethodGet, "/v1/admin/employees/import-template", d.Employee.ImportTemplate, permission.EmployeeWrite),
+		guarded(http.MethodPost, "/v1/admin/employees/import", d.Employee.Import, permission.EmployeeWrite),
 		guarded(http.MethodGet, "/v1/admin/employees/{id}", d.Employee.Get, permission.EmployeeRead),
 		guarded(http.MethodPatch, "/v1/admin/employees/{id}", d.Employee.Update, permission.EmployeeWrite),
 		guarded(http.MethodPost, "/v1/admin/employees/{id}/deactivate", d.Employee.Deactivate, permission.EmployeeWrite),

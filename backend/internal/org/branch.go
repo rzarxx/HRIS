@@ -151,7 +151,7 @@ func (s *Service) DeleteBranch(ctx context.Context, actor audit.Entry, id uuid.U
 func (s *Service) assertBranchExists(ctx context.Context, id uuid.UUID) error {
 	_, err := s.q.GetBranch(ctx, id)
 	if pgconv.IsNoRows(err) {
-		return httpx.Validation(map[string]string{"branch_id": "Cabang tidak ditemukan."})
+		return httpx.Validation(map[string]string{"branch_id": "Cabang belum terdaftar."})
 	}
 	return err
 }

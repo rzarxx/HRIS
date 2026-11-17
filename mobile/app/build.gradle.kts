@@ -35,11 +35,11 @@ for (url in listOf(releaseApiBaseUrl, debugApiBaseUrl)) {
 }
 
 android {
-    namespace = "id.pejuang.hris"
+    namespace = "id.albahjah.hris"
     compileSdk = 36
 
     defaultConfig {
-        applicationId = "id.pejuang.hris"
+        applicationId = "id.albahjah.hris"
         minSdk = 26
         // Google Play mewajibkan API 36 (Android 16) untuk aplikasi baru dan update sejak 31 Agu 2026.
         targetSdk = 36

@@ -197,18 +197,18 @@ func (s *Service) parse(in CreateInput) (parsedCreate, error) {
 	p.typeID = id
 	start, err := time.Parse(dateLayout, in.StartDate)
 	if err != nil {
-		fields["start_date"] = "Tanggal mulai tidak valid."
+		fields["start_date"] = "Mohon periksa kembali tanggal mulai."
 	}
 	end, err2 := time.Parse(dateLayout, in.EndDate)
 	if err2 != nil {
-		fields["end_date"] = "Tanggal selesai tidak valid."
+		fields["end_date"] = "Mohon periksa kembali tanggal selesai."
 	}
 	p.start, p.end = start, end
 	if err == nil && err2 == nil {
 		today := s.today()
 		switch {
 		case end.Before(start):
-			fields["end_date"] = "Tanggal selesai tidak boleh sebelum tanggal mulai."
+			fields["end_date"] = "Tanggal selesai perlu sama dengan atau setelah tanggal mulai."
 		case start.Year() != end.Year():
 			fields["end_date"] = "Pisahkan pengajuan yang melewati pergantian tahun."
 		case end.Sub(start) >= maxRangeDays*24*time.Hour:
@@ -275,7 +275,7 @@ func (s *Service) Create(ctx context.Context, p auth.Principal, ip *netip.Addr, 
 			return err
 		}
 		if len(profile.WorkDays) == 0 {
-			return httpx.NewError(http.StatusUnprocessableEntity, "SHIFT_NOT_ASSIGNED", "Shift Anda belum ditentukan. Hubungi SDM.")
+			return httpx.NewError(http.StatusUnprocessableEntity, "SHIFT_NOT_ASSIGNED", "Shift Anda belum ditentukan. Silakan hubungi SDM.")
 		}
 		overlap, err := q.CountOverlappingLeaves(ctx, store.CountOverlappingLeavesParams{
 			EmployeeID: p.EmployeeID, StartDate: pgconv.Date(parsed.start), EndDate: pgconv.Date(parsed.end),
@@ -498,19 +498,19 @@ func (s *Service) AdminList(ctx context.Context, p auth.Principal, status, from,
 		switch st.RequestStatus {
 		case store.RequestStatusPending, store.RequestStatusApproved, store.RequestStatusRejected, store.RequestStatusCancelled:
 		default:
-			fields["status"] = "Status tidak dikenal."
+			fields["status"] = "Status belum dikenali."
 		}
 	}
 	year := s.today().Year()
 	fromDate, toDate := pgconv.Date(time.Date(year, 1, 1, 0, 0, 0, 0, time.UTC)), pgconv.Date(time.Date(year, 12, 31, 0, 0, 0, 0, time.UTC))
 	if from != "" {
 		if fromDate, err = pgconv.ParseDate(from); err != nil {
-			fields["from"] = "Tanggal tidak valid."
+			fields["from"] = "Mohon periksa kembali tanggal."
 		}
 	}
 	if to != "" {
 		if toDate, err = pgconv.ParseDate(to); err != nil {
-			fields["to"] = "Tanggal tidak valid."
+			fields["to"] = "Mohon periksa kembali tanggal."
 		}
 	}
 	if len(fields) > 0 {

@@ -62,7 +62,7 @@ func (s *Service) ReviewQueue(ctx context.Context, workMode string, page httpx.P
 	filter := pgtype.Text{}
 	if workMode != "" {
 		if workMode != WorkModeOnsite && workMode != WorkModeWFA && workMode != WorkModeField {
-			return nil, 0, httpx.Validation(map[string]string{"work_mode": "Mode kerja tidak valid."})
+			return nil, 0, httpx.Validation(map[string]string{"work_mode": "Mohon pilih mode kerja dari daftar."})
 		}
 		filter = pgtype.Text{String: workMode, Valid: true}
 	}
@@ -120,7 +120,7 @@ func (s *Service) Resolve(ctx context.Context, p auth.Principal, ip *netip.Addr,
 	case store.AttStatusPresent, store.AttStatusLate:
 	case store.AttStatusAbsent:
 		if len(note) < minAbsentNoteLen {
-			fields["note"] = "Catatan wajib diisi bila presensi tidak valid, minimal 3 karakter."
+			fields["note"] = "Mohon isi catatan minimal 3 karakter bila presensi tidak disahkan."
 		}
 	default:
 		fields["decision"] = "Pilih hadir, telat, atau tidak hadir."
@@ -142,7 +142,7 @@ func (s *Service) Resolve(ctx context.Context, p auth.Principal, ip *netip.Addr,
 			return err
 		}
 		if current.EmployeeID == p.EmployeeID {
-			return httpx.NewError(http.StatusConflict, "CONFLICT_SELF_ACTION", "Presensi sendiri harus ditinjau peninjau lain.")
+			return httpx.NewError(http.StatusConflict, "CONFLICT_SELF_ACTION", "Presensi sendiri ditinjau oleh peninjau lain.")
 		}
 		if current.Status != store.AttStatusReview {
 			return httpx.NewError(http.StatusConflict, "REQUEST_NOT_PENDING", "Presensi ini sudah ditinjau.")

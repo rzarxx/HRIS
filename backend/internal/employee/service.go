@@ -141,7 +141,7 @@ func (in Input) validate(today time.Time) (validated, error) {
 	if raw := pgconv.Text(in.Phone); raw.Valid {
 		normalized, ok := phone.Normalize(raw.String)
 		if !ok {
-			fields["phone"] = "Nomor WA tidak valid (contoh 081234567890)."
+			fields["phone"] = "Mohon periksa kembali nomor WA, contoh 081234567890."
 		}
 		v.Phone = pgtype.Text{String: normalized, Valid: ok}
 	}
@@ -149,7 +149,7 @@ func (in Input) validate(today time.Time) (validated, error) {
 	if v.Gender, msg = optionalEnum(in.Gender, Genders, "Jenis kelamin L atau P."); msg != "" {
 		fields["gender"] = msg
 	}
-	if v.MaritalStatus, msg = optionalEnum(in.MaritalStatus, MaritalStatuses, "Status pernikahan tidak valid."); msg != "" {
+	if v.MaritalStatus, msg = optionalEnum(in.MaritalStatus, MaritalStatuses, "Mohon pilih status pernikahan dari daftar."); msg != "" {
 		fields["marital_status"] = msg
 	}
 	if in.Children != nil {
@@ -169,7 +169,7 @@ func (in Input) validate(today time.Time) (validated, error) {
 	case v.HasChildren.Valid && !v.HasChildren.Bool && ((v.ChildrenCount.Valid && v.ChildrenCount.Int16 > 0) || len(v.Children) > 0):
 		fields["has_children"] = "Isi \"memiliki anak\" dengan Ya bila ada data anak."
 	case v.ChildrenCount.Valid && int(v.ChildrenCount.Int16) < len(v.Children):
-		fields["children_count"] = "Jumlah anak tidak boleh lebih sedikit dari data anak yang diisi."
+		fields["children_count"] = "Jumlah anak perlu sama atau lebih dari data anak yang diisi."
 	}
 	if in.Nip != nil {
 		v.Nip = strings.ToUpper(strings.TrimSpace(*in.Nip))
@@ -187,7 +187,7 @@ func (in Input) validate(today time.Time) (validated, error) {
 	}
 	// Email tidak lagi wajib: login bisa memakai NIPY atau nomor WA (D53).
 	if v.Email.Valid && (len(v.Email.String) > 254 || !emailPattern.MatchString(v.Email.String)) {
-		fields["email"] = "Format email tidak valid."
+		fields["email"] = "Mohon periksa kembali format email, contoh nama@contoh.id."
 	}
 	if v.Position.Valid && len(v.Position.String) > 100 {
 		fields["position"] = "Jabatan maksimal 100 karakter."
@@ -200,7 +200,7 @@ func (in Input) validate(today time.Time) (validated, error) {
 	if in.JoinDate != nil && strings.TrimSpace(*in.JoinDate) != "" {
 		d, err := pgconv.ParseDate(strings.TrimSpace(*in.JoinDate))
 		if err != nil {
-			fields["join_date"] = "Tanggal tidak valid."
+			fields["join_date"] = "Mohon periksa kembali tanggal."
 		}
 		v.JoinDate = d
 	}
@@ -208,16 +208,16 @@ func (in Input) validate(today time.Time) (validated, error) {
 	case in.BaseSalary == "":
 		fields["base_salary"] = "Ubar pokok wajib diisi."
 	case !moneyPattern.MatchString(in.BaseSalary):
-		fields["base_salary"] = "Ubar pokok harus angka, contoh 4500000.00."
+		fields["base_salary"] = "Ubar pokok diisi angka, contoh 4500000.00."
 	default:
 		amount, err := decimal.NewFromString(in.BaseSalary)
 		if err != nil || amount.GreaterThan(maxBaseSalary) {
-			fields["base_salary"] = "Ubar pokok terlalu besar."
+			fields["base_salary"] = "Ubar pokok melebihi batas maksimal."
 		}
 		v.BaseSalary = amount
 	}
 	if v.Status != "active" && v.Status != "inactive" {
-		fields["status"] = "Status tidak valid."
+		fields["status"] = "Mohon pilih status dari daftar."
 	}
 	shiftID, err := pgconv.ParseOptionalUUID(in.DefaultShiftID)
 	if err != nil {
@@ -368,7 +368,7 @@ func (s *Service) getScoped(ctx context.Context, p auth.Principal, id uuid.UUID)
 func (s *Service) assertSubdivision(ctx context.Context, id uuid.UUID) error {
 	_, err := s.q.GetSubdivision(ctx, id)
 	if pgconv.IsNoRows(err) {
-		return httpx.Validation(map[string]string{"subdivision_id": "Subdiv tidak ditemukan."})
+		return httpx.Validation(map[string]string{"subdivision_id": "Subdiv belum terdaftar."})
 	}
 	return err
 }
@@ -379,7 +379,7 @@ func (s *Service) assertShift(ctx context.Context, id uuid.NullUUID) error {
 	}
 	_, err := s.q.GetShift(ctx, id.UUID)
 	if pgconv.IsNoRows(err) {
-		return httpx.Validation(map[string]string{"default_shift_id": "Shift tidak ditemukan."})
+		return httpx.Validation(map[string]string{"default_shift_id": "Shift belum terdaftar."})
 	}
 	return err
 }
@@ -417,7 +417,7 @@ func (s *Service) Create(ctx context.Context, p auth.Principal, ip audit.Entry, 
 	var id uuid.UUID
 	err = database.InTx(ctx, s.pool, func(q *store.Queries) error {
 		var err error
-		id, err = s.insert(ctx, q, ip, v, hash, credential.Expires(), now)
+		id, _, err = s.insert(ctx, q, ip, v, hash, credential.Expires(), now)
 		return err
 	})
 	if err != nil {
@@ -432,12 +432,12 @@ func (s *Service) Create(ctx context.Context, p auth.Principal, ip audit.Entry, 
 
 // insert menulis data Pejuang baru, data anak, dan akunnya dalam transaksi pemanggil. Dipakai
 // tambah satu per satu dan impor massal.
-func (s *Service) insert(ctx context.Context, q *store.Queries, ip audit.Entry, v validated, passwordHash string, expires pgtype.Timestamptz, now time.Time) (uuid.UUID, error) {
+func (s *Service) insert(ctx context.Context, q *store.Queries, ip audit.Entry, v validated, passwordHash string, expires pgtype.Timestamptz, now time.Time) (uuid.UUID, string, error) {
 	nip := v.Nip
 	if nip == "" {
 		seq, err := q.NextNipSequence(ctx)
 		if err != nil {
-			return uuid.Nil, err
+			return uuid.Nil, "", err
 		}
 		nip = fmt.Sprintf("PJ%d%04d", now.In(pgconv.WIB).Year(), seq)
 	}
@@ -448,24 +448,25 @@ func (s *Service) insert(ctx context.Context, q *store.Queries, ip audit.Entry, 
 		Gender: v.Gender, MaritalStatus: v.MaritalStatus, HasChildren: v.HasChildren, ChildrenCount: v.ChildrenCount,
 	})
 	if err != nil {
-		return uuid.Nil, mapUnique(err)
+		return uuid.Nil, "", mapUnique(err)
 	}
 	if err := replaceChildren(ctx, q, id, v.Children); err != nil {
-		return uuid.Nil, err
+		return uuid.Nil, "", err
 	}
 	userID, err := q.CreateUserWithInitialPassword(ctx, store.CreateUserWithInitialPasswordParams{
 		EmployeeID: id, Email: v.Email, PasswordHash: passwordHash, Role: store.UserRolePejuang,
+		InitialPasswordExpiresAt: expires,
 	})
 	if err != nil {
-		return uuid.Nil, mapUnique(err)
+		return uuid.Nil, "", mapUnique(err)
 	}
 	entry := ip
 	entry.Action, entry.Entity, entry.EntityID = audit.EmployeeCreated, "employee", id
 	if err := audit.Write(ctx, q, entry); err != nil {
-		return uuid.Nil, err
+		return uuid.Nil, "", err
 	}
 	entry.Action, entry.Entity, entry.EntityID = audit.UserCreated, "user", userID
-	return id, audit.Write(ctx, q, entry)
+	return id, nip, audit.Write(ctx, q, entry)
 }
 
 // currentInput mengisi Input dengan data tersimpan, agar PATCH hanya menimpa field yang dikirim.
@@ -590,7 +591,7 @@ func update(ctx context.Context, q *store.Queries, ip audit.Entry, id uuid.UUID,
 }
 
 func errSelfDeactivate() error {
-	return httpx.NewError(http.StatusConflict, "CONFLICT_SELF_ACTION", "Anda tidak dapat menonaktifkan akun sendiri.")
+	return httpx.NewError(http.StatusConflict, "CONFLICT_SELF_ACTION", "Akun sendiri dinonaktifkan oleh pengelola lain.")
 }
 
 // Deactivate menonaktifkan Pejuang; riwayat presensi dan ubar tetap tersimpan.

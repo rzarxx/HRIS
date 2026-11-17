@@ -250,7 +250,7 @@ func (in ClockInput) parse() (parsedClock, error) {
 	var p parsedClock
 	id, err := uuid.Parse(in.ChallengeID)
 	if err != nil {
-		fields["challenge_id"] = "Tantangan tidak valid."
+		fields["challenge_id"] = "Sesi presensi belum dikenali. Silakan ulangi."
 	}
 	p.challengeID = id
 	if in.Latitude == nil || in.Longitude == nil {
@@ -258,17 +258,17 @@ func (in ClockInput) parse() (parsedClock, error) {
 	} else {
 		p.point = Point{Latitude: *in.Latitude, Longitude: *in.Longitude}
 		if !p.point.Valid() {
-			fields["latitude"] = "Lokasi tidak valid."
+			fields["latitude"] = "Lokasi belum terbaca. Silakan coba lagi."
 		}
 	}
 	if in.AccuracyM == nil || math.IsNaN(*in.AccuracyM) || *in.AccuracyM < 0 || *in.AccuracyM > maxAccuracyM {
-		fields["accuracy_m"] = "Akurasi lokasi tidak valid."
+		fields["accuracy_m"] = "Akurasi lokasi belum terbaca. Silakan coba lagi."
 	} else {
 		p.accuracyM = *in.AccuracyM
 	}
 	captured, err := time.Parse(time.RFC3339, in.CapturedAt)
 	if err != nil {
-		fields["captured_at"] = "Waktu pengambilan tidak valid."
+		fields["captured_at"] = "Waktu pengambilan foto belum sesuai. Silakan ulangi."
 	}
 	p.capturedAt = captured
 	if len(in.selfie) > 0 && !strings.EqualFold(in.SelfieSHA256, sha256Hex(in.selfie)) {
@@ -286,7 +286,7 @@ func (in ClockInput) parse() (parsedClock, error) {
 }
 
 func errBlocked() error {
-	return httpx.NewError(http.StatusUnprocessableEntity, "ATTENDANCE_BLOCKED", "Presensi ditolak. Hubungi SDM.")
+	return httpx.NewError(http.StatusUnprocessableEntity, "ATTENDANCE_BLOCKED", "Presensi belum dapat dicatat. Silakan hubungi SDM.")
 }
 
 func coordinate(v float64) decimal.NullDecimal {
@@ -329,7 +329,7 @@ func (s *Service) deviceOf(ctx context.Context, p auth.Principal, header string)
 	case store.DeviceStatusPending:
 		return device, httpx.NewError(http.StatusForbidden, "DEVICE_PENDING_APPROVAL", "Perangkat menunggu persetujuan.")
 	default:
-		return device, httpx.NewError(http.StatusForbidden, "DEVICE_REVOKED", "Perangkat ini sudah dicabut. Hubungi SDM.")
+		return device, httpx.NewError(http.StatusForbidden, "DEVICE_REVOKED", "Perangkat ini sudah tidak terdaftar. Silakan hubungi SDM.")
 	}
 }
 
@@ -345,7 +345,7 @@ type Challenge struct {
 // NewChallenge membuat tantangan sekali pakai yang terikat ke pengguna dan perangkat.
 func (s *Service) NewChallenge(ctx context.Context, p auth.Principal, deviceHeader, purpose string) (Challenge, error) {
 	if purpose != PurposeClockIn && purpose != PurposeClockOut && purpose != PurposeFaceEnroll {
-		return Challenge{}, httpx.Validation(map[string]string{"purpose": "Tujuan tidak valid."})
+		return Challenge{}, httpx.Validation(map[string]string{"purpose": "Mohon pilih tujuan yang tersedia."})
 	}
 	device, err := s.deviceOf(ctx, p, deviceHeader)
 	if err != nil {
@@ -583,7 +583,7 @@ func (s *Service) ClockIn(ctx context.Context, p auth.Principal, ip *netip.Addr,
 
 	shift, err := s.q.GetEmployeeDefaultShift(ctx, p.EmployeeID)
 	if pgconv.IsNoRows(err) {
-		return ClockInResult{}, s.reject(ctx, a, "shift_not_assigned", httpx.NewError(http.StatusUnprocessableEntity, "SHIFT_NOT_ASSIGNED", "Shift Anda belum ditentukan. Hubungi SDM."))
+		return ClockInResult{}, s.reject(ctx, a, "shift_not_assigned", httpx.NewError(http.StatusUnprocessableEntity, "SHIFT_NOT_ASSIGNED", "Shift Anda belum ditentukan. Silakan hubungi SDM."))
 	}
 	if err != nil {
 		return ClockInResult{}, err
@@ -859,7 +859,7 @@ func (s *Service) Mine(ctx context.Context, p auth.Principal, fromRaw, toRaw str
 	if toRaw != "" {
 		parsed, err := time.Parse("2006-01-02", toRaw)
 		if err != nil {
-			fields["to"] = "Tanggal tidak valid."
+			fields["to"] = "Mohon periksa kembali tanggal."
 		}
 		to = parsed
 	}
@@ -867,7 +867,7 @@ func (s *Service) Mine(ctx context.Context, p auth.Principal, fromRaw, toRaw str
 	if fromRaw != "" {
 		parsed, err := time.Parse("2006-01-02", fromRaw)
 		if err != nil {
-			fields["from"] = "Tanggal tidak valid."
+			fields["from"] = "Mohon periksa kembali tanggal."
 		}
 		from = parsed
 	}

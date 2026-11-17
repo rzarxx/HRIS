@@ -20,16 +20,35 @@ const (
 	argonKeyLen      = 32
 )
 
+// Kata sandi awal (D53) tersusun dari nama depan dan tahun, sehingga siapa pun yang tahu formatnya bisa
+// menebaknya tanpa memecahkan hash; biaya hash tinggi tidak menambah perlindungan. Perlindungannya adalah
+// masa berlaku 72 jam dan wajib ganti saat login pertama. Parameter ringan ini membuat impor massal ratusan
+// Pejuang selesai dalam satu request. Kata sandi pilihan sendiri tetap memakai parameter penuh di atas.
+const (
+	initialArgonMemoryKiB   = 4 * 1024
+	initialArgonIterations  = 1
+	initialArgonParallelism = 1
+)
+
 // HashPassword menghasilkan string format PHC: $argon2id$v=19$m=..,t=..,p=..$salt$hash.
 func HashPassword(password string) (string, error) {
+	return hashArgon2(password, argonMemoryKiB, argonIterations, argonParallelism)
+}
+
+// HashInitialPassword meng-hash kata sandi awal dengan parameter ringan (lihat di atas).
+func HashInitialPassword(password string) (string, error) {
+	return hashArgon2(password, initialArgonMemoryKiB, initialArgonIterations, initialArgonParallelism)
+}
+
+func hashArgon2(password string, memory, iterations uint32, parallelism uint8) (string, error) {
 	salt := make([]byte, argonSaltLen)
 	if _, err := rand.Read(salt); err != nil {
 		return "", err
 	}
-	key := argon2.IDKey([]byte(password), salt, argonIterations, argonMemoryKiB, argonParallelism, argonKeyLen)
+	key := argon2.IDKey([]byte(password), salt, iterations, memory, parallelism, argonKeyLen)
 	enc := base64.RawStdEncoding
 	return fmt.Sprintf("$argon2id$v=%d$m=%d,t=%d,p=%d$%s$%s",
-		argon2.Version, argonMemoryKiB, argonIterations, argonParallelism,
+		argon2.Version, memory, iterations, parallelism,
 		enc.EncodeToString(salt), enc.EncodeToString(key)), nil
 }
 

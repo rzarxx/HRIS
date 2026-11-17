@@ -1,0 +1,277 @@
+package id.albahjah.hris.ui
+
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.ui.Alignment
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Warning
+import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.dp
+import id.albahjah.hris.BuildConfig
+import id.albahjah.hris.data.Repository
+import id.albahjah.hris.data.toApiError
+import kotlinx.coroutines.launch
+
+/** Isian layar masuk; dipisah dari [LoginScreen] agar bisa dirender tanpa jaringan. */
+data class LoginForm(
+    val server: String = "",
+    val identifier: String = "",
+    val password: String = "",
+    val mfa: String = "",
+    val askMfa: Boolean = false,
+    val busy: Boolean = false,
+    val error: String? = null,
+)
+
+@Composable
+fun LoginScreen(repository: Repository, crash: String?, onDismissCrash: () -> Unit, onLoggedIn: () -> Unit) {
+    val scope = rememberCoroutineScope()
+    val clipboard = LocalClipboardManager.current
+    var server by rememberSaveable { mutableStateOf(repository.serverUrl) }
+    var identifier by rememberSaveable { mutableStateOf("") }
+    var password by rememberSaveable { mutableStateOf("") }
+    var mfa by rememberSaveable { mutableStateOf("") }
+    var askMfa by rememberSaveable { mutableStateOf(false) }
+    var busy by rememberSaveable { mutableStateOf(false) }
+    var error by rememberSaveable { mutableStateOf<String?>(null) }
+
+    // Footer bisa diubah super admin; dimuat tanpa login dan disimpan untuk tampilan luring.
+    LaunchedEffect(Unit) { repository.refreshBranding() }
+    LoginContent(
+        footer = repository.prefs.footer,
+        form = LoginForm(server, identifier, password, mfa, askMfa, busy, error),
+        showServer = BuildConfig.SERVER_EDITABLE,
+        version = BuildConfig.VERSION_NAME,
+        crash = crash,
+        onCopyCrash = { crash?.let { clipboard.setText(AnnotatedString(it)) } },
+        onDismissCrash = onDismissCrash,
+        onServer = { server = it },
+        onIdentifier = { identifier = it },
+        onPassword = { password = it },
+        onMfa = { mfa = it.filter(Char::isDigit).take(6) },
+        onSubmit = {
+            if (busy) return@LoginContent
+            busy = true
+            error = null
+            scope.launch {
+                try {
+                    repository.login(server, identifier, password, if (askMfa) mfa else null)
+                    onLoggedIn()
+                } catch (e: Exception) {
+                    val err = e.toApiError()
+                    if (err.code == "AUTH_MFA_REQUIRED" || err.code == "AUTH_MFA_INVALID") askMfa = true
+                    error = err.message
+                } finally {
+                    busy = false
+                }
+            }
+        },
+    )
+}
+
+@Composable
+fun LoginContent(
+    form: LoginForm,
+    showServer: Boolean,
+    version: String,
+    crash: String?,
+    onCopyCrash: () -> Unit,
+    onDismissCrash: () -> Unit,
+    onServer: (String) -> Unit,
+    onIdentifier: (String) -> Unit,
+    onPassword: (String) -> Unit,
+    onMfa: (String) -> Unit,
+    onSubmit: () -> Unit,
+    footer: String? = null,
+) {
+    StatusBarIcons(dark = true)
+    var showPassword by rememberSaveable { mutableStateOf(false) }
+    val canSubmit = form.identifier.isNotBlank() && form.password.isNotEmpty() &&
+        (!showServer || form.server.isNotBlank()) && (!form.askMfa || form.mfa.length == 6)
+
+    Box(Modifier.fillMaxSize().background(Hc.Surface)) {
+    Column(
+        Modifier
+            .fillMaxSize()
+            .imePadding()
+            .verticalScroll(rememberScrollState())
+            .statusBarsPadding(),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Column(
+            ContentWidth.fillMaxWidth().padding(start = 24.dp, end = 24.dp, top = 48.dp, bottom = 24.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Column {
+                AppLogo(size = 72.dp)
+                Spacer(Modifier.height(28.dp))
+                Text("Selamat datang", style = MaterialTheme.typography.headlineMedium, color = Hc.Ink)
+                Spacer(Modifier.height(6.dp))
+                Text(
+                    "Masuk ke HRIS Al Bahjah untuk presensi, pengajuan, dan slip ubar.",
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = Hc.InkSoft,
+                )
+                Spacer(Modifier.height(32.dp))
+                Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                    Field(
+                        value = form.identifier,
+                        onChange = onIdentifier,
+                        label = "NIPY, email, atau nomor WA",
+                        icon = Icons.Filled.Person,
+                        keyboard = KeyboardOptions(keyboardType = KeyboardType.Email, imeAction = ImeAction.Next),
+                    )
+                    Field(
+                        value = form.password,
+                        onChange = onPassword,
+                        label = "Kata sandi",
+                        icon = Icons.Filled.Lock,
+                        keyboard = KeyboardOptions(
+                            keyboardType = KeyboardType.Password,
+                            imeAction = if (form.askMfa) ImeAction.Next else ImeAction.Done,
+                        ),
+                        hidden = !showPassword,
+                        onDone = { if (canSubmit) onSubmit() },
+                        trailing = {
+                            TextButton(onClick = { showPassword = !showPassword }) {
+                                Text(if (showPassword) "Sembunyikan" else "Lihat", color = Hc.BrandDark)
+                            }
+                        },
+                    )
+                    if (form.askMfa) {
+                        Field(
+                            value = form.mfa,
+                            onChange = onMfa,
+                            label = "Kode autentikator (6 digit)",
+                            icon = HrisIcons.Shield,
+                            keyboard = KeyboardOptions(keyboardType = KeyboardType.NumberPassword, imeAction = ImeAction.Done),
+                            onDone = { if (canSubmit) onSubmit() },
+                        )
+                    }
+                    if (form.error != null) {
+                        StatusBanner(Tone.Danger, Icons.Filled.Warning, "Belum bisa masuk", form.error)
+                    }
+                    PrimaryButton(
+                        text = "Masuk",
+                        onClick = onSubmit,
+                        enabled = canSubmit,
+                        loading = form.busy,
+                        modifier = Modifier.padding(top = 8.dp),
+                    )
+                }
+            }
+
+            if (showServer) {
+                SectionCard {
+                    Text("Mode pengembang", style = MaterialTheme.typography.titleSmall, color = Hc.Ink)
+                    Text(
+                        "Alamat API server develop. Hanya muncul di build debug.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = Hc.InkSoft,
+                    )
+                    Spacer(Modifier.height(12.dp))
+                    Field(
+                        value = form.server,
+                        onChange = onServer,
+                        label = "Alamat server",
+                        icon = Icons.Filled.Settings,
+                        placeholder = "http://192.168.1.10:8080",
+                        keyboard = KeyboardOptions(keyboardType = KeyboardType.Uri, imeAction = ImeAction.Done),
+                    )
+                }
+            }
+
+            if (crash != null) CrashNotice(crash, onCopyCrash, onDismissCrash)
+
+            Text(
+                "Versi $version · Data Anda dilindungi sesuai UU PDP",
+                style = MaterialTheme.typography.labelSmall,
+                color = Fg.Gray500,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+            )
+            AppFooter(footer, Modifier.navigationBarsPadding())
+        }
+    }
+    StatusBarScrim(Hc.Surface)
+    }
+}
+
+
+@Composable
+private fun Field(
+    value: String,
+    onChange: (String) -> Unit,
+    label: String,
+    icon: ImageVector,
+    keyboard: KeyboardOptions,
+    hidden: Boolean = false,
+    placeholder: String? = null,
+    onDone: (() -> Unit)? = null,
+    trailing: (@Composable () -> Unit)? = null,
+) {
+    OutlinedTextField(
+        value = value,
+        onValueChange = onChange,
+        label = { Text(label) },
+        placeholder = { if (placeholder != null) Text(placeholder, color = Fg.Gray500) },
+        leadingIcon = { Icon(icon, contentDescription = null, tint = Hc.InkSoft) },
+        trailingIcon = trailing,
+        singleLine = true,
+        visualTransformation = if (hidden) PasswordVisualTransformation() else VisualTransformation.None,
+        keyboardOptions = keyboard,
+        keyboardActions = KeyboardActions(onDone = { onDone?.invoke() }),
+        shape = MaterialTheme.shapes.medium,
+        colors = OutlinedTextFieldDefaults.colors(
+            focusedBorderColor = Hc.Brand,
+            unfocusedBorderColor = Color.Transparent,
+            focusedLabelColor = Hc.BrandDark,
+            unfocusedLabelColor = Hc.InkSoft,
+            cursorColor = Hc.Brand,
+            focusedContainerColor = Hc.Surface,
+            unfocusedContainerColor = Hc.Field,
+        ),
+        modifier = Modifier.fillMaxWidth(),
+    )
+}

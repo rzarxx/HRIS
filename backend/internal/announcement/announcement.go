@@ -126,10 +126,10 @@ func (in Input) validate(ctx context.Context, q *store.Queries) (validated, erro
 	}
 	division, err := pgconv.ParseOptionalUUID(in.DivisionID)
 	if err != nil {
-		fields["division_id"] = "Divisi tidak valid."
+		fields["division_id"] = "Mohon pilih divisi dari daftar."
 	} else if division.Valid {
 		if _, err := q.GetDivision(ctx, division.UUID); pgconv.IsNoRows(err) {
-			fields["division_id"] = "Divisi tidak ditemukan."
+			fields["division_id"] = "Divisi belum terdaftar."
 		} else if err != nil {
 			return v, err
 		}
@@ -137,7 +137,7 @@ func (in Input) validate(ctx context.Context, q *store.Queries) (validated, erro
 	v.DivisionID = division
 	starts, err := time.Parse(time.RFC3339, in.StartsAt)
 	if err != nil {
-		fields["starts_at"] = "Waktu mulai tayang tidak valid."
+		fields["starts_at"] = "Mohon periksa kembali waktu mulai tayang."
 	} else {
 		v.StartsAt = pgconv.Time(starts)
 	}
@@ -145,9 +145,9 @@ func (in Input) validate(ctx context.Context, q *store.Queries) (validated, erro
 		ends, err := time.Parse(time.RFC3339, *in.EndsAt)
 		switch {
 		case err != nil:
-			fields["ends_at"] = "Waktu berakhir tidak valid."
+			fields["ends_at"] = "Mohon periksa kembali waktu berakhir."
 		case v.StartsAt.Valid && !ends.After(starts):
-			fields["ends_at"] = "Waktu berakhir harus setelah mulai tayang."
+			fields["ends_at"] = "Waktu berakhir perlu setelah waktu mulai tayang."
 		default:
 			v.EndsAt = pgconv.Time(ends)
 		}

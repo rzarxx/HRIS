@@ -68,27 +68,27 @@ func (in Input) validate() (validated, error) {
 		fields["name"] = "Nama maksimal 120 karakter."
 	}
 	if in.Latitude == nil || math.IsNaN(*in.Latitude) || *in.Latitude < -90 || *in.Latitude > 90 {
-		fields["latitude"] = "Lintang harus antara -90 dan 90."
+		fields["latitude"] = "Lintang diisi antara -90 dan 90."
 	} else {
 		v.Latitude = decimal.NewFromFloat(*in.Latitude).Round(6)
 	}
 	if in.Longitude == nil || math.IsNaN(*in.Longitude) || *in.Longitude < -180 || *in.Longitude > 180 {
-		fields["longitude"] = "Bujur harus antara -180 dan 180."
+		fields["longitude"] = "Bujur diisi antara -180 dan 180."
 	} else {
 		v.Longitude = decimal.NewFromFloat(*in.Longitude).Round(6)
 	}
 	if in.RadiusM == nil || *in.RadiusM < minRadiusM || *in.RadiusM > maxRadiusM {
-		fields["radius_m"] = "Radius harus antara 10 dan 5000 meter."
+		fields["radius_m"] = "Radius diisi antara 10 dan 5000 meter."
 	} else {
 		v.RadiusM = *in.RadiusM
 	}
 	if in.Polygon != nil {
 		if len(in.Polygon) < 3 || len(in.Polygon) > maxPolygonPoint {
-			fields["polygon"] = "Poligon harus 3 sampai 100 titik."
+			fields["polygon"] = "Poligon terdiri dari 3 sampai 100 titik."
 		}
 		for _, p := range in.Polygon {
 			if !p.Valid() {
-				fields["polygon"] = "Ada titik poligon yang tidak valid."
+				fields["polygon"] = "Ada titik poligon yang belum sesuai."
 				break
 			}
 		}
@@ -282,7 +282,7 @@ func (s *Service) SetForEmployee(ctx context.Context, p auth.Principal, entry au
 	for _, raw := range rawIDs {
 		id, err := uuid.Parse(raw)
 		if err != nil {
-			return nil, httpx.Validation(map[string]string{"location_ids": "Ada lokasi yang tidak valid."})
+			return nil, httpx.Validation(map[string]string{"location_ids": "Ada data lokasi yang belum sesuai."})
 		}
 		if !seen[id] {
 			seen[id] = true
@@ -296,7 +296,7 @@ func (s *Service) SetForEmployee(ctx context.Context, p auth.Principal, entry au
 		for _, id := range ids {
 			if err := q.AddEmployeeLocation(ctx, store.AddEmployeeLocationParams{EmployeeID: employeeID, LocationID: id}); err != nil {
 				if pgconv.IsForeignKeyViolation(err) {
-					return httpx.Validation(map[string]string{"location_ids": "Ada lokasi yang tidak ditemukan."})
+					return httpx.Validation(map[string]string{"location_ids": "Ada lokasi yang belum terdaftar."})
 				}
 				return err
 			}

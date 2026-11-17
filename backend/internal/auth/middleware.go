@@ -126,7 +126,7 @@ func Authenticate(signer *TokenSigner, active SessionChecker) func(http.Handler)
 			p.MustChangePassword = state.MustChangePassword
 			p.MFASetupRequired = state.MFASetupRequired
 			if !CSRFValid(r) {
-				httpx.WriteError(w, r, httpx.NewError(http.StatusForbidden, "CSRF_INVALID", "Token keamanan tidak valid, muat ulang halaman."))
+				httpx.WriteError(w, r, httpx.NewError(http.StatusForbidden, "CSRF_INVALID", "Sesi keamanan halaman sudah berakhir. Silakan muat ulang halaman."))
 				return
 			}
 			next.ServeHTTP(w, r.WithContext(WithPrincipal(r.Context(), p)))
@@ -169,7 +169,7 @@ func Require(keys ...string) func(http.Handler) http.Handler {
 			}
 			// Sandi sementara dan MFA wajib lebih dulu dipenuhi (F3, F4).
 			if p.MustChangePassword {
-				httpx.WriteError(w, r, httpx.NewError(http.StatusForbidden, "PASSWORD_CHANGE_REQUIRED", "Ganti kata sandi terlebih dahulu."))
+				httpx.WriteError(w, r, httpx.NewError(http.StatusForbidden, "PASSWORD_CHANGE_REQUIRED", "Silakan ganti kata sandi terlebih dahulu."))
 				return
 			}
 			if p.MFASetupRequired {

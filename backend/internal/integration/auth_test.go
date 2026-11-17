@@ -308,6 +308,14 @@ func TestInitialPasswordExpires(t *testing.T) {
 	if d := time.Until(expires); d < auth.InitialPasswordTTL-time.Minute || d > auth.InitialPasswordTTL {
 		t.Errorf("berlaku %v, mau sekitar %v", d, auth.InitialPasswordTTL)
 	}
+	// Batas yang dijawab ke SDM harus benar-benar tersimpan, bukan hanya di respons.
+	var stored time.Time
+	if err := ownerPool.QueryRow(context.Background(), `SELECT initial_password_expires_at FROM users WHERE id = $1`, created.Account.UserID).Scan(&stored); err != nil {
+		t.Fatalf("initial_password_expires_at tidak tersimpan: %v", err)
+	}
+	if stored.Sub(expires).Abs() > time.Second {
+		t.Errorf("tersimpan %v, respons %v", stored, expires)
+	}
 	exec(t, `UPDATE users SET initial_password_expires_at = now() - interval '1 minute' WHERE id = $1`, created.Account.UserID)
 
 	// Kata sandi salah tetap dijawab umum; kata sandi benar yang kedaluwarsa dijawab khusus.

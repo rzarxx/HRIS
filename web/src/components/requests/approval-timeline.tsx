@@ -5,7 +5,7 @@ import { APPROVER_ROLE, approverName } from "./request-status";
 
 const STEP: Record<ApprovalStepStatus, { icon: LucideIcon; label: string; cls: string }> = {
   approved: { icon: CheckCircle2, label: "Disetujui", cls: "text-emerald-600 bg-emerald-50" },
-  rejected: { icon: XCircle, label: "Ditolak", cls: "text-red-600 bg-red-50" },
+  rejected: { icon: XCircle, label: "Tidak disetujui", cls: "text-red-600 bg-red-50" },
   pending: { icon: Clock3, label: "Menunggu keputusan", cls: "text-amber-700 bg-amber-50 ring-4 ring-amber-100" },
   waiting: { icon: Circle, label: "Menunggu langkah sebelumnya", cls: "text-slate-300 bg-white" },
   skipped: { icon: MinusCircle, label: "Dilewati", cls: "text-slate-400 bg-slate-50" },

@@ -369,10 +369,10 @@ func (s *Service) decide(ctx context.Context, p auth.Principal, ip *netip.Addr, 
 		return Item{}, err
 	}
 	if head.RequesterEmployeeID == p.EmployeeID {
-		return Item{}, httpx.NewError(http.StatusForbidden, "APPROVAL_SELF_FORBIDDEN", "Anda tidak boleh memutuskan pengajuan sendiri.")
+		return Item{}, httpx.NewError(http.StatusForbidden, "APPROVAL_SELF_FORBIDDEN", "Pengajuan Anda sendiri diputuskan oleh atasan atau SDM.")
 	}
 	if !mayAct(p, head.AssignedEmployeeID) {
-		return Item{}, httpx.NewError(http.StatusForbidden, "APPROVAL_NOT_YOUR_TURN", "Langkah ini bukan milik Anda.")
+		return Item{}, httpx.NewError(http.StatusForbidden, "APPROVAL_NOT_YOUR_TURN", "Langkah ini ditangani approver lain.")
 	}
 	kind, ok := s.kinds[head.RequestType]
 	if !ok {
@@ -478,7 +478,7 @@ func (s *Service) SetFlow(ctx context.Context, p auth.Principal, ip *netip.Addr,
 	for _, st := range in.Steps {
 		role := store.UserRole(st.ApproverRole)
 		if role != store.UserRoleSubdiv && role != store.UserRoleKadiv && role != store.UserRoleSdm {
-			return Flow{}, httpx.Validation(map[string]string{"steps": "Approver harus subdiv, kadiv, atau sdm."})
+			return Flow{}, httpx.Validation(map[string]string{"steps": "Approver dipilih dari subdiv, kadiv, atau sdm."})
 		}
 		if slices.Contains(roles, role) {
 			return Flow{}, httpx.Validation(map[string]string{"steps": "Setiap approver hanya boleh muncul sekali."})

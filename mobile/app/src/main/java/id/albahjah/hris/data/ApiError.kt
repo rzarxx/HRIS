@@ -22,10 +22,10 @@ private val friendly = mapOf(
     "AUTH_TOKEN_INVALID" to "Sesi berakhir. Silakan masuk lagi.",
     "FACE_SERVICE_UNAVAILABLE" to "Verifikasi wajah di server sedang tidak tersedia. Coba lagi nanti.",
     "ATTENDANCE_BLOCKED" to "Presensi belum dapat dicatat. Silakan hubungi SDM bila hal ini terus terjadi.",
-    "APPROVAL_SELF_FORBIDDEN" to "Pengajuan Anda sendiri diputuskan oleh atasan atau SDM.",
-    "APPROVAL_NOT_YOUR_TURN" to "Belum giliran Anda. Langkah sebelumnya belum diputuskan.",
+    "APPROVAL_SELF_FORBIDDEN" to "Pengajuan Anda sendiri ditindaklanjuti oleh atasan atau SDM.",
+    "APPROVAL_NOT_YOUR_TURN" to "Belum giliran Anda. Langkah sebelumnya belum diproses.",
     "READ_TOO_SOON" to "Baca dulu isinya. Tombol Sudah baca aktif setelah hitung mundur selesai.",
-    "REQUEST_NOT_PENDING" to "Pengajuan ini sudah diputuskan atau dibatalkan. Muat ulang untuk melihat statusnya.",
+    "REQUEST_NOT_PENDING" to "Pengajuan ini sudah diproses atau dibatalkan. Muat ulang untuk melihat statusnya.",
 )
 
 fun Throwable.toApiError(): ApiError = when (this) {

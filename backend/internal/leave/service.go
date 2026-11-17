@@ -416,7 +416,7 @@ func (s *Service) Cancel(ctx context.Context, p auth.Principal, ip *netip.Addr, 
 			return err
 		}
 		if row.Status != store.RequestStatusPending {
-			return httpx.NewError(http.StatusConflict, "REQUEST_NOT_PENDING", "Pengajuan ini sudah diputuskan atau dibatalkan.")
+			return httpx.NewError(http.StatusConflict, "REQUEST_NOT_PENDING", "Pengajuan ini sudah diproses atau dibatalkan.")
 		}
 		if err := q.SetLeaveStatus(ctx, store.SetLeaveStatusParams{ID: id, Status: store.RequestStatusCancelled, DecidedAt: pgconv.Time(s.now())}); err != nil {
 			return err

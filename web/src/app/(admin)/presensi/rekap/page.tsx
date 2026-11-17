@@ -87,7 +87,7 @@ export default function AttendanceReportPage() {
             <option value="field">Dinas luar</option>
           </Select>
           {period.work_mode && <p className="text-xs text-slate-600">Hanya presensi masuk dengan mode ini yang dihitung. Cuti dan alpha tidak memiliki mode kerja yang dapat dipastikan.</p>}
-          {totals.review > 0 && <p className="text-xs text-slate-600">Presensi yang perlu ditinjau tetap dihitung sebagai hari kerja, tetapi belum dihitung hadir sampai diputuskan di Review Presensi.</p>}
+          {totals.review > 0 && <p className="text-xs text-slate-600">Presensi yang perlu ditinjau tetap dihitung sebagai hari kerja, tetapi belum dihitung hadir sampai ditinjau di Review Presensi.</p>}
           <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
             {!period.work_mode && <Summary label="Rata-rata kehadiran" value={percent(totals.rate)} />}
             <Summary label="Total hadir" value={number(totals.present)} />

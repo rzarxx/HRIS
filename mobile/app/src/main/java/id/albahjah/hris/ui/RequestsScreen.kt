@@ -224,7 +224,7 @@ fun RequestsContent(ui: RequestsUi, now: ZonedDateTime, modifier: Modifier = Mod
                                 EmptyCard("Antrean belum bisa dimuat", "Tarik layar ke bawah untuk mencoba lagi.", ContentWidth)
                             }
                             pending.isEmpty() -> item(key = "antrean-kosong") {
-                                EmptyCard("Semua sudah diputuskan", "Tidak ada pengajuan yang menunggu Anda. Pengajuan baru muncul di sini.", ContentWidth, done = true)
+                                EmptyCard("Semua sudah ditindaklanjuti", "Tidak ada pengajuan yang menunggu Anda. Pengajuan baru muncul di sini.", ContentWidth, done = true)
                             }
                             else -> {
                                 item(key = "judul-antrean") { SectionTitle("Menunggu keputusan Anda", "Terlama di atas", ContentWidth) }
@@ -565,7 +565,7 @@ fun LeaveDetailContent(leave: LeaveRequest, requester: String, cancelling: Boole
                 Box(Modifier.fillMaxWidth().padding(vertical = 4.dp).height(1.dp).background(Hc.Line))
                 DetailValue("Alasan", leave.reason)
                 DetailValue("Diajukan", wibDateTime(leave.createdAt))
-                if (leave.decidedAt != null) DetailValue(if (leave.status == "cancelled") "Dibatalkan" else "Diputuskan", wibDateTime(leave.decidedAt))
+                if (leave.decidedAt != null) DetailValue(if (leave.status == "cancelled") "Dibatalkan" else "Diproses", wibDateTime(leave.decidedAt))
             }
             FigmaCard(ContentWidth, title = "Alur persetujuan", subtitle = "Diperiksa berurutan dari atas ke bawah.", top = 16.dp, bottom = 16.dp, gap = 16.dp) {
                 ApprovalTimeline(leave.approvals, requester, leave.createdAt)
@@ -574,7 +574,7 @@ fun LeaveDetailContent(leave: LeaveRequest, requester: String, cancelling: Boole
                 Column(ContentWidth.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     FigmaPrimaryButton("Batalkan pengajuan", onCancel, loading = cancelling, danger = true)
                     Text(
-                        "Pembatalan hanya bisa selama belum diputuskan. Jika menggunakan hak cuti, sisa cuti akan dikembalikan setelah dibatalkan.",
+                        "Pembatalan hanya bisa selama belum diproses. Jika menggunakan hak cuti, sisa cuti akan dikembalikan setelah dibatalkan.",
                         style = figmaText(12, color = Fg.TextSecondary, lineHeight = 1.4f),
                         textAlign = TextAlign.Center,
                         modifier = Modifier.fillMaxWidth(),

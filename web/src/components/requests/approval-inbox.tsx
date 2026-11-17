@@ -45,7 +45,7 @@ export function ApprovalInbox() {
             <span className="flex size-12 items-center justify-center rounded-full bg-primary-50">
               <CheckCircle2 className="size-6 text-primary-600" aria-hidden />
             </span>
-            <p className="text-base font-semibold text-slate-900">Semua sudah diputuskan</p>
+            <p className="text-base font-semibold text-slate-900">Semua sudah ditindaklanjuti</p>
             <p className="max-w-sm text-sm text-slate-500">Tidak ada pengajuan yang menunggu Anda. Pengajuan baru dari Pejuang akan muncul di sini otomatis.</p>
           </div>
         </Card>

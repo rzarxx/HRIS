@@ -88,7 +88,7 @@ func validateChildren(children []Child, today time.Time, fields map[string]strin
 		case c.ChildOrder < 1 || c.ChildOrder > maxChildren:
 			fields[prefix+"child_order"] = fmt.Sprintf("Anak ke- 1 sampai %d.", maxChildren)
 		case seen[c.ChildOrder]:
-			fields[prefix+"child_order"] = "Urutan anak tidak boleh sama."
+			fields[prefix+"child_order"] = "Urutan anak perlu berbeda satu sama lain."
 		}
 		seen[c.ChildOrder] = true
 		if n := len([]rune(row.FullName)); n < 2 || n > 100 {
@@ -98,10 +98,10 @@ func validateChildren(children []Child, today time.Time, fields map[string]strin
 		if row.Gender, msg = optionalEnum(c.Gender, Genders, "Jenis kelamin L atau P."); msg != "" {
 			fields[prefix+"gender"] = msg
 		}
-		if row.Relation, msg = optionalEnum(c.Relation, ChildRelations, "Status anak tidak valid."); msg != "" {
+		if row.Relation, msg = optionalEnum(c.Relation, ChildRelations, "Mohon pilih status anak dari daftar."); msg != "" {
 			fields[prefix+"relation"] = msg
 		}
-		if row.Education, msg = optionalEnum(c.Education, EducationLevels, "Jenjang pendidikan tidak valid."); msg != "" {
+		if row.Education, msg = optionalEnum(c.Education, EducationLevels, "Mohon pilih jenjang pendidikan dari daftar."); msg != "" {
 			fields[prefix+"education"] = msg
 		}
 		row.BirthPlace = optionalLimited(c.BirthPlace, 80, prefix+"birth_place", "Tempat lahir", fields)
@@ -110,9 +110,9 @@ func validateChildren(children []Child, today time.Time, fields map[string]strin
 			d, err := pgconv.ParseDate(strings.TrimSpace(*c.BirthDate))
 			switch {
 			case err != nil:
-				fields[prefix+"birth_date"] = "Tanggal lahir tidak valid."
+				fields[prefix+"birth_date"] = "Mohon periksa kembali tanggal lahir."
 			case d.Time.After(today):
-				fields[prefix+"birth_date"] = "Tanggal lahir tidak boleh di masa depan."
+				fields[prefix+"birth_date"] = "Tanggal lahir perlu sebelum hari ini."
 			}
 			row.BirthDate = d
 		}

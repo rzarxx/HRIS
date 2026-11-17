@@ -30,11 +30,11 @@ func NewError(status int, code, message string) *Error {
 }
 
 func ErrNotFound() *Error {
-	return NewError(http.StatusNotFound, "NOT_FOUND", "Data tidak ditemukan.")
+	return NewError(http.StatusNotFound, "NOT_FOUND", "Data yang dicari belum tersedia.")
 }
 
 func ErrForbidden() *Error {
-	return NewError(http.StatusForbidden, "FORBIDDEN_ROLE", "Anda tidak memiliki akses ke fitur ini.")
+	return NewError(http.StatusForbidden, "FORBIDDEN_ROLE", "Fitur ini belum tersedia untuk akun Anda.")
 }
 
 func ErrUnauthenticated() *Error {
@@ -91,7 +91,7 @@ func WriteError(w http.ResponseWriter, r *http.Request, err error) {
 	if !errors.As(err, &apiErr) {
 		slog.ErrorContext(r.Context(), "internal error",
 			"request_id", RequestID(r.Context()), "path", r.URL.Path, "error", err.Error())
-		apiErr = NewError(http.StatusInternalServerError, "INTERNAL_ERROR", "Terjadi kesalahan pada server.")
+		apiErr = NewError(http.StatusInternalServerError, "INTERNAL_ERROR", "Mohon maaf, server sedang mengalami kendala. Silakan coba lagi.")
 	}
 	details := apiErr.Details
 	if details == nil {
@@ -143,7 +143,7 @@ func DecodeFrom(src io.Reader, dst any) error {
 	if err := dec.Decode(dst); err != nil {
 		var tooLarge *http.MaxBytesError
 		if errors.As(err, &tooLarge) {
-			return NewError(http.StatusRequestEntityTooLarge, "PAYLOAD_TOO_LARGE", "Ukuran data terlalu besar.")
+			return NewError(http.StatusRequestEntityTooLarge, "PAYLOAD_TOO_LARGE", "Ukuran data melebihi batas.")
 		}
 		return decodeError(err)
 	}
@@ -194,7 +194,7 @@ func ReadPage(r *http.Request) (Page, error) {
 	if raw := r.URL.Query().Get("page"); raw != "" {
 		n, err := strconv.Atoi(raw)
 		if err != nil || n < 1 || n > 1_000_000 {
-			fields["page"] = "Halaman tidak valid."
+			fields["page"] = "Nomor halaman belum sesuai."
 		} else {
 			page.Number = n
 		}

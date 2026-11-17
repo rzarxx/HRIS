@@ -1195,6 +1195,96 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/admin/employees/import-template": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Unduh template xlsx impor Pejuang
+         * @description Permission `employee:write`. Sheet Pejuang berisi kolom formulir yayasan dengan daftar pilihan (cabang, divisi, subdiv, jenis kelamin, status pernikahan, status dan pendidikan anak), sheet Struktur berisi pasangan cabang–divisi–subdiv yang berlaku, dan sheet Petunjuk.
+         */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Berkas xlsx */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": string;
+                    };
+                };
+                403: components["responses"]["Error"];
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/employees/import": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Impor massal Pejuang dari xlsx
+         * @description Permission `employee:write`. Body adalah isi berkas xlsx dari template (maks 5 MB, 1.000 baris). Semua baris diperiksa lebih dulu; bila ada `issues`, tidak ada yang disimpan. NIPY yang sudah terdaftar memperbarui data Pejuang tersebut tanpa mengubah kata sandinya, dan sel kosong tidak mengubah data lama. Baris lain dibuat sebagai Pejuang baru dengan kata sandi awal (D53). `dry_run=true` (bawaan) memeriksa semuanya di transaksi yang dibatalkan; `dry_run=false` menyimpan dalam satu transaksi.
+         */
+        post: {
+            parameters: {
+                query?: {
+                    dry_run?: boolean;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": string;
+                };
+            };
+            responses: {
+                /** @description Hasil pemeriksaan atau penyimpanan */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data: components["schemas"]["EmployeeImportResult"];
+                        };
+                    };
+                };
+                400: components["responses"]["ValidationFailed"];
+                403: components["responses"]["Error"];
+                413: components["responses"]["Error"];
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/admin/employees/{id}": {
         parameters: {
             query?: never;
@@ -4759,6 +4849,40 @@ export interface components {
              * @description Batas berlaku kata sandi awal, 72 jam sejak dibuat
              */
             expires_at: string;
+        };
+        EmployeeImportIssue: {
+            /** @description Nomor baris di Excel */
+            row: number;
+            /** @description Judul kolom template */
+            column: string;
+            message: string;
+        };
+        EmployeeImportRow: {
+            row: number;
+            /** @enum {string} */
+            action: "create" | "update";
+            /** @description Kosong pada pratinjau bila NIPY dibuat otomatis */
+            nip: string | null;
+            full_name: string;
+            /** @description Hanya untuk Pejuang baru saat impor disimpan. Hanya tampil sekali. */
+            initial_password: string | null;
+            /** Format: date-time */
+            expires_at: string | null;
+        };
+        EmployeeImportResult: {
+            dry_run: boolean;
+            /** @description true bila data sudah tersimpan */
+            applied: boolean;
+            total_rows: number;
+            created: number;
+            updated: number;
+            issues: components["schemas"]["EmployeeImportIssue"][];
+            rows: components["schemas"]["EmployeeImportRow"][];
+            /**
+             * Format: byte
+             * @description Berkas xlsx (base64) berisi kata sandi awal Pejuang baru, hanya ada saat impor disimpan. Kata sandi tersimpan sebagai teks.
+             */
+            credentials_file: string | null;
         };
         InitialCredential: {
             /** @description Kata sandi awal @NamaDepan+tahun, wajib diganti saat login (D53). Hanya tampil sekali. */

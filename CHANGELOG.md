@@ -7,6 +7,39 @@ Perubahan penting yang terlihat oleh Pejuang, SDM, atau pengelola server. Keputu
 ## Belum dirilis
 
 ### Ditambahkan
+- **Impor massal Pejuang dari xlsx (D53).** Master Data → Pejuang → **Impor xlsx**: unduh template, isi, lalu unggah.
+  Template berisi daftar pilihan (cabang, divisi, subdiv, jenis kelamin, status pernikahan, status dan pendidikan
+  anak), sheet Struktur, dan sheet Petunjuk. Sistem memeriksa semua baris lebih dulu dan baru menyimpan bila semuanya
+  sesuai, dalam satu transaksi (maks 1.000 baris, 5 MB). NIPY yang sudah terdaftar memperbarui datanya tanpa mengubah
+  kata sandi; baris lain menjadi Pejuang baru dengan kata sandi awal yang daftarnya bisa diunduh sebagai xlsx.
+  Endpoint `GET /v1/admin/employees/import-template` dan `POST /v1/admin/employees/import`, audit `employee.imported`.
+
+### Diubah
+- Nama aplikasi dan web menjadi **HRIS Al Bahjah** (tanpa "Yayasan"). Artefak AAB rilis bernama `hris-albahjah`.
+- Package aplikasi Android menjadi `id.albahjah.hris` (sebelumnya `id.pejuang.hris`). Di Google Play, package yang
+  berbeda berarti aplikasi baru, sehingga aplikasi lama tidak diperbarui otomatis ke versi ini.
+- Logo web dan aplikasi diganti logo Lembaga Pengembangan Dakwah Al-Bahjah, termasuk ikon tab browser dan ikon
+  aplikasi Android. Halaman masuk web menampilkan logo lebih besar.
+- Bahasa pesan di web, aplikasi, dan API diperhalus: kata seperti "ditolak", "gagal", "salah", dan "tidak valid"
+  diganti kalimat yang lebih santun dan memberi arahan, misalnya "Presensi belum dapat dicatat. Silakan hubungi SDM."
+  Status pengajuan "Ditolak" kini tampil "Tidak disetujui", dan upaya presensi yang tidak tercatat tampil "Tidak diterima".
+- Kata sandi awal di-hash dengan argon2id parameter ringan agar impor ratusan Pejuang selesai dalam satu request
+  (sekitar 4 detik untuk 1.000 baris). Kata sandi pilihan sendiri tetap memakai parameter penuh.
+
+### Diperbaiki
+- Batas 72 jam kata sandi awal kini benar-benar tersimpan untuk Pejuang baru yang ditambahkan lewat form. Sebelumnya
+  hanya tersimpan saat reset kata sandi, sehingga kata sandi awal Pejuang baru tidak kedaluwarsa.
+
+### Perhatian saat memperbarui
+- Bila server memakai `PLAY_INTEGRITY_PACKAGE` atau `KEY_ATTESTATION_PACKAGE`, ganti nilainya menjadi
+  `id.albahjah.hris` bersamaan dengan rilis aplikasi baru. Daftarkan juga package baru di Play Console dan Google Cloud
+  (Play Integrity).
+- Pejuang yang ditambahkan sejak v0.10.0 dan belum mengganti kata sandi awal tidak punya batas 72 jam. Bila perlu,
+  SDM dapat menekan Reset kata sandi untuk menerbitkan kata sandi awal baru yang berlaku 72 jam.
+
+## v0.10.0 (16 November 2026)
+
+### Ditambahkan
 - **Cabang (D53).** Master Data → Cabang untuk cabang yayasan dengan divisi, subdiv, dan atasan sendiri. Divisi
   wajib memilih cabang dan kodenya unik per cabang. Daftar Pejuang dan divisi bisa disaring per cabang
   (`branch_id`). Semua divisi lama masuk ke cabang **Pusat**.

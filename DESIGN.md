@@ -177,7 +177,7 @@ Satu sumber token di `mobile/.../ui/Theme.kt` (`Hc`, `Tone`, `softShadow`).
 | Tombol merah | `#D92D20` dengan teks putih (4,8:1) | tolak, batalkan, keluar |
 
 Huruf **Plus Jakarta Sans** (OFL, `res/font`, 4 bobot) dibundel agar sama di semua HP; pengguna bisa memilih ukuran
-huruf di Profil (0,9× sampai 1,3×, dikalikan ukuran huruf sistem). Nama aplikasi **HRIS Yayasan Al Bahjah**, ikon logo
+huruf di Profil (0,9× sampai 1,3×, dikalikan ukuran huruf sistem). Nama aplikasi **HRIS Al Bahjah**, ikon logo
 PUTI Al Bahjah. Footer semua halaman web dan aplikasi: teks dari super admin (bawaan
 `© {tahun} PUTI (Pusat Teknologi Informasi) Al Bahjah`, tahun otomatis). Semua pasangan teks dan latar
 dicek ≥ 4,5:1. Web admin masih memakai aksen `#15803D`; menyamakan aksen web dengan aplikasi menjadi tindak lanjut terpisah.

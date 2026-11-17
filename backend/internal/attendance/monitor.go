@@ -43,7 +43,7 @@ func (s *Service) Monitor(ctx context.Context, dateRaw, divisionRaw string) ([]M
 	if dateRaw != "" {
 		parsed, err := time.Parse("2006-01-02", dateRaw)
 		if err != nil {
-			fields["date"] = "Tanggal tidak valid."
+			fields["date"] = "Mohon periksa kembali tanggal."
 		}
 		date = parsed
 	}
@@ -51,7 +51,7 @@ func (s *Service) Monitor(ctx context.Context, dateRaw, divisionRaw string) ([]M
 	if divisionRaw != "" {
 		id, err := uuid.Parse(divisionRaw)
 		if err != nil {
-			fields["division_id"] = "Divisi tidak valid."
+			fields["division_id"] = "Mohon pilih divisi dari daftar."
 		}
 		division = uuid.NullUUID{UUID: id, Valid: err == nil}
 	}

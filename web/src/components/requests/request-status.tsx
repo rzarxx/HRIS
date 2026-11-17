@@ -6,7 +6,7 @@ type Tone = "gray" | "accent" | "green" | "amber" | "red";
 export const REQUEST_STATUS: Record<RequestStatus, { label: string; tone: Tone }> = {
   pending: { label: "Menunggu", tone: "amber" },
   approved: { label: "Disetujui", tone: "green" },
-  rejected: { label: "Ditolak", tone: "red" },
+  rejected: { label: "Tidak disetujui", tone: "red" },
   cancelled: { label: "Dibatalkan", tone: "gray" },
 };
 

@@ -149,7 +149,7 @@ func (h *Handler) AttendanceExport(w http.ResponseWriter, r *http.Request) error
 	}
 	period.WorkMode = r.URL.Query().Get("work_mode")
 	if period.WorkMode != "" && period.WorkMode != "onsite" && period.WorkMode != "wfa" && period.WorkMode != "field" {
-		return httpx.Validation(map[string]string{"work_mode": "Mode kerja tidak valid."})
+		return httpx.Validation(map[string]string{"work_mode": "Mohon pilih mode kerja dari daftar."})
 	}
 	p, _ := auth.PrincipalFrom(r.Context())
 	xlsxBytes, err := h.svc.AttendanceXLSX(r.Context(), p, period)

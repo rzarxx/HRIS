@@ -45,7 +45,7 @@ export function LoginForm() {
         return;
       }
       if (err instanceof ApiError && err.fields) setErrors(err.fields);
-      setFormError(err instanceof ApiError ? err.message : "Tidak dapat terhubung ke server.");
+      setFormError(err instanceof ApiError ? err.message : "Belum terhubung ke server. Silakan periksa koneksi Anda.");
     }
   }
 
@@ -68,7 +68,7 @@ export function LoginForm() {
         // Token sementara 5 menit habis: kembali ke langkah sandi.
         setMfaToken("");
       }
-      setFormError(err instanceof ApiError ? err.message : "Tidak dapat terhubung ke server.");
+      setFormError(err instanceof ApiError ? err.message : "Belum terhubung ke server. Silakan periksa koneksi Anda.");
     }
   }
 

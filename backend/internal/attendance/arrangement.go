@@ -87,7 +87,7 @@ func (in ArrangementInput) parse() (parsedArrangement, error) {
 	}
 	starts, err := pgconv.ParseDate(in.StartsOn)
 	if err != nil {
-		fields["starts_on"] = "Tanggal mulai tidak valid."
+		fields["starts_on"] = "Mohon periksa kembali tanggal mulai."
 	}
 	p.startsOn = starts
 	p.rule.StartsOn = starts.Time
@@ -95,9 +95,9 @@ func (in ArrangementInput) parse() (parsedArrangement, error) {
 		ends, err := pgconv.ParseDate(*in.EndsOn)
 		switch {
 		case err != nil:
-			fields["ends_on"] = "Tanggal selesai tidak valid."
+			fields["ends_on"] = "Mohon periksa kembali tanggal selesai."
 		case starts.Valid && ends.Time.Before(starts.Time):
-			fields["ends_on"] = "Tanggal selesai tidak boleh sebelum tanggal mulai."
+			fields["ends_on"] = "Tanggal selesai perlu sama dengan atau setelah tanggal mulai."
 		}
 		p.endsOn = ends
 		end := ends.Time
@@ -106,7 +106,7 @@ func (in ArrangementInput) parse() (parsedArrangement, error) {
 	p.weekdays = []int16{}
 	for _, d := range in.Weekdays {
 		if d < 1 || d > 7 {
-			fields["weekdays"] = "Hari harus bernilai 1 sampai 7."
+			fields["weekdays"] = "Hari diisi angka 1 sampai 7."
 			break
 		}
 		if !slices.Contains(p.weekdays, d) {
@@ -155,7 +155,7 @@ func (s *Service) ListArrangements(ctx context.Context, employeeID uuid.UUID) ([
 // satu aturan.
 func (s *Service) CreateArrangement(ctx context.Context, p auth.Principal, ip *netip.Addr, employeeID uuid.UUID, in ArrangementInput) (WorkArrangement, error) {
 	if employeeID == p.EmployeeID {
-		return WorkArrangement{}, httpx.NewError(http.StatusConflict, "CONFLICT_SELF_ACTION", "Izin kerja sendiri harus diberikan peninjau lain.")
+		return WorkArrangement{}, httpx.NewError(http.StatusConflict, "CONFLICT_SELF_ACTION", "Izin kerja untuk diri sendiri diberikan oleh peninjau lain.")
 	}
 	parsed, err := in.parse()
 	if err != nil {
@@ -285,7 +285,7 @@ func (s *Service) place(ctx context.Context, a attempt, date time.Time, point Po
 		out.workMode = WorkModeField
 		return out, nil
 	}
-	return placement{}, s.reject(ctx, a, "geofence_out", httpx.NewError(http.StatusUnprocessableEntity, "GEOFENCE_OUT", "Anda berada di luar area kantor."))
+	return placement{}, s.reject(ctx, a, "geofence_out", httpx.NewError(http.StatusUnprocessableEntity, "GEOFENCE_OUT", "Posisi Anda masih di luar area kantor. Silakan mendekat ke lokasi kantor."))
 }
 
 func (h *Handler) ListArrangements(w http.ResponseWriter, r *http.Request) error {

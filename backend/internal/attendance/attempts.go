@@ -44,7 +44,7 @@ func (s *Service) Attempts(ctx context.Context, dateRaw, outcome string, page ht
 	if dateRaw != "" {
 		parsed, err := pgconv.ParseDate(dateRaw)
 		if err != nil {
-			fields["date"] = "Tanggal tidak valid."
+			fields["date"] = "Mohon periksa kembali tanggal."
 		}
 		day = parsed.Time
 	}

@@ -304,6 +304,8 @@ Domain terpisah: `admin.<domain>` (web statis) dan `api.<domain>` (API), keduany
 - Kata sandi awal hanya tampil sekali di respons pembuatan atau reset, untuk disampaikan SDM ke Pejuang. Yang disimpan hanya hash argon2id.
 - Kata sandi awal **berlaku 72 jam** (`users.initial_password_expires_at`). Lewat dari itu, login dengan kata sandi yang benar dijawab `AUTH_INITIAL_PASSWORD_EXPIRED` dan SDM perlu mereset ulang. Batas ini hilang setelah Pejuang memilih kata sandi sendiri.
 - Setelah masuk dengan kata sandi awal, web dan aplikasi langsung menampilkan popup ganti kata sandi yang tidak bisa dilewati.
+- Kata sandi awal di-hash dengan argon2id parameter ringan (m=4 MiB, t=1). Karena formatnya bisa ditebak dari nama dan tahun, biaya hash tidak menambah perlindungan; yang melindungi adalah masa berlaku dan wajib ganti. Kata sandi pilihan sendiri tetap memakai parameter penuh.
+- **Impor massal:** SDM mengunduh template xlsx, mengisinya, lalu mengunggah. Sistem memeriksa semua baris lebih dulu (pratinjau) dan baru menyimpan bila semuanya sesuai, dalam satu transaksi. NIPY yang sudah terdaftar memperbarui data tanpa mengubah kata sandi; baris lain menjadi Pejuang baru dengan kata sandi awal yang daftarnya bisa diunduh SDM sekali.
 - `must_change_password=true`, jadi server menolak semua fitur selain profil, logout, dan ganti kata sandi (`PASSWORD_CHANGE_REQUIRED`) sampai Pejuang memilih kata sandi sendiri. Kata sandi pilihan sendiri tetap minimal 10 karakter.
 - Reset oleh SDM atau super admin (`/v1/admin/users/{user_id}/reset-password`) mengembalikan akun ke kata sandi awal, membuka kunci, dan mencabut semua sesi.
 
@@ -498,7 +500,7 @@ Data biometrik tergolong data pribadi bersifat spesifik dalam UU PDP (UU 27/2022
 - Monitoring: error rate, latensi clock-in, lonjakan login gagal, lonjakan `review`.
 
 ### 5.11 Registry Event Audit
-`auth.login_success`, `auth.login_failed`, `auth.logout`, `auth.mfa_enabled`, `auth.mfa_failed`, `auth.password_changed`, `auth.session_revoked`, `auth.refresh_reuse_detected`, `org.updated`, `user.created`, `user.locked`, `user.unlocked`, `user.role_changed`, `user.password_reset`, `user.email_changed`, `auth.password_reset_requested`, `email.delivery_failed`, `employee.created`, `employee.updated`, `employee.deactivated`, `employee.salary_changed`, `device.registered`, `device.approved`, `device.revoked`, `device.integrity_tier_changed`, `employee.work_arrangement_changed`, `face.enrolled`, `face.reset`, `attendance.clock_in`, `attendance.clock_out`, `attendance.rejected`, `attendance.review_resolved`, `attendance.adjusted`, `approval.approved`, `approval.rejected`, `leave.requested`, `leave.cancelled`, `leave_type.changed`, `payroll.rules_changed`, `payroll.generated`, `payroll.submitted`, `payroll.finalized`, `payroll.paid`, `warning.issued`, `announcement.created`, `announcement.updated`, `announcement.deleted`, `settings.changed`, `data.exported`.
+`auth.login_success`, `auth.login_failed`, `auth.logout`, `auth.mfa_enabled`, `auth.mfa_failed`, `auth.password_changed`, `auth.session_revoked`, `auth.refresh_reuse_detected`, `org.updated`, `user.created`, `user.locked`, `user.unlocked`, `user.role_changed`, `user.password_reset`, `user.email_changed`, `auth.password_reset_requested`, `email.delivery_failed`, `employee.created`, `employee.updated`, `employee.deactivated`, `employee.imported`, `employee.salary_changed`, `device.registered`, `device.approved`, `device.revoked`, `device.integrity_tier_changed`, `employee.work_arrangement_changed`, `face.enrolled`, `face.reset`, `attendance.clock_in`, `attendance.clock_out`, `attendance.rejected`, `attendance.review_resolved`, `attendance.adjusted`, `approval.approved`, `approval.rejected`, `leave.requested`, `leave.cancelled`, `leave_type.changed`, `payroll.rules_changed`, `payroll.generated`, `payroll.submitted`, `payroll.finalized`, `payroll.paid`, `warning.issued`, `announcement.created`, `announcement.updated`, `announcement.deleted`, `settings.changed`, `data.exported`.
 
 Tambahan event: `face.capture_viewed` untuk akses selfie peninjauan, `face.remote_permission_granted` dan `face.remote_permission_revoked` untuk pengelolaan izin jarak jauh. Pemakaian izin dicatat pada `face.enrolled`.
 
@@ -728,6 +730,8 @@ Setiap `code` baru wajib ditambahkan di tabel ini.
 |---|---|---|
 | CRUD | `/v1/admin/branches`, `/v1/admin/divisions?branch_id=`, `/v1/admin/subdivisions` | `org:write`. Cabang tidak bisa dihapus selama masih punya divisi |
 | GET, POST, PATCH | `/v1/admin/employees?branch_id=`, `/v1/admin/employees/{id}` | `employee:read` / `employee:write`. Pembuatan menjawab `initial_password` (D53) |
+| GET | `/v1/admin/employees/import-template` | `employee:write`. Template xlsx impor dengan daftar pilihan dan sheet Struktur |
+| POST | `/v1/admin/employees/import?dry_run=` | `employee:write`. Body xlsx maks 5 MB dan 1.000 baris; semua tersimpan atau tidak sama sekali (D53) |
 | POST | `/v1/admin/employees/{id}/deactivate` | `employee:write` |
 | PUT | `/v1/admin/employees/{id}/locations` | `employee:write` |
 | POST | `/v1/admin/users/{user_id}/reset-password`, `/lock`, `/unlock`, `/revoke-sessions` | `user:manage`. Reset menjawab `initial_password` (D53) |

@@ -1,6 +1,8 @@
 package employee
 
 import (
+	"errors"
+	"io"
 	"net/http"
 	"strings"
 	"time"
@@ -38,7 +40,7 @@ func (h *Handler) List(w http.ResponseWriter, r *http.Request) error {
 	}
 	status := r.URL.Query().Get("status")
 	if status != "" && status != "active" && status != "inactive" {
-		return httpx.Validation(map[string]string{"status": "Status tidak valid."})
+		return httpx.Validation(map[string]string{"status": "Mohon pilih status dari daftar."})
 	}
 	p, _ := actor(r)
 	rows, total, err := h.svc.List(r.Context(), p, ListParams{
@@ -103,6 +105,41 @@ func (h *Handler) Deactivate(w http.ResponseWriter, r *http.Request) error {
 	}
 	p, entry := actor(r)
 	out, err := h.svc.Deactivate(r.Context(), p, entry, id, time.Now())
+	if err != nil {
+		return err
+	}
+	return httpx.Data(w, http.StatusOK, out)
+}
+
+// ImportTemplate mengirim template xlsx impor Pejuang berisi daftar cabang, divisi, dan subdiv terbaru.
+func (h *Handler) ImportTemplate(w http.ResponseWriter, r *http.Request) error {
+	body, err := h.svc.ImportTemplate(r.Context())
+	if err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+	w.Header().Set("Content-Disposition", `attachment; filename="template-impor-pejuang.xlsx"`)
+	w.Header().Set("Cache-Control", "no-store")
+	_, err = w.Write(body)
+	return err
+}
+
+// Import menerima isi berkas xlsx sebagai body. dry_run=true (bawaan) hanya memeriksa; dry_run=false menyimpan.
+func (h *Handler) Import(w http.ResponseWriter, r *http.Request) error {
+	dryRun := r.URL.Query().Get("dry_run") != "false"
+	body, err := io.ReadAll(io.LimitReader(r.Body, ImportMaxBytes+1))
+	if err != nil {
+		var tooLarge *http.MaxBytesError
+		if errors.As(err, &tooLarge) {
+			return errImportTooLarge()
+		}
+		return err
+	}
+	if len(body) > ImportMaxBytes {
+		return errImportTooLarge()
+	}
+	p, entry := actor(r)
+	out, err := h.svc.Import(r.Context(), p, entry, body, dryRun, time.Now())
 	if err != nil {
 		return err
 	}

@@ -427,6 +427,37 @@ func (q *Queries) ListEmployees(ctx context.Context, arg ListEmployeesParams) ([
 	return items, nil
 }
 
+const listEmployeesByNips = `-- name: ListEmployeesByNips :many
+SELECT id, upper(nip)::text AS nip FROM employees
+WHERE deleted_at IS NULL AND upper(nip) = ANY($1::text[])
+`
+
+type ListEmployeesByNipsRow struct {
+	ID  uuid.UUID
+	Nip string
+}
+
+// Impor massal: NIPY yang sudah ada diperbarui, bukan dibuat ulang.
+func (q *Queries) ListEmployeesByNips(ctx context.Context, nips []string) ([]ListEmployeesByNipsRow, error) {
+	rows, err := q.db.Query(ctx, listEmployeesByNips, nips)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListEmployeesByNipsRow{}
+	for rows.Next() {
+		var i ListEmployeesByNipsRow
+		if err := rows.Scan(&i.ID, &i.Nip); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const nextNipSequence = `-- name: NextNipSequence :one
 SELECT COALESCE(MAX(NULLIF(regexp_replace(right(nip, 4), '\D', '', 'g'), '')::int), 0)::int + 1 AS next_seq FROM employees
 `

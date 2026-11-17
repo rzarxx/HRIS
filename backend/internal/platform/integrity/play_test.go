@@ -37,6 +37,19 @@ func TestPlayVerifier(t *testing.T) {
 		{"wrong request package", func(p *playPayload) { p.TokenPayloadExternal.RequestDetails.PackageName = "other" }, ErrInvalid},
 		{"wrong app package", func(p *playPayload) { p.TokenPayloadExternal.AppIntegrity.PackageName = "other" }, ErrInvalid},
 		{"wrong hash", func(p *playPayload) { p.TokenPayloadExternal.RequestDetails.RequestHash = strings.Repeat("B", 43) }, ErrInvalid},
+		{"classic nonce", func(p *playPayload) {
+			p.TokenPayloadExternal.RequestDetails.RequestHash = ""
+			p.TokenPayloadExternal.RequestDetails.Nonce = hash
+		}, nil},
+		{"classic nonce padded", func(p *playPayload) {
+			p.TokenPayloadExternal.RequestDetails.RequestHash = ""
+			p.TokenPayloadExternal.RequestDetails.Nonce = hash + "="
+		}, nil},
+		{"wrong classic nonce", func(p *playPayload) {
+			p.TokenPayloadExternal.RequestDetails.RequestHash = ""
+			p.TokenPayloadExternal.RequestDetails.Nonce = strings.Repeat("B", 43)
+		}, ErrInvalid},
+		{"no binding", func(p *playPayload) { p.TokenPayloadExternal.RequestDetails.RequestHash = "" }, ErrInvalid},
 		{"unrecognized app", func(p *playPayload) { p.TokenPayloadExternal.AppIntegrity.Recognition = "UNRECOGNIZED_VERSION" }, ErrInvalid},
 		{"basic only", func(p *playPayload) {
 			p.TokenPayloadExternal.DeviceIntegrity.Recognition = []string{"MEETS_BASIC_INTEGRITY"}

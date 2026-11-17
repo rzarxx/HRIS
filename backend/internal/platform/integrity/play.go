@@ -37,8 +37,11 @@ type PlayVerifier struct {
 type playPayload struct {
 	TokenPayloadExternal struct {
 		RequestDetails struct {
-			PackageName     string `json:"requestPackageName"`
-			RequestHash     string `json:"requestHash"`
+			PackageName string `json:"requestPackageName"`
+			RequestHash string `json:"requestHash"`
+			// Nonce diisi untuk token API classic (aplikasi memakai setNonce); requestHash hanya
+			// ada pada API standard.
+			Nonce           string `json:"nonce"`
 			TimestampMillis string `json:"timestampMillis"`
 		} `json:"requestDetails"`
 		AppIntegrity struct {
@@ -109,7 +112,11 @@ func (v PlayVerifier) Verify(ctx context.Context, token, requestHash string) err
 		app.Recognition != "PLAY_RECOGNIZED" {
 		return ErrInvalid
 	}
-	if subtle.ConstantTimeCompare([]byte(details.RequestHash), []byte(requestHash)) != 1 {
+	bound := details.RequestHash
+	if bound == "" {
+		bound = strings.TrimRight(details.Nonce, "=")
+	}
+	if subtle.ConstantTimeCompare([]byte(bound), []byte(requestHash)) != 1 {
 		return fmt.Errorf("%w: %w", ErrNonceMismatch, ErrInvalid)
 	}
 	ms, err := strconv.ParseInt(details.TimestampMillis, 10, 64)

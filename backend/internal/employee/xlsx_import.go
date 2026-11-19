@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"net/http"
 	"regexp"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -15,6 +16,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/xuri/excelize/v2"
 
 	"github.com/rzarxx/HRIS/backend/internal/audit"
@@ -38,6 +40,7 @@ const (
 
 // ImportIssue menunjuk satu sel yang perlu diperbaiki. Row memakai nomor baris Excel.
 type ImportIssue struct {
+	Sheet   string `json:"sheet"`
 	Row     int    `json:"row"`
 	Column  string `json:"column"`
 	Message string `json:"message"`
@@ -61,6 +64,8 @@ type ImportResult struct {
 	Updated   int           `json:"updated"`
 	Issues    []ImportIssue `json:"issues"`
 	Rows      []ImportRow   `json:"rows"`
+	// NewItems adalah struktur, lokasi, dan shift baru yang ikut dibuat (atau akan dibuat saat pratinjau).
+	NewItems ImportNewItems `json:"new_items"`
 	// CredentialsFile adalah xlsx (base64) berisi kata sandi awal Pejuang baru. Kata sandi disimpan sebagai
 	// teks sehingga awalan @ tidak dibaca Excel sebagai rumus. Hanya ada saat impor disimpan.
 	CredentialsFile *string `json:"credentials_file"`
@@ -100,6 +105,11 @@ var importColumns = func() []importColumn {
 		{key: "division", label: "Divisi*", width: 20, list: "division"},
 		{key: "subdivision", label: "Subdiv*", width: 20, list: "subdivision"},
 		{key: "position", label: "Jabatan", width: 20},
+		{key: "role", label: "Peran", width: 16, list: "role"},
+		{key: "shift", label: "Shift", width: 18, list: "shift"},
+		{key: "location1", label: "Lokasi 1", width: 22, list: "location"},
+		{key: "location2", label: "Lokasi 2", width: 22, list: "location"},
+		{key: "location3", label: "Lokasi 3", width: 22, list: "location"},
 		{key: "phone", label: "No. WA", width: 16, text: true},
 		{key: "email", label: "Email", width: 26},
 		{key: "marital_status", label: "Status pernikahan", width: 18, list: "marital"},
@@ -211,12 +221,20 @@ type importPlan struct {
 	current  store.GetEmployeeScopedRow
 	v        validated
 	fullName string
+	org      orgRef
+	// shiftKey menunjuk shift baru dari sheet Shift; shift lama langsung diisi ke v.DefaultShiftID.
+	shiftKey     string
+	locations    []string
+	setLocations bool
+	role         string
 }
 
 type importRows struct {
-	header map[string]int
-	rows   [][]string
-	lines  []int
+	header    map[string]int
+	rows      [][]string
+	lines     []int
+	locations [][]string
+	shifts    [][]string
 }
 
 func (r importRows) get(i int, key string) string {
@@ -279,13 +297,9 @@ func readImportRows(body []byte) (importRows, error) {
 	if len(out.rows) == 0 {
 		return importRows{}, fileError("Belum ada data Pejuang di sheet Pejuang. Isi mulai baris 2.")
 	}
+	out.locations = sheetRows(f, locationSheet)
+	out.shifts = sheetRows(f, shiftSheet)
 	return out, nil
-}
-
-type orgLookup struct {
-	branches  map[string]bool
-	divisions map[string]bool
-	subs      map[string]uuid.UUID
 }
 
 func orgKey(parts ...string) string {
@@ -293,21 +307,6 @@ func orgKey(parts ...string) string {
 		parts[i] = strings.ToLower(strings.Join(strings.Fields(p), " "))
 	}
 	return strings.Join(parts, "|")
-}
-
-func (s *Service) loadOrgLookup(ctx context.Context) (orgLookup, []store.ListSubdivisionsRow, error) {
-	rows, err := s.q.ListSubdivisions(ctx, uuid.NullUUID{})
-	if err != nil {
-		return orgLookup{}, nil, err
-	}
-	l := orgLookup{branches: map[string]bool{}, divisions: map[string]bool{}, subs: map[string]uuid.UUID{}}
-	for _, r := range rows {
-		l.branches[orgKey(r.BranchName)] = true
-		l.divisions[orgKey(r.BranchName, r.DivisionName)] = true
-		l.subs[orgKey(r.BranchName, r.DivisionName, r.Name)] = r.ID
-		l.subs[orgKey(r.BranchName, r.DivisionName, r.Code)] = r.ID
-	}
-	return l, rows, nil
 }
 
 // Import memeriksa lalu (bila dryRun false) menyimpan seluruh baris dalam satu transaksi: semua baris
@@ -318,7 +317,7 @@ func (s *Service) Import(ctx context.Context, p auth.Principal, ip audit.Entry, 
 	if err != nil {
 		return ImportResult{}, err
 	}
-	lookup, _, err := s.loadOrgLookup(ctx)
+	ref, err := s.loadRefData(ctx)
 	if err != nil {
 		return ImportResult{}, err
 	}
@@ -338,17 +337,28 @@ func (s *Service) Import(ctx context.Context, p auth.Principal, ip audit.Entry, 
 	}
 
 	res := ImportResult{DryRun: dryRun, TotalRows: len(in.rows), Issues: []ImportIssue{}, Rows: []ImportRow{}}
-	addIssue := func(row int, key, message string) {
+	addSheetIssue := func(sheet string, row int, column, message string) {
 		if len(res.Issues) < importMaxIssues {
-			res.Issues = append(res.Issues, ImportIssue{Row: row, Column: columnLabel(key), Message: message})
+			res.Issues = append(res.Issues, ImportIssue{Sheet: sheet, Row: row, Column: column, Message: message})
 		}
 	}
+	addIssue := func(row int, key, message string) { addSheetIssue(importSheet, row, columnLabel(key), message) }
+
+	ref.readRefSheets(in.locations, in.shifts, addSheetIssue)
+	if len(ref.newLocations) > 0 && !permission.Allows(p.Role, permission.LocationManage) {
+		addSheetIssue(locationSheet, 2, "Nama lokasi", "Lokasi baru hanya bisa ditambahkan oleh pengelola lokasi. Kosongkan baris lokasi baru.")
+	}
+	if len(ref.newShifts) > 0 && !permission.Allows(p.Role, permission.ShiftManage) {
+		addSheetIssue(shiftSheet, 2, "Nama shift", "Shift baru hanya bisa ditambahkan oleh pengelola shift. Kosongkan baris shift baru.")
+	}
+
 	today := pgconv.WorkDate(now)
 	seen := map[string]int{}
+	heads := map[string]int{}
 	plans := make([]importPlan, 0, len(in.rows))
 	for i := range in.rows {
 		line := in.lines[i]
-		plan, ok := s.planImportRow(ctx, p, in, i, line, lookup, existing, today, addIssue)
+		plan, ok := s.planImportRow(ctx, p, in, i, line, ref, existing, today, addIssue)
 		if !ok {
 			continue
 		}
@@ -368,10 +378,20 @@ func (s *Service) Import(ctx context.Context, p auth.Principal, ip audit.Entry, 
 			}
 			seen[key] = line
 		}
+		// Satu unit hanya punya satu kepala.
+		if unit := plan.headUnit(); unit != "" {
+			if first, dup := heads[unit]; dup {
+				addIssue(line, "role", fmt.Sprintf("Unit ini sudah diberi kepala di baris %d.", first))
+				ok = false
+			} else {
+				heads[unit] = line
+			}
+		}
 		if ok {
 			plans = append(plans, plan)
 		}
 	}
+	res.NewItems = ref.newItems()
 	if len(res.Issues) > 0 {
 		return res, nil
 	}
@@ -384,19 +404,32 @@ func (s *Service) Import(ctx context.Context, p auth.Principal, ip audit.Entry, 
 	err = database.InTx(ctx, s.pool, func(q *store.Queries) error {
 		res.Rows = res.Rows[:0]
 		res.Created, res.Updated = 0, 0
+		if err := ref.createRefs(ctx, q, ip); err != nil {
+			return err
+		}
+		changes := []headChange{}
+		moved := []uuid.UUID{}
 		for _, plan := range plans {
+			v := plan.v
+			if plan.org.sub == uuid.Nil {
+				v.SubdivisionID = ref.subs[plan.org.subKey]
+			}
+			if plan.shiftKey != "" {
+				v.DefaultShiftID = uuid.NullUUID{UUID: ref.shiftID(plan.shiftKey), Valid: true}
+			}
 			row := ImportRow{Row: plan.row, FullName: plan.fullName}
+			id := plan.id
 			if plan.create {
-				v := plan.v
 				credential := credentials[plan.row]
 				if dryRun && v.Nip == "" {
 					// NIPY otomatis tidak diambil dari urutan saat pratinjau agar nomornya tidak terlewat.
 					v.Nip = fmt.Sprintf("PRATINJAU%05d", plan.row)
 				}
-				_, nip, err := s.insert(ctx, q, ip, v, hashes[credential.InitialPassword], credential.Expires(), now)
+				newID, nip, err := s.insert(ctx, q, ip, v, hashes[credential.InitialPassword], credential.Expires(), now)
 				if err != nil {
 					return importRowError(err, plan.row, addIssue, errRollback)
 				}
+				id = newID
 				row.Action = "create"
 				if !dryRun || plan.v.Nip != "" {
 					row.Nip = &nip
@@ -407,18 +440,36 @@ func (s *Service) Import(ctx context.Context, p auth.Principal, ip audit.Entry, 
 				}
 				res.Created++
 			} else {
-				if err := update(ctx, q, ip, plan.id, plan.current, plan.v); err != nil {
+				if err := update(ctx, q, ip, plan.id, plan.current, v); err != nil {
 					return importRowError(err, plan.row, addIssue, errRollback)
 				}
-				nip := plan.v.Nip
+				if v.SubdivisionID != plan.current.SubdivisionID || v.Status == "inactive" {
+					moved = append(moved, plan.id)
+				}
+				nip := v.Nip
 				row.Action, row.Nip = "update", &nip
 				res.Updated++
 			}
+			if plan.setLocations {
+				if err := setImportLocations(ctx, q, ip, id, plan.locations, ref); err != nil {
+					return err
+				}
+			}
+			if plan.role != "" {
+				changes = append(changes, headChange{row: plan.row, employee: id, role: plan.role, sub: v.SubdivisionID})
+			}
 			res.Rows = append(res.Rows, row)
+		}
+		if err := ref.applyHeads(ctx, q, ip, changes, moved); err != nil {
+			return err
 		}
 		entry := ip
 		entry.Action, entry.Entity = audit.EmployeeImported, "employee"
-		entry.Detail = map[string]any{"created": res.Created, "updated": res.Updated, "rows": len(plans)}
+		entry.Detail = map[string]any{
+			"created": res.Created, "updated": res.Updated, "rows": len(plans),
+			"new_branches": len(ref.newBranches), "new_divisions": len(ref.newDivisions), "new_subdivisions": len(ref.newSubs),
+			"new_locations": len(ref.newLocations), "new_shifts": len(ref.newShifts), "head_changes": len(changes),
+		}
 		if err := audit.Write(ctx, q, entry); err != nil {
 			return err
 		}
@@ -446,6 +497,37 @@ func (s *Service) Import(ctx context.Context, p auth.Principal, ip audit.Entry, 
 		res.CredentialsFile = &encoded
 	}
 	return res, nil
+}
+
+// headUnit adalah kunci unit yang dipimpin baris ini, untuk mencegah dua kepala di unit yang sama.
+func (p importPlan) headUnit() string {
+	sub := p.org.subKey
+	if p.org.sub != uuid.Nil {
+		sub = p.org.sub.String()
+	}
+	switch p.role {
+	case roleSubdiv:
+		return "subdiv:" + sub
+	case roleDivision:
+		return "division:" + p.org.divKey
+	}
+	return ""
+}
+
+// setImportLocations mengganti daftar lokasi presensi Pejuang dengan lokasi dari kolom Lokasi 1 sampai 3.
+func setImportLocations(ctx context.Context, q *store.Queries, ip audit.Entry, employeeID uuid.UUID, keys []string, ref *refData) error {
+	if err := q.ClearEmployeeLocations(ctx, employeeID); err != nil {
+		return err
+	}
+	for _, key := range keys {
+		if err := q.AddEmployeeLocation(ctx, store.AddEmployeeLocationParams{EmployeeID: employeeID, LocationID: ref.locationID(key)}); err != nil {
+			return err
+		}
+	}
+	entry := ip
+	entry.Action, entry.Entity, entry.EntityID = audit.EmployeeUpdated, "employee", employeeID
+	entry.Detail = map[string]any{"change": "locations", "count": len(keys), "source": "import"}
+	return audit.Write(ctx, q, entry)
 }
 
 // credentialsWorkbook menyusun daftar kata sandi awal untuk disampaikan SDM ke Pejuang baru.
@@ -560,7 +642,7 @@ func importCredentials(plans []importPlan, dryRun bool, now time.Time) (map[int]
 }
 
 // planImportRow menyusun Input dari satu baris lalu memakai validasi yang sama dengan form web.
-func (s *Service) planImportRow(ctx context.Context, p auth.Principal, in importRows, i, line int, lookup orgLookup, existing map[string]uuid.UUID, today time.Time, addIssue func(int, string, string)) (importPlan, bool) {
+func (s *Service) planImportRow(ctx context.Context, p auth.Principal, in importRows, i, line int, ref *refData, existing map[string]uuid.UUID, today time.Time, addIssue func(int, string, string)) (importPlan, bool) {
 	ok := true
 	issue := func(key, message string) {
 		addIssue(line, key, message)
@@ -604,20 +686,69 @@ func (s *Service) planImportRow(ctx context.Context, p auth.Principal, in import
 				issue(key, columnLabel(key)+" wajib diisi.")
 			}
 		}
-	case !lookup.branches[orgKey(branch)]:
-		issue("branch", "Cabang \""+branch+"\" belum terdaftar. Pilih dari daftar di template.")
-	case !lookup.divisions[orgKey(branch, division)]:
-		issue("division", "Divisi \""+division+"\" belum ada di cabang "+branch+". Lihat sheet Struktur.")
 	default:
-		id, found := lookup.subs[orgKey(branch, division, sub)]
-		if !found {
-			issue("subdivision", "Subdiv \""+sub+"\" belum ada di divisi "+division+". Lihat sheet Struktur.")
+		// Struktur yang belum ada dibuat otomatis bila pengimpor berhak mengubah struktur.
+		where, key, message := ref.resolveOrg(branch, division, sub, permission.Allows(p.Role, permission.OrgWrite))
+		if message != "" {
+			issue(key, message)
 		} else {
-			input.SubdivisionID = id.String()
+			plan.org = where
+			if where.sub != uuid.Nil {
+				input.SubdivisionID = where.sub.String()
+			}
 		}
 	}
 	if input.SubdivisionID == "" {
-		input.SubdivisionID = uuid.Nil.String() // sudah dicatat di atas; cegah pesan ganda dari validasi
+		// Subdiv baru baru punya id di transaksi; galat struktur sudah dicatat di atas.
+		input.SubdivisionID = uuid.Nil.String()
+	}
+
+	if v := get("role"); v != "" {
+		code, found := parseLabel(v, roleLabels)
+		switch {
+		case !found:
+			issue("role", "Pilih salah satu: "+labelList(roleOrder, roleLabels)+".")
+		case !permission.Allows(p.Role, permission.OrgWrite):
+			issue("role", "Kepala unit hanya diatur oleh pengelola struktur. Kosongkan kolom ini.")
+		case code == roleMember && plan.create:
+			// Pejuang baru belum memimpin unit apa pun.
+		default:
+			plan.role = code
+		}
+	}
+	if v := get("shift"); v != "" {
+		key := nameKey(v)
+		switch ids := ref.shifts[key]; {
+		case len(ids) > 1:
+			issue("shift", "Ada beberapa shift bernama \""+v+"\". Bedakan namanya di web lebih dulu.")
+		case len(ids) == 1:
+			id := ids[0].String()
+			input.DefaultShiftID = &id
+		case ref.isNewShift(key):
+			plan.shiftKey = key
+		default:
+			issue("shift", "Shift \""+v+"\" belum terdaftar. Tambahkan di sheet Shift atau pilih dari daftar.")
+		}
+	}
+	for k := 1; k <= importLocationMax; k++ {
+		col := fmt.Sprintf("location%d", k)
+		v := get(col)
+		if v == "" {
+			continue
+		}
+		key := nameKey(v)
+		switch ids := ref.locations[key]; {
+		case len(ids) > 1:
+			issue(col, "Ada beberapa lokasi bernama \""+v+"\". Bedakan namanya di web lebih dulu.")
+			continue
+		case len(ids) == 0 && !ref.isNewLocation(key):
+			issue(col, "Lokasi \""+v+"\" belum terdaftar. Tambahkan di sheet Lokasi atau pilih dari daftar.")
+			continue
+		}
+		plan.setLocations = true
+		if !slices.Contains(plan.locations, key) {
+			plan.locations = append(plan.locations, key)
+		}
 	}
 
 	setText := func(key string, target **string) {
@@ -779,10 +910,18 @@ func importFieldKey(field string, slots []int) string {
 	return field
 }
 
-// ImportTemplate membuat template xlsx: sheet Pejuang untuk diisi, Petunjuk, Struktur organisasi,
-// dan daftar pilihan tersembunyi untuk dropdown.
+// ImportTemplate membuat template xlsx: sheet Pejuang untuk diisi, Petunjuk, Struktur organisasi, Lokasi,
+// Shift, dan daftar pilihan tersembunyi untuk dropdown.
 func (s *Service) ImportTemplate(ctx context.Context) ([]byte, error) {
-	_, subs, err := s.loadOrgLookup(ctx)
+	subs, err := s.q.ListSubdivisions(ctx, uuid.NullUUID{})
+	if err != nil {
+		return nil, err
+	}
+	locations, err := s.q.ListOfficeLocations(ctx)
+	if err != nil {
+		return nil, err
+	}
+	shifts, err := s.q.ListShifts(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -791,7 +930,7 @@ func (s *Service) ImportTemplate(ctx context.Context) ([]byte, error) {
 	if err := f.SetSheetName("Sheet1", importSheet); err != nil {
 		return nil, err
 	}
-	for _, name := range []string{"Petunjuk", "Struktur", "Daftar"} {
+	for _, name := range []string{"Petunjuk", "Struktur", locationSheet, shiftSheet, "Daftar"} {
 		if _, err := f.NewSheet(name); err != nil {
 			return nil, err
 		}
@@ -811,6 +950,10 @@ func (s *Service) ImportTemplate(ctx context.Context) ([]byte, error) {
 	}
 	dateFormat := "yyyy-mm-dd"
 	dateFmt, err := f.NewStyle(&excelize.Style{CustomNumFmt: &dateFormat})
+	if err != nil {
+		return nil, err
+	}
+	existingFill, err := f.NewStyle(&excelize.Style{NumFmt: 49, Fill: excelize.Fill{Type: "pattern", Pattern: 1, Color: []string{"F1F5F9"}}})
 	if err != nil {
 		return nil, err
 	}
@@ -849,13 +992,18 @@ func (s *Service) ImportTemplate(ctx context.Context) ([]byte, error) {
 		{"branch", "Cabang", unique(branchNames)},
 		{"division", "Divisi", unique(divisionNames)},
 		{"subdivision", "Subdiv", unique(subNames)},
+		{"role", "Peran", labelsOf(roleOrder, roleLabels)},
 		{"gender", "Jenis kelamin", labelsOf(genderOrder, genderLabels)},
 		{"marital", "Status pernikahan", labelsOf(maritalOrder, maritalLabels)},
 		{"yesno", "Memiliki anak", []string{"Ya", "Tidak"}},
 		{"relation", "Status anak", labelsOf(relationOrder, relationLabels)},
 		{"education", "Pendidikan", labelsOf(educationOrder, educationLabels)},
 	}
-	listRef := map[string]string{}
+	listRef := map[string]string{
+		// Shift dan lokasi merujuk sheet-nya sendiri, sehingga baris baru langsung muncul di pilihan.
+		"shift":    fmt.Sprintf("%s!$A$2:$A$%d", shiftSheet, refSheetMaxRows+1),
+		"location": fmt.Sprintf("%s!$A$2:$A$%d", locationSheet, refSheetMaxRows+1),
+	}
 	for i, list := range lists {
 		col, _ := excelize.ColumnNumberToName(i + 1)
 		if err := f.SetCellValue("Daftar", col+"1", list.title); err != nil {
@@ -873,6 +1021,8 @@ func (s *Service) ImportTemplate(ctx context.Context) ([]byte, error) {
 	if err := f.SetSheetVisible("Daftar", false); err != nil {
 		return nil, err
 	}
+	// Cabang, divisi, dan subdiv boleh diisi nama baru: unit yang belum ada dibuat saat impor.
+	openLists := map[string]bool{"branch": true, "division": true, "subdivision": true}
 
 	// Sheet Pejuang.
 	lastRow := importMaxRows + 1
@@ -899,7 +1049,11 @@ func (s *Service) ImportTemplate(ctx context.Context) ([]byte, error) {
 			dv := excelize.NewDataValidation(true)
 			dv.SetSqref(cells)
 			dv.SetSqrefDropList(ref)
-			dv.SetError(excelize.DataValidationErrorStyleStop, "Pilihan belum sesuai", "Pilih salah satu nilai dari daftar.")
+			if openLists[c.list] {
+				dv.SetError(excelize.DataValidationErrorStyleInformation, "Unit baru", "Nama yang belum ada di daftar akan dibuat sebagai unit baru saat impor.")
+			} else {
+				dv.SetError(excelize.DataValidationErrorStyleStop, "Pilihan belum sesuai", "Pilih salah satu nilai dari daftar.")
+			}
 			if err := f.AddDataValidation(importSheet, dv); err != nil {
 				return nil, err
 			}
@@ -916,23 +1070,64 @@ func (s *Service) ImportTemplate(ctx context.Context) ([]byte, error) {
 		return nil, err
 	}
 
-	// Sheet Struktur: pasangan Cabang, Divisi, dan Subdiv yang berlaku.
-	for i, title := range []string{"Cabang", "Divisi", "Subdiv", "Kode subdiv"} {
-		col, _ := excelize.ColumnNumberToName(i + 1)
-		if err := f.SetCellValue("Struktur", col+"1", title); err != nil {
-			return nil, err
+	// refSheet menulis judul kolom dan baris yang sudah terdaftar (berlatar abu-abu).
+	refSheet := func(sheet string, titles []string, widths []float64, rows [][]any, textCols []string) error {
+		for i, title := range titles {
+			col, _ := excelize.ColumnNumberToName(i + 1)
+			if err := f.SetCellValue(sheet, col+"1", title); err != nil {
+				return err
+			}
+			if err := f.SetColWidth(sheet, col, col, widths[i]); err != nil {
+				return err
+			}
 		}
-		if err := f.SetColWidth("Struktur", col, col, 24); err != nil {
-			return nil, err
+		lastCol, _ := excelize.ColumnNumberToName(len(titles))
+		if err := f.SetCellStyle(sheet, "A1", lastCol+"1", header); err != nil {
+			return err
 		}
+		for _, col := range textCols {
+			if err := f.SetCellStyle(sheet, col+"2", fmt.Sprintf("%s%d", col, refSheetMaxRows+1), textFmt); err != nil {
+				return err
+			}
+		}
+		for i, r := range rows {
+			if err := f.SetSheetRow(sheet, fmt.Sprintf("A%d", i+2), &r); err != nil {
+				return err
+			}
+		}
+		if len(rows) > 0 {
+			if err := f.SetCellStyle(sheet, "A2", fmt.Sprintf("%s%d", lastCol, len(rows)+1), existingFill); err != nil {
+				return err
+			}
+		}
+		return f.SetPanes(sheet, &excelize.Panes{Freeze: true, YSplit: 1, TopLeftCell: "A2", ActivePane: "bottomLeft"})
 	}
-	if err := f.SetCellStyle("Struktur", "A1", "D1", header); err != nil {
+
+	// Sheet Struktur: pasangan Cabang, Divisi, dan Subdiv yang berlaku.
+	structure := make([][]any, 0, len(subs))
+	for _, r := range subs {
+		structure = append(structure, []any{r.BranchName, r.DivisionName, r.Name, r.Code})
+	}
+	if err := refSheet("Struktur", []string{"Cabang", "Divisi", "Subdiv", "Kode subdiv"}, []float64{24, 24, 24, 16}, structure, nil); err != nil {
 		return nil, err
 	}
-	for i, r := range subs {
-		if err := f.SetSheetRow("Struktur", fmt.Sprintf("A%d", i+2), &[]any{r.BranchName, r.DivisionName, r.Name, r.Code}); err != nil {
-			return nil, err
-		}
+
+	// Sheet Lokasi: lokasi terdaftar, lalu baris kosong untuk lokasi baru.
+	locRows := make([][]any, 0, len(locations))
+	for _, l := range locations {
+		locRows = append(locRows, []any{l.Name, l.Latitude.StringFixed(6), l.Longitude.StringFixed(6), strconv.Itoa(int(l.RadiusM))})
+	}
+	if err := refSheet(locationSheet, []string{"Nama lokasi*", "Lintang*", "Bujur*", "Radius (meter)"}, []float64{30, 14, 14, 14}, locRows, []string{"B", "C"}); err != nil {
+		return nil, err
+	}
+
+	// Sheet Shift: shift terdaftar, lalu baris kosong untuk shift baru.
+	shiftRows := make([][]any, 0, len(shifts))
+	for _, sh := range shifts {
+		shiftRows = append(shiftRows, []any{sh.Name, clockString(sh.StartTime), clockString(sh.EndTime), strconv.Itoa(int(sh.LateToleranceMinutes)), workDaysString(sh.WorkDays)})
+	}
+	if err := refSheet(shiftSheet, []string{"Nama shift*", "Jam masuk*", "Jam pulang*", "Toleransi telat (menit)", "Hari kerja"}, []float64{24, 12, 12, 14, 18}, shiftRows, []string{"B", "C", "E"}); err != nil {
+		return nil, err
 	}
 
 	// Sheet Petunjuk.
@@ -940,17 +1135,23 @@ func (s *Service) ImportTemplate(ctx context.Context) ([]byte, error) {
 		"Petunjuk impor data Pejuang",
 		"",
 		"1. Isi satu Pejuang per baris di sheet Pejuang, mulai baris 2. Mohon judul kolom di baris 1 tidak diubah.",
-		"2. Kolom bertanda * wajib diisi: Nama lengkap, Cabang, Divisi, dan Subdiv. Pasangan yang berlaku ada di sheet Struktur.",
-		"3. NIPY yang sudah terdaftar akan memperbarui data Pejuang tersebut, dan kata sandinya tetap. Kolom yang dibiarkan kosong tidak mengubah data lama.",
-		"4. NIPY yang belum terdaftar, atau yang dikosongkan, akan dibuat sebagai Pejuang baru. NIPY kosong dibuat otomatis.",
-		"5. Pejuang baru langsung mendapat kata sandi awal @NamaDepan+tahun yang berlaku 72 jam. Daftarnya tampil setelah impor disimpan dan bisa diunduh.",
-		"6. No. WA boleh ditulis 08…, +62…, atau 62…. Tanggal ditulis 2026-01-31 atau 31/01/2026.",
-		"7. Ubar pokok diisi oleh SDM berupa angka rupiah, contoh 4500000. Bila kosong, Pejuang baru tercatat 0 dan bisa dilengkapi nanti.",
-		"8. Data anak 1 sampai 3 diisi bila ada. Anak berikutnya bisa dilengkapi lewat form Pejuang di web.",
-		fmt.Sprintf("9. Satu berkas memuat paling banyak %d Pejuang dan berukuran paling besar 5 MB.", importMaxRows),
-		"10. Sistem memeriksa semua baris lebih dulu. Bila ada yang perlu diperbaiki, belum ada data yang disimpan sampai semuanya sesuai.",
+		"2. Kolom bertanda * wajib diisi: Nama lengkap, Cabang, Divisi, dan Subdiv. Struktur yang sudah ada tercantum di sheet Struktur.",
+		"3. Cabang, Divisi, atau Subdiv yang belum ada boleh ditulis langsung. Unit baru itu dibuat otomatis saat impor, dengan kode yang bisa diubah nanti di Master Data.",
+		"4. Kolom Peran: Kepala Subdiv menjadikan Pejuang itu kepala subdiv tempatnya, Kepala Divisi menjadikannya kepala divisinya. Kepala lama diganti dan akun keduanya menyesuaikan. Pejuang berarti melepas jabatan kepala yang sedang dipegang. Kosong berarti tidak diubah.",
+		"5. Kolom Shift dan Lokasi 1 sampai 3 dipilih dari sheet Shift dan Lokasi. Lokasi yang diisi menggantikan daftar lokasi presensi Pejuang tersebut. Kosong berarti tidak diubah.",
+		"6. Shift atau lokasi baru ditambahkan di baris kosong sheet Shift atau Lokasi, lalu langsung bisa dipilih di sheet Pejuang. Baris berlatar abu-abu sudah terdaftar dan tidak diubah lewat impor; ubah lewat web.",
+		"7. Lokasi baru: isi nama, lintang, dan bujur (contoh -6.200100 dan 106.816600), serta radius 10 sampai 5000 meter (kosong berarti 100).",
+		"8. Shift baru: jam ditulis JJ:MM (contoh 07:30), toleransi telat 0 sampai 240 menit, hari kerja seperti 1-5 atau Senin-Jumat (kosong berarti Senin sampai Jumat).",
+		"9. NIPY yang sudah terdaftar akan memperbarui data Pejuang tersebut, dan kata sandinya tetap. Kolom yang dibiarkan kosong tidak mengubah data lama.",
+		"10. NIPY yang belum terdaftar, atau yang dikosongkan, akan dibuat sebagai Pejuang baru. NIPY kosong dibuat otomatis.",
+		"11. Pejuang baru langsung mendapat kata sandi awal @NamaDepan+tahun yang berlaku 72 jam. Daftarnya tampil setelah impor disimpan dan bisa diunduh.",
+		"12. No. WA boleh ditulis 08…, +62…, atau 62…. Tanggal ditulis 2026-01-31 atau 31/01/2026.",
+		"13. Ubar pokok diisi oleh SDM berupa angka rupiah, contoh 4500000. Bila kosong, Pejuang baru tercatat 0 dan bisa dilengkapi nanti.",
+		"14. Data anak 1 sampai 3 diisi bila ada. Anak berikutnya bisa dilengkapi lewat form Pejuang di web. Data anak hanya diubah oleh SDM.",
+		fmt.Sprintf("15. Satu berkas memuat paling banyak %d Pejuang dan berukuran paling besar 5 MB.", importMaxRows),
+		"16. Sistem memeriksa semua baris lebih dulu, termasuk unit, lokasi, dan shift baru. Bila ada yang perlu diperbaiki, belum ada data yang disimpan sampai semuanya sesuai.",
 	}
-	if err := f.SetColWidth("Petunjuk", "A", "A", 120); err != nil {
+	if err := f.SetColWidth("Petunjuk", "A", "A", 140); err != nil {
 		return nil, err
 	}
 	for i, note := range notes {
@@ -972,6 +1173,30 @@ func (s *Service) ImportTemplate(ctx context.Context) ([]byte, error) {
 		return nil, err
 	}
 	return buf.Bytes(), nil
+}
+
+// clockString menulis jam shift sebagai JJ:MM.
+func clockString(t pgtype.Time) string {
+	minutes := t.Microseconds / 60_000_000
+	return fmt.Sprintf("%02d:%02d", minutes/60, minutes%60)
+}
+
+// workDaysString meringkas hari kerja, misalnya [1 2 3 4 5 6] menjadi 1-6 dan [1 3 5] menjadi 1,3,5.
+func workDaysString(days []int16) string {
+	parts := []string{}
+	for i := 0; i < len(days); {
+		j := i
+		for j+1 < len(days) && days[j+1] == days[j]+1 {
+			j++
+		}
+		if j > i {
+			parts = append(parts, fmt.Sprintf("%d-%d", days[i], days[j]))
+		} else {
+			parts = append(parts, strconv.Itoa(int(days[i])))
+		}
+		i = j + 1
+	}
+	return strings.Join(parts, ",")
 }
 
 // errImportTooLarge dipakai handler saat berkas melebihi ImportMaxBytes.

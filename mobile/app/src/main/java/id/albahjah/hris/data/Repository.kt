@@ -291,8 +291,6 @@ class Repository(
 
     suspend fun myFamily(): MyFamily = call { myFamily().data }
 
-    suspend fun setMyFamily(family: MyFamily): MyFamily = call { setMyFamily(family).data }
-
     /** Mengunggah foto profil JPEG; server memotong persegi 512 px dan membuang EXIF. */
     suspend fun setPhoto(jpeg: ByteArray): Me {
         val me = call { setMyPhoto(jpeg.toRequestBody("image/jpeg".toMediaType())).data }

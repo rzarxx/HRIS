@@ -7,6 +7,12 @@ Perubahan penting yang terlihat oleh Pejuang, SDM, atau pengelola server. Keputu
 ## Belum dirilis
 
 ### Ditambahkan
+- **Impor Pejuang sekaligus menyiapkan struktur, shift, dan lokasi (D56).** Template impor kini punya kolom **Peran**
+  (Kepala Subdiv, Kepala Divisi, Pejuang), **Shift**, dan **Lokasi 1–3**, serta sheet **Lokasi** dan **Shift**.
+  - Cabang, divisi, dan subdiv yang belum ada cukup ditulis namanya, lalu dibuat otomatis dengan kode dari namanya.
+  - Lokasi dan shift baru ditulis di baris kosong sheet-nya, lalu langsung bisa dipilih di sheet Pejuang.
+  - Kolom Peran memasang kepala unit; role akun kepala baru dan kepala lama ikut menyesuaikan.
+  - Semuanya diperiksa di pratinjau, yang juga menampilkan daftar data baru, dan disimpan dalam satu transaksi.
 - **Lampiran pengumuman tampil langsung dan dipindai virus.** Gambar dan PDF lampiran langsung terlihat di pop-up dan
   detail pengumuman (aplikasi) serta di pratinjau dan form pengumuman (web), tanpa perlu mengetuk nama berkas; PDF bisa
   digeser per halaman dan ada tombol **Perbesar**. Setiap lampiran dipindai ClamAV sebelum disimpan: berkas berbahaya
@@ -32,6 +38,9 @@ Perubahan penting yang terlihat oleh Pejuang, SDM, atau pengelola server. Keputu
   Endpoint `GET /v1/admin/employees/import-template` dan `POST /v1/admin/employees/import`, audit `employee.imported`.
 
 ### Diubah
+- **Data anak hanya diubah SDM (D56).** Di aplikasi, Profil → Data anak kini hanya menampilkan data dan mengarahkan
+  Pejuang ke SDM bila ada yang perlu diubah. Endpoint `PUT /v1/me/children` dihapus; SDM mengubah data anak lewat form
+  Pejuang di web atau impor xlsx.
 - **Lampiran pengumuman dikompres.** Foto diubah ukurannya (sisi terpanjang maks 2560 px, maks 24 MP), arah EXIF
   diterapkan, dan metadata (termasuk lokasi) dibuang; berkas lalu dikompres gzip sebelum dienkripsi bila hasilnya lebih
   kecil. Isi PDF tidak diubah.

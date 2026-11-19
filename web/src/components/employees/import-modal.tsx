@@ -14,6 +14,35 @@ import type { EmployeeImportResult, ItemResponse } from "@/lib/types";
 
 const MAX_BYTES = 5 * 1024 * 1024;
 
+type NewItems = EmployeeImportResult["new_items"];
+
+const NEW_ITEM_GROUPS: { key: keyof NewItems; label: string }[] = [
+  { key: "branches", label: "Cabang" },
+  { key: "divisions", label: "Divisi" },
+  { key: "subdivisions", label: "Subdiv" },
+  { key: "locations", label: "Lokasi kantor" },
+  { key: "shifts", label: "Shift" },
+];
+
+/** Unit, lokasi, dan shift yang belum terdaftar dan ikut dibuat impor (D56). */
+function NewItemsSummary({ items, applied }: { items: NewItems; applied: boolean }) {
+  const groups = NEW_ITEM_GROUPS.filter((g) => items[g.key].length > 0);
+  if (groups.length === 0) return null;
+  return (
+    <div className="space-y-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+      <p className="font-medium">{applied ? "Data baru yang ikut dibuat:" : "Data baru yang akan dibuat. Pastikan namanya benar, karena salah ketik akan menjadi data baru:"}</p>
+      <dl className="space-y-1">
+        {groups.map((g) => (
+          <div key={g.key} className="flex flex-wrap gap-x-2">
+            <dt className="font-medium">{g.label}:</dt>
+            <dd>{items[g.key].join(", ")}</dd>
+          </div>
+        ))}
+      </dl>
+    </div>
+  );
+}
+
 export async function downloadImportTemplate(onError: (message: string) => void) {
   try {
     const blob = await api.blob("/admin/employees/import-template");
@@ -104,6 +133,7 @@ export function ImportModal({ onClose }: { onClose: () => void }) {
               Data tersimpan: {number(result.created)} Pejuang baru dan {number(result.updated)} data diperbarui.
             </p>
           </div>
+          <NewItemsSummary items={result.new_items} applied />
           {newRows.length > 0 && result.credentials_file && (
             <>
               <p className="text-sm text-slate-600">
@@ -144,6 +174,7 @@ export function ImportModal({ onClose }: { onClose: () => void }) {
             <div className="space-y-1">
               <p>Unduh template, isi data Pejuang di sheet Pejuang, lalu unggah kembali. Petunjuk lengkap ada di sheet Petunjuk.</p>
               <p>NIPY yang sudah terdaftar akan memperbarui datanya; baris lain menjadi Pejuang baru dengan kata sandi awal.</p>
+              <p>Cabang, divisi, dan subdiv baru boleh ditulis langsung. Lokasi dan shift baru ditambahkan di sheet Lokasi dan Shift.</p>
             </div>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -176,6 +207,7 @@ export function ImportModal({ onClose }: { onClose: () => void }) {
               Simpan untuk menyimpannya.
             </div>
           )}
+          {ready && <NewItemsSummary items={result.new_items} applied={false} />}
           {issues.length > 0 && (
             <>
               <p className="text-sm text-slate-700">
@@ -184,6 +216,7 @@ export function ImportModal({ onClose }: { onClose: () => void }) {
               <Table>
                 <thead>
                   <tr>
+                    <Th>Sheet</Th>
                     <Th>Baris</Th>
                     <Th>Kolom</Th>
                     <Th>Keterangan</Th>
@@ -192,6 +225,7 @@ export function ImportModal({ onClose }: { onClose: () => void }) {
                 <tbody>
                   {issues.map((issue, i) => (
                     <tr key={i}>
+                      <Td className="whitespace-nowrap">{issue.sheet}</Td>
                       <Td className="tabular-nums">{issue.row}</Td>
                       <Td className="whitespace-nowrap">{issue.column || "-"}</Td>
                       <Td>{issue.message}</Td>

@@ -89,7 +89,7 @@ fun HomeContent(
                     style = figmaText(13, color = Hc.InkSoft), maxLines = 1, overflow = TextOverflow.Ellipsis,
                 )
             }
-            Avatar(me.fullName, size = 48.dp)
+            Avatar(me.fullName, size = 48.dp, photo = LocalMyPhoto.current)
         }
 
         if (crash != null) CrashNotice(crash, onCopyCrash, onDismissCrash)

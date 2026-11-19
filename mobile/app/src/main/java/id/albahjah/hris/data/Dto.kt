@@ -66,6 +66,39 @@ data class Me(
     @SerialName("must_change_password") val mustChangePassword: Boolean = false,
     @SerialName("device_status") val deviceStatus: String? = null,
     @SerialName("face_enrolled") val faceEnrolled: Boolean = false,
+    @SerialName("phone") val phone: String? = null,
+    @SerialName("has_photo") val hasPhoto: Boolean = false,
+    @SerialName("photo_updated_at") val photoUpdatedAt: String? = null,
+)
+
+// schema: MeUpdate
+/** Body PATCH /v1/me. String kosong mengosongkan; null tidak dikirim sehingga nilai lama tetap. */
+@Serializable
+data class MeUpdate(
+    @SerialName("phone") val phone: String? = null,
+    @SerialName("email") val email: String? = null,
+    @SerialName("current_password") val currentPassword: String? = null,
+)
+
+// schema: EmployeeChild
+@Serializable
+data class Child(
+    @SerialName("child_order") val childOrder: Int,
+    @SerialName("full_name") val fullName: String,
+    @SerialName("gender") val gender: String? = null,
+    @SerialName("birth_place") val birthPlace: String? = null,
+    @SerialName("birth_date") val birthDate: String? = null,
+    @SerialName("relation") val relation: String? = null,
+    @SerialName("education") val education: String? = null,
+    @SerialName("school_name") val schoolName: String? = null,
+)
+
+// schema: MyFamily
+@Serializable
+data class MyFamily(
+    @SerialName("has_children") val hasChildren: Boolean? = null,
+    @SerialName("children_count") val childrenCount: Int? = null,
+    @SerialName("children") val children: List<Child> = emptyList(),
 )
 
 // schema: AttendanceChallengeInput

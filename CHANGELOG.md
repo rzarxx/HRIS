@@ -7,6 +7,12 @@ Perubahan penting yang terlihat oleh Pejuang, SDM, atau pengelola server. Keputu
 ## Belum dirilis
 
 ### Ditambahkan
+- **Profil tersinkron.** Pejuang bisa mengubah sendiri foto profil, nomor WA, dan email (dari aplikasi: Profil →
+  Data pribadi; dari web: Pengaturan → Akun saya), serta data anak (aplikasi: Profil → Data anak). Perubahan langsung
+  tampil di web dan aplikasi karena memakai data yang sama. Ganti email wajib kata sandi saat ini karena email juga
+  dipakai untuk masuk. Foto disimpan terenkripsi di server, dipotong persegi 512 px, dan metadata EXIF-nya (termasuk
+  lokasi) dibuang. Foto tampil di header web serta Beranda dan Profil aplikasi. Endpoint `PATCH /v1/me`,
+  `GET`/`PUT /v1/me/children`, `PUT`/`DELETE /v1/me/photo`, `GET /v1/employees/{id}/photo`; migrasi 17.
 - **Impor massal Pejuang dari xlsx (D53).** Master Data → Pejuang → **Impor xlsx**: unduh template, isi, lalu unggah.
   Template berisi daftar pilihan (cabang, divisi, subdiv, jenis kelamin, status pernikahan, status dan pendidikan
   anak), sheet Struktur, dan sheet Petunjuk. Sistem memeriksa semua baris lebih dulu dan baru menyimpan bila semuanya

@@ -222,6 +222,7 @@ var uploadRoutes = map[string]bool{
 	"/v1/attendance/clock-out":   true,
 	"/v1/face/enroll":            true,
 	"/v1/admin/employees/import": true,
+	"/v1/me/photo":               true,
 }
 
 // longRoutes boleh berjalan lebih lama, mis. impor massal yang meng-hash kata sandi awal ratusan Pejuang.
@@ -233,7 +234,7 @@ var longRoutes = map[string]bool{
 func limitBody(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		limit := int64(maxBodyBytes)
-		if r.Method == http.MethodPost && uploadRoutes[r.URL.Path] {
+		if (r.Method == http.MethodPost || r.Method == http.MethodPut) && uploadRoutes[r.URL.Path] {
 			limit = maxUploadBytes
 		}
 		r.Body = http.MaxBytesReader(w, r.Body, limit)

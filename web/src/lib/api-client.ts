@@ -136,6 +136,7 @@ export const api = {
   blob: (path: string, query?: Query) => request<Blob>("GET", path, { query, blob: true }),
   post: <T>(path: string, body?: unknown) => request<T>("POST", path, { body }),
   upload: <T>(path: string, file: Blob, query?: Query) => request<T>("POST", path, { body: file, query }),
+  putFile: <T>(path: string, file: Blob) => request<T>("PUT", path, { body: file }),
   patch: <T>(path: string, body?: unknown) => request<T>("PATCH", path, { body }),
   put: <T>(path: string, body?: unknown) => request<T>("PUT", path, { body }),
   del: <T = void>(path: string) => request<T>("DELETE", path),

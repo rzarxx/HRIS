@@ -592,6 +592,8 @@ type Employee struct {
 	MaritalStatus  pgtype.Text
 	HasChildren    pgtype.Bool
 	ChildrenCount  pgtype.Int2
+	PhotoKey       pgtype.Text
+	PhotoUpdatedAt pgtype.Timestamptz
 }
 
 type EmployeeChild struct {

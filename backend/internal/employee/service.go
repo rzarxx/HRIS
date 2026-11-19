@@ -38,6 +38,8 @@ type Service struct {
 	pool  *pgxpool.Pool
 	q     *store.Queries
 	scope ScopeResolver
+	// photos menyimpan foto profil; nil bila SELFIE_DIR belum diisi.
+	photos PhotoStore
 }
 
 func NewService(pool *pgxpool.Pool, scope ScopeResolver) *Service {
@@ -67,6 +69,8 @@ type Employee struct {
 	DefaultShiftID   *string  `json:"default_shift_id"`
 	DefaultShiftName *string  `json:"default_shift_name"`
 	FaceEnrolled     bool     `json:"face_enrolled"`
+	HasPhoto         bool     `json:"has_photo"`
+	PhotoUpdatedAt   *string  `json:"photo_updated_at"`
 	BaseSalary       *string  `json:"base_salary,omitempty"`
 	Account          *Account `json:"account,omitempty"`
 	// Children hanya dikirim di detail untuk SDM dan super admin (D53).
@@ -664,6 +668,7 @@ func present(p auth.Principal, r store.GetEmployeeScopedRow) Employee {
 		Status:         r.Status,
 		DefaultShiftID: pgconv.UUIDPtr(r.DefaultShiftID), DefaultShiftName: pgconv.TextPtr(r.DefaultShiftName),
 		FaceEnrolled: r.FaceEnrolled,
+		HasPhoto:     r.PhotoKey.Valid, PhotoUpdatedAt: pgconv.TimeString(r.PhotoUpdatedAt),
 	}
 	if permission.ManagesSalary(p.Role) || r.ID == p.EmployeeID {
 		salary := r.BaseSalary.StringFixed(2)

@@ -185,6 +185,7 @@ func fresh(t *testing.T, opt options) *httptest.Server {
 	if err != nil {
 		t.Fatal(err)
 	}
+	employeeSvc := employee.NewService(appPool, authSvc.ResolveScope)
 	attendanceOpt := attendance.Options{AllowUnverified: opt.allowUnverified, Now: opt.clock, Cipher: cipher, PlayVerifier: opt.playVerifier}
 	if !opt.noFaceEngine {
 		selfies, err := attendance.NewDiskStore(t.TempDir(), cipher)
@@ -192,6 +193,7 @@ func fresh(t *testing.T, opt options) *httptest.Server {
 			t.Fatal(err)
 		}
 		attendanceOpt.Faces, attendanceOpt.Selfies = fakeFaces{}, selfies
+		employeeSvc.WithPhotos(selfies)
 	}
 	authSvc.SetDeviceBinder(device.BindForLogin)
 	q := store.New(appPool)
@@ -209,7 +211,7 @@ func fresh(t *testing.T, opt options) *httptest.Server {
 	srv := httptest.NewServer(server.New(server.Deps{
 		Auth:         auth.NewHandler(authSvc, false, "", limiter),
 		Org:          org.NewHandler(org.NewService(appPool)),
-		Employee:     employee.NewHandler(employee.NewService(appPool, authSvc.ResolveScope)),
+		Employee:     employee.NewHandler(employeeSvc).WithMe(authSvc.Me),
 		Announcement: announcement.NewHandler(announcementSvc),
 		Settings:     settings.NewHandler(settingsSvc),
 		Dashboard:    dashboard.NewHandler(q),

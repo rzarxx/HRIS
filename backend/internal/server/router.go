@@ -85,6 +85,12 @@ func routes(d Deps) []Route {
 		{http.MethodPost, "/v1/auth/mfa/enable", AnyUser, nil, d.Auth.MFAEnable},
 		// Tetap terbuka saat sandi/MFA belum dipenuhi agar web tahu apa yang harus dilakukan.
 		{http.MethodGet, "/v1/me", AnyUser, nil, d.Auth.GetMe},
+		guarded(http.MethodPatch, "/v1/me", d.Employee.UpdateMe, permission.ProfileUpdate),
+		guarded(http.MethodGet, "/v1/me/children", d.Employee.MyChildren, permission.ProfileRead),
+		guarded(http.MethodPut, "/v1/me/children", d.Employee.SetMyChildren, permission.ProfileUpdate),
+		guarded(http.MethodPut, "/v1/me/photo", d.Employee.SetMyPhoto, permission.ProfileUpdate),
+		guarded(http.MethodDelete, "/v1/me/photo", d.Employee.DeleteMyPhoto, permission.ProfileUpdate),
+		guarded(http.MethodGet, "/v1/employees/{id}/photo", d.Employee.Photo, permission.ProfileRead),
 
 		guarded(http.MethodPost, "/v1/admin/users/{user_id}/reset-password", d.Auth.AdminResetPassword, permission.UserReset),
 		guarded(http.MethodPost, "/v1/admin/users/{user_id}/lock", d.Auth.AdminLock, permission.UserManage),

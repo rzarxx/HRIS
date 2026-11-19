@@ -92,3 +92,24 @@ DELETE FROM employee_children WHERE employee_id = $1;
 -- name: InsertEmployeeChild :exec
 INSERT INTO employee_children (employee_id, child_order, full_name, gender, birth_place, birth_date, relation, education, school_name)
 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9);
+
+-- name: UpdateOwnContact :execrows
+UPDATE employees SET email = @email, phone = @phone, updated_at = now()
+WHERE id = @id AND deleted_at IS NULL;
+
+-- name: GetOwnFamily :one
+SELECT has_children, children_count FROM employees WHERE id = $1 AND deleted_at IS NULL;
+
+-- name: UpdateOwnFamily :execrows
+UPDATE employees SET has_children = @has_children, children_count = @children_count, updated_at = now()
+WHERE id = @id AND deleted_at IS NULL;
+
+-- name: GetEmployeePhoto :one
+SELECT photo_key FROM employees WHERE id = $1 AND deleted_at IS NULL;
+
+-- name: SetEmployeePhoto :one
+-- Mengembalikan kunci foto sebelumnya agar berkas lamanya bisa dihapus setelah transaksi selesai.
+WITH old AS (SELECT photo_key FROM employees WHERE id = @id AND deleted_at IS NULL FOR UPDATE)
+UPDATE employees e SET photo_key = sqlc.narg(photo_key), photo_updated_at = sqlc.narg(photo_updated_at)
+FROM old WHERE e.id = @id
+RETURNING old.photo_key AS previous_key;

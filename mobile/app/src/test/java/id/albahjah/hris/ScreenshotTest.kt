@@ -49,6 +49,10 @@ import id.albahjah.hris.ui.FigmaPopup
 import id.albahjah.hris.ui.MainTab
 import id.albahjah.hris.ui.MainTabs
 import id.albahjah.hris.ui.PasswordForm
+import id.albahjah.hris.ui.ChildDraft
+import id.albahjah.hris.ui.ChildrenContent
+import id.albahjah.hris.ui.ContactForm
+import id.albahjah.hris.ui.FamilyForm
 import id.albahjah.hris.ui.PersonalDataContent
 import id.albahjah.hris.ui.HomeContent
 import id.albahjah.hris.ui.HrisTheme
@@ -488,6 +492,27 @@ class ScreenshotTest {
 
     @Test
     fun personalData() = shot { PersonalDataContent(me, onBack = {}) }
+
+    @Test
+    fun personalDataEmailChange() = shot {
+        PersonalDataContent(
+            me.copy(phone = "6281234567001"),
+            onBack = {},
+            form = ContactForm(phone = "081234567001", email = "siti@albahjah.or.id", errors = mapOf("current_password" to "Kata sandi saat ini belum sesuai. Silakan periksa kembali.")),
+        )
+    }
+
+    @Test
+    fun children() = shot {
+        ChildrenContent(
+            FamilyForm(
+                hasChildren = true,
+                count = "2",
+                children = listOf(ChildDraft(name = "Aisyah Rahmawati", gender = "P", birthPlace = "Cirebon", birthDate = "2015-04-02", relation = "kandung", education = "sd_mi", school = "MI Al Bahjah")),
+            ),
+            onBack = {},
+        )
+    }
 
     @Test
     fun changePasswordError() = shot {

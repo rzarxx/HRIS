@@ -100,10 +100,6 @@ WHERE id = @id AND deleted_at IS NULL;
 -- name: GetOwnFamily :one
 SELECT has_children, children_count FROM employees WHERE id = $1 AND deleted_at IS NULL;
 
--- name: UpdateOwnFamily :execrows
-UPDATE employees SET has_children = @has_children, children_count = @children_count, updated_at = now()
-WHERE id = @id AND deleted_at IS NULL;
-
 -- name: GetEmployeePhoto :one
 SELECT photo_key FROM employees WHERE id = $1 AND deleted_at IS NULL;
 

@@ -29,14 +29,11 @@ import id.albahjah.hris.security.RequestHash
 import id.albahjah.hris.data.Child
 import id.albahjah.hris.data.MeUpdate
 import id.albahjah.hris.data.MyFamily
-import id.albahjah.hris.ui.ChildDraft
 import id.albahjah.hris.ui.FamilyForm
 import id.albahjah.hris.ui.centerSquare
-import id.albahjah.hris.ui.familyProblems
 import id.albahjah.hris.ui.from
 import id.albahjah.hris.ui.localPhone
 import id.albahjah.hris.ui.sampleSizeFor
-import id.albahjah.hris.ui.toFamily
 import id.albahjah.hris.ui.toPickerMillis
 import java.security.KeyPairGenerator
 import java.security.Signature
@@ -742,25 +739,16 @@ class RequestHashTest {
     }
 
     @Test
-    fun familyFormRoundTrip() {
+    fun familyFormFromServerSortsChildren() {
         val server = MyFamily(
             hasChildren = true, childrenCount = 3,
             children = listOf(Child(2, "Budi", gender = "L"), Child(1, "Aisyah", gender = "P", schoolName = "MI Al Bahjah")),
         )
         val form = FamilyForm.from(server)
         assertEquals(listOf("Aisyah", "Budi"), form.children.map { it.name })
-        val body = form.toFamily()
-        assertEquals(listOf(1, 2), body.children.map { it.childOrder })
-        assertEquals(3, body.childrenCount)
-        assertEquals(null, body.children[1].schoolName)
-    }
-
-    @Test
-    fun familyProblemsMatchServerRules() {
-        assertTrue(familyProblems(FamilyForm(hasChildren = true, count = "1", children = listOf(ChildDraft(name = "Aisyah")))).isEmpty())
-        assertTrue("has_children" in familyProblems(FamilyForm(hasChildren = false, children = listOf(ChildDraft(name = "Aisyah")))))
-        assertTrue("children_count" in familyProblems(FamilyForm(count = "1", children = listOf(ChildDraft(name = "A1"), ChildDraft(name = "B2")))))
-        assertTrue("children.0.full_name" in familyProblems(FamilyForm(children = listOf(ChildDraft(name = "A")))))
+        assertEquals("3", form.count)
+        assertEquals("MI Al Bahjah", form.children[0].school)
+        assertEquals("", form.children[1].school)
     }
 
     @Test

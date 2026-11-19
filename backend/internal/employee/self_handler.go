@@ -53,20 +53,6 @@ func (h *Handler) MyChildren(w http.ResponseWriter, r *http.Request) error {
 	return httpx.Data(w, http.StatusOK, out)
 }
 
-// SetMyChildren menangani PUT /v1/me/children.
-func (h *Handler) SetMyChildren(w http.ResponseWriter, r *http.Request) error {
-	p, entry := actor(r)
-	var in Family
-	if err := httpx.Decode(r, &in); err != nil {
-		return err
-	}
-	out, err := h.svc.SetOwnFamily(r.Context(), p, entry, in, time.Now())
-	if err != nil {
-		return err
-	}
-	return httpx.Data(w, http.StatusOK, out)
-}
-
 // SetMyPhoto menangani PUT /v1/me/photo; body adalah isi berkas JPEG atau PNG.
 func (h *Handler) SetMyPhoto(w http.ResponseWriter, r *http.Request) error {
 	body, err := io.ReadAll(io.LimitReader(r.Body, MaxPhotoUploadBytes+1))

@@ -593,22 +593,3 @@ func (q *Queries) UpdateOwnContact(ctx context.Context, arg UpdateOwnContactPara
 	}
 	return result.RowsAffected(), nil
 }
-
-const updateOwnFamily = `-- name: UpdateOwnFamily :execrows
-UPDATE employees SET has_children = $1, children_count = $2, updated_at = now()
-WHERE id = $3 AND deleted_at IS NULL
-`
-
-type UpdateOwnFamilyParams struct {
-	HasChildren   pgtype.Bool
-	ChildrenCount pgtype.Int2
-	ID            uuid.UUID
-}
-
-func (q *Queries) UpdateOwnFamily(ctx context.Context, arg UpdateOwnFamilyParams) (int64, error) {
-	result, err := q.db.Exec(ctx, updateOwnFamily, arg.HasChildren, arg.ChildrenCount, arg.ID)
-	if err != nil {
-		return 0, err
-	}
-	return result.RowsAffected(), nil
-}

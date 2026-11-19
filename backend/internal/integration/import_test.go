@@ -15,6 +15,7 @@ import (
 const xlsxType = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
 
 type importIssue struct {
+	Sheet   string `json:"sheet"`
 	Row     int    `json:"row"`
 	Column  string `json:"column"`
 	Message string `json:"message"`
@@ -27,7 +28,14 @@ type importResult struct {
 	Created   int           `json:"created"`
 	Updated   int           `json:"updated"`
 	Issues    []importIssue `json:"issues"`
-	Rows      []struct {
+	NewItems  struct {
+		Branches     []string `json:"branches"`
+		Divisions    []string `json:"divisions"`
+		Subdivisions []string `json:"subdivisions"`
+		Locations    []string `json:"locations"`
+		Shifts       []string `json:"shifts"`
+	} `json:"new_items"`
+	Rows []struct {
 		Row             int     `json:"row"`
 		Action          string  `json:"action"`
 		Nip             *string `json:"nip"`
@@ -151,11 +159,11 @@ func TestEmployeeImport(t *testing.T) {
 		t.Fatalf("pratinjau menyimpan data: %d %v", count, err)
 	}
 
-	// Baris bermasalah: subdiv salah dan nomor WA kembar di dalam berkas. Tidak ada yang tersimpan.
+	// Baris bermasalah: shift yang tidak terdaftar dan nomor WA kembar di dalam berkas. Tidak ada yang tersimpan.
 	bad := fillTemplate(t, template.body, []map[string]string{
 		row(map[string]string{"Nama lengkap": "Budi Santosa", "No. WA": "081255550009"}),
 		row(map[string]string{"Nama lengkap": "Rina Lestari", "No. WA": "+62 812 5555 0009"}),
-		row(map[string]string{"Nama lengkap": "Tono Wijaya", "Subdiv": "Tidak Ada"}),
+		row(map[string]string{"Nama lengkap": "Tono Wijaya", "Shift": "Shift Tidak Ada"}),
 	})
 	rejected := runImport(t, sdm, bad, false)
 	if rejected.Applied || len(rejected.Issues) != 2 {
@@ -165,7 +173,7 @@ func TestEmployeeImport(t *testing.T) {
 	for _, issue := range rejected.Issues {
 		cols[issue.Column] = issue.Row
 	}
-	if cols["No. WA"] != 3 || cols["Subdiv"] != 4 {
+	if cols["No. WA"] != 3 || cols["Shift"] != 4 {
 		t.Errorf("letak masalah: %+v", rejected.Issues)
 	}
 	if err := ownerPool.QueryRow(ctx, `SELECT count(*) FROM employees WHERE full_name = 'Budi Santosa'`).Scan(&count); err != nil || count != 0 {
@@ -244,4 +252,139 @@ func TestEmployeeImport(t *testing.T) {
 	}
 	login(t, srv, activeAccount(t, "pejuang", "OPS-LAP").email, seedPassword).
 		do(http.MethodGet, "/v1/admin/employees/import-template", nil).wantError(t, http.StatusForbidden, "FORBIDDEN_ROLE")
+}
+
+// appendSheet menambah baris baru di bawah data yang sudah ada di sheet Lokasi atau Shift.
+func appendSheet(t *testing.T, file []byte, sheet string, rows [][]string) []byte {
+	t.Helper()
+	f, err := excelize.OpenReader(bytes.NewReader(file))
+	if err != nil {
+		t.Fatal(err)
+	}
+	existing, err := f.GetRows(sheet)
+	if err != nil {
+		t.Fatalf("sheet %s: %v", sheet, err)
+	}
+	for i, row := range rows {
+		for j, v := range row {
+			cell, _ := excelize.CoordinatesToCellName(j+1, len(existing)+i+1)
+			if err := f.SetCellStr(sheet, cell, v); err != nil {
+				t.Fatal(err)
+			}
+		}
+	}
+	buf, err := f.WriteToBuffer()
+	if err != nil {
+		t.Fatal(err)
+	}
+	return buf.Bytes()
+}
+
+// D56: impor membuat struktur, lokasi, dan shift baru, lalu memasang kepala unit beserta role akunnya.
+func TestEmployeeImportStructure(t *testing.T) {
+	srv := fresh(t, options{})
+	sdm := loginSDM(t, srv)
+	ctx := context.Background()
+
+	var branch, division, sub, subID string
+	if err := ownerPool.QueryRow(ctx, `
+		SELECT b.name, d.name, s.name, s.id::text FROM subdivisions s
+		JOIN divisions d ON d.id = s.division_id JOIN branches b ON b.id = d.branch_id
+		WHERE s.code = 'OPS-LAP'`).Scan(&branch, &division, &sub, &subID); err != nil {
+		t.Fatal(err)
+	}
+	// Kepala lama OPS-LAP yang akan digantikan lewat impor.
+	oldHead := activeAccount(t, "pejuang", "OPS-LAP")
+	exec(t, `UPDATE subdivisions SET head_employee_id = $1 WHERE id = $2`, oldHead.employeeID, subID)
+	exec(t, `UPDATE users SET role = 'subdiv' WHERE id = $1`, oldHead.userID)
+
+	template := sdm.do(http.MethodGet, "/v1/admin/employees/import-template", nil).want(t, http.StatusOK).body
+	withRefs := appendSheet(t, template, "Lokasi", [][]string{{"Kantor Cabang Uji", "-6.700100", "108.550200", "150"}})
+	withRefs = appendSheet(t, withRefs, "Shift", [][]string{{"Shift Pagi Uji", "07:30", "15:30", "15", "Senin-Sabtu"}})
+
+	file := fillTemplate(t, withRefs, []map[string]string{
+		{"Nama lengkap": "Kepala Cabang Uji", "Cabang": "Cabang Uji", "Divisi": "Dakwah Uji", "Subdiv": "Kajian Uji",
+			"Peran": "Kepala Divisi", "Shift": "Shift Pagi Uji", "Lokasi 1": "Kantor Cabang Uji"},
+		{"Nama lengkap": "Anggota Cabang Uji", "Cabang": "Cabang Uji", "Divisi": "Dakwah Uji", "Subdiv": "Kajian Uji",
+			"Peran": "Kepala Subdiv", "Lokasi 1": "Kantor Cabang Uji"},
+		{"Nama lengkap": "Kepala Lapangan Baru", "Cabang": branch, "Divisi": division, "Subdiv": sub, "Peran": "Kepala Subdiv"},
+	})
+
+	preview := runImport(t, sdm, file, true)
+	if len(preview.Issues) != 0 || preview.Created != 3 {
+		t.Fatalf("pratinjau: %+v", preview)
+	}
+	n := preview.NewItems
+	if len(n.Branches) != 1 || len(n.Divisions) != 1 || len(n.Subdivisions) != 1 || len(n.Locations) != 1 || len(n.Shifts) != 1 ||
+		n.Subdivisions[0] != "Cabang Uji / Dakwah Uji / Kajian Uji" {
+		t.Fatalf("data baru di pratinjau: %+v", n)
+	}
+	var count int
+	if err := ownerPool.QueryRow(ctx, `SELECT (SELECT count(*) FROM branches WHERE name = 'Cabang Uji') + (SELECT count(*) FROM shifts WHERE name = 'Shift Pagi Uji')`).Scan(&count); err != nil || count != 0 {
+		t.Fatalf("pratinjau menyimpan data rujukan: %d %v", count, err)
+	}
+
+	saved := runImport(t, sdm, file, false)
+	if !saved.Applied || saved.Created != 3 {
+		t.Fatalf("simpan: %+v", saved)
+	}
+	var branchCode, divisionHead, subHead, shiftName, role string
+	var locations int
+	if err := ownerPool.QueryRow(ctx, `
+		SELECT b.code, dh.full_name, sh.full_name, s2.name, u.role::text,
+		       (SELECT count(*) FROM employee_locations el WHERE el.employee_id = e.id)
+		FROM employees e
+		JOIN users u ON u.employee_id = e.id
+		JOIN subdivisions s ON s.id = e.subdivision_id
+		JOIN divisions d ON d.id = s.division_id
+		JOIN branches b ON b.id = d.branch_id
+		JOIN employees dh ON dh.id = d.head_employee_id
+		JOIN employees sh ON sh.id = s.head_employee_id
+		JOIN shifts s2 ON s2.id = e.default_shift_id
+		WHERE e.full_name = 'Kepala Cabang Uji'`).Scan(&branchCode, &divisionHead, &subHead, &shiftName, &role, &locations); err != nil {
+		t.Fatal(err)
+	}
+	if branchCode != "CABANG-UJI" || divisionHead != "Kepala Cabang Uji" || subHead != "Anggota Cabang Uji" ||
+		shiftName != "Shift Pagi Uji" || role != "kadiv" || locations != 1 {
+		t.Errorf("struktur baru: kode=%s kadiv=%s kasubdiv=%s shift=%s role=%s lokasi=%d", branchCode, divisionHead, subHead, shiftName, role, locations)
+	}
+	var workDays string
+	if err := ownerPool.QueryRow(ctx, `SELECT work_days::text FROM shifts WHERE name = 'Shift Pagi Uji'`).Scan(&workDays); err != nil || workDays != "{1,2,3,4,5,6}" {
+		t.Errorf("hari kerja shift baru = %s %v", workDays, err)
+	}
+	// Kepala lama digantikan dan role-nya kembali pejuang; kepala baru menjadi subdiv.
+	var oldRole, newRole string
+	if err := ownerPool.QueryRow(ctx, `SELECT role::text FROM users WHERE id = $1`, oldHead.userID).Scan(&oldRole); err != nil {
+		t.Fatal(err)
+	}
+	if err := ownerPool.QueryRow(ctx, `
+		SELECT u.role::text FROM users u JOIN employees e ON e.id = u.employee_id
+		JOIN subdivisions s ON s.head_employee_id = e.id WHERE s.id = $1`, subID).Scan(&newRole); err != nil {
+		t.Fatal(err)
+	}
+	if oldRole != "pejuang" || newRole != "subdiv" {
+		t.Errorf("role kepala lama=%s baru=%s", oldRole, newRole)
+	}
+
+	// Sheet rujukan dan kolom Peran diperiksa: dua kepala untuk satu subdiv, lokasi tanpa bujur, dan
+	// lokasi yang tidak terdaftar menghasilkan catatan tanpa menyimpan apa pun.
+	bad := appendSheet(t, template, "Lokasi", [][]string{{"Lokasi Rusak", "-6.7", ""}})
+	bad = fillTemplate(t, bad, []map[string]string{
+		{"Nama lengkap": "Calon Kepala A", "Cabang": branch, "Divisi": division, "Subdiv": sub, "Peran": "Kepala Subdiv"},
+		{"Nama lengkap": "Calon Kepala B", "Cabang": branch, "Divisi": division, "Subdiv": sub, "Peran": "Kepala Subdiv"},
+		{"Nama lengkap": "Calon Anggota C", "Cabang": branch, "Divisi": division, "Subdiv": sub, "Lokasi 1": "Tidak Terdaftar"},
+	})
+	rejected := runImport(t, sdm, bad, false)
+	if rejected.Applied {
+		t.Fatalf("berkas bermasalah tersimpan: %+v", rejected)
+	}
+	found := map[string]bool{}
+	for _, issue := range rejected.Issues {
+		found[issue.Sheet+"/"+issue.Column] = true
+	}
+	for _, want := range []string{"Lokasi/Bujur", "Pejuang/Peran", "Pejuang/Lokasi 1"} {
+		if !found[want] {
+			t.Errorf("catatan %s tidak ada: %+v", want, rejected.Issues)
+		}
+	}
 }

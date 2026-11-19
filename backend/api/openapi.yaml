@@ -306,7 +306,9 @@ paths:
     get:
       tags: [Profil]
       summary: Data anak milik sendiri
-      description: Permission `profile:read`. Data anak hanya terlihat oleh Pejuang sendiri, SDM, dan super admin.
+      description: >-
+        Permission `profile:read`. Data anak hanya terlihat oleh Pejuang sendiri, SDM, dan super admin. Pejuang
+        hanya membaca; data anak diubah SDM lewat form Pejuang atau impor xlsx.
       responses:
         "200":
           description: OK
@@ -318,30 +320,6 @@ paths:
                 properties:
                   data: { $ref: "#/components/schemas/MyFamily" }
         "401": { $ref: "#/components/responses/Error" }
-    put:
-      tags: [Profil]
-      summary: Ganti seluruh data anak milik sendiri
-      description: >-
-        Permission `profile:update`. Daftar `children` menggantikan data lama seluruhnya (maks 10 anak per
-        pengiriman). Aturan sama dengan form SDM: urutan anak unik, `children_count` tidak kurang dari jumlah
-        data anak, dan `has_children=false` tidak boleh disertai data anak.
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema: { $ref: "#/components/schemas/MyFamily" }
-      responses:
-        "200":
-          description: Data anak terbaru
-          content:
-            application/json:
-              schema:
-                type: object
-                required: [data]
-                properties:
-                  data: { $ref: "#/components/schemas/MyFamily" }
-        "400": { $ref: "#/components/responses/ValidationFailed" }
-        "403": { $ref: "#/components/responses/Error" }
 
   /v1/me/photo:
     put:
@@ -681,7 +659,11 @@ paths:
     get:
       tags: [Pejuang]
       summary: Unduh template xlsx impor Pejuang
-      description: "Permission `employee:write`. Sheet Pejuang berisi kolom formulir yayasan dengan daftar pilihan (cabang, divisi, subdiv, jenis kelamin, status pernikahan, status dan pendidikan anak), sheet Struktur berisi pasangan cabang–divisi–subdiv yang berlaku, dan sheet Petunjuk."
+      description: >-
+        Permission `employee:write`. Sheet Pejuang berisi kolom formulir yayasan dengan daftar pilihan (cabang,
+        divisi, subdiv, peran, shift, lokasi 1–3, jenis kelamin, status pernikahan, status dan pendidikan anak).
+        Sheet Struktur berisi pasangan cabang–divisi–subdiv yang berlaku; sheet Lokasi dan Shift berisi data
+        terdaftar (berlatar abu-abu) dan baris kosong untuk data baru; ditambah sheet Petunjuk.
       responses:
         "200":
           description: Berkas xlsx
@@ -697,8 +679,12 @@ paths:
         Permission `employee:write`. Body adalah isi berkas xlsx dari template (maks 5 MB, 1.000 baris).
         Semua baris diperiksa lebih dulu; bila ada `issues`, tidak ada yang disimpan. NIPY yang sudah terdaftar
         memperbarui data Pejuang tersebut tanpa mengubah kata sandinya, dan sel kosong tidak mengubah data lama.
-        Baris lain dibuat sebagai Pejuang baru dengan kata sandi awal (D53). `dry_run=true` (bawaan) memeriksa
-        semuanya di transaksi yang dibatalkan; `dry_run=false` menyimpan dalam satu transaksi.
+        Baris lain dibuat sebagai Pejuang baru dengan kata sandi awal (D53). Cabang, divisi, dan subdiv yang belum
+        ada dibuat otomatis (butuh `org:write`), begitu juga lokasi baru di sheet Lokasi (`location:manage`) dan
+        shift baru di sheet Shift (`shift:manage`); daftarnya ada di `new_items`. Kolom Peran memasang kepala
+        subdiv atau divisi dan role akun ikut disesuaikan (D49). Lokasi 1–3 menggantikan lokasi presensi Pejuang.
+        `dry_run=true` (bawaan) memeriksa semuanya di transaksi yang dibatalkan; `dry_run=false` menyimpan dalam
+        satu transaksi.
       parameters:
         - { name: dry_run, in: query, schema: { type: boolean, default: true } }
       requestBody:
@@ -2810,11 +2796,22 @@ components:
             expires_at: { type: string, format: date-time, description: "Batas berlaku kata sandi awal, 72 jam sejak dibuat" }
     EmployeeImportIssue:
       type: object
-      required: [row, column, message]
+      required: [sheet, row, column, message]
       properties:
+        sheet: { type: string, enum: [Pejuang, Lokasi, Shift], description: Sheet tempat sel berada }
         row: { type: integer, description: Nomor baris di Excel }
         column: { type: string, description: Judul kolom template }
         message: { type: string }
+    EmployeeImportNewItems:
+      type: object
+      description: Data rujukan yang belum terdaftar dan ikut dibuat impor (pada pratinjau, yang akan dibuat).
+      required: [branches, divisions, subdivisions, locations, shifts]
+      properties:
+        branches: { type: array, items: { type: string } }
+        divisions: { type: array, items: { type: string }, description: "Ditulis Cabang / Divisi" }
+        subdivisions: { type: array, items: { type: string }, description: "Ditulis Cabang / Divisi / Subdiv" }
+        locations: { type: array, items: { type: string } }
+        shifts: { type: array, items: { type: string } }
     EmployeeImportRow:
       type: object
       required: [row, action, nip, full_name, initial_password, expires_at]
@@ -2827,7 +2824,7 @@ components:
         expires_at: { type: string, format: date-time, nullable: true }
     EmployeeImportResult:
       type: object
-      required: [dry_run, applied, total_rows, created, updated, issues, rows, credentials_file]
+      required: [dry_run, applied, total_rows, created, updated, issues, rows, new_items, credentials_file]
       properties:
         dry_run: { type: boolean }
         applied: { type: boolean, description: true bila data sudah tersimpan }
@@ -2841,6 +2838,7 @@ components:
         rows:
           type: array
           items: { $ref: "#/components/schemas/EmployeeImportRow" }
+        new_items: { $ref: "#/components/schemas/EmployeeImportNewItems" }
         credentials_file:
           type: string
           format: byte

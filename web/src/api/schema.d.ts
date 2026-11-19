@@ -679,7 +679,7 @@ export interface paths {
         };
         /**
          * Data anak milik sendiri
-         * @description Permission `profile:read`. Data anak hanya terlihat oleh Pejuang sendiri, SDM, dan super admin.
+         * @description Permission `profile:read`. Data anak hanya terlihat oleh Pejuang sendiri, SDM, dan super admin. Pejuang hanya membaca; data anak diubah SDM lewat form Pejuang atau impor xlsx.
          */
         get: {
             parameters: {
@@ -704,38 +704,7 @@ export interface paths {
                 401: components["responses"]["Error"];
             };
         };
-        /**
-         * Ganti seluruh data anak milik sendiri
-         * @description Permission `profile:update`. Daftar `children` menggantikan data lama seluruhnya (maks 10 anak per pengiriman). Aturan sama dengan form SDM: urutan anak unik, `children_count` tidak kurang dari jumlah data anak, dan `has_children=false` tidak boleh disertai data anak.
-         */
-        put: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody: {
-                content: {
-                    "application/json": components["schemas"]["MyFamily"];
-                };
-            };
-            responses: {
-                /** @description Data anak terbaru */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": {
-                            data: components["schemas"]["MyFamily"];
-                        };
-                    };
-                };
-                400: components["responses"]["ValidationFailed"];
-                403: components["responses"]["Error"];
-            };
-        };
+        put?: never;
         post?: never;
         delete?: never;
         options?: never;
@@ -1423,7 +1392,7 @@ export interface paths {
         };
         /**
          * Unduh template xlsx impor Pejuang
-         * @description Permission `employee:write`. Sheet Pejuang berisi kolom formulir yayasan dengan daftar pilihan (cabang, divisi, subdiv, jenis kelamin, status pernikahan, status dan pendidikan anak), sheet Struktur berisi pasangan cabang–divisi–subdiv yang berlaku, dan sheet Petunjuk.
+         * @description Permission `employee:write`. Sheet Pejuang berisi kolom formulir yayasan dengan daftar pilihan (cabang, divisi, subdiv, peran, shift, lokasi 1–3, jenis kelamin, status pernikahan, status dan pendidikan anak). Sheet Struktur berisi pasangan cabang–divisi–subdiv yang berlaku; sheet Lokasi dan Shift berisi data terdaftar (berlatar abu-abu) dan baris kosong untuk data baru; ditambah sheet Petunjuk.
          */
         get: {
             parameters: {
@@ -1465,7 +1434,7 @@ export interface paths {
         put?: never;
         /**
          * Impor massal Pejuang dari xlsx
-         * @description Permission `employee:write`. Body adalah isi berkas xlsx dari template (maks 5 MB, 1.000 baris). Semua baris diperiksa lebih dulu; bila ada `issues`, tidak ada yang disimpan. NIPY yang sudah terdaftar memperbarui data Pejuang tersebut tanpa mengubah kata sandinya, dan sel kosong tidak mengubah data lama. Baris lain dibuat sebagai Pejuang baru dengan kata sandi awal (D53). `dry_run=true` (bawaan) memeriksa semuanya di transaksi yang dibatalkan; `dry_run=false` menyimpan dalam satu transaksi.
+         * @description Permission `employee:write`. Body adalah isi berkas xlsx dari template (maks 5 MB, 1.000 baris). Semua baris diperiksa lebih dulu; bila ada `issues`, tidak ada yang disimpan. NIPY yang sudah terdaftar memperbarui data Pejuang tersebut tanpa mengubah kata sandinya, dan sel kosong tidak mengubah data lama. Baris lain dibuat sebagai Pejuang baru dengan kata sandi awal (D53). Cabang, divisi, dan subdiv yang belum ada dibuat otomatis (butuh `org:write`), begitu juga lokasi baru di sheet Lokasi (`location:manage`) dan shift baru di sheet Shift (`shift:manage`); daftarnya ada di `new_items`. Kolom Peran memasang kepala subdiv atau divisi dan role akun ikut disesuaikan (D49). Lokasi 1–3 menggantikan lokasi presensi Pejuang. `dry_run=true` (bawaan) memeriksa semuanya di transaksi yang dibatalkan; `dry_run=false` menyimpan dalam satu transaksi.
          */
         post: {
             parameters: {
@@ -5239,11 +5208,26 @@ export interface components {
             expires_at: string;
         };
         EmployeeImportIssue: {
+            /**
+             * @description Sheet tempat sel berada
+             * @enum {string}
+             */
+            sheet: "Pejuang" | "Lokasi" | "Shift";
             /** @description Nomor baris di Excel */
             row: number;
             /** @description Judul kolom template */
             column: string;
             message: string;
+        };
+        /** @description Data rujukan yang belum terdaftar dan ikut dibuat impor (pada pratinjau, yang akan dibuat). */
+        EmployeeImportNewItems: {
+            branches: string[];
+            /** @description Ditulis Cabang / Divisi */
+            divisions: string[];
+            /** @description Ditulis Cabang / Divisi / Subdiv */
+            subdivisions: string[];
+            locations: string[];
+            shifts: string[];
         };
         EmployeeImportRow: {
             row: number;
@@ -5266,6 +5250,7 @@ export interface components {
             updated: number;
             issues: components["schemas"]["EmployeeImportIssue"][];
             rows: components["schemas"]["EmployeeImportRow"][];
+            new_items: components["schemas"]["EmployeeImportNewItems"];
             /**
              * Format: byte
              * @description Berkas xlsx (base64) berisi kata sandi awal Pejuang baru, hanya ada saat impor disimpan. Kata sandi tersimpan sebagai teks.

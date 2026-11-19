@@ -87,7 +87,6 @@ func routes(d Deps) []Route {
 		{http.MethodGet, "/v1/me", AnyUser, nil, d.Auth.GetMe},
 		guarded(http.MethodPatch, "/v1/me", d.Employee.UpdateMe, permission.ProfileUpdate),
 		guarded(http.MethodGet, "/v1/me/children", d.Employee.MyChildren, permission.ProfileRead),
-		guarded(http.MethodPut, "/v1/me/children", d.Employee.SetMyChildren, permission.ProfileUpdate),
 		guarded(http.MethodPut, "/v1/me/photo", d.Employee.SetMyPhoto, permission.ProfileUpdate),
 		guarded(http.MethodDelete, "/v1/me/photo", d.Employee.DeleteMyPhoto, permission.ProfileUpdate),
 		guarded(http.MethodGet, "/v1/employees/{id}/photo", d.Employee.Photo, permission.ProfileRead),

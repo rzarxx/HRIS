@@ -36,6 +36,9 @@ import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.unit.dp
 import id.albahjah.hris.BuildConfig
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LifecycleEventEffect
+import id.albahjah.hris.data.AnnouncementAttachment
 import id.albahjah.hris.data.AttendanceRecord
 import id.albahjah.hris.data.FontSize
 import id.albahjah.hris.data.Me
@@ -80,6 +83,8 @@ fun MainScreen(
     val announcements = remember(repository) { AnnouncementsController(repository, scope) }
     var openAnnouncementId by rememberSaveable { mutableStateOf<String?>(null) }
     var announcementList by rememberSaveable { mutableStateOf(false) }
+    // Lampiran yang sedang dibuka: (id pengumuman, lampiran).
+    var viewing by remember { mutableStateOf<Pair<String, AnnouncementAttachment>?>(null) }
     // Pop-up yang ditunda ("Nanti saja") tidak muncul lagi sampai aplikasi dibuka ulang.
     var postponed by remember { mutableStateOf(setOf<String>()) }
     val snackbar = remember { SnackbarHostState() }
@@ -187,17 +192,28 @@ fun MainScreen(
         repository.refreshBranding()
     }
     LaunchedEffect(tab) { if (tab == MainTab.Requests) requests.refresh(canApprove) }
+    LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { announcements.refresh() }
 
     if (tab != MainTab.Home) BackHandler { tab = MainTab.Home }
     val now = ZonedDateTime.now(Wib)
     val openLeave = openLeaveId?.let { id -> requests.data.leaves?.firstOrNull { it.id == id } }
     val openAnnouncement = openAnnouncementId?.let { id -> announcements.items?.firstOrNull { it.id == id } }
-    val onSubPage = openLeave != null || openAnnouncement != null || announcementList
-    // Pop-up pengumuman muncul satu per satu saat aplikasi dibuka, di atas halaman tab.
+    val onSubPage = openLeave != null || openAnnouncement != null || announcementList || viewing != null
+    // Pop-up pengumuman muncul satu per satu saat aplikasi dibuka, di atas halaman tab. Yang belum dibaca
+    // meminta "Sudah baca"; yang sudah dibaca dan punya tanggal berakhir muncul lagi sekali sehari dengan
+    // tombol Tutup saja sampai berakhir (D54).
+    val today = now.toLocalDate().toString()
     val popup = if (onSubPage || leaveForm || deciding != null || askLogout) null
-    else announcements.items?.firstOrNull { it.type == "popup" && it.readAt == null && it.id !in postponed }
+    else announcements.items?.firstOrNull {
+        it.type == "popup" && it.id !in postponed &&
+            (it.readAt == null || (it.endsAt != null && repository.prefs.popupClosedOn(it.id) != today))
+    }
     Box(Modifier.fillMaxSize()) {
-        if (openLeave != null) {
+        val shownFile = viewing
+        if (shownFile != null) {
+            BackHandler { viewing = null }
+            AttachmentViewerScreen(repository, shownFile.first, shownFile.second, onBack = { viewing = null })
+        } else if (openLeave != null) {
             BackHandler { openLeaveId = null }
             LeaveDetailScreen(
                 controller = requests,
@@ -212,6 +228,7 @@ fun MainScreen(
                 item = openAnnouncement,
                 onBack = { openAnnouncementId = null },
                 onMessage = notify,
+                onAttachment = { viewing = openAnnouncement.id to it },
             )
         } else if (announcementList) {
             BackHandler { announcementList = false }
@@ -251,9 +268,21 @@ fun MainScreen(
             onChildren = { sub = SubPage.Children },
         ) }
         if (popup != null) {
-            AnnouncementPopup(announcements, popup) { read ->
-                if (read) notify("Terima kasih, pengumuman ditandai sudah dibaca.") else postponed = postponed + popup.id
-            }
+            val repeat = popup.readAt != null
+            AnnouncementPopup(
+                announcements,
+                popup,
+                onClose = { read ->
+                    if (read || repeat) {
+                        // Dicatat per hari agar tidak muncul lagi sampai besok.
+                        repository.prefs.markPopupClosed(popup.id, today)
+                        if (read) notify("Terima kasih, pengumuman ditandai sudah dibaca.")
+                    }
+                    postponed = postponed + popup.id
+                },
+                repeat = repeat,
+                onAttachment = { viewing = popup.id to it },
+            )
         }
         if (leaveForm) {
             LeaveFormSheet(

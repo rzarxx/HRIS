@@ -7,6 +7,13 @@ Perubahan penting yang terlihat oleh Pejuang, SDM, atau pengelola server. Keputu
 ## Belum dirilis
 
 ### Ditambahkan
+- **Lampiran pengumuman (D54).** SDM bisa melampirkan sampai 5 berkas PDF, JPEG, atau PNG (maks 5 MB per berkas) pada
+  pengumuman. Lampiran tampil di pop-up dan detail pengumuman di aplikasi, dan dibuka langsung di dalam aplikasi (PDF
+  dirender per halaman) tanpa aplikasi lain. Berkas disimpan terenkripsi dan hanya bisa diunduh sasaran pengumuman yang
+  sedang tayang. Endpoint `POST`/`DELETE /v1/admin/announcements/{id}/attachments`,
+  `GET /v1/announcements/{id}/attachments/{attachment_id}`; migrasi 18.
+- **Layar terang otomatis saat cahaya kurang (D55).** Kamera presensi dan pendaftaran wajah mengukur terang gambar;
+  bila terlalu gelap, layar HP dibuat terang penuh dan sekitar bingkai wajah menjadi putih sebagai lampu wajah.
 - **Profil tersinkron.** Pejuang bisa mengubah sendiri foto profil, nomor WA, dan email (dari aplikasi: Profil →
   Data pribadi; dari web: Pengaturan → Akun saya), serta data anak (aplikasi: Profil → Data anak). Perubahan langsung
   tampil di web dan aplikasi karena memakai data yang sama. Ganti email wajib kata sandi saat ini karena email juga
@@ -21,6 +28,14 @@ Perubahan penting yang terlihat oleh Pejuang, SDM, atau pengelola server. Keputu
   Endpoint `GET /v1/admin/employees/import-template` dan `POST /v1/admin/employees/import`, audit `employee.imported`.
 
 ### Diubah
+- **Pop-up pengumuman tampil ulang harian (D54).** Setelah ditandai "Sudah baca", pop-up yang punya tanggal berakhir
+  muncul lagi sekali sehari saat aplikasi dibuka, sampai berakhir, hanya dengan tombol **Tutup** (tanpa hitung mundur
+  dan tanpa "Sudah baca" lagi). Pop-up tanpa tanggal berakhir tidak muncul lagi setelah dibaca.
+- **Deteksi wajah lebih mudah untuk Pejuang lanjut usia (D55).** Bingkai wajah lebih toleran terhadap jarak, posisi,
+  dan kemiringan kepala (sampai 20°); posisi cukup ditahan sebentar; mata yang cenderung sipit tetap terbaca terbuka;
+  dan toleh kepala cukup 20°. Server ikut melonggarkan ukuran dan posisi wajah di foto, kemiripan antarselfie
+  pendaftaran (0.45), dan batas toleh. Ambang pencocokan identitas presensi (0.50/0.46) tetap, agar presensi tidak bisa
+  diwakilkan orang lain.
 - Nama aplikasi dan web menjadi **HRIS Al Bahjah** (tanpa "Yayasan"). Artefak AAB rilis bernama `hris-albahjah`.
 - Package aplikasi Android menjadi `id.albahjah.hris` (sebelumnya `id.pejuang.hris`). Di Google Play, package yang
   berbeda berarti aplikasi baru, sehingga aplikasi lama tidak diperbarui otomatis ke versi ini.
@@ -33,6 +48,8 @@ Perubahan penting yang terlihat oleh Pejuang, SDM, atau pengelola server. Keputu
   (sekitar 4 detik untuk 1.000 baris). Kata sandi pilihan sendiri tetap memakai parameter penuh.
 
 ### Diperbaiki
+- Pengumuman baru kini muncul di aplikasi setiap kali aplikasi dibuka kembali dari latar belakang. Sebelumnya hanya
+  dimuat saat aplikasi pertama kali dibuka, sehingga pengumuman baru tidak muncul sampai aplikasi ditutup penuh.
 - Batas 72 jam kata sandi awal kini benar-benar tersimpan untuk Pejuang baru yang ditambahkan lewat form. Sebelumnya
   hanya tersimpan saat reset kata sandi, sehingga kata sandi awal Pejuang baru tidak kedaluwarsa.
 

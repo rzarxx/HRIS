@@ -28,7 +28,8 @@ type Mine struct {
 	OpenedAt       *string `json:"opened_at"`
 	ReadAt         *string `json:"read_at"`
 	// Sisa detik sebelum "Sudah baca" diterima, dihitung server agar jam HP tidak berpengaruh.
-	ReadWaitSeconds int `json:"read_wait_seconds"`
+	ReadWaitSeconds int          `json:"read_wait_seconds"`
+	Attachments     []Attachment `json:"attachments"`
 }
 
 // Reader adalah satu Pejuang sasaran beserta status bacanya, untuk rekap SDM.
@@ -63,6 +64,7 @@ func toMine(r store.GetActiveAnnouncementForRow, now time.Time) Mine {
 		MinReadSeconds: int(r.MinReadSeconds),
 		OpenedAt:       pgconv.TimeString(r.OpenedAt), ReadAt: pgconv.TimeString(r.ReadAt),
 		ReadWaitSeconds: waitSeconds(r.MinReadSeconds, r.OpenedAt, r.ReadAt, now),
+		Attachments:     []Attachment{},
 	}
 }
 
@@ -74,8 +76,17 @@ func (s *Service) Active(ctx context.Context, employeeID uuid.UUID) ([]Mine, err
 		return nil, err
 	}
 	out := make([]Mine, 0, len(rows))
+	ids := make([]uuid.UUID, 0, len(rows))
 	for _, r := range rows {
 		out = append(out, toMine(store.GetActiveAnnouncementForRow(r), now))
+		ids = append(ids, r.ID)
+	}
+	files, err := s.attachmentsFor(ctx, s.q, ids)
+	if err != nil {
+		return nil, err
+	}
+	for i := range out {
+		out[i].Attachments = files[ids[i]]
 	}
 	return out, nil
 }
@@ -108,7 +119,7 @@ func (s *Service) Open(ctx context.Context, employeeID, id uuid.UUID) (Mine, err
 	if err != nil {
 		return Mine{}, err
 	}
-	return toMine(out, now), nil
+	return s.mineWithFiles(ctx, toMine(out, now))
 }
 
 func readTooSoon(message string, wait int) error {
@@ -146,7 +157,7 @@ func (s *Service) Read(ctx context.Context, employeeID, id uuid.UUID) (Mine, err
 	if err != nil {
 		return Mine{}, err
 	}
-	return toMine(out, now), nil
+	return s.mineWithFiles(ctx, toMine(out, now))
 }
 
 // Readers mengembalikan sasaran pengumuman dengan status baca: belum membuka, lalu sudah membuka,
@@ -224,4 +235,21 @@ func (h *Handler) Readers(w http.ResponseWriter, r *http.Request) error {
 		return err
 	}
 	return httpx.Data(w, http.StatusOK, out)
+}
+
+// mineWithFiles melengkapi satu pengumuman dengan lampirannya, agar respons /open dan /read sama
+// lengkapnya dengan /active.
+func (s *Service) mineWithFiles(ctx context.Context, m Mine) (Mine, error) {
+	id, err := uuid.Parse(m.ID)
+	if err != nil {
+		return m, err
+	}
+	files, err := s.attachmentsFor(ctx, s.q, []uuid.UUID{id})
+	if err != nil {
+		return m, err
+	}
+	if f := files[id]; f != nil {
+		m.Attachments = f
+	}
+	return m, nil
 }

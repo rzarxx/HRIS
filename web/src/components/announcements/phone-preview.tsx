@@ -1,8 +1,20 @@
-import { CalendarCheck, FileText, Home, Megaphone, User, Wallet, X } from "lucide-react";
+import { CalendarCheck, FileText, Home, Megaphone, Paperclip, User, Wallet, X } from "lucide-react";
 import type { AnnouncementType } from "@/lib/types";
 
 /** Pratinjau tampilan pengumuman di aplikasi HP Pejuang (DESIGN.md §8). */
-export function PhonePreview({ title, body, type, minRead = 0 }: { title: string; body: string; type: AnnouncementType; minRead?: number }) {
+export function PhonePreview({
+  title,
+  body,
+  type,
+  minRead = 0,
+  files = [],
+}: {
+  title: string;
+  body: string;
+  type: AnnouncementType;
+  minRead?: number;
+  files?: string[];
+}) {
   const t = title.trim() || "Judul pengumuman";
   const b = body.trim() || "Isi pengumuman akan tampil di sini.";
   return (
@@ -64,6 +76,11 @@ export function PhonePreview({ title, body, type, minRead = 0 }: { title: string
               </div>
               <p className="mt-2 text-sm font-semibold text-slate-900">{t}</p>
               <p className="mt-1 max-h-40 overflow-hidden text-[11px] text-slate-600">{b}</p>
+              {files.map((name) => (
+                <p key={name} className="mt-1.5 flex items-center gap-1 truncate rounded bg-slate-100 px-2 py-1 text-[10px] text-slate-700">
+                  <Paperclip className="size-3 shrink-0" aria-hidden /> {name}
+                </p>
+              ))}
               {/* Seperti di aplikasi: tombol menghitung mundur dulu, lalu aktif. */}
               <div className={`mt-3 rounded-md py-1.5 text-center text-xs font-medium ${minRead > 0 ? "bg-slate-200 text-slate-600" : "bg-primary-600 text-white"}`}>
                 {minRead > 0 ? `Sudah baca (${minRead})` : "Sudah baca"}

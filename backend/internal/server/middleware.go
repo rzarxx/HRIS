@@ -231,10 +231,20 @@ var longRoutes = map[string]bool{
 	"/v1/admin/employees/import": true,
 }
 
+// isAttachmentUpload mengenali POST /v1/admin/announcements/{id}/attachments, yang memuat ID di path.
+func isAttachmentUpload(path string) bool {
+	rest, ok := strings.CutPrefix(path, "/v1/admin/announcements/")
+	if !ok {
+		return false
+	}
+	id, tail, _ := strings.Cut(rest, "/")
+	return id != "" && tail == "attachments"
+}
+
 func limitBody(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		limit := int64(maxBodyBytes)
-		if (r.Method == http.MethodPost || r.Method == http.MethodPut) && uploadRoutes[r.URL.Path] {
+		if (r.Method == http.MethodPost || r.Method == http.MethodPut) && (uploadRoutes[r.URL.Path] || isAttachmentUpload(r.URL.Path)) {
 			limit = maxUploadBytes
 		}
 		r.Body = http.MaxBytesReader(w, r.Body, limit)

@@ -3724,6 +3724,147 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/admin/announcements/{id}/attachments": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Tambah lampiran pengumuman
+         * @description Permission `announcement:manage`. Body adalah isi berkas PDF, JPEG, atau PNG (maks 5 MB, jenis dicek dari magic bytes); nama berkas dari query `name`. Paling banyak 5 lampiran per pengumuman. Berkas disimpan terenkripsi di penyimpanan privat server dan dicatat sebagai `announcement.updated`.
+         */
+        post: {
+            parameters: {
+                query: {
+                    name: string;
+                };
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/pdf": string;
+                    "image/jpeg": string;
+                    "image/png": string;
+                };
+            };
+            responses: {
+                /** @description Pengumuman beserta daftar lampiran terbaru */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data: components["schemas"]["Announcement"];
+                        };
+                    };
+                };
+                400: components["responses"]["ValidationFailed"];
+                404: components["responses"]["Error"];
+                413: components["responses"]["Error"];
+                503: components["responses"]["Error"];
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/announcements/{id}/attachments/{attachment_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Hapus lampiran pengumuman
+         * @description Permission `announcement:manage`.
+         */
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                    attachment_id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Lampiran dihapus */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                404: components["responses"]["Error"];
+            };
+        };
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/announcements/{id}/attachments/{attachment_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Unduh lampiran pengumuman
+         * @description Permission `announcement:read`. Hanya untuk pengumuman yang sedang tayang bagi pemanggil; pemegang `announcement:manage` boleh mengunduh lampiran pengumuman apa pun. Jawaban `Cache-Control: private, no-store`.
+         */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                    attachment_id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Isi berkas */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/pdf": string;
+                        "image/jpeg": string;
+                        "image/png": string;
+                    };
+                };
+                404: components["responses"]["Error"];
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/announcements/active": {
         parameters: {
             query?: never;
@@ -5240,6 +5381,16 @@ export interface components {
             opened_count: number;
             /** @description Sasaran yang sudah menekan "Sudah baca" */
             read_count: number;
+            attachments: components["schemas"]["AnnouncementAttachment"][];
+        };
+        /** @description Berkas lampiran pengumuman (PDF, JPEG, atau PNG). Isi diunduh lewat `GET /v1/announcements/{id}/attachments/{attachment_id}`. */
+        AnnouncementAttachment: {
+            /** Format: uuid */
+            id: string;
+            file_name: string;
+            /** @enum {string} */
+            content_type: "application/pdf" | "image/jpeg" | "image/png";
+            size_bytes: number;
         };
         Branding: {
             /** @description Footer jadi */
@@ -5277,6 +5428,7 @@ export interface components {
             read_at: string | null;
             /** @description Sisa detik sebelum "Sudah baca" diterima, dihitung server saat respons dibuat. Nol bila sudah dibaca. */
             read_wait_seconds: number;
+            attachments: components["schemas"]["AnnouncementAttachment"][];
         };
         AnnouncementReader: {
             /** Format: uuid */

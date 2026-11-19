@@ -66,17 +66,17 @@ enum class FaceFit(val hint: String) {
     Tilted("Tegakkan kepala"),
 }
 
-/** Ambang "pas di oval". Nilai dalam proporsi oval, sudut dalam derajat. */
+/** Ambang "pas di oval". Nilai dalam proporsi oval, sudut dalam derajat. Dilonggarkan untuk Pejuang lanjut usia (D55). */
 object FitRules {
-    const val CENTER_X = 0.12f
-    const val CENTER_Y = 0.10f
-    const val WIDTH_MIN = 0.55f
-    const val WIDTH_MAX = 0.85f
-    const val MAX_TILT = 12f
-    /** Toleransi tepi: wajah boleh menyentuh garis oval sedikit (5% jari-jari). */
-    const val EDGE_TOLERANCE = 0.05f
+    const val CENTER_X = 0.18f
+    const val CENTER_Y = 0.16f
+    const val WIDTH_MIN = 0.42f
+    const val WIDTH_MAX = 0.95f
+    const val MAX_TILT = 20f
+    /** Toleransi tepi: wajah boleh sedikit melewati garis oval (12% jari-jari). */
+    const val EDGE_TOLERANCE = 0.12f
     /** Jumlah frame berturut-turut yang harus pas sebelum dianggap stabil. */
-    const val HOLD_FRAMES = 8
+    const val HOLD_FRAMES = 5
 }
 
 /**
@@ -136,11 +136,11 @@ fun <T> significantFaces(faces: List<T>, box: (T) -> FitRect): List<T> {
 /** Ambang pemeriksaan foto hasil jepretan sebelum dikirim. */
 object PhotoRules {
     /** Lebar wajah minimal terhadap oval; lebih longgar dari [FitRules.WIDTH_MIN] karena orang bisa sedikit bergerak. */
-    const val WIDTH_OF_OVAL_MIN = 0.45f
-    /** Batas server: lebar wajah minimal 20% foto. Di HP diberi cadangan agar tidak ditolak server. */
-    const val WIDTH_OF_PHOTO_MIN = 0.22f
-    /** Batas server: pusat wajah di 60% bagian tengah foto. Di HP dipersempit sedikit. */
-    const val CENTER_SPAN = 0.56f
+    const val WIDTH_OF_OVAL_MIN = 0.36f
+    /** Batas server: lebar wajah minimal 15% foto. Di HP diberi cadangan agar tidak ditolak server. */
+    const val WIDTH_OF_PHOTO_MIN = 0.17f
+    /** Batas server: pusat wajah di 70% bagian tengah foto. Di HP dipersempit sedikit. */
+    const val CENTER_SPAN = 0.66f
     /** Ulang foto otomatis paling banyak dua kali bila hasilnya tidak pas. */
     const val RETRIES = 2
 }

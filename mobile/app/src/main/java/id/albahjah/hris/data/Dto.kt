@@ -342,6 +342,16 @@ data class MyAnnouncement(
     @SerialName("opened_at") val openedAt: String? = null,
     @SerialName("read_at") val readAt: String? = null,
     @SerialName("read_wait_seconds") val readWaitSeconds: Int = 0,
+    @SerialName("attachments") val attachments: List<AnnouncementAttachment> = emptyList(),
+)
+
+// schema: AnnouncementAttachment
+@Serializable
+data class AnnouncementAttachment(
+    @SerialName("id") val id: String,
+    @SerialName("file_name") val fileName: String,
+    @SerialName("content_type") val contentType: String,
+    @SerialName("size_bytes") val sizeBytes: Int = 0,
 )
 
 // schema: Branding

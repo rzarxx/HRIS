@@ -235,7 +235,7 @@ class ScreenshotTest {
     @Test
     fun sending() = shot { ProgressContent("Presensi masuk", "Memverifikasi wajah", "Mengirim foto dan lokasi. Jangan tutup aplikasi.", null) }
 
-    private fun cameraShot(state: LivenessState) = shot {
+    private fun cameraShot(state: LivenessState, lowLight: Boolean = false) = shot {
         val message = cameraMessage(state, shots = 1, taken = 0)
         Box(
             Modifier
@@ -249,9 +249,13 @@ class ScreenshotTest {
                 gesture = "Kedipkan mata",
                 onClose = {},
                 progress = message.progress,
+                lowLight = lowLight,
             )
         }
     }
+
+    @Test
+    fun cameraLowLight() = cameraShot(LivenessState.Waiting("Tahan posisi", aligned = true, progress = 0.4f), lowLight = true)
 
     @Test
     fun camera() = cameraShot(LivenessState.Waiting("Kedipkan mata"))

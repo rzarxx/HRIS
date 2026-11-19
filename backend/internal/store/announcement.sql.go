@@ -12,6 +12,30 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const announcementAttachmentKeys = `-- name: AnnouncementAttachmentKeys :many
+SELECT storage_key FROM announcement_attachments WHERE announcement_id = $1
+`
+
+func (q *Queries) AnnouncementAttachmentKeys(ctx context.Context, announcementID uuid.UUID) ([]string, error) {
+	rows, err := q.db.Query(ctx, announcementAttachmentKeys, announcementID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []string{}
+	for rows.Next() {
+		var storage_key string
+		if err := rows.Scan(&storage_key); err != nil {
+			return nil, err
+		}
+		items = append(items, storage_key)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const announcementReadCounts = `-- name: AnnouncementReadCounts :many
 
 SELECT a.id,
@@ -63,6 +87,17 @@ func (q *Queries) AnnouncementReadCounts(ctx context.Context, ids []uuid.UUID) (
 	return items, nil
 }
 
+const countAnnouncementAttachments = `-- name: CountAnnouncementAttachments :one
+SELECT count(*) FROM announcement_attachments WHERE announcement_id = $1
+`
+
+func (q *Queries) CountAnnouncementAttachments(ctx context.Context, announcementID uuid.UUID) (int64, error) {
+	row := q.db.QueryRow(ctx, countAnnouncementAttachments, announcementID)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const countAnnouncements = `-- name: CountAnnouncements :one
 SELECT count(*) FROM announcements
 `
@@ -109,6 +144,35 @@ func (q *Queries) CreateAnnouncement(ctx context.Context, arg CreateAnnouncement
 	return id, err
 }
 
+const createAnnouncementAttachment = `-- name: CreateAnnouncementAttachment :one
+INSERT INTO announcement_attachments (announcement_id, file_name, content_type, size_bytes, storage_key, created_by)
+VALUES ($1, $2, $3, $4, $5, $6)
+RETURNING id
+`
+
+type CreateAnnouncementAttachmentParams struct {
+	AnnouncementID uuid.UUID
+	FileName       string
+	ContentType    string
+	SizeBytes      int32
+	StorageKey     string
+	CreatedBy      uuid.NullUUID
+}
+
+func (q *Queries) CreateAnnouncementAttachment(ctx context.Context, arg CreateAnnouncementAttachmentParams) (uuid.UUID, error) {
+	row := q.db.QueryRow(ctx, createAnnouncementAttachment,
+		arg.AnnouncementID,
+		arg.FileName,
+		arg.ContentType,
+		arg.SizeBytes,
+		arg.StorageKey,
+		arg.CreatedBy,
+	)
+	var id uuid.UUID
+	err := row.Scan(&id)
+	return id, err
+}
+
 const deleteAnnouncement = `-- name: DeleteAnnouncement :execrows
 DELETE FROM announcements WHERE id = $1
 `
@@ -119,6 +183,23 @@ func (q *Queries) DeleteAnnouncement(ctx context.Context, id uuid.UUID) (int64, 
 		return 0, err
 	}
 	return result.RowsAffected(), nil
+}
+
+const deleteAnnouncementAttachment = `-- name: DeleteAnnouncementAttachment :one
+DELETE FROM announcement_attachments WHERE id = $1 AND announcement_id = $2
+RETURNING storage_key
+`
+
+type DeleteAnnouncementAttachmentParams struct {
+	ID             uuid.UUID
+	AnnouncementID uuid.UUID
+}
+
+func (q *Queries) DeleteAnnouncementAttachment(ctx context.Context, arg DeleteAnnouncementAttachmentParams) (string, error) {
+	row := q.db.QueryRow(ctx, deleteAnnouncementAttachment, arg.ID, arg.AnnouncementID)
+	var storage_key string
+	err := row.Scan(&storage_key)
+	return storage_key, err
 }
 
 const getActiveAnnouncementFor = `-- name: GetActiveAnnouncementFor :one
@@ -212,6 +293,31 @@ func (q *Queries) GetAnnouncement(ctx context.Context, id uuid.UUID) (GetAnnounc
 	return i, err
 }
 
+const getAnnouncementAttachment = `-- name: GetAnnouncementAttachment :one
+SELECT id, announcement_id, file_name, content_type, size_bytes, storage_key, created_by, created_at FROM announcement_attachments WHERE id = $1 AND announcement_id = $2
+`
+
+type GetAnnouncementAttachmentParams struct {
+	ID             uuid.UUID
+	AnnouncementID uuid.UUID
+}
+
+func (q *Queries) GetAnnouncementAttachment(ctx context.Context, arg GetAnnouncementAttachmentParams) (AnnouncementAttachment, error) {
+	row := q.db.QueryRow(ctx, getAnnouncementAttachment, arg.ID, arg.AnnouncementID)
+	var i AnnouncementAttachment
+	err := row.Scan(
+		&i.ID,
+		&i.AnnouncementID,
+		&i.FileName,
+		&i.ContentType,
+		&i.SizeBytes,
+		&i.StorageKey,
+		&i.CreatedBy,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
 const listActiveAnnouncementsFor = `-- name: ListActiveAnnouncementsFor :many
 
 SELECT a.id, a.title, a.body, a.type, a.starts_at, a.ends_at, a.min_read_seconds, r.opened_at, r.read_at
@@ -263,6 +369,47 @@ func (q *Queries) ListActiveAnnouncementsFor(ctx context.Context, arg ListActive
 			&i.MinReadSeconds,
 			&i.OpenedAt,
 			&i.ReadAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listAnnouncementAttachments = `-- name: ListAnnouncementAttachments :many
+SELECT id, announcement_id, file_name, content_type, size_bytes
+FROM announcement_attachments
+WHERE announcement_id = ANY($1::uuid[])
+ORDER BY created_at, id
+`
+
+type ListAnnouncementAttachmentsRow struct {
+	ID             uuid.UUID
+	AnnouncementID uuid.UUID
+	FileName       string
+	ContentType    string
+	SizeBytes      int32
+}
+
+func (q *Queries) ListAnnouncementAttachments(ctx context.Context, announcementIds []uuid.UUID) ([]ListAnnouncementAttachmentsRow, error) {
+	rows, err := q.db.Query(ctx, listAnnouncementAttachments, announcementIds)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListAnnouncementAttachmentsRow{}
+	for rows.Next() {
+		var i ListAnnouncementAttachmentsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.AnnouncementID,
+			&i.FileName,
+			&i.ContentType,
+			&i.SizeBytes,
 		); err != nil {
 			return nil, err
 		}
@@ -386,6 +533,15 @@ func (q *Queries) ListAnnouncements(ctx context.Context, arg ListAnnouncementsPa
 		return nil, err
 	}
 	return items, nil
+}
+
+const lockAnnouncement = `-- name: LockAnnouncement :exec
+SELECT id FROM announcements WHERE id = $1 FOR UPDATE
+`
+
+func (q *Queries) LockAnnouncement(ctx context.Context, id uuid.UUID) error {
+	_, err := q.db.Exec(ctx, lockAnnouncement, id)
+	return err
 }
 
 const markAnnouncementRead = `-- name: MarkAnnouncementRead :exec

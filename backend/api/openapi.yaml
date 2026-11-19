@@ -1777,6 +1777,73 @@ paths:
                     type: array
                     items: { $ref: "#/components/schemas/AnnouncementReader" }
         "404": { $ref: "#/components/responses/Error" }
+  /v1/admin/announcements/{id}/attachments:
+    post:
+      tags: [Pengumuman]
+      summary: Tambah lampiran pengumuman
+      description: >-
+        Permission `announcement:manage`. Body adalah isi berkas PDF, JPEG, atau PNG (maks 5 MB, jenis dicek dari
+        magic bytes); nama berkas dari query `name`. Paling banyak 5 lampiran per pengumuman. Berkas disimpan
+        terenkripsi di penyimpanan privat server dan dicatat sebagai `announcement.updated`.
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+        - { name: name, in: query, required: true, schema: { type: string, maxLength: 120 } }
+      requestBody:
+        required: true
+        content:
+          application/pdf:
+            schema: { type: string, format: binary }
+          image/jpeg:
+            schema: { type: string, format: binary }
+          image/png:
+            schema: { type: string, format: binary }
+      responses:
+        "201":
+          description: Pengumuman beserta daftar lampiran terbaru
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data: { $ref: "#/components/schemas/Announcement" }
+        "400": { $ref: "#/components/responses/ValidationFailed" }
+        "404": { $ref: "#/components/responses/Error" }
+        "413": { $ref: "#/components/responses/Error" }
+        "503": { $ref: "#/components/responses/Error" }
+  /v1/admin/announcements/{id}/attachments/{attachment_id}:
+    delete:
+      tags: [Pengumuman]
+      summary: Hapus lampiran pengumuman
+      description: Permission `announcement:manage`.
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+        - { name: attachment_id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        "204": { description: Lampiran dihapus }
+        "404": { $ref: "#/components/responses/Error" }
+  /v1/announcements/{id}/attachments/{attachment_id}:
+    get:
+      tags: [Pengumuman]
+      summary: Unduh lampiran pengumuman
+      description: >-
+        Permission `announcement:read`. Hanya untuk pengumuman yang sedang tayang bagi pemanggil; pemegang
+        `announcement:manage` boleh mengunduh lampiran pengumuman apa pun. Jawaban `Cache-Control: private, no-store`.
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+        - { name: attachment_id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        "200":
+          description: Isi berkas
+          content:
+            application/pdf:
+              schema: { type: string, format: binary }
+            image/jpeg:
+              schema: { type: string, format: binary }
+            image/png:
+              schema: { type: string, format: binary }
+        "404": { $ref: "#/components/responses/Error" }
+
   /v1/announcements/active:
     get:
       tags: [Pengumuman]
@@ -2866,7 +2933,7 @@ components:
       type: object
       required:
         [id, title, body, type, image_upload_id, division_id, division_name, starts_at, ends_at, is_active, created_at,
-         min_read_seconds, audience_count, opened_count, read_count]
+         min_read_seconds, audience_count, opened_count, read_count, attachments]
       properties:
         id: { type: string, format: uuid }
         title: { type: string }
@@ -2883,6 +2950,18 @@ components:
         audience_count: { type: integer, description: Pejuang aktif di divisi tujuan, atau semua bila division_id kosong }
         opened_count: { type: integer, description: Sasaran yang sudah membuka isi di aplikasi }
         read_count: { type: integer, description: Sasaran yang sudah menekan "Sudah baca" }
+        attachments:
+          type: array
+          items: { $ref: "#/components/schemas/AnnouncementAttachment" }
+    AnnouncementAttachment:
+      type: object
+      description: Berkas lampiran pengumuman (PDF, JPEG, atau PNG). Isi diunduh lewat `GET /v1/announcements/{id}/attachments/{attachment_id}`.
+      required: [id, file_name, content_type, size_bytes]
+      properties:
+        id: { type: string, format: uuid }
+        file_name: { type: string }
+        content_type: { type: string, enum: [application/pdf, image/jpeg, image/png] }
+        size_bytes: { type: integer }
     Branding:
       type: object
       required: [footer, footer_template, is_default, updated_at]
@@ -2898,7 +2977,7 @@ components:
     MyAnnouncement:
       type: object
       description: Pengumuman yang sedang tayang untuk Pejuang yang masuk, beserta status bacanya
-      required: [id, title, body, type, starts_at, ends_at, min_read_seconds, opened_at, read_at, read_wait_seconds]
+      required: [id, title, body, type, starts_at, ends_at, min_read_seconds, opened_at, read_at, read_wait_seconds, attachments]
       properties:
         id: { type: string, format: uuid }
         title: { type: string }
@@ -2912,6 +2991,9 @@ components:
         read_wait_seconds:
           type: integer
           description: Sisa detik sebelum "Sudah baca" diterima, dihitung server saat respons dibuat. Nol bila sudah dibaca.
+        attachments:
+          type: array
+          items: { $ref: "#/components/schemas/AnnouncementAttachment" }
     AnnouncementReader:
       type: object
       required: [employee_id, full_name, nip, subdivision_name, opened_at, read_at]

@@ -44,6 +44,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import id.albahjah.hris.data.AnnouncementAttachment
 import id.albahjah.hris.data.MyAnnouncement
 import id.albahjah.hris.data.Repository
 import id.albahjah.hris.data.toApiError
@@ -162,6 +163,8 @@ fun BoxScope.AnnouncementPopupContent(
     error: String?,
     onRead: () -> Unit,
     onLater: () -> Unit,
+    repeat: Boolean = false,
+    onAttachment: (AnnouncementAttachment) -> Unit = {},
 ) {
     Box(
         Modifier.matchParentSize().background(Fg.Backdrop)
@@ -183,8 +186,15 @@ fun BoxScope.AnnouncementPopupContent(
             Text("Pengumuman", style = figmaText(13, FontWeight.SemiBold, Hc.BrandDark), modifier = Modifier.weight(1f))
         }
         Text(item.title, style = figmaText(20, FontWeight.Bold, lineHeight = 1.3f), modifier = Modifier.semantics { heading() })
-        Column(Modifier.heightIn(max = 320.dp).verticalScroll(rememberScrollState())) {
+        Column(Modifier.heightIn(max = 320.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text(item.body, style = figmaText(15, color = Fg.TextBody, lineHeight = 1.55f))
+            item.attachments.forEach { AttachmentRow(it) { onAttachment(it) } }
+        }
+        if (repeat) {
+            // Sudah dibaca sebelumnya: cukup diingatkan, tanpa tombol Sudah baca lagi (D54).
+            if (item.readAt != null) Text("Sudah dibaca ${wibDateTime(item.readAt)}", style = figmaText(12, FontWeight.Medium, Tone.Success.content))
+            FigmaPrimaryButton("Tutup", onLater)
+            return@Column
         }
         if (error != null) Text(error, style = figmaText(12, color = Fg.Danger, lineHeight = 1.3f))
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -203,7 +213,13 @@ fun BoxScope.AnnouncementPopupContent(
 
 /** Pop-up pengumuman yang terhubung ke server; [onClose] dipanggil setelah dibaca atau ditunda. */
 @Composable
-fun BoxScope.AnnouncementPopup(controller: AnnouncementsController, item: MyAnnouncement, onClose: (read: Boolean) -> Unit) {
+fun BoxScope.AnnouncementPopup(
+    controller: AnnouncementsController,
+    item: MyAnnouncement,
+    onClose: (read: Boolean) -> Unit,
+    repeat: Boolean = false,
+    onAttachment: (AnnouncementAttachment) -> Unit = {},
+) {
     val flow = rememberReadFlow(controller, item)
     val wait = flow.wait?.let { rememberCountdown(item.id to it, it) }
     AnnouncementPopupContent(
@@ -213,6 +229,8 @@ fun BoxScope.AnnouncementPopup(controller: AnnouncementsController, item: MyAnno
         error = flow.error,
         onRead = { flow.read(item) { onClose(true) } },
         onLater = { onClose(false) },
+        repeat = repeat,
+        onAttachment = onAttachment,
     )
 }
 
@@ -296,7 +314,15 @@ fun AnnouncementListContent(list: List<MyAnnouncement>?, onBack: () -> Unit, onO
 }
 
 @Composable
-fun AnnouncementDetailContent(item: MyAnnouncement, wait: Int?, busy: Boolean, error: String?, onBack: () -> Unit, onRead: () -> Unit) {
+fun AnnouncementDetailContent(
+    item: MyAnnouncement,
+    wait: Int?,
+    busy: Boolean,
+    error: String?,
+    onBack: () -> Unit,
+    onRead: () -> Unit,
+    onAttachment: (AnnouncementAttachment) -> Unit = {},
+) {
     Column(Modifier.fillMaxSize().background(Fg.PageProfile)) {
         FigmaHeader("Pengumuman", onBack)
         Column(
@@ -309,6 +335,7 @@ fun AnnouncementDetailContent(item: MyAnnouncement, wait: Int?, busy: Boolean, e
                 Text(scheduleText(item), style = figmaText(12, color = Fg.TextSecondary))
                 Text(item.title, style = figmaText(20, FontWeight.SemiBold, Fg.TextStrong, lineHeight = 1.3f), modifier = Modifier.semantics { heading() })
                 Text(item.body, style = figmaText(15, color = Fg.TextBody, lineHeight = 1.55f))
+                item.attachments.forEach { AttachmentRow(it) { onAttachment(it) } }
             }
             Column(ContentWidth.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 if (item.readAt != null) {
@@ -343,7 +370,13 @@ fun AnnouncementDetailContent(item: MyAnnouncement, wait: Int?, busy: Boolean, e
 
 /** Halaman detail yang terhubung ke server. */
 @Composable
-fun AnnouncementDetailScreen(controller: AnnouncementsController, item: MyAnnouncement, onBack: () -> Unit, onMessage: (String) -> Unit) {
+fun AnnouncementDetailScreen(
+    controller: AnnouncementsController,
+    item: MyAnnouncement,
+    onBack: () -> Unit,
+    onMessage: (String) -> Unit,
+    onAttachment: (AnnouncementAttachment) -> Unit = {},
+) {
     val flow = rememberReadFlow(controller, item)
     val wait = flow.wait?.let { rememberCountdown(item.id to it, it) }
     AnnouncementDetailContent(
@@ -353,5 +386,6 @@ fun AnnouncementDetailScreen(controller: AnnouncementsController, item: MyAnnoun
         error = flow.error,
         onBack = onBack,
         onRead = { flow.read(item) { onMessage("Terima kasih, pengumuman ditandai sudah dibaca.") } },
+        onAttachment = onAttachment,
     )
 }

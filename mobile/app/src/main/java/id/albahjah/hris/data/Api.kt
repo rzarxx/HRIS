@@ -129,6 +129,9 @@ interface HrisApi {
 
     @POST("v1/announcements/{id}/read")
     suspend fun readAnnouncement(@Path("id") id: String): DataResponse<MyAnnouncement>
+
+    @GET("v1/announcements/{id}/attachments/{attachment_id}")
+    suspend fun announcementAttachment(@Path("id") id: String, @Path("attachment_id") attachmentId: String): ResponseBody
 }
 
 /** Dipakai terpisah dari [HrisApi] agar perpanjangan sesi tidak memicu dirinya sendiri. */

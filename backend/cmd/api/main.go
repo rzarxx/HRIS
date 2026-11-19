@@ -143,7 +143,10 @@ func run() error {
 	leaveSvc := leave.NewService(pool, authSvc.ResolveScope)
 	approvalSvc.Register(store.RequestKindLeave, leaveSvc)
 	employeeSvc := employee.NewService(pool, authSvc.ResolveScope)
+	announcementSvc := announcement.NewService(pool)
 	if privateFiles != nil {
+		// Lampiran pengumuman memakai folder terenkripsi yang sama, dengan awalan kunci announcements/.
+		announcementSvc.WithFiles(privateFiles)
 		// Foto profil memakai folder terenkripsi yang sama dengan selfie, dengan awalan kunci profile/.
 		employeeSvc.WithPhotos(privateFiles)
 	}
@@ -152,7 +155,7 @@ func run() error {
 		Auth:         auth.NewHandler(authSvc, secure, cfg.CookieDomain, limiter),
 		Org:          org.NewHandler(org.NewService(pool)),
 		Employee:     employee.NewHandler(employeeSvc).WithMe(authSvc.Me),
-		Announcement: announcement.NewHandler(announcement.NewService(pool)),
+		Announcement: announcement.NewHandler(announcementSvc),
 		Settings:     settings.NewHandler(settings.NewService(pool)),
 		Dashboard:    dashboard.NewHandler(q),
 		Report:       report.NewHandler(report.NewService(q, authSvc.ResolveScope)),

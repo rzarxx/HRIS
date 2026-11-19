@@ -6,6 +6,7 @@ import { Button, IconButton } from "@/components/ui/button";
 import { api } from "@/lib/api-client";
 import { downloadBlob } from "@/lib/download";
 import type { AnnouncementAttachment } from "@/lib/types";
+import { AttachmentPreview } from "./attachment-preview";
 
 export const MAX_ATTACHMENTS = 5;
 const MAX_BYTES = 5 * 1024 * 1024;
@@ -122,6 +123,10 @@ export function AttachmentsField({
         </ul>
       )}
       {error && <p className="text-xs text-red-600">{error}</p>}
+      <p className="text-xs text-slate-500">Setiap lampiran diperiksa keamanannya dan dioptimalkan sebelum disimpan.</p>
+      {announcementId && saved.map((attachment) => (
+        <AttachmentPreview key={attachment.id} announcementId={announcementId} attachment={attachment} />
+      ))}
     </div>
   );
 }

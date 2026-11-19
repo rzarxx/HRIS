@@ -12,7 +12,10 @@ import (
 	"github.com/rzarxx/HRIS/backend/internal/platform/httpx"
 )
 
-type Handler struct{ svc *Service }
+type Handler struct {
+	svc *Service
+	me  MeFunc
+}
 
 func NewHandler(svc *Service) *Handler { return &Handler{svc: svc} }
 

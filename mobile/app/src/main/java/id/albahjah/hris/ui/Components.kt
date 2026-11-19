@@ -9,6 +9,8 @@ import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -408,9 +410,13 @@ fun RefreshBox(refreshing: Boolean, onRefresh: () -> Unit, modifier: Modifier = 
 
 /** Lingkaran inisial nama. */
 @Composable
-fun Avatar(name: String, size: Dp = 40.dp) {
+fun Avatar(name: String, size: Dp = 40.dp, photo: ImageBitmap? = null) {
     Box(Modifier.size(size).clip(CircleShape).background(Hc.BrandSoft), contentAlignment = Alignment.Center) {
-        Text(initials(name), style = MaterialTheme.typography.titleSmall, color = Hc.BrandDeep)
+        if (photo != null) {
+            Image(photo, contentDescription = "Foto $name", contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
+        } else {
+            Text(initials(name), style = MaterialTheme.typography.titleSmall, color = Hc.BrandDeep)
+        }
     }
 }
 

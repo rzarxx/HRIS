@@ -455,6 +455,7 @@ Semua HP Android didukung lewat jalur berjenjang. Jalur ditetapkan **server** da
 | Biometrik | `face_templates`, selfie | Enkripsi aplikasi, akses minimum, audit | Template: hingga 30 hari setelah keluar kerja. Selfie: 90 hari |
 | Sensitif | gaji, slip, kasbon, SP | Enkripsi disk, akses per scope, audit | Sesuai ketentuan perusahaan dan perpajakan |
 | Lokasi | koordinat absen | Akses per scope | `attendance_attempts` 1 tahun |
+| Pribadi | foto profil | Enkripsi aplikasi, EXIF dibuang, akses diri sendiri dan scope `employee:read` | Selama aktif; foto lama dihapus saat diganti atau dihapus |
 | Internal | master organisasi | Akses login | Selama aktif |
 | Audit | `audit_logs` | Append-only | 2 tahun |
 
@@ -519,7 +520,7 @@ DDL dasar ada di `QUERY.sql`; perubahan di **Lampiran A** (yang berlaku). Beriku
 | `branches` | `id`, `code`, `name`, `created_at` | Cabang yayasan dengan struktur sendiri; baris awal `PUSAT` (D53, migrasi 000016) |
 | `divisions` | `id`, `branch_id`, `code`, `name`, `head_employee_id` | Kode unik per cabang |
 | `subdivisions` | `id`, `division_id`, `code`, `name`, `head_employee_id` | Kode unik per divisi |
-| `employees` | `id`, `nip`, `full_name`, `email`, `phone`, `gender`, `marital_status`, `has_children`, `children_count`, `subdivision_id`, `position`, `join_date`, `exit_date`, `base_salary`, `default_shift_id`, `status`, `deleted_at` | Soft delete. `phone` = nomor WA bentuk `62…`, unik |
+| `employees` | `id`, `nip`, `full_name`, `email`, `phone`, `gender`, `marital_status`, `has_children`, `children_count`, `subdivision_id`, `position`, `join_date`, `exit_date`, `base_salary`, `default_shift_id`, `status`, `photo_key`, `photo_updated_at`, `deleted_at` | Soft delete. `phone` = nomor WA bentuk `62…`, unik. `photo_key` menunjuk foto profil terenkripsi di `SELFIE_DIR/profile/` |
 | `employee_children` | `id`, `employee_id`, `child_order`, `full_name`, `gender`, `birth_place`, `birth_date`, `relation`, `education`, `school_name` | Unik `(employee_id, child_order)`; hanya untuk SDM, super admin, dan Pejuang sendiri (D53) |
 | `users` | `id`, `employee_id`, `email` (boleh kosong), `password_hash`, `role`, `is_active`, `failed_login_count`, `locked_until`, `must_change_password`, `initial_password_expires_at` | 1:1 employee. `initial_password_expires_at` terisi selama kata sandi awal belum diganti (D53) |
 | `user_mfa` | `user_id`, `secret_enc`, `enabled_at`, `recovery_hashes` | |
@@ -666,6 +667,7 @@ Daftar memakai `?page=&per_page=&q=&sort=` (contoh `sort=-created_at`) dan filte
 | 429 | `RATE_LIMITED` | Terlalu banyak permintaan (`Retry-After`) |
 | 500 | `INTERNAL_ERROR` | Kesalahan server |
 | 503 | `FACE_SERVICE_UNAVAILABLE` | Mesin wajah server belum dipasang (`FACE_MODELS_DIR` kosong) |
+| 503 | `STORAGE_UNAVAILABLE` | Penyimpanan berkas privat server belum disiapkan (`SELFIE_DIR` kosong), mis. untuk foto profil |
 
 Setiap `code` baru wajib ditambahkan di tabel ini.
 
@@ -690,7 +692,10 @@ Setiap `code` baru wajib ditambahkan di tabel ini.
 **Pejuang (semua role)**
 | Method | Path | Permission |
 |---|---|---|
-| GET / PATCH | `/v1/me` | `profile:read` / `profile:update` |
+| GET / PATCH | `/v1/me` | `profile:read` / `profile:update`. PATCH mengubah `phone` dan `email`; ganti email wajib `current_password` |
+| GET / PUT | `/v1/me/children` | `profile:read` / `profile:update`. PUT mengganti seluruh data anak |
+| PUT / DELETE | `/v1/me/photo` | `profile:update`. JPEG/PNG maks 5 MB, disimpan ulang sebagai JPEG 512 px tanpa EXIF |
+| GET | `/v1/employees/{id}/photo` | `profile:read` untuk diri sendiri; Pejuang lain butuh `employee:read` dalam scope |
 | GET | `/v1/org/divisions`, `/v1/org/subdivisions?division_id=` | `org:read` |
 | POST | `/v1/devices/register` | `device:register` |
 | GET | `/v1/devices/me` | `device:register` |

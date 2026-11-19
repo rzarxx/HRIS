@@ -10,6 +10,8 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
+import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.RequestBody.Companion.toRequestBody
 import java.time.Instant
 import java.time.temporal.ChronoUnit
 
@@ -277,5 +279,43 @@ class Repository(
             val response = changePassword(PasswordChangeRequest(current, next))
             if (!response.isSuccessful) throw retrofit2.HttpException(response)
         }
+    }
+
+    /** Mengubah nomor WA dan email sendiri. String kosong mengosongkan; ganti email wajib kata sandi. */
+    suspend fun updateContact(phone: String, email: String, currentPassword: String?): Me =
+        call { updateMe(MeUpdate(phone = phone, email = email, currentPassword = currentPassword?.takeIf { it.isNotEmpty() })).data }
+
+    suspend fun myFamily(): MyFamily = call { myFamily().data }
+
+    suspend fun setMyFamily(family: MyFamily): MyFamily = call { setMyFamily(family).data }
+
+    /** Mengunggah foto profil JPEG; server memotong persegi 512 px dan membuang EXIF. */
+    suspend fun setPhoto(jpeg: ByteArray): Me {
+        val me = call { setMyPhoto(jpeg.toRequestBody("image/jpeg".toMediaType())).data }
+        photoCache = null
+        return me
+    }
+
+    suspend fun deletePhoto() {
+        call {
+            val response = deleteMyPhoto()
+            if (!response.isSuccessful) throw retrofit2.HttpException(response)
+        }
+        photoCache = null
+    }
+
+    /** Foto profil terakhir yang diunduh, ditandai dengan photo_updated_at agar tidak diunduh ulang. */
+    @Volatile
+    private var photoCache: Pair<String, ByteArray>? = null
+
+    /** Foto profil sendiri sebagai bytes JPEG, atau null bila belum ada foto. */
+    suspend fun myPhoto(me: Me): ByteArray? {
+        val version = me.photoUpdatedAt ?: return null
+        if (!me.hasPhoto) return null
+        val key = "${me.employeeId}@$version"
+        photoCache?.takeIf { it.first == key }?.let { return it.second }
+        val bytes = call { photo(me.employeeId).use { it.bytes() } }
+        photoCache = key to bytes
+        return bytes
     }
 }

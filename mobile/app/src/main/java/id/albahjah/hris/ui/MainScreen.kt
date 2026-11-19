@@ -29,6 +29,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.ImageBitmap
 import dev.chrisbanes.haze.HazeState
 import dev.chrisbanes.haze.hazeSource
 import androidx.compose.ui.platform.LocalClipboardManager
@@ -46,7 +47,7 @@ import kotlinx.coroutines.launch
 import java.time.ZonedDateTime
 
 /** Halaman di atas tab yang dibuka dari Profil. */
-private enum class SubPage { PersonalData, Password, FontSize }
+private enum class SubPage { PersonalData, Children, Password, FontSize }
 
 /**
  * Kerangka aplikasi setelah masuk: memuat profil dan presensi sekali, lalu menampilkan lima tab
@@ -134,6 +135,18 @@ fun MainScreen(
         return
     }
 
+    // Foto profil diunduh sekali per versi (photo_updated_at) lalu dipakai Beranda, Profil, dan Data pribadi.
+    var photo by remember { mutableStateOf<ImageBitmap?>(null) }
+    LaunchedEffect(current.employeeId, current.hasPhoto, current.photoUpdatedAt) {
+        photo = try {
+            decodePhoto(repository.myPhoto(current))
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            null
+        }
+    }
+
     // Masuk dengan kata sandi awal: layar ganti kata sandi langsung disodorkan dan tidak bisa dilewati (D53).
     if (current.mustChangePassword) {
         BackHandler { /* tidak bisa kembali sebelum kata sandi diganti; pakai tombol Keluar */ }
@@ -144,8 +157,12 @@ fun MainScreen(
     when (sub) {
         SubPage.PersonalData -> {
             BackHandler { sub = null }
-            SecureScreen()
-            PersonalDataContent(current) { sub = null }
+            PersonalDataScreen(repository, current, photo, onBack = { sub = null }, onUpdated = { me = it })
+            return
+        }
+        SubPage.Children -> {
+            BackHandler { sub = null }
+            ChildrenScreen(repository) { sub = null }
             return
         }
         SubPage.Password -> {
@@ -199,7 +216,7 @@ fun MainScreen(
         } else if (announcementList) {
             BackHandler { announcementList = false }
             AnnouncementListContent(announcements.items, onBack = { announcementList = false }, onOpen = { openAnnouncementId = it.id })
-        } else MainTabs(
+        } else CompositionLocalProvider(LocalMyPhoto provides photo) { MainTabs(
             tab = tab,
             onTab = { tab = it },
             me = current,
@@ -231,7 +248,8 @@ fun MainScreen(
             announcements = announcements.items.orEmpty(),
             onAnnouncement = { openAnnouncementId = it.id },
             onAnnouncements = { announcementList = true },
-        )
+            onChildren = { sub = SubPage.Children },
+        ) }
         if (popup != null) {
             AnnouncementPopup(announcements, popup) { read ->
                 if (read) notify("Terima kasih, pengumuman ditandai sudah dibaca.") else postponed = postponed + popup.id
@@ -302,6 +320,7 @@ fun MainTabs(
     footer: String? = null,
     fontSize: FontSize = FontSize.Normal,
     onFontSize: () -> Unit = {},
+    onChildren: () -> Unit = {},
 ) {
     // Isi tab menjadi sumber blur; bottom bar kaca mengambang di atasnya.
     val haze = remember { HazeState() }
@@ -359,6 +378,7 @@ fun MainTabs(
                         fontSize = fontSize,
                         onFontSize = onFontSize,
                         footer = footer,
+                        onChildren = onChildren,
                     )
                 }
             }

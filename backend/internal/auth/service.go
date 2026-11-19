@@ -369,7 +369,11 @@ type Me struct {
 	// DeviceStatus hanya terisi untuk sesi aplikasi, agar aplikasi tahu layar yang harus ditampilkan (F5).
 	DeviceStatus *string `json:"device_status"`
 	// FaceEnrolled memberi tahu aplikasi apakah harus membuka alur daftar wajah (F7).
-	FaceEnrolled bool `json:"face_enrolled"`
+	FaceEnrolled bool    `json:"face_enrolled"`
+	Phone        *string `json:"phone"`
+	HasPhoto     bool    `json:"has_photo"`
+	// PhotoUpdatedAt dipakai klien sebagai penanda cache foto profil.
+	PhotoUpdatedAt *string `json:"photo_updated_at"`
 }
 
 type Ref struct {
@@ -421,6 +425,9 @@ func (s *Service) Me(ctx context.Context, userID, deviceID uuid.UUID) (Me, error
 		MFAEnabled:         mfaEnabled,
 		DeviceStatus:       deviceStatus,
 		FaceEnrolled:       faceEnrolled,
+		Phone:              pgconv.TextPtr(row.Phone),
+		HasPhoto:           row.HasPhoto,
+		PhotoUpdatedAt:     pgconv.TimeString(row.PhotoUpdatedAt),
 	}, nil
 }
 

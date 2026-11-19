@@ -25,8 +25,10 @@ const (
 	MinSimilarityPass = 0.50
 	// MinSimilarityReview: sampai nilai ini masih diterima dengan sinyal face_borderline; di bawahnya ditolak.
 	MinSimilarityReview = 0.46
-	// MinEnrollSimilarity: kemiripan terendah antarselfie saat pendaftaran.
-	MinEnrollSimilarity = 0.50
+	// MinEnrollSimilarity: kemiripan terendah antarselfie saat pendaftaran. Sedikit lebih longgar dari
+	// MinSimilarityPass agar pendaftaran Pejuang lanjut usia tidak berulang-ulang (D55); identitas tetap
+	// dijaga ambang presensi.
+	MinEnrollSimilarity = 0.45
 )
 
 var (
@@ -61,21 +63,22 @@ type Analysis struct {
 	Centered bool
 }
 
-// Ambang pose untuk liveness toleh kepala (D50). Nilai awal dari geometri wajah rata-rata: toleh
-// sekitar 12 derajat memberi rasio ~0.13 dan toleh 25 derajat ~0.27. Wajib dikalibrasi dengan foto
+// Ambang pose untuk liveness toleh kepala (D50, dilonggarkan D55). Dari geometri wajah rata-rata: toleh
+// sekitar 12 derajat memberi rasio ~0.13, 18 derajat ~0.19, dan 25 derajat ~0.27. Aplikasi meminta toleh
+// minimal 20 derajat, jadi batas gerakan 0.13 memberi cadangan untuk kepala yang menoleh pelan. Wajib dikalibrasi dengan foto
 // dari HP sungguhan, sama seperti ambang kemiripan.
 const (
 	// StraightTurnMax: foto lurus boleh menoleh sampai rasio ini.
-	StraightTurnMax = 0.20
+	StraightTurnMax = 0.26
 	// GestureTurnMin: foto gerakan harus menoleh paling sedikit rasio ini.
-	GestureTurnMin = 0.18
+	GestureTurnMin = 0.13
 	// GestureTurnDelta: selisih rasio foto gerakan dan foto lurus, agar dua foto lurus yang sedikit
 	// miring tidak dianggap gerakan.
-	GestureTurnDelta = 0.10
+	GestureTurnDelta = 0.07
 	// GestureMinSimilarity: kemiripan terendah wajah di foto gerakan dengan foto lurus. Wajah yang
 	// menoleh kurang mirip dengan wajah lurus, jadi ambangnya lebih longgar dari MinSimilarityReview;
 	// tujuannya menangkap foto gerakan milik orang lain, bukan mencocokkan identitas.
-	GestureMinSimilarity = 0.30
+	GestureMinSimilarity = 0.25
 )
 
 // TurnRatio mengukur toleh kepala dari titik YuNet (mata kanan, mata kiri, hidung, ...): selisih jarak

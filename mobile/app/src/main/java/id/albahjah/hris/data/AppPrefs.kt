@@ -48,8 +48,16 @@ class AppPrefs(context: Context) {
         prefs.edit().putString(KEY_FOOTER, text).apply()
     }
 
+    /** Tanggal WIB (yyyy-MM-dd) terakhir pop-up pengumuman [id] ditutup di HP ini (D54). */
+    fun popupClosedOn(id: String): String? = prefs.getString(KEY_POPUP + id, null)
+
+    fun markPopupClosed(id: String, date: String) {
+        prefs.edit().putString(KEY_POPUP + id, date).apply()
+    }
+
     private companion object {
         const val KEY_FONT = "font_scale"
         const val KEY_FOOTER = "footer"
+        const val KEY_POPUP = "popup_closed_"
     }
 }

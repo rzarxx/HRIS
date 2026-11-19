@@ -1,7 +1,9 @@
 "use client";
 
-import { Eye, Pencil, Plus, Trash2 } from "lucide-react";
+import { useQueryClient } from "@tanstack/react-query";
+import { Eye, Paperclip, Pencil, Plus, Trash2 } from "lucide-react";
 import { useState } from "react";
+import { attachmentProblem, AttachmentsField, uploadAttachment } from "@/components/announcements/attachments-field";
 import { PhonePreview } from "@/components/announcements/phone-preview";
 import { ReadersModal, ReadProgress } from "@/components/announcements/readers";
 import { AnnouncementStatusBadge } from "@/components/announcements/status";
@@ -10,11 +12,11 @@ import { Field, Input, Select, Textarea, Toggle } from "@/components/ui/form";
 import { Badge, Card, EmptyState, ErrorState, Loading, PageHeader } from "@/components/ui/layout";
 import { ConfirmDialog, Modal } from "@/components/ui/modal";
 import { Table, Td, Th } from "@/components/ui/table";
-import { api } from "@/lib/api-client";
+import { api, ApiError } from "@/lib/api-client";
 import { dateTime, fromWibInput, toWibInput } from "@/lib/format";
 import { useAnnouncements, useDivisions, useSave } from "@/lib/hooks";
 import { announcementSchema, validate, type AnnouncementInput } from "@/lib/schemas";
-import type { AnnouncementListItem, AnnouncementType } from "@/lib/types";
+import type { AnnouncementAttachment, AnnouncementListItem, AnnouncementType } from "@/lib/types";
 
 interface FormState {
   title: string;
@@ -47,6 +49,47 @@ export default function AnnouncementsPage() {
   const [previewing, setPreviewing] = useState<AnnouncementListItem | null>(null);
   const [deleting, setDeleting] = useState<AnnouncementListItem | null>(null);
   const [reading, setReading] = useState<AnnouncementListItem | null>(null);
+  // Lampiran: yang sudah tersimpan di server, dan yang ditampung untuk pengumuman baru.
+  const [savedFiles, setSavedFiles] = useState<AnnouncementAttachment[]>([]);
+  const [pendingFiles, setPendingFiles] = useState<File[]>([]);
+  const [fileBusy, setFileBusy] = useState(false);
+  const [fileError, setFileError] = useState<string>();
+  const qc = useQueryClient();
+  const editingId = editing && editing !== "new" ? editing.id : undefined;
+
+  async function addFile(file: File) {
+    const problem = attachmentProblem(file, savedFiles.length + pendingFiles.length);
+    setFileError(problem ?? undefined);
+    if (problem) return;
+    if (!editingId) {
+      setPendingFiles((p) => [...p, file]);
+      return;
+    }
+    setFileBusy(true);
+    try {
+      const res = await uploadAttachment(editingId, file);
+      setSavedFiles(res.data.attachments);
+      await qc.invalidateQueries({ queryKey: ["announcements"] });
+    } catch (e) {
+      setFileError(e instanceof ApiError ? (e.fields?.file ?? e.message) : "Lampiran belum terunggah. Silakan coba lagi.");
+    } finally {
+      setFileBusy(false);
+    }
+  }
+
+  async function removeSavedFile(a: AnnouncementAttachment) {
+    if (!editingId) return;
+    setFileBusy(true);
+    try {
+      await api.del(`/admin/announcements/${editingId}/attachments/${a.id}`);
+      setSavedFiles((list) => list.filter((x) => x.id !== a.id));
+      await qc.invalidateQueries({ queryKey: ["announcements"] });
+    } catch (e) {
+      setFileError(e instanceof ApiError ? e.message : "Lampiran belum terhapus. Silakan coba lagi.");
+    } finally {
+      setFileBusy(false);
+    }
+  }
 
   const set = <K extends keyof FormState>(k: K, v: FormState[K]) => {
     setForm((f) => ({ ...f, [k]: v }));
@@ -54,8 +97,13 @@ export default function AnnouncementsPage() {
   };
 
   const save = useSave(
-    (v: AnnouncementInput) =>
-      editing && editing !== "new" ? api.patch(`/admin/announcements/${editing.id}`, v) : api.post("/admin/announcements", v),
+    async (v: AnnouncementInput) => {
+      if (editingId) return api.patch(`/admin/announcements/${editingId}`, v);
+      const created = await api.post<{ data: AnnouncementListItem }>("/admin/announcements", v);
+      // Lampiran pengumuman baru diunggah setelah pengumuman tersimpan dan punya ID.
+      for (const file of pendingFiles) await uploadAttachment(created.data.id, file);
+      return created;
+    },
     { success: "Pengumuman tersimpan.", onDone: () => setEditing(null), onFieldErrors: setErrors },
   );
   const remove = useSave((id: string) => api.del(`/admin/announcements/${id}`), {
@@ -79,6 +127,9 @@ export default function AnnouncementsPage() {
             min_read_seconds: String(a.min_read_seconds),
           },
     );
+    setSavedFiles(a === "new" ? [] : a.attachments);
+    setPendingFiles([]);
+    setFileError(undefined);
     setEditing(a);
   }
 
@@ -136,7 +187,15 @@ export default function AnnouncementsPage() {
               {list.data.map((a) => (
                 <tr key={a.id} className="hover:bg-slate-50">
                   <Td>
-                    <p className="font-medium text-slate-900">{a.title}</p>
+                    <p className="font-medium text-slate-900">
+                      {a.title}
+                      {a.attachments.length > 0 && (
+                        <span className="ml-2 inline-flex items-center gap-0.5 text-xs font-normal text-slate-500" title={`${a.attachments.length} lampiran`}>
+                          <Paperclip className="size-3" aria-hidden />
+                          {a.attachments.length}
+                        </span>
+                      )}
+                    </p>
                     <p className="line-clamp-1 max-w-md text-xs text-slate-500">{a.body}</p>
                   </Td>
                   <Td>{a.type === "popup" ? <Badge tone="accent">Pop-up</Badge> : <Badge>Banner</Badge>}</Td>
@@ -194,7 +253,11 @@ export default function AnnouncementsPage() {
             <Field label="Isi" htmlFor="body" error={errors.body} required className="sm:col-span-2">
               <Textarea id="body" rows={4} value={form.body} onChange={(e) => set("body", e.target.value)} invalid={!!errors.body} />
             </Field>
-            <Field label="Tipe" htmlFor="type" error={errors.type} required hint={form.type === "popup" ? "Tampil sekali sampai ditandai dibaca." : "Tampil di beranda sampai berakhir."}>
+            <Field label="Tipe" htmlFor="type" error={errors.type} required hint={
+                form.type === "popup"
+                  ? "Muncul saat aplikasi dibuka sampai ditandai dibaca. Bila ada tanggal berakhir, setelah dibaca tetap muncul sekali sehari dengan tombol Tutup sampai berakhir."
+                  : "Tampil di beranda sampai berakhir."
+              }>
               <Select id="type" value={form.type} onChange={(e) => set("type", e.target.value as AnnouncementType)}>
                 <option value="banner">Banner</option>
                 <option value="popup">Pop-up</option>
@@ -235,19 +298,45 @@ export default function AnnouncementsPage() {
                 className="sm:max-w-40"
               />
             </Field>
+            <div className="sm:col-span-2">
+              <AttachmentsField
+                announcementId={editingId}
+                saved={savedFiles}
+                pending={pendingFiles}
+                busy={fileBusy}
+                error={fileError}
+                onAdd={addFile}
+                onRemoveSaved={removeSavedFile}
+                onRemovePending={(i) => setPendingFiles((p) => p.filter((_, j) => j !== i))}
+              />
+            </div>
             <Toggle checked={form.is_active} onChange={(v) => set("is_active", v)} className="sm:col-span-2">
               Aktif
             </Toggle>
           </form>
           <div>
             <p className="mb-2 text-center text-xs font-medium text-slate-500">Pratinjau di aplikasi</p>
-            <PhonePreview title={form.title} body={form.body} type={form.type} minRead={Number(form.min_read_seconds) || 0} />
+            <PhonePreview
+              title={form.title}
+              body={form.body}
+              type={form.type}
+              minRead={Number(form.min_read_seconds) || 0}
+              files={[...savedFiles.map((a) => a.file_name), ...pendingFiles.map((f) => f.name)]}
+            />
           </div>
         </div>
       </Modal>
 
       <Modal open={previewing !== null} title="Pratinjau pengumuman" size="sm" onClose={() => setPreviewing(null)}>
-        {previewing && <PhonePreview title={previewing.title} body={previewing.body} type={previewing.type} minRead={previewing.min_read_seconds} />}
+        {previewing && (
+          <PhonePreview
+            title={previewing.title}
+            body={previewing.body}
+            type={previewing.type}
+            minRead={previewing.min_read_seconds}
+            files={previewing.attachments.map((a) => a.file_name)}
+          />
+        )}
       </Modal>
 
       <ReadersModal a={reading} onClose={() => setReading(null)} />

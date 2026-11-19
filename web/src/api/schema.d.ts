@@ -635,6 +635,225 @@ export interface paths {
         delete?: never;
         options?: never;
         head?: never;
+        /**
+         * Ubah nomor WA dan email sendiri
+         * @description Permission `profile:update`. Field yang tidak dikirim tetap nilai lamanya; `null` mengosongkan. Mengganti email wajib menyertakan `current_password` karena email dipakai untuk masuk. Email login ikut berubah, dan perubahan dicatat sebagai `employee.updated` dengan nama field saja. Email baru belum diverifikasi lewat email (SMTP menyusul).
+         */
+        patch: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["MeUpdate"];
+                };
+            };
+            responses: {
+                /** @description Profil terbaru */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data: components["schemas"]["Me"];
+                        };
+                    };
+                };
+                400: components["responses"]["ValidationFailed"];
+                403: components["responses"]["Error"];
+                409: components["responses"]["Error"];
+            };
+        };
+        trace?: never;
+    };
+    "/v1/me/children": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Data anak milik sendiri
+         * @description Permission `profile:read`. Data anak hanya terlihat oleh Pejuang sendiri, SDM, dan super admin.
+         */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data: components["schemas"]["MyFamily"];
+                        };
+                    };
+                };
+                401: components["responses"]["Error"];
+            };
+        };
+        /**
+         * Ganti seluruh data anak milik sendiri
+         * @description Permission `profile:update`. Daftar `children` menggantikan data lama seluruhnya (maks 10 anak per pengiriman). Aturan sama dengan form SDM: urutan anak unik, `children_count` tidak kurang dari jumlah data anak, dan `has_children=false` tidak boleh disertai data anak.
+         */
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["MyFamily"];
+                };
+            };
+            responses: {
+                /** @description Data anak terbaru */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data: components["schemas"]["MyFamily"];
+                        };
+                    };
+                };
+                400: components["responses"]["ValidationFailed"];
+                403: components["responses"]["Error"];
+            };
+        };
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/me/photo": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Unggah foto profil sendiri
+         * @description Permission `profile:update`. Body adalah isi berkas JPEG atau PNG (maks 5 MB, dicek dari magic bytes). Server memotong gambar menjadi persegi di tengah, memperkecilnya ke 512 px, lalu menyimpannya ulang sebagai JPEG sehingga metadata (EXIF, termasuk lokasi) terbuang. Berkas disimpan terenkripsi.
+         */
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "image/jpeg": string;
+                    "image/png": string;
+                };
+            };
+            responses: {
+                /** @description Profil terbaru */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data: components["schemas"]["Me"];
+                        };
+                    };
+                };
+                400: components["responses"]["ValidationFailed"];
+                403: components["responses"]["Error"];
+                413: components["responses"]["Error"];
+            };
+        };
+        post?: never;
+        /**
+         * Hapus foto profil sendiri
+         * @description Permission `profile:update`.
+         */
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Foto dihapus */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                403: components["responses"]["Error"];
+            };
+        };
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/employees/{id}/photo": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Foto profil Pejuang
+         * @description Permission `profile:read` untuk foto sendiri; foto Pejuang lain memerlukan `employee:read` dalam scope pemanggil. Jawaban `Cache-Control: private, no-store`. `404` bila Pejuang belum punya foto.
+         */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Foto JPEG 512x512 */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "image/jpeg": string;
+                    };
+                };
+                403: components["responses"]["Error"];
+                404: components["responses"]["Error"];
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
         patch?: never;
         trace?: never;
     };
@@ -3505,6 +3724,147 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/admin/announcements/{id}/attachments": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Tambah lampiran pengumuman
+         * @description Permission `announcement:manage`. Body adalah isi berkas PDF, JPEG, atau PNG (maks 5 MB, jenis dicek dari magic bytes); nama berkas dari query `name`. Paling banyak 5 lampiran per pengumuman. Berkas disimpan terenkripsi di penyimpanan privat server dan dicatat sebagai `announcement.updated`.
+         */
+        post: {
+            parameters: {
+                query: {
+                    name: string;
+                };
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/pdf": string;
+                    "image/jpeg": string;
+                    "image/png": string;
+                };
+            };
+            responses: {
+                /** @description Pengumuman beserta daftar lampiran terbaru */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data: components["schemas"]["Announcement"];
+                        };
+                    };
+                };
+                400: components["responses"]["ValidationFailed"];
+                404: components["responses"]["Error"];
+                413: components["responses"]["Error"];
+                503: components["responses"]["Error"];
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/announcements/{id}/attachments/{attachment_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Hapus lampiran pengumuman
+         * @description Permission `announcement:manage`.
+         */
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                    attachment_id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Lampiran dihapus */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                404: components["responses"]["Error"];
+            };
+        };
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/announcements/{id}/attachments/{attachment_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Unduh lampiran pengumuman
+         * @description Permission `announcement:read`. Hanya untuk pengumuman yang sedang tayang bagi pemanggil; pemegang `announcement:manage` boleh mengunduh lampiran pengumuman apa pun. Jawaban `Cache-Control: private, no-store`.
+         */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                    attachment_id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Isi berkas */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/pdf": string;
+                        "image/jpeg": string;
+                        "image/png": string;
+                    };
+                };
+                404: components["responses"]["Error"];
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/announcements/active": {
         parameters: {
             query?: never;
@@ -4601,7 +4961,7 @@ export interface components {
          * @description Registry MASTER.md §7.4
          * @enum {string}
          */
-        ErrorCode: "VALIDATION_FAILED" | "AUTH_INVALID_CREDENTIALS" | "AUTH_TOKEN_INVALID" | "AUTH_MFA_REQUIRED" | "AUTH_MFA_INVALID" | "FORBIDDEN_ROLE" | "CSRF_INVALID" | "PASSWORD_CHANGE_REQUIRED" | "MFA_SETUP_REQUIRED" | "DEVICE_NOT_REGISTERED" | "DEVICE_PENDING_APPROVAL" | "DEVICE_REVOKED" | "APPROVAL_NOT_YOUR_TURN" | "APPROVAL_SELF_FORBIDDEN" | "MAKER_CHECKER_VIOLATION" | "NOT_FOUND" | "METHOD_NOT_ALLOWED" | "ALREADY_CLOCKED_IN" | "ALREADY_CLOCKED_OUT" | "SHIFT_NOT_ASSIGNED" | "NOT_CLOCKED_IN" | "REQUEST_NOT_PENDING" | "PERIOD_LOCKED" | "DUPLICATE_REQUEST" | "CONFLICT_DUPLICATE" | "CONFLICT_HAS_DEPENDENTS" | "CONFLICT_SELF_ACTION" | "MFA_ALREADY_ENABLED" | "PAYLOAD_TOO_LARGE" | "UNSUPPORTED_MEDIA_TYPE" | "GEOFENCE_OUT" | "FACE_NOT_ENROLLED" | "FACE_MISMATCH" | "LIVENESS_FAILED" | "FACE_NOT_DETECTED" | "FACE_SERVICE_UNAVAILABLE" | "CHALLENGE_EXPIRED" | "ATTENDANCE_BLOCKED" | "LEAVE_ACTIVE" | "READ_TOO_SOON" | "AUTH_ACCOUNT_LOCKED" | "AUTH_INITIAL_PASSWORD_EXPIRED" | "APP_UPDATE_REQUIRED" | "RATE_LIMITED" | "API_ACCESS_DENIED" | "INTERNAL_ERROR";
+        ErrorCode: "VALIDATION_FAILED" | "AUTH_INVALID_CREDENTIALS" | "AUTH_TOKEN_INVALID" | "AUTH_MFA_REQUIRED" | "AUTH_MFA_INVALID" | "FORBIDDEN_ROLE" | "CSRF_INVALID" | "PASSWORD_CHANGE_REQUIRED" | "MFA_SETUP_REQUIRED" | "DEVICE_NOT_REGISTERED" | "DEVICE_PENDING_APPROVAL" | "DEVICE_REVOKED" | "APPROVAL_NOT_YOUR_TURN" | "APPROVAL_SELF_FORBIDDEN" | "MAKER_CHECKER_VIOLATION" | "NOT_FOUND" | "METHOD_NOT_ALLOWED" | "ALREADY_CLOCKED_IN" | "ALREADY_CLOCKED_OUT" | "SHIFT_NOT_ASSIGNED" | "NOT_CLOCKED_IN" | "REQUEST_NOT_PENDING" | "PERIOD_LOCKED" | "DUPLICATE_REQUEST" | "CONFLICT_DUPLICATE" | "CONFLICT_HAS_DEPENDENTS" | "CONFLICT_SELF_ACTION" | "MFA_ALREADY_ENABLED" | "PAYLOAD_TOO_LARGE" | "UNSUPPORTED_MEDIA_TYPE" | "GEOFENCE_OUT" | "FACE_NOT_ENROLLED" | "FACE_MISMATCH" | "LIVENESS_FAILED" | "FACE_NOT_DETECTED" | "FACE_SERVICE_UNAVAILABLE" | "STORAGE_UNAVAILABLE" | "CHALLENGE_EXPIRED" | "ATTENDANCE_BLOCKED" | "LEAVE_ACTIVE" | "READ_TOO_SOON" | "AUTH_ACCOUNT_LOCKED" | "AUTH_INITIAL_PASSWORD_EXPIRED" | "APP_UPDATE_REQUIRED" | "RATE_LIMITED" | "API_ACCESS_DENIED" | "INTERNAL_ERROR";
         /**
          * @description Matriks MASTER.md §3.2
          * @enum {string}
@@ -4693,6 +5053,27 @@ export interface components {
             device_status?: "pending" | "approved" | "revoked" | null;
             /** @description Wajah sudah terdaftar. Bila false, aplikasi membuka alur daftar wajah (F7). */
             face_enrolled: boolean;
+            /** @description Nomor WA dalam bentuk 62… */
+            phone: string | null;
+            /** @description Pejuang punya foto profil */
+            has_photo: boolean;
+            /**
+             * Format: date-time
+             * @description Waktu foto terakhir diganti; dipakai klien sebagai penanda cache.
+             */
+            photo_updated_at: string | null;
+        };
+        MeUpdate: {
+            /** @description Nomor WA, contoh 081234567890; disimpan sebagai 62… */
+            phone?: string | null;
+            email?: string | null;
+            /** @description Wajib bila `email` berubah */
+            current_password?: string;
+        };
+        MyFamily: {
+            has_children: boolean | null;
+            children_count: number | null;
+            children: components["schemas"]["EmployeeChild"][];
         };
         BranchInput: components["schemas"]["BranchPatch"] & Record<string, never>;
         /** @description Pada PATCH, field yang tidak dikirim tetap nilai lamanya. */
@@ -4827,6 +5208,10 @@ export interface components {
             default_shift_name: string | null;
             /** @description Pejuang punya template wajah aktif */
             face_enrolled: boolean;
+            /** @description Pejuang punya foto profil (`GET /v1/employees/{id}/photo`) */
+            has_photo: boolean;
+            /** Format: date-time */
+            photo_updated_at: string | null;
             /** @description Hanya untuk sdm dan pemilik data */
             base_salary?: components["schemas"]["Money"];
             /** @description Hanya untuk pemegang user:manage. Tidak ada bila Pejuang belum punya akun. */
@@ -4996,6 +5381,16 @@ export interface components {
             opened_count: number;
             /** @description Sasaran yang sudah menekan "Sudah baca" */
             read_count: number;
+            attachments: components["schemas"]["AnnouncementAttachment"][];
+        };
+        /** @description Berkas lampiran pengumuman (PDF, JPEG, atau PNG). Isi diunduh lewat `GET /v1/announcements/{id}/attachments/{attachment_id}`. */
+        AnnouncementAttachment: {
+            /** Format: uuid */
+            id: string;
+            file_name: string;
+            /** @enum {string} */
+            content_type: "application/pdf" | "image/jpeg" | "image/png";
+            size_bytes: number;
         };
         Branding: {
             /** @description Footer jadi */
@@ -5033,6 +5428,7 @@ export interface components {
             read_at: string | null;
             /** @description Sisa detik sebelum "Sudah baca" diterima, dihitung server saat respons dibuat. Nol bila sudah dibaca. */
             read_wait_seconds: number;
+            attachments: components["schemas"]["AnnouncementAttachment"][];
         };
         AnnouncementReader: {
             /** Format: uuid */

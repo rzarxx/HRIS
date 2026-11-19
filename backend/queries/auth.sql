@@ -41,7 +41,7 @@ UPDATE sessions SET revoked_at = now(), revoke_reason = $2 WHERE id = $1 AND rev
 
 -- name: GetMe :one
 SELECT u.id AS user_id, u.employee_id, u.role, u.email, u.must_change_password,
-       e.full_name, e.nip, e.position,
+       e.full_name, e.nip, e.position, e.phone, e.photo_updated_at, (e.photo_key IS NOT NULL)::boolean AS has_photo,
        s.id AS subdivision_id, s.name AS subdivision_name,
        d.id AS division_id, d.name AS division_name
 FROM users u

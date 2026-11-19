@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { IconButton } from "@/components/ui/button";
 import { api } from "@/lib/api-client";
-import { initials } from "@/lib/format";
+import { Avatar } from "@/components/avatar";
 import { useMe } from "@/lib/hooks";
 
 const ROLE_LABEL = { sdm: "SDM",
@@ -76,9 +76,7 @@ export function Header({ onMenu }: { onMenu: () => void }) {
             aria-haspopup="menu"
             className="flex items-center gap-2.5 rounded-md py-1 pr-2 pl-1 hover:bg-slate-100"
           >
-            <span className="flex size-8 items-center justify-center rounded-full bg-secondary-400 text-xs font-semibold text-primary-900">
-              {me ? initials(me.full_name) : "…"}
-            </span>
+            <Avatar employeeId={me?.employee_id} name={me?.full_name} hasPhoto={me?.has_photo} version={me?.photo_updated_at} />
             <span className="hidden text-left leading-tight sm:block">
               <span className="block text-sm font-medium text-slate-800">{me?.full_name ?? "Memuat..."}</span>
               <span className="block text-xs text-slate-500">{me ? ROLE_LABEL[me.role] : ""}</span>

@@ -143,8 +143,19 @@ func (q *Queries) GetEmployeeBaseSalary(ctx context.Context, id uuid.UUID) (deci
 	return base_salary, err
 }
 
+const getEmployeePhoto = `-- name: GetEmployeePhoto :one
+SELECT photo_key FROM employees WHERE id = $1 AND deleted_at IS NULL
+`
+
+func (q *Queries) GetEmployeePhoto(ctx context.Context, id uuid.UUID) (pgtype.Text, error) {
+	row := q.db.QueryRow(ctx, getEmployeePhoto, id)
+	var photo_key pgtype.Text
+	err := row.Scan(&photo_key)
+	return photo_key, err
+}
+
 const getEmployeeScoped = `-- name: GetEmployeeScoped :one
-SELECT e.id, e.nip, e.full_name, e.email, e.phone, e.subdivision_id, e.position, e.join_date, e.exit_date, e.base_salary, e.default_shift_id, e.status, e.created_at, e.updated_at, e.deleted_at, e.gender, e.marital_status, e.has_children, e.children_count, s.name AS subdivision_name, s.division_id, d.name AS division_name, d.branch_id, b.name AS branch_name,
+SELECT e.id, e.nip, e.full_name, e.email, e.phone, e.subdivision_id, e.position, e.join_date, e.exit_date, e.base_salary, e.default_shift_id, e.status, e.created_at, e.updated_at, e.deleted_at, e.gender, e.marital_status, e.has_children, e.children_count, e.photo_key, e.photo_updated_at, s.name AS subdivision_name, s.division_id, d.name AS division_name, d.branch_id, b.name AS branch_name,
        sh.name AS default_shift_name,
        EXISTS (SELECT 1 FROM face_templates f WHERE f.employee_id = e.id AND f.is_active) AS face_enrolled
 FROM employees e
@@ -183,6 +194,8 @@ type GetEmployeeScopedRow struct {
 	MaritalStatus    pgtype.Text
 	HasChildren      pgtype.Bool
 	ChildrenCount    pgtype.Int2
+	PhotoKey         pgtype.Text
+	PhotoUpdatedAt   pgtype.Timestamptz
 	SubdivisionName  string
 	DivisionID       uuid.UUID
 	DivisionName     string
@@ -220,6 +233,8 @@ func (q *Queries) GetEmployeeScoped(ctx context.Context, arg GetEmployeeScopedPa
 		&i.MaritalStatus,
 		&i.HasChildren,
 		&i.ChildrenCount,
+		&i.PhotoKey,
+		&i.PhotoUpdatedAt,
 		&i.SubdivisionName,
 		&i.DivisionID,
 		&i.DivisionName,
@@ -228,6 +243,22 @@ func (q *Queries) GetEmployeeScoped(ctx context.Context, arg GetEmployeeScopedPa
 		&i.DefaultShiftName,
 		&i.FaceEnrolled,
 	)
+	return i, err
+}
+
+const getOwnFamily = `-- name: GetOwnFamily :one
+SELECT has_children, children_count FROM employees WHERE id = $1 AND deleted_at IS NULL
+`
+
+type GetOwnFamilyRow struct {
+	HasChildren   pgtype.Bool
+	ChildrenCount pgtype.Int2
+}
+
+func (q *Queries) GetOwnFamily(ctx context.Context, id uuid.UUID) (GetOwnFamilyRow, error) {
+	row := q.db.QueryRow(ctx, getOwnFamily, id)
+	var i GetOwnFamilyRow
+	err := row.Scan(&i.HasChildren, &i.ChildrenCount)
 	return i, err
 }
 
@@ -302,7 +333,7 @@ func (q *Queries) ListEmployeeChildren(ctx context.Context, employeeID uuid.UUID
 
 const listEmployees = `-- name: ListEmployees :many
 
-SELECT e.id, e.nip, e.full_name, e.email, e.phone, e.subdivision_id, e.position, e.join_date, e.exit_date, e.base_salary, e.default_shift_id, e.status, e.created_at, e.updated_at, e.deleted_at, e.gender, e.marital_status, e.has_children, e.children_count, s.name AS subdivision_name, s.division_id, d.name AS division_name, d.branch_id, b.name AS branch_name,
+SELECT e.id, e.nip, e.full_name, e.email, e.phone, e.subdivision_id, e.position, e.join_date, e.exit_date, e.base_salary, e.default_shift_id, e.status, e.created_at, e.updated_at, e.deleted_at, e.gender, e.marital_status, e.has_children, e.children_count, e.photo_key, e.photo_updated_at, s.name AS subdivision_name, s.division_id, d.name AS division_name, d.branch_id, b.name AS branch_name,
        sh.name AS default_shift_name,
        EXISTS (SELECT 1 FROM face_templates f WHERE f.employee_id = e.id AND f.is_active) AS face_enrolled
 FROM employees e
@@ -359,6 +390,8 @@ type ListEmployeesRow struct {
 	MaritalStatus    pgtype.Text
 	HasChildren      pgtype.Bool
 	ChildrenCount    pgtype.Int2
+	PhotoKey         pgtype.Text
+	PhotoUpdatedAt   pgtype.Timestamptz
 	SubdivisionName  string
 	DivisionID       uuid.UUID
 	DivisionName     string
@@ -409,6 +442,8 @@ func (q *Queries) ListEmployees(ctx context.Context, arg ListEmployeesParams) ([
 			&i.MaritalStatus,
 			&i.HasChildren,
 			&i.ChildrenCount,
+			&i.PhotoKey,
+			&i.PhotoUpdatedAt,
 			&i.SubdivisionName,
 			&i.DivisionID,
 			&i.DivisionName,
@@ -469,6 +504,27 @@ func (q *Queries) NextNipSequence(ctx context.Context) (int32, error) {
 	return next_seq, err
 }
 
+const setEmployeePhoto = `-- name: SetEmployeePhoto :one
+WITH old AS (SELECT photo_key FROM employees WHERE id = $3 AND deleted_at IS NULL FOR UPDATE)
+UPDATE employees e SET photo_key = $1, photo_updated_at = $2
+FROM old WHERE e.id = $3
+RETURNING old.photo_key AS previous_key
+`
+
+type SetEmployeePhotoParams struct {
+	PhotoKey       pgtype.Text
+	PhotoUpdatedAt pgtype.Timestamptz
+	ID             uuid.UUID
+}
+
+// Mengembalikan kunci foto sebelumnya agar berkas lamanya bisa dihapus setelah transaksi selesai.
+func (q *Queries) SetEmployeePhoto(ctx context.Context, arg SetEmployeePhotoParams) (pgtype.Text, error) {
+	row := q.db.QueryRow(ctx, setEmployeePhoto, arg.PhotoKey, arg.PhotoUpdatedAt, arg.ID)
+	var previous_key pgtype.Text
+	err := row.Scan(&previous_key)
+	return previous_key, err
+}
+
 const updateEmployee = `-- name: UpdateEmployee :execrows
 UPDATE employees
 SET nip = $2, full_name = $3, email = $4, phone = $5, subdivision_id = $6,
@@ -513,6 +569,44 @@ func (q *Queries) UpdateEmployee(ctx context.Context, arg UpdateEmployeeParams) 
 		arg.HasChildren,
 		arg.ChildrenCount,
 	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const updateOwnContact = `-- name: UpdateOwnContact :execrows
+UPDATE employees SET email = $1, phone = $2, updated_at = now()
+WHERE id = $3 AND deleted_at IS NULL
+`
+
+type UpdateOwnContactParams struct {
+	Email pgtype.Text
+	Phone pgtype.Text
+	ID    uuid.UUID
+}
+
+func (q *Queries) UpdateOwnContact(ctx context.Context, arg UpdateOwnContactParams) (int64, error) {
+	result, err := q.db.Exec(ctx, updateOwnContact, arg.Email, arg.Phone, arg.ID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const updateOwnFamily = `-- name: UpdateOwnFamily :execrows
+UPDATE employees SET has_children = $1, children_count = $2, updated_at = now()
+WHERE id = $3 AND deleted_at IS NULL
+`
+
+type UpdateOwnFamilyParams struct {
+	HasChildren   pgtype.Bool
+	ChildrenCount pgtype.Int2
+	ID            uuid.UUID
+}
+
+func (q *Queries) UpdateOwnFamily(ctx context.Context, arg UpdateOwnFamilyParams) (int64, error) {
+	result, err := q.db.Exec(ctx, updateOwnFamily, arg.HasChildren, arg.ChildrenCount, arg.ID)
 	if err != nil {
 		return 0, err
 	}

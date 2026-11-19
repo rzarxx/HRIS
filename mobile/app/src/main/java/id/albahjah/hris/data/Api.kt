@@ -14,10 +14,14 @@ import okhttp3.Route
 import retrofit2.Call
 import retrofit2.Retrofit
 import retrofit2.converter.kotlinx.serialization.asConverterFactory
+import okhttp3.ResponseBody
 import retrofit2.http.Body
+import retrofit2.http.DELETE
 import retrofit2.http.GET
 import retrofit2.http.Multipart
+import retrofit2.http.PATCH
 import retrofit2.http.POST
+import retrofit2.http.PUT
 import retrofit2.http.Part
 import retrofit2.http.Path
 import retrofit2.http.Query
@@ -32,6 +36,24 @@ interface HrisApi {
 
     @GET("v1/me")
     suspend fun me(): DataResponse<Me>
+
+    @PATCH("v1/me")
+    suspend fun updateMe(@Body body: MeUpdate): DataResponse<Me>
+
+    @GET("v1/me/children")
+    suspend fun myFamily(): DataResponse<MyFamily>
+
+    @PUT("v1/me/children")
+    suspend fun setMyFamily(@Body body: MyFamily): DataResponse<MyFamily>
+
+    @PUT("v1/me/photo")
+    suspend fun setMyPhoto(@Body body: RequestBody): DataResponse<Me>
+
+    @DELETE("v1/me/photo")
+    suspend fun deleteMyPhoto(): retrofit2.Response<Unit>
+
+    @GET("v1/employees/{id}/photo")
+    suspend fun photo(@Path("id") id: String): ResponseBody
 
     @POST("v1/attendance/challenge")
     suspend fun challenge(@Body body: AttendanceChallengeInput): DataResponse<AttendanceChallenge>
@@ -107,6 +129,9 @@ interface HrisApi {
 
     @POST("v1/announcements/{id}/read")
     suspend fun readAnnouncement(@Path("id") id: String): DataResponse<MyAnnouncement>
+
+    @GET("v1/announcements/{id}/attachments/{attachment_id}")
+    suspend fun announcementAttachment(@Path("id") id: String, @Path("attachment_id") attachmentId: String): ResponseBody
 }
 
 /** Dipakai terpisah dari [HrisApi] agar perpanjangan sesi tidak memicu dirinya sendiri. */

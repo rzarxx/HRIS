@@ -153,7 +153,7 @@ func TestDecodeYuNetAndPick(t *testing.T) {
 		t.Errorf("skor = %v", f.Score)
 	}
 
-	// Foto 300x160: wajah 64 px (21% lebar) berpusat di (168, 88), di dalam 60% bagian tengah.
+	// Foto 300x160: wajah 64 px (21% lebar) berpusat di (168, 88), di dalam 70% bagian tengah.
 	if _, err := pickFace(nil, 300, 160); err != ErrNoFace {
 		t.Errorf("tanpa wajah: %v", err)
 	}
@@ -168,7 +168,7 @@ func TestDecodeYuNetAndPick(t *testing.T) {
 }
 
 func TestPickFaceNeedsCenteredFace(t *testing.T) {
-	// Foto 1000x800: 60% bagian tengah adalah x 200-800 dan y 160-640; lebar minimal 200 px.
+	// Foto 1000x800: 70% bagian tengah adalah x 150-850 dan y 120-680; lebar minimal 150 px.
 	box := func(cx, cy, w float64) Detection { return Detection{X: cx - w/2, Y: cy - w/2, W: w, H: w} }
 	cases := []struct {
 		name string
@@ -176,13 +176,13 @@ func TestPickFaceNeedsCenteredFace(t *testing.T) {
 		want error
 	}{
 		{"pas di tengah", box(500, 400, 400), nil},
-		{"tepat batas lebar", box(500, 400, 200), nil},
-		{"tepat batas tengah", box(800, 640, 300), nil},
-		{"terlalu kecil", box(500, 400, 199), ErrFaceNotCentered},
-		{"di tepi kiri", box(150, 400, 300), ErrFaceNotCentered},
-		{"di tepi kanan", box(850, 400, 300), ErrFaceNotCentered},
-		{"terlalu atas", box(500, 120, 300), ErrFaceNotCentered},
-		{"terlalu bawah", box(500, 700, 300), ErrFaceNotCentered},
+		{"tepat batas lebar", box(500, 400, 150), nil},
+		{"tepat batas tengah", box(850, 680, 300), nil},
+		{"terlalu kecil", box(500, 400, 149), ErrFaceNotCentered},
+		{"di tepi kiri", box(100, 400, 300), ErrFaceNotCentered},
+		{"di tepi kanan", box(900, 400, 300), ErrFaceNotCentered},
+		{"terlalu atas", box(500, 80, 300), ErrFaceNotCentered},
+		{"terlalu bawah", box(500, 740, 300), ErrFaceNotCentered},
 	}
 	for _, c := range cases {
 		if _, err := pickFace([]Detection{c.face}, 1000, 800); err != c.want {

@@ -75,6 +75,7 @@ fun ProfileContent(
     fontSize: FontSize = FontSize.Normal,
     onFontSize: () -> Unit = {},
     footer: String? = null,
+    onChildren: () -> Unit = {},
 ) {
     StatusBarIcons(dark = true)
     val verified = me.deviceStatus == "approved" && me.faceEnrolled
@@ -86,7 +87,7 @@ fun ProfileContent(
         Column(ContentWidth.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(20.dp)) {
             PageHeader("Profil")
             Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
-                Avatar(me.fullName, size = 88.dp)
+                Avatar(me.fullName, size = 88.dp, photo = LocalMyPhoto.current)
                 Spacer(Modifier.height(14.dp))
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.padding(horizontal = 24.dp)) {
                     Text(
@@ -110,10 +111,14 @@ fun ProfileContent(
             ProfileGroup("Kontak") {
                 ProfileRow(FigmaIcons.Sms, me.email?.takeIf { it.isNotBlank() } ?: "Email belum tercatat")
                 RowDivider()
+                ProfileRow(HrisIcons.Smartphone, localPhone(me.phone).ifEmpty { "Nomor WA belum tercatat" })
+                RowDivider()
                 ProfileRow(FigmaIcons.LocationTick, "${me.subdivision.name} · ${me.division.name}")
             }
             ProfileGroup("Akun") {
                 ProfileRow(FigmaIcons.UserBold, "Data pribadi", onClick = onPersonalData)
+                RowDivider()
+                ProfileRow(FigmaIcons.User, "Data anak", onClick = onChildren)
                 RowDivider()
                 ProfileRow(HrisIcons.Smartphone, "Perangkat ini", trailing = deviceText(me.deviceStatus))
                 RowDivider()
@@ -178,32 +183,6 @@ private fun ProfileRow(
     }
 }
 
-
-/** Data pribadi, mengikuti frame "MyProfile/PersonalData". Hanya-baca; perubahan lewat SDM. */
-@Composable
-fun PersonalDataContent(me: Me, onBack: () -> Unit) {
-    Column(Modifier.fillMaxSize().background(Fg.PageProfile)) {
-        FigmaHeader("Data Pribadi", onBack)
-        Column(
-            Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(horizontal = 12.dp, vertical = 16.dp).navigationBarsPadding(),
-        ) {
-            FigmaCard(title = "Data pribadi saya", subtitle = "Diubah oleh SDM bila ada yang tidak sesuai", top = 24.dp, bottom = 24.dp, gap = 16.dp) {
-                Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
-                    Box(
-                        Modifier.size(88.dp).clip(CircleShape).background(Hc.BrandSoft),
-                        contentAlignment = Alignment.Center,
-                    ) { Text(initials(me.fullName), style = figmaText(34, FontWeight.SemiBold, Hc.BrandDeep)) }
-                }
-                FigmaInput("Nama lengkap", me.fullName, {}, FigmaIcons.User, readOnly = true)
-                FigmaInput("NIPY", me.nip, {}, FigmaIcons.Keyboard, readOnly = true)
-                FigmaInput("Email", me.email?.takeIf { it.isNotBlank() } ?: "-", {}, FigmaIcons.Sms, readOnly = true)
-                FigmaInput("Jabatan", me.position ?: "-", {}, FigmaIcons.Keyboard, readOnly = true)
-                FigmaInput("Divisi", me.division.name, {}, FigmaIcons.LocationTickLinear, readOnly = true)
-                FigmaInput("Subdivisi", me.subdivision.name, {}, FigmaIcons.LocationTickLinear, readOnly = true)
-            }
-        }
-    }
-}
 
 /** Isian layar ganti kata sandi; dipisah agar bisa dirender tanpa jaringan. */
 data class PasswordForm(

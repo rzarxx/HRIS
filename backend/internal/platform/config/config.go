@@ -16,12 +16,12 @@ import (
 const (
 	DefaultFaceThresholdPass          = 0.50
 	DefaultFaceThresholdReview        = 0.46
-	DefaultFaceEnrollMinSimilarity    = 0.50
+	DefaultFaceEnrollMinSimilarity    = 0.45
 	DefaultFaceEnrollRequiresGeofence = true
-	DefaultFaceStraightTurnMax        = 0.20
-	DefaultFaceGestureTurnMin         = 0.18
-	DefaultFaceGestureTurnDelta       = 0.10
-	DefaultFaceGestureMinSimilarity   = 0.30
+	DefaultFaceStraightTurnMax        = 0.26
+	DefaultFaceGestureTurnMin         = 0.13
+	DefaultFaceGestureTurnDelta       = 0.07
+	DefaultFaceGestureMinSimilarity   = 0.25
 	DefaultRiskReviewMin              = 30
 	DefaultRiskRejectMin              = 60
 )

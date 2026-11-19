@@ -400,8 +400,11 @@ fun CameraOverlay(
     gesture: String,
     onClose: () -> Unit,
     progress: Float = 0f,
+    lowLight: Boolean = false,
 ) {
-    StatusBarIcons(dark = false)
+    StatusBarIcons(dark = lowLight)
+    // Saat cahaya kurang, sekitar oval dibuat putih penuh agar layar menerangi wajah (D55).
+    val onScrim = if (lowLight) Hc.Ink else Color.White
     Box(Modifier.fillMaxSize()) {
         Canvas(Modifier.fillMaxSize()) {
             // Oval yang sama dengan yang diperiksa checkFit, agar yang dilihat sama dengan yang dinilai.
@@ -412,12 +415,12 @@ fun CameraOverlay(
                 addRect(Rect(Offset.Zero, size))
                 addOval(oval)
             }
-            drawPath(scrim, Color(0xB3000000))
+            drawPath(scrim, if (lowLight) Color.White else Color(0xB3000000))
             drawOval(phase.color, oval.topLeft, oval.size, style = Stroke(width = 4.dp.toPx()))
             val sweep = 360f * progress.coerceIn(0f, 1f)
             if (sweep > 0f) {
                 val ring = oval.inflate(9.dp.toPx())
-                drawOval(Color.White.copy(alpha = 0.25f), ring.topLeft, ring.size, style = Stroke(width = 5.dp.toPx()))
+                drawOval(onScrim.copy(alpha = 0.25f), ring.topLeft, ring.size, style = Stroke(width = 5.dp.toPx()))
                 drawArc(
                     color = Hc.BrandBright,
                     startAngle = -90f,
@@ -434,8 +437,22 @@ fun CameraOverlay(
             Modifier.fillMaxWidth().statusBarsPadding().padding(horizontal = 4.dp, vertical = 4.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            IconButton(onClick = onClose) { Icon(Icons.Filled.Close, contentDescription = "Tutup", tint = Color.White) }
-            Text(title, style = MaterialTheme.typography.titleLarge, color = Color.White)
+            IconButton(onClick = onClose) { Icon(Icons.Filled.Close, contentDescription = "Tutup", tint = onScrim) }
+            Text(title, style = MaterialTheme.typography.titleLarge, color = onScrim)
+        }
+        if (lowLight) {
+            Surface(
+                shape = RoundedCornerShape(50),
+                color = Tone.Warning.container,
+                modifier = Modifier.align(Alignment.TopCenter).statusBarsPadding().padding(top = 56.dp),
+            ) {
+                Text(
+                    "Cahaya kurang · layar dibuat terang",
+                    style = MaterialTheme.typography.labelLarge,
+                    color = Tone.Warning.content,
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                )
+            }
         }
 
         Column(
@@ -470,7 +487,7 @@ fun CameraOverlay(
             Text(
                 "Pastikan wajah cukup terang, tanpa masker atau kacamata hitam.",
                 style = MaterialTheme.typography.bodySmall,
-                color = Color.White.copy(alpha = 0.75f),
+                color = onScrim.copy(alpha = 0.75f),
                 textAlign = TextAlign.Center,
             )
         }

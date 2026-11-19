@@ -24,6 +24,7 @@ export type MaritalStatus = NonNullable<Schemas["MaritalStatus"]>;
 export type CurrentUser = Schemas["Me"];
 export type AnnouncementListItem = Schemas["Announcement"];
 export type AnnouncementReader = Schemas["AnnouncementReader"];
+export type AnnouncementAttachment = Schemas["AnnouncementAttachment"];
 export type Branding = Schemas["Branding"];
 export type DashboardSummary = Schemas["DashboardSummary"];
 export type OrgChartData = Schemas["OrgChart"];

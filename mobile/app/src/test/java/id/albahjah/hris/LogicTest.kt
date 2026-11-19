@@ -15,7 +15,9 @@ import id.albahjah.hris.face.LivenessState
 import id.albahjah.hris.face.LivenessTracker
 import id.albahjah.hris.face.checkFit
 import id.albahjah.hris.face.faceOval
+import id.albahjah.hris.face.LightRules
 import id.albahjah.hris.face.mapToView
+import id.albahjah.hris.face.meanLuma
 import id.albahjah.hris.face.photoFits
 import id.albahjah.hris.face.scaledSize
 import id.albahjah.hris.location.roundCoordinate
@@ -24,6 +26,17 @@ import id.albahjah.hris.security.DeviceProof
 import id.albahjah.hris.security.DeviceRisk
 import id.albahjah.hris.security.DeviceRules
 import id.albahjah.hris.security.RequestHash
+import id.albahjah.hris.data.Child
+import id.albahjah.hris.data.MeUpdate
+import id.albahjah.hris.data.MyFamily
+import id.albahjah.hris.ui.ChildDraft
+import id.albahjah.hris.ui.FamilyForm
+import id.albahjah.hris.ui.centerSquare
+import id.albahjah.hris.ui.familyProblems
+import id.albahjah.hris.ui.from
+import id.albahjah.hris.ui.localPhone
+import id.albahjah.hris.ui.sampleSizeFor
+import id.albahjah.hris.ui.toFamily
 import id.albahjah.hris.ui.toPickerMillis
 import java.security.KeyPairGenerator
 import java.security.Signature
@@ -38,18 +51,18 @@ class LivenessTrackerTest {
     private fun face(yaw: Float = 0f, eyes: Float? = 0.9f, smile: Float? = 0.1f, fit: FaceFit = FaceFit.Fit) =
         FaceSample(leftEyeOpen = eyes, rightEyeOpen = eyes, smiling = smile, yaw = yaw, fit = fit)
 
-    // Tes gerakan memakai satu frame per tahap tahan posisi agar ringkas; aturan 8 frame dites terpisah.
+    // Tes gerakan memakai satu frame per tahap tahan posisi agar ringkas; aturan 5 frame dites terpisah.
     private fun tracker(action: String) = LivenessTracker(action, holdFrames = 1)
 
     @Test
-    fun straightStageNeedsEightFitFrames() {
+    fun straightStageNeedsFiveFitFrames() {
         val t = LivenessTracker("blink")
-        assertEquals(8, FitRules.HOLD_FRAMES)
-        repeat(7) { i ->
+        assertEquals(5, FitRules.HOLD_FRAMES)
+        repeat(4) { i ->
             val s = t.update(listOf(face())) as LivenessState.Waiting
             assertEquals("Tahan posisi", s.hint)
             assertTrue(s.aligned)
-            assertEquals((i + 1) / 8f, s.progress, 1e-6f)
+            assertEquals((i + 1) / 5f, s.progress, 1e-6f)
         }
         assertEquals(LivenessState.Waiting("Kedipkan mata", aligned = true), t.update(listOf(face())))
     }
@@ -57,10 +70,10 @@ class LivenessTrackerTest {
     @Test
     fun badFrameRestartsHold() {
         val t = LivenessTracker("blink")
-        repeat(5) { t.update(listOf(face())) }
+        repeat(3) { t.update(listOf(face())) }
         assertEquals(LivenessState.Waiting("Dekatkan wajah"), t.update(listOf(face(fit = FaceFit.TooSmall))))
         assertEquals(LivenessState.Waiting("Tegakkan kepala"), t.update(listOf(face(fit = FaceFit.Tilted))))
-        repeat(7) { assertEquals("Tahan posisi", (t.update(listOf(face())) as LivenessState.Waiting).hint) }
+        repeat(4) { assertEquals("Tahan posisi", (t.update(listOf(face())) as LivenessState.Waiting).hint) }
         assertEquals("Kedipkan mata", (t.update(listOf(face())) as LivenessState.Waiting).hint)
     }
 
@@ -515,12 +528,14 @@ class FaceFitTest {
         // Masih pas di dekat batas posisi dan ukuran.
         assertEquals(FaceFit.Fit, fit(box(540f + 0.11f * 756f, 936f, 0.6f * 756f)))
         assertEquals(FaceFit.Fit, fit(box(540f, 936f - 0.09f * 998f, 0.6f * 756f)))
+        // Dilonggarkan (D55): wajah agak jauh dan agak ke samping tetap pas.
+        assertEquals(FaceFit.Fit, fit(box(540f + 0.16f * 756f, 936f, 0.45f * 756f)))
     }
 
     @Test
     fun tooSmallAndTooLarge() {
-        assertEquals(FaceFit.TooSmall, fit(box(540f, 936f, 0.5f * 756f)))
-        assertEquals(FaceFit.TooLarge, fit(box(540f, 936f, 0.9f * 756f)))
+        assertEquals(FaceFit.TooSmall, fit(box(540f, 936f, 0.38f * 756f)))
+        assertEquals(FaceFit.TooLarge, fit(box(540f, 936f, 0.97f * 756f)))
     }
 
     @Test
@@ -528,19 +543,19 @@ class FaceFitTest {
         // Wajah yang baru terlihat sedikit di tepi bingkai: pusatnya di luar oval.
         assertEquals(FaceFit.Outside, fit(box(60f, 936f, 0.6f * 756f)))
         assertEquals(FaceFit.Outside, fit(box(540f, 200f, 0.6f * 756f)))
-        // Di dalam oval tetapi bergeser lebih dari 12% lebar atau 10% tinggi oval.
-        assertEquals(FaceFit.OffCenter, fit(box(540f + 0.15f * 756f, 936f, 0.6f * 756f)))
-        assertEquals(FaceFit.OffCenter, fit(box(540f, 936f + 0.12f * 998f, 0.6f * 756f)))
-        // Pusat dan ukuran lolos, tetapi sisi wajah menembus garis oval.
-        assertEquals(FaceFit.OffCenter, fit(box(540f + 0.11f * 756f, 936f, 0.84f * 756f)))
+        // Di dalam oval tetapi bergeser lebih dari 18% lebar atau 16% tinggi oval.
+        assertEquals(FaceFit.OffCenter, fit(box(540f + 0.21f * 756f, 936f, 0.6f * 756f)))
+        assertEquals(FaceFit.OffCenter, fit(box(540f, 936f + 0.19f * 998f, 0.6f * 756f)))
+        // Pusat dan ukuran lolos, tetapi sisi wajah menembus garis oval lebih dari toleransi.
+        assertEquals(FaceFit.OffCenter, fit(box(540f + 0.17f * 756f, 936f, 0.9f * 756f)))
     }
 
     @Test
     fun tiltedHead() {
         val face = box(540f, 936f, 0.7f * 756f)
-        assertEquals(FaceFit.Tilted, fit(face, roll = 15f))
-        assertEquals(FaceFit.Tilted, fit(face, pitch = -13f))
-        assertEquals(FaceFit.Fit, fit(face, roll = 11f, pitch = -11f))
+        assertEquals(FaceFit.Tilted, fit(face, roll = 22f))
+        assertEquals(FaceFit.Tilted, fit(face, pitch = -21f))
+        assertEquals(FaceFit.Fit, fit(face, roll = 19f, pitch = -19f))
     }
 
     @Test
@@ -595,7 +610,9 @@ class FaceFitTest {
         assertTrue(check(box(480f, 512f, 300f), box(100f, 100f, 60f)))
         assertFalse(check(box(480f, 512f, 300f), box(800f, 500f, 280f)))
         assertFalse(check())
-        assertFalse(check(box(480f, 512f, 180f)))
+        // Dilonggarkan (D55): 19% lebar foto diterima, 15% belum.
+        assertTrue(check(box(480f, 512f, 180f)))
+        assertFalse(check(box(480f, 512f, 140f)))
         assertFalse(check(box(200f, 512f, 300f)))
         assertFalse(check(box(480f, 1000f, 300f)))
     }
@@ -705,5 +722,57 @@ class RequestHashTest {
         val attChallenge = DeviceProof.attestationChallenge("pub-der-bytes".toByteArray(Charsets.UTF_8), reqHash)
         assertEquals(43, attChallenge.length)
         assertEquals("pLGtaxaQ7rwXnUDWCCdpdWegDdHT-XVaZktMnbXHywM", attChallenge)
+    }
+
+    @Test
+    fun profileContactHelpers() {
+        assertEquals("081234567890", localPhone("6281234567890"))
+        assertEquals("", localPhone(null))
+        // Ganti email dikirim bersama kata sandi; null tidak ikut terkirim.
+        assertEquals("{\"phone\":\"0812\"}", apiJson.encodeToString(MeUpdate.serializer(), MeUpdate(phone = "0812")))
+    }
+
+    @Test
+    fun profilePhotoCropAndSample() {
+        assertEquals(Triple(200, 0, 600), centerSquare(1000, 600))
+        assertEquals(Triple(0, 100, 400), centerSquare(400, 600))
+        assertEquals(1, sampleSizeFor(1200, 1600))
+        assertEquals(2, sampleSizeFor(3000, 4000))
+        assertEquals(4, sampleSizeFor(4096, 4096))
+    }
+
+    @Test
+    fun familyFormRoundTrip() {
+        val server = MyFamily(
+            hasChildren = true, childrenCount = 3,
+            children = listOf(Child(2, "Budi", gender = "L"), Child(1, "Aisyah", gender = "P", schoolName = "MI Al Bahjah")),
+        )
+        val form = FamilyForm.from(server)
+        assertEquals(listOf("Aisyah", "Budi"), form.children.map { it.name })
+        val body = form.toFamily()
+        assertEquals(listOf(1, 2), body.children.map { it.childOrder })
+        assertEquals(3, body.childrenCount)
+        assertEquals(null, body.children[1].schoolName)
+    }
+
+    @Test
+    fun familyProblemsMatchServerRules() {
+        assertTrue(familyProblems(FamilyForm(hasChildren = true, count = "1", children = listOf(ChildDraft(name = "Aisyah")))).isEmpty())
+        assertTrue("has_children" in familyProblems(FamilyForm(hasChildren = false, children = listOf(ChildDraft(name = "Aisyah")))))
+        assertTrue("children_count" in familyProblems(FamilyForm(count = "1", children = listOf(ChildDraft(name = "A1"), ChildDraft(name = "B2")))))
+        assertTrue("children.0.full_name" in familyProblems(FamilyForm(children = listOf(ChildDraft(name = "A")))))
+    }
+
+    @Test
+    fun meanLumaSamplesYPlane() {
+        // Bidang Y 32x32 dengan rowStride 40 (ada padding): kiri gelap (20), kanan terang (220).
+        val width = 32
+        val height = 32
+        val stride = 40
+        val bytes = ByteArray(stride * height) { i -> if (i % stride < width / 2) 20 else 220.toByte() }
+        val luma = meanLuma(java.nio.ByteBuffer.wrap(bytes), width, height, stride, 1, step = 4)
+        assertEquals(120f, luma, 0.01f)
+        assertTrue(meanLuma(java.nio.ByteBuffer.wrap(ByteArray(stride * height) { 30 }), width, height, stride, 1) < LightRules.LOW_LUMA)
+        assertEquals(255f, meanLuma(java.nio.ByteBuffer.allocate(0), 0, 0, 0, 1))
     }
 }

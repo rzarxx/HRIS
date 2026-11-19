@@ -85,6 +85,12 @@ func routes(d Deps) []Route {
 		{http.MethodPost, "/v1/auth/mfa/enable", AnyUser, nil, d.Auth.MFAEnable},
 		// Tetap terbuka saat sandi/MFA belum dipenuhi agar web tahu apa yang harus dilakukan.
 		{http.MethodGet, "/v1/me", AnyUser, nil, d.Auth.GetMe},
+		guarded(http.MethodPatch, "/v1/me", d.Employee.UpdateMe, permission.ProfileUpdate),
+		guarded(http.MethodGet, "/v1/me/children", d.Employee.MyChildren, permission.ProfileRead),
+		guarded(http.MethodPut, "/v1/me/children", d.Employee.SetMyChildren, permission.ProfileUpdate),
+		guarded(http.MethodPut, "/v1/me/photo", d.Employee.SetMyPhoto, permission.ProfileUpdate),
+		guarded(http.MethodDelete, "/v1/me/photo", d.Employee.DeleteMyPhoto, permission.ProfileUpdate),
+		guarded(http.MethodGet, "/v1/employees/{id}/photo", d.Employee.Photo, permission.ProfileRead),
 
 		guarded(http.MethodPost, "/v1/admin/users/{user_id}/reset-password", d.Auth.AdminResetPassword, permission.UserReset),
 		guarded(http.MethodPost, "/v1/admin/users/{user_id}/lock", d.Auth.AdminLock, permission.UserManage),
@@ -165,9 +171,12 @@ func routes(d Deps) []Route {
 		guarded(http.MethodPatch, "/v1/admin/announcements/{id}", d.Announcement.Update, permission.AnnouncementManage),
 		guarded(http.MethodDelete, "/v1/admin/announcements/{id}", d.Announcement.Delete, permission.AnnouncementManage),
 		guarded(http.MethodGet, "/v1/admin/announcements/{id}/reads", d.Announcement.Readers, permission.AnnouncementManage),
+		guarded(http.MethodPost, "/v1/admin/announcements/{id}/attachments", d.Announcement.AddAttachment, permission.AnnouncementManage),
+		guarded(http.MethodDelete, "/v1/admin/announcements/{id}/attachments/{attachment_id}", d.Announcement.DeleteAttachment, permission.AnnouncementManage),
 		guarded(http.MethodGet, "/v1/announcements/active", d.Announcement.Active, permission.AnnouncementRead),
 		guarded(http.MethodPost, "/v1/announcements/{id}/open", d.Announcement.Open, permission.AnnouncementRead),
 		guarded(http.MethodPost, "/v1/announcements/{id}/read", d.Announcement.Read, permission.AnnouncementRead),
+		guarded(http.MethodGet, "/v1/announcements/{id}/attachments/{attachment_id}", d.Announcement.Attachment, permission.AnnouncementRead),
 
 		guarded(http.MethodGet, "/v1/admin/settings/footer", d.Settings.Branding, permission.SettingsManage),
 		guarded(http.MethodPut, "/v1/admin/settings/footer", d.Settings.SetFooter, permission.SettingsManage),

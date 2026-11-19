@@ -170,7 +170,7 @@ func (q *Queries) GetEmployeeAccount(ctx context.Context, employeeID uuid.UUID) 
 
 const getMe = `-- name: GetMe :one
 SELECT u.id AS user_id, u.employee_id, u.role, u.email, u.must_change_password,
-       e.full_name, e.nip, e.position,
+       e.full_name, e.nip, e.position, e.phone, e.photo_updated_at, (e.photo_key IS NOT NULL)::boolean AS has_photo,
        s.id AS subdivision_id, s.name AS subdivision_name,
        d.id AS division_id, d.name AS division_name
 FROM users u
@@ -189,6 +189,9 @@ type GetMeRow struct {
 	FullName           string
 	Nip                string
 	Position           pgtype.Text
+	Phone              pgtype.Text
+	PhotoUpdatedAt     pgtype.Timestamptz
+	HasPhoto           bool
 	SubdivisionID      uuid.UUID
 	SubdivisionName    string
 	DivisionID         uuid.UUID
@@ -207,6 +210,9 @@ func (q *Queries) GetMe(ctx context.Context, id uuid.UUID) (GetMeRow, error) {
 		&i.FullName,
 		&i.Nip,
 		&i.Position,
+		&i.Phone,
+		&i.PhotoUpdatedAt,
+		&i.HasPhoto,
 		&i.SubdivisionID,
 		&i.SubdivisionName,
 		&i.DivisionID,

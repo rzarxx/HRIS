@@ -88,3 +88,30 @@ ON CONFLICT (announcement_id, employee_id) DO NOTHING;
 UPDATE announcement_reads
 SET read_at = @now
 WHERE announcement_id = @announcement_id AND employee_id = @employee_id AND read_at IS NULL;
+
+-- name: ListAnnouncementAttachments :many
+SELECT id, announcement_id, file_name, content_type, size_bytes
+FROM announcement_attachments
+WHERE announcement_id = ANY(@announcement_ids::uuid[])
+ORDER BY created_at, id;
+
+-- name: CountAnnouncementAttachments :one
+SELECT count(*) FROM announcement_attachments WHERE announcement_id = $1;
+
+-- name: CreateAnnouncementAttachment :one
+INSERT INTO announcement_attachments (announcement_id, file_name, content_type, size_bytes, storage_key, created_by)
+VALUES ($1, $2, $3, $4, $5, $6)
+RETURNING id;
+
+-- name: GetAnnouncementAttachment :one
+SELECT * FROM announcement_attachments WHERE id = @id AND announcement_id = @announcement_id;
+
+-- name: DeleteAnnouncementAttachment :one
+DELETE FROM announcement_attachments WHERE id = @id AND announcement_id = @announcement_id
+RETURNING storage_key;
+
+-- name: AnnouncementAttachmentKeys :many
+SELECT storage_key FROM announcement_attachments WHERE announcement_id = $1;
+
+-- name: LockAnnouncement :exec
+SELECT id FROM announcements WHERE id = $1 FOR UPDATE;

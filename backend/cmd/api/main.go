@@ -112,12 +112,14 @@ func run() error {
 			Roots:             roots,
 		}
 	}
+	var privateFiles *attendance.DiskStore
 	if cfg.SelfieDir != "" {
 		selfies, err := attendance.NewDiskStore(cfg.SelfieDir, fieldCipher)
 		if err != nil {
 			return err
 		}
 		attendanceOpt.Selfies = selfies
+		privateFiles = selfies
 	}
 	if cfg.FaceModelsDir != "" {
 		engine, err := face.NewSFace(cfg.FaceModelsDir, cfg.OnnxRuntimeLib)
@@ -140,12 +142,20 @@ func run() error {
 	approvalSvc := approval.NewService(pool)
 	leaveSvc := leave.NewService(pool, authSvc.ResolveScope)
 	approvalSvc.Register(store.RequestKindLeave, leaveSvc)
+	employeeSvc := employee.NewService(pool, authSvc.ResolveScope)
+	announcementSvc := announcement.NewService(pool)
+	if privateFiles != nil {
+		// Lampiran pengumuman memakai folder terenkripsi yang sama, dengan awalan kunci announcements/.
+		announcementSvc.WithFiles(privateFiles)
+		// Foto profil memakai folder terenkripsi yang sama dengan selfie, dengan awalan kunci profile/.
+		employeeSvc.WithPhotos(privateFiles)
+	}
 
 	handler := server.New(server.Deps{
 		Auth:         auth.NewHandler(authSvc, secure, cfg.CookieDomain, limiter),
 		Org:          org.NewHandler(org.NewService(pool)),
-		Employee:     employee.NewHandler(employee.NewService(pool, authSvc.ResolveScope)),
-		Announcement: announcement.NewHandler(announcement.NewService(pool)),
+		Employee:     employee.NewHandler(employeeSvc).WithMe(authSvc.Me),
+		Announcement: announcement.NewHandler(announcementSvc),
 		Settings:     settings.NewHandler(settings.NewService(pool)),
 		Dashboard:    dashboard.NewHandler(q),
 		Report:       report.NewHandler(report.NewService(q, authSvc.ResolveScope)),

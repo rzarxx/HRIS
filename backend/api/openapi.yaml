@@ -275,6 +275,127 @@ paths:
                 properties:
                   data: { $ref: "#/components/schemas/Me" }
         "401": { $ref: "#/components/responses/Error" }
+    patch:
+      tags: [Profil]
+      summary: Ubah nomor WA dan email sendiri
+      description: >-
+        Permission `profile:update`. Field yang tidak dikirim tetap nilai lamanya; `null` mengosongkan. Mengganti
+        email wajib menyertakan `current_password` karena email dipakai untuk masuk. Email login ikut berubah,
+        dan perubahan dicatat sebagai `employee.updated` dengan nama field saja. Email baru belum diverifikasi
+        lewat email (SMTP menyusul).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/MeUpdate" }
+      responses:
+        "200":
+          description: Profil terbaru
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data: { $ref: "#/components/schemas/Me" }
+        "400": { $ref: "#/components/responses/ValidationFailed" }
+        "403": { $ref: "#/components/responses/Error" }
+        "409": { $ref: "#/components/responses/Error" }
+
+  /v1/me/children:
+    get:
+      tags: [Profil]
+      summary: Data anak milik sendiri
+      description: Permission `profile:read`. Data anak hanya terlihat oleh Pejuang sendiri, SDM, dan super admin.
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data: { $ref: "#/components/schemas/MyFamily" }
+        "401": { $ref: "#/components/responses/Error" }
+    put:
+      tags: [Profil]
+      summary: Ganti seluruh data anak milik sendiri
+      description: >-
+        Permission `profile:update`. Daftar `children` menggantikan data lama seluruhnya (maks 10 anak per
+        pengiriman). Aturan sama dengan form SDM: urutan anak unik, `children_count` tidak kurang dari jumlah
+        data anak, dan `has_children=false` tidak boleh disertai data anak.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/MyFamily" }
+      responses:
+        "200":
+          description: Data anak terbaru
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data: { $ref: "#/components/schemas/MyFamily" }
+        "400": { $ref: "#/components/responses/ValidationFailed" }
+        "403": { $ref: "#/components/responses/Error" }
+
+  /v1/me/photo:
+    put:
+      tags: [Profil]
+      summary: Unggah foto profil sendiri
+      description: >-
+        Permission `profile:update`. Body adalah isi berkas JPEG atau PNG (maks 5 MB, dicek dari magic bytes).
+        Server memotong gambar menjadi persegi di tengah, memperkecilnya ke 512 px, lalu menyimpannya ulang
+        sebagai JPEG sehingga metadata (EXIF, termasuk lokasi) terbuang. Berkas disimpan terenkripsi.
+      requestBody:
+        required: true
+        content:
+          image/jpeg:
+            schema: { type: string, format: binary }
+          image/png:
+            schema: { type: string, format: binary }
+      responses:
+        "200":
+          description: Profil terbaru
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data: { $ref: "#/components/schemas/Me" }
+        "400": { $ref: "#/components/responses/ValidationFailed" }
+        "403": { $ref: "#/components/responses/Error" }
+        "413": { $ref: "#/components/responses/Error" }
+    delete:
+      tags: [Profil]
+      summary: Hapus foto profil sendiri
+      description: Permission `profile:update`.
+      responses:
+        "204": { description: Foto dihapus }
+        "403": { $ref: "#/components/responses/Error" }
+
+  /v1/employees/{id}/photo:
+    get:
+      tags: [Profil]
+      summary: Foto profil Pejuang
+      description: >-
+        Permission `profile:read` untuk foto sendiri; foto Pejuang lain memerlukan `employee:read` dalam
+        scope pemanggil. Jawaban `Cache-Control: private, no-store`. `404` bila Pejuang belum punya foto.
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        "200":
+          description: Foto JPEG 512x512
+          content:
+            image/jpeg:
+              schema: { type: string, format: binary }
+        "403": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
 
   /v1/admin/branches:
     get:
@@ -1656,6 +1777,73 @@ paths:
                     type: array
                     items: { $ref: "#/components/schemas/AnnouncementReader" }
         "404": { $ref: "#/components/responses/Error" }
+  /v1/admin/announcements/{id}/attachments:
+    post:
+      tags: [Pengumuman]
+      summary: Tambah lampiran pengumuman
+      description: >-
+        Permission `announcement:manage`. Body adalah isi berkas PDF, JPEG, atau PNG (maks 5 MB, jenis dicek dari
+        magic bytes); nama berkas dari query `name`. Paling banyak 5 lampiran per pengumuman. Berkas disimpan
+        terenkripsi di penyimpanan privat server dan dicatat sebagai `announcement.updated`.
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+        - { name: name, in: query, required: true, schema: { type: string, maxLength: 120 } }
+      requestBody:
+        required: true
+        content:
+          application/pdf:
+            schema: { type: string, format: binary }
+          image/jpeg:
+            schema: { type: string, format: binary }
+          image/png:
+            schema: { type: string, format: binary }
+      responses:
+        "201":
+          description: Pengumuman beserta daftar lampiran terbaru
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data: { $ref: "#/components/schemas/Announcement" }
+        "400": { $ref: "#/components/responses/ValidationFailed" }
+        "404": { $ref: "#/components/responses/Error" }
+        "413": { $ref: "#/components/responses/Error" }
+        "503": { $ref: "#/components/responses/Error" }
+  /v1/admin/announcements/{id}/attachments/{attachment_id}:
+    delete:
+      tags: [Pengumuman]
+      summary: Hapus lampiran pengumuman
+      description: Permission `announcement:manage`.
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+        - { name: attachment_id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        "204": { description: Lampiran dihapus }
+        "404": { $ref: "#/components/responses/Error" }
+  /v1/announcements/{id}/attachments/{attachment_id}:
+    get:
+      tags: [Pengumuman]
+      summary: Unduh lampiran pengumuman
+      description: >-
+        Permission `announcement:read`. Hanya untuk pengumuman yang sedang tayang bagi pemanggil; pemegang
+        `announcement:manage` boleh mengunduh lampiran pengumuman apa pun. Jawaban `Cache-Control: private, no-store`.
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+        - { name: attachment_id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        "200":
+          description: Isi berkas
+          content:
+            application/pdf:
+              schema: { type: string, format: binary }
+            image/jpeg:
+              schema: { type: string, format: binary }
+            image/png:
+              schema: { type: string, format: binary }
+        "404": { $ref: "#/components/responses/Error" }
+
   /v1/announcements/active:
     get:
       tags: [Pengumuman]
@@ -2283,6 +2471,7 @@ components:
         - LIVENESS_FAILED
         - FACE_NOT_DETECTED
         - FACE_SERVICE_UNAVAILABLE
+        - STORAGE_UNAVAILABLE
         - CHALLENGE_EXPIRED
         - ATTENDANCE_BLOCKED
         - LEAVE_ACTIVE
@@ -2397,7 +2586,7 @@ components:
     Me:
       type: object
       required:
-        [user_id, employee_id, role, full_name, nip, email, position, subdivision, division, permissions, must_change_password, mfa_enabled, face_enrolled]
+        [user_id, employee_id, role, full_name, nip, email, phone, position, subdivision, division, permissions, must_change_password, mfa_enabled, face_enrolled, has_photo, photo_updated_at]
       properties:
         user_id: { type: string, format: uuid }
         employee_id: { type: string, format: uuid }
@@ -2419,6 +2608,29 @@ components:
           enum: [pending, approved, revoked, null]
           description: Status perangkat sesi aplikasi. Null untuk sesi web.
         face_enrolled: { type: boolean, description: "Wajah sudah terdaftar. Bila false, aplikasi membuka alur daftar wajah (F7)." }
+        phone: { type: string, nullable: true, description: Nomor WA dalam bentuk 62… }
+        has_photo: { type: boolean, description: Pejuang punya foto profil }
+        photo_updated_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: Waktu foto terakhir diganti; dipakai klien sebagai penanda cache.
+    MeUpdate:
+      type: object
+      properties:
+        phone: { type: string, nullable: true, description: "Nomor WA, contoh 081234567890; disimpan sebagai 62…" }
+        email: { type: string, nullable: true, maxLength: 254 }
+        current_password: { type: string, description: Wajib bila `email` berubah }
+    MyFamily:
+      type: object
+      required: [has_children, children_count, children]
+      properties:
+        has_children: { type: boolean, nullable: true }
+        children_count: { type: integer, minimum: 0, maximum: 30, nullable: true }
+        children:
+          type: array
+          maxItems: 10
+          items: { $ref: "#/components/schemas/EmployeeChild" }
     BranchInput:
       allOf:
         - $ref: "#/components/schemas/BranchPatch"
@@ -2527,7 +2739,7 @@ components:
     Employee:
       type: object
       required:
-        [id, nip, full_name, email, phone, gender, marital_status, subdivision_id, subdivision_name, division_id, division_name, branch_id, branch_name, position, join_date, status, default_shift_id, default_shift_name, face_enrolled]
+        [id, nip, full_name, email, phone, gender, marital_status, subdivision_id, subdivision_name, division_id, division_name, branch_id, branch_name, position, join_date, status, default_shift_id, default_shift_name, face_enrolled, has_photo, photo_updated_at]
       properties:
         id: { type: string, format: uuid }
         nip: { type: string }
@@ -2560,6 +2772,8 @@ components:
         default_shift_id: { type: string, format: uuid, nullable: true }
         default_shift_name: { type: string, nullable: true }
         face_enrolled: { type: boolean, description: Pejuang punya template wajah aktif }
+        has_photo: { type: boolean, description: "Pejuang punya foto profil (`GET /v1/employees/{id}/photo`)" }
+        photo_updated_at: { type: string, format: date-time, nullable: true }
         base_salary:
           allOf: [{ $ref: "#/components/schemas/Money" }]
           description: Hanya untuk sdm dan pemilik data
@@ -2719,7 +2933,7 @@ components:
       type: object
       required:
         [id, title, body, type, image_upload_id, division_id, division_name, starts_at, ends_at, is_active, created_at,
-         min_read_seconds, audience_count, opened_count, read_count]
+         min_read_seconds, audience_count, opened_count, read_count, attachments]
       properties:
         id: { type: string, format: uuid }
         title: { type: string }
@@ -2736,6 +2950,18 @@ components:
         audience_count: { type: integer, description: Pejuang aktif di divisi tujuan, atau semua bila division_id kosong }
         opened_count: { type: integer, description: Sasaran yang sudah membuka isi di aplikasi }
         read_count: { type: integer, description: Sasaran yang sudah menekan "Sudah baca" }
+        attachments:
+          type: array
+          items: { $ref: "#/components/schemas/AnnouncementAttachment" }
+    AnnouncementAttachment:
+      type: object
+      description: Berkas lampiran pengumuman (PDF, JPEG, atau PNG). Isi diunduh lewat `GET /v1/announcements/{id}/attachments/{attachment_id}`.
+      required: [id, file_name, content_type, size_bytes]
+      properties:
+        id: { type: string, format: uuid }
+        file_name: { type: string }
+        content_type: { type: string, enum: [application/pdf, image/jpeg, image/png] }
+        size_bytes: { type: integer }
     Branding:
       type: object
       required: [footer, footer_template, is_default, updated_at]
@@ -2751,7 +2977,7 @@ components:
     MyAnnouncement:
       type: object
       description: Pengumuman yang sedang tayang untuk Pejuang yang masuk, beserta status bacanya
-      required: [id, title, body, type, starts_at, ends_at, min_read_seconds, opened_at, read_at, read_wait_seconds]
+      required: [id, title, body, type, starts_at, ends_at, min_read_seconds, opened_at, read_at, read_wait_seconds, attachments]
       properties:
         id: { type: string, format: uuid }
         title: { type: string }
@@ -2765,6 +2991,9 @@ components:
         read_wait_seconds:
           type: integer
           description: Sisa detik sebelum "Sudah baca" diterima, dihitung server saat respons dibuat. Nol bila sudah dibaca.
+        attachments:
+          type: array
+          items: { $ref: "#/components/schemas/AnnouncementAttachment" }
     AnnouncementReader:
       type: object
       required: [employee_id, full_name, nip, subdivision_name, opened_at, read_at]

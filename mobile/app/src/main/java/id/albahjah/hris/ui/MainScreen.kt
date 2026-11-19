@@ -29,12 +29,16 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.ImageBitmap
 import dev.chrisbanes.haze.HazeState
 import dev.chrisbanes.haze.hazeSource
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.unit.dp
 import id.albahjah.hris.BuildConfig
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LifecycleEventEffect
+import id.albahjah.hris.data.AnnouncementAttachment
 import id.albahjah.hris.data.AttendanceRecord
 import id.albahjah.hris.data.FontSize
 import id.albahjah.hris.data.Me
@@ -46,7 +50,7 @@ import kotlinx.coroutines.launch
 import java.time.ZonedDateTime
 
 /** Halaman di atas tab yang dibuka dari Profil. */
-private enum class SubPage { PersonalData, Password, FontSize }
+private enum class SubPage { PersonalData, Children, Password, FontSize }
 
 /**
  * Kerangka aplikasi setelah masuk: memuat profil dan presensi sekali, lalu menampilkan lima tab
@@ -79,6 +83,8 @@ fun MainScreen(
     val announcements = remember(repository) { AnnouncementsController(repository, scope) }
     var openAnnouncementId by rememberSaveable { mutableStateOf<String?>(null) }
     var announcementList by rememberSaveable { mutableStateOf(false) }
+    // Lampiran yang sedang dibuka: (id pengumuman, lampiran).
+    var viewing by remember { mutableStateOf<Pair<String, AnnouncementAttachment>?>(null) }
     // Pop-up yang ditunda ("Nanti saja") tidak muncul lagi sampai aplikasi dibuka ulang.
     var postponed by remember { mutableStateOf(setOf<String>()) }
     val snackbar = remember { SnackbarHostState() }
@@ -134,6 +140,18 @@ fun MainScreen(
         return
     }
 
+    // Foto profil diunduh sekali per versi (photo_updated_at) lalu dipakai Beranda, Profil, dan Data pribadi.
+    var photo by remember { mutableStateOf<ImageBitmap?>(null) }
+    LaunchedEffect(current.employeeId, current.hasPhoto, current.photoUpdatedAt) {
+        photo = try {
+            decodePhoto(repository.myPhoto(current))
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            null
+        }
+    }
+
     // Masuk dengan kata sandi awal: layar ganti kata sandi langsung disodorkan dan tidak bisa dilewati (D53).
     if (current.mustChangePassword) {
         BackHandler { /* tidak bisa kembali sebelum kata sandi diganti; pakai tombol Keluar */ }
@@ -144,8 +162,12 @@ fun MainScreen(
     when (sub) {
         SubPage.PersonalData -> {
             BackHandler { sub = null }
-            SecureScreen()
-            PersonalDataContent(current) { sub = null }
+            PersonalDataScreen(repository, current, photo, onBack = { sub = null }, onUpdated = { me = it })
+            return
+        }
+        SubPage.Children -> {
+            BackHandler { sub = null }
+            ChildrenScreen(repository) { sub = null }
             return
         }
         SubPage.Password -> {
@@ -170,17 +192,28 @@ fun MainScreen(
         repository.refreshBranding()
     }
     LaunchedEffect(tab) { if (tab == MainTab.Requests) requests.refresh(canApprove) }
+    LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { announcements.refresh() }
 
     if (tab != MainTab.Home) BackHandler { tab = MainTab.Home }
     val now = ZonedDateTime.now(Wib)
     val openLeave = openLeaveId?.let { id -> requests.data.leaves?.firstOrNull { it.id == id } }
     val openAnnouncement = openAnnouncementId?.let { id -> announcements.items?.firstOrNull { it.id == id } }
-    val onSubPage = openLeave != null || openAnnouncement != null || announcementList
-    // Pop-up pengumuman muncul satu per satu saat aplikasi dibuka, di atas halaman tab.
+    val onSubPage = openLeave != null || openAnnouncement != null || announcementList || viewing != null
+    // Pop-up pengumuman muncul satu per satu saat aplikasi dibuka, di atas halaman tab. Yang belum dibaca
+    // meminta "Sudah baca"; yang sudah dibaca dan punya tanggal berakhir muncul lagi sekali sehari dengan
+    // tombol Tutup saja sampai berakhir (D54).
+    val today = now.toLocalDate().toString()
     val popup = if (onSubPage || leaveForm || deciding != null || askLogout) null
-    else announcements.items?.firstOrNull { it.type == "popup" && it.readAt == null && it.id !in postponed }
+    else announcements.items?.firstOrNull {
+        it.type == "popup" && it.id !in postponed &&
+            (it.readAt == null || (it.endsAt != null && repository.prefs.popupClosedOn(it.id) != today))
+    }
     Box(Modifier.fillMaxSize()) {
-        if (openLeave != null) {
+        val shownFile = viewing
+        if (shownFile != null) {
+            BackHandler { viewing = null }
+            AttachmentViewerScreen(repository, shownFile.first, shownFile.second, onBack = { viewing = null })
+        } else if (openLeave != null) {
             BackHandler { openLeaveId = null }
             LeaveDetailScreen(
                 controller = requests,
@@ -195,11 +228,12 @@ fun MainScreen(
                 item = openAnnouncement,
                 onBack = { openAnnouncementId = null },
                 onMessage = notify,
+                onAttachment = { viewing = openAnnouncement.id to it },
             )
         } else if (announcementList) {
             BackHandler { announcementList = false }
             AnnouncementListContent(announcements.items, onBack = { announcementList = false }, onOpen = { openAnnouncementId = it.id })
-        } else MainTabs(
+        } else CompositionLocalProvider(LocalMyPhoto provides photo) { MainTabs(
             tab = tab,
             onTab = { tab = it },
             me = current,
@@ -231,11 +265,24 @@ fun MainScreen(
             announcements = announcements.items.orEmpty(),
             onAnnouncement = { openAnnouncementId = it.id },
             onAnnouncements = { announcementList = true },
-        )
+            onChildren = { sub = SubPage.Children },
+        ) }
         if (popup != null) {
-            AnnouncementPopup(announcements, popup) { read ->
-                if (read) notify("Terima kasih, pengumuman ditandai sudah dibaca.") else postponed = postponed + popup.id
-            }
+            val repeat = popup.readAt != null
+            AnnouncementPopup(
+                announcements,
+                popup,
+                onClose = { read ->
+                    if (read || repeat) {
+                        // Dicatat per hari agar tidak muncul lagi sampai besok.
+                        repository.prefs.markPopupClosed(popup.id, today)
+                        if (read) notify("Terima kasih, pengumuman ditandai sudah dibaca.")
+                    }
+                    postponed = postponed + popup.id
+                },
+                repeat = repeat,
+                onAttachment = { viewing = popup.id to it },
+            )
         }
         if (leaveForm) {
             LeaveFormSheet(
@@ -302,6 +349,7 @@ fun MainTabs(
     footer: String? = null,
     fontSize: FontSize = FontSize.Normal,
     onFontSize: () -> Unit = {},
+    onChildren: () -> Unit = {},
 ) {
     // Isi tab menjadi sumber blur; bottom bar kaca mengambang di atasnya.
     val haze = remember { HazeState() }
@@ -359,6 +407,7 @@ fun MainTabs(
                         fontSize = fontSize,
                         onFontSize = onFontSize,
                         footer = footer,
+                        onChildren = onChildren,
                     )
                 }
             }

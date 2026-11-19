@@ -423,6 +423,17 @@ type Announcement struct {
 	MinReadSeconds int16
 }
 
+type AnnouncementAttachment struct {
+	ID             uuid.UUID
+	AnnouncementID uuid.UUID
+	FileName       string
+	ContentType    string
+	SizeBytes      int32
+	StorageKey     string
+	CreatedBy      uuid.NullUUID
+	CreatedAt      pgtype.Timestamptz
+}
+
 type AnnouncementRead struct {
 	AnnouncementID uuid.UUID
 	EmployeeID     uuid.UUID
@@ -592,6 +603,8 @@ type Employee struct {
 	MaritalStatus  pgtype.Text
 	HasChildren    pgtype.Bool
 	ChildrenCount  pgtype.Int2
+	PhotoKey       pgtype.Text
+	PhotoUpdatedAt pgtype.Timestamptz
 }
 
 type EmployeeChild struct {

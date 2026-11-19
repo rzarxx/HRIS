@@ -1,5 +1,12 @@
 package id.albahjah.hris
 
+import android.graphics.Bitmap
+import android.graphics.Canvas
+import android.graphics.Paint
+import androidx.compose.ui.graphics.asImageBitmap
+import id.albahjah.hris.data.AnnouncementAttachment
+import id.albahjah.hris.ui.AttachmentImage
+
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
@@ -415,6 +422,38 @@ class ScreenshotTest {
     fun announcementPopupReady() = shot {
         Box(Modifier.fillMaxSize()) {
             AnnouncementPopupContent(announcements[0], wait = 0, busy = false, error = null, onRead = {}, onLater = {})
+        }
+    }
+
+    private fun announcementPoster() = Bitmap.createBitmap(600, 400, Bitmap.Config.ARGB_8888).apply {
+        eraseColor(android.graphics.Color.rgb(220, 245, 235))
+        val canvas = Canvas(this)
+        val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = android.graphics.Color.rgb(20, 80, 60); textSize = 40f }
+        canvas.drawText("KAJIAN PEJUANG", 40f, 100f, paint)
+        paint.textSize = 28f
+        canvas.drawText("Ahad, pukul 08.00 WIB", 40f, 170f, paint)
+        canvas.drawText("Aula utama", 40f, 220f, paint)
+    }.asImageBitmap()
+
+    @Test
+    fun announcementPopupInlineImage() {
+        val poster = announcementPoster()
+        val attachment = AnnouncementAttachment("poster", "Jadwal.png", "image/png", 12000)
+        shot {
+            Box(Modifier.fillMaxSize()) {
+                AnnouncementPopupContent(announcements[0].copy(attachments = listOf(attachment)), wait = 0, busy = false, error = null, onRead = {}, onLater = {},
+                    attachmentContent = { AttachmentImage(poster, it.fileName, inline = true) })
+            }
+        }
+    }
+
+    @Test
+    fun announcementDetailInlineImage() {
+        val poster = announcementPoster()
+        val attachment = AnnouncementAttachment("poster", "Jadwal.png", "image/png", 12000)
+        shot {
+            AnnouncementDetailContent(announcements[1].copy(attachments = listOf(attachment)), wait = 0, busy = false, error = null, onBack = {}, onRead = {},
+                attachmentContent = { AttachmentImage(poster, it.fileName, inline = true) })
         }
     }
 

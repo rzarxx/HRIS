@@ -48,9 +48,10 @@ for (const file of htmlFiles(OUT)) {
     // Tailwind dan Leaflet memakai atribut style; style tidak bisa menjalankan kode.
     "style-src 'self' 'unsafe-inline'",
     "img-src 'self' data: blob: https://tile.openstreetmap.org",
-    "font-src 'self'",
+    "font-src 'self' blob:",
     `connect-src ${[...new Set(connect)].join(" ")}`,
     "object-src 'none'",
+    "worker-src 'self'",
     "base-uri 'self'",
     "form-action 'self'",
   ].join("; ");

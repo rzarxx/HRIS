@@ -670,6 +670,8 @@ Daftar memakai `?page=&per_page=&q=&sort=` (contoh `sort=-created_at`) dan filte
 | 500 | `INTERNAL_ERROR` | Kesalahan server |
 | 503 | `FACE_SERVICE_UNAVAILABLE` | Mesin wajah server belum dipasang (`FACE_MODELS_DIR` kosong) |
 | 503 | `STORAGE_UNAVAILABLE` | Penyimpanan berkas privat server belum disiapkan (`SELFIE_DIR` kosong), mis. untuk foto profil |
+| 422 | `FILE_UNSAFE` | Lampiran terdeteksi berbahaya atau tidak dapat dipindai lengkap; unggahan ditolak |
+| 503 | `FILE_SCAN_UNAVAILABLE` | Pemindai malware tidak tersedia atau gagal memberi hasil; unggahan ditolak |
 
 Setiap `code` baru wajib ditambahkan di tabel ini.
 
@@ -1208,6 +1210,10 @@ flowchart TD
 **Timer baca (D27):** tombol "Sudah baca" di aplikasi nonaktif dan menampilkan hitung mundur selama `min_read_seconds` (diatur SDM per pengumuman, 0 sampai 120 detik, default 10). Notifikasi memakai `notification.min_read_seconds` (default 5). Timer di app hanya tampilan: saat isi dibuka, app memanggil `/open` dan server mencatat `opened_at` sekali saja; `/read` yang datang lebih cepat dari batas ditolak `422 READ_TOO_SOON`.
 
 **Tampil ulang harian dan lampiran (D54):** pop-up yang sudah dibaca dan punya `ends_at` muncul lagi sekali per hari (WIB) saat aplikasi dibuka, sampai `ends_at`, hanya dengan tombol **Tutup**; tanggal terakhir ditutup disimpan di HP. Pop-up tanpa `ends_at` tidak muncul lagi setelah dibaca. Aplikasi memuat ulang pengumuman setiap kali kembali ke depan, bukan hanya saat pertama dibuka. Pengumuman bisa membawa sampai 5 lampiran PDF/JPEG/PNG yang ditampilkan di pop-up dan detail.
+
+Lampiran langsung dimuat di pop-up dan detail: gambar tampil utuh dan halaman PDF dapat digulir, dengan pilihan memperbesar. API wajib memindai setiap lampiran pengumuman memakai ClamAV sebelum menyimpan; hasil selain bersih ditolak, termasuk ketika pemindai tidak tersedia. `CLAMAV_ADDRESS` menunjuk socket Unix absolut atau alamat TCP loopback (contoh `127.0.0.1:3310`); kosong menonaktifkan unggahan lampiran. Database signature diperbarui dengan freshclam; clamd wajib mengaktifkan pemeriksaan PDF, dokumen terenkripsi, dan batas pemindaian (lihat `backend/deploy/clamav.md`). Pemindaian mengurangi risiko malware, bukan jaminan absolut.
+
+Gambar harus dapat didekode, dibatasi 24 juta piksel, diperkecil proporsional sampai sisi terpanjang 2560 px, dan dikodekan ulang tanpa metadata (JPEG kualitas 85; PNG tetap transparan). Semua lampiran dicoba kompresi gzip sebelum enkripsi; hasil kompresi dipakai hanya bila lebih kecil. Isi PDF dipertahankan. `size_bytes` tetap ukuran isi yang diterima perangkat setelah optimasi gambar, bukan ukuran penyimpanan terenkripsi. Lampiran lama tanpa penanda proses baru dipindai saat dibaca sebelum dikirim ke perangkat; hak akses diperiksa terlebih dahulu.
 
 ```mermaid
 flowchart TD

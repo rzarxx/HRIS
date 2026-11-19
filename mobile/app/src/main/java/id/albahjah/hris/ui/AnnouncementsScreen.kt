@@ -74,6 +74,8 @@ class AnnouncementsController(private val repository: Repository, private val sc
 
     suspend fun read(id: String): MyAnnouncement = repository.readAnnouncement(id).also(::replace)
 
+    suspend fun attachment(id: String, attachmentId: String): ByteArray = repository.attachment(id, attachmentId)
+
     val unread: Int get() = items.orEmpty().count { it.readAt == null }
 }
 
@@ -165,6 +167,7 @@ fun BoxScope.AnnouncementPopupContent(
     onLater: () -> Unit,
     repeat: Boolean = false,
     onAttachment: (AnnouncementAttachment) -> Unit = {},
+    attachmentContent: @Composable (AnnouncementAttachment) -> Unit = { AttachmentRow(it) { onAttachment(it) } },
 ) {
     Box(
         Modifier.matchParentSize().background(Fg.Backdrop)
@@ -188,7 +191,7 @@ fun BoxScope.AnnouncementPopupContent(
         Text(item.title, style = figmaText(20, FontWeight.Bold, lineHeight = 1.3f), modifier = Modifier.semantics { heading() })
         Column(Modifier.heightIn(max = 320.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text(item.body, style = figmaText(15, color = Fg.TextBody, lineHeight = 1.55f))
-            item.attachments.forEach { AttachmentRow(it) { onAttachment(it) } }
+            item.attachments.forEach { attachmentContent(it) }
         }
         if (repeat) {
             // Sudah dibaca sebelumnya: cukup diingatkan, tanpa tombol Sudah baca lagi (D54).
@@ -231,6 +234,9 @@ fun BoxScope.AnnouncementPopup(
         onLater = { onClose(false) },
         repeat = repeat,
         onAttachment = onAttachment,
+        attachmentContent = { attachment ->
+            InlineAttachment(item.id, attachment, load = { controller.attachment(item.id, attachment.id) }, onExpand = { onAttachment(attachment) })
+        },
     )
 }
 
@@ -322,6 +328,7 @@ fun AnnouncementDetailContent(
     onBack: () -> Unit,
     onRead: () -> Unit,
     onAttachment: (AnnouncementAttachment) -> Unit = {},
+    attachmentContent: @Composable (AnnouncementAttachment) -> Unit = { AttachmentRow(it) { onAttachment(it) } },
 ) {
     Column(Modifier.fillMaxSize().background(Fg.PageProfile)) {
         FigmaHeader("Pengumuman", onBack)
@@ -335,7 +342,7 @@ fun AnnouncementDetailContent(
                 Text(scheduleText(item), style = figmaText(12, color = Fg.TextSecondary))
                 Text(item.title, style = figmaText(20, FontWeight.SemiBold, Fg.TextStrong, lineHeight = 1.3f), modifier = Modifier.semantics { heading() })
                 Text(item.body, style = figmaText(15, color = Fg.TextBody, lineHeight = 1.55f))
-                item.attachments.forEach { AttachmentRow(it) { onAttachment(it) } }
+                item.attachments.forEach { attachmentContent(it) }
             }
             Column(ContentWidth.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 if (item.readAt != null) {
@@ -387,5 +394,8 @@ fun AnnouncementDetailScreen(
         onBack = onBack,
         onRead = { flow.read(item) { onMessage("Terima kasih, pengumuman ditandai sudah dibaca.") } },
         onAttachment = onAttachment,
+        attachmentContent = { attachment ->
+            InlineAttachment(item.id, attachment, load = { controller.attachment(item.id, attachment.id) }, onExpand = { onAttachment(attachment) })
+        },
     )
 }

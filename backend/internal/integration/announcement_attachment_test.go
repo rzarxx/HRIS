@@ -3,10 +3,101 @@ package integration
 import (
 	"bytes"
 	"context"
+	"errors"
 	"net/http"
+	"strings"
 	"testing"
 	"time"
+
+	"github.com/rzarxx/HRIS/backend/internal/platform/filescan"
 )
+
+// Test-only scanner: deterministic failures exercise publication gates, not AV signatures.
+type testFileScanner struct{ err error }
+
+func (s testFileScanner) Scan(context.Context, []byte) error { return s.err }
+
+type attachmentMemoryStore map[string][]byte
+
+func (m attachmentMemoryStore) Put(_ context.Context, k string, b []byte) error {
+	m[k] = bytes.Clone(b)
+	return nil
+}
+func (m attachmentMemoryStore) Get(_ context.Context, k string) ([]byte, error) {
+	return bytes.Clone(m[k]), nil
+}
+func (m attachmentMemoryStore) Delete(_ context.Context, k string) error { delete(m, k); return nil }
+
+func TestAnnouncementCompressedAndLegacyFiles(t *testing.T) {
+	files := attachmentMemoryStore{}
+	scanner := &testFileScanner{}
+	srv := fresh(t, options{announcementFiles: files, announcementScanner: scanner})
+	sdm := loginSDM(t, srv)
+	ops, opsAcc := pejuangClient(t, srv, "OPS-GDG")
+	keu, _ := pejuangClient(t, srv, "KEU-AKT")
+	a := data[announcementWithFiles](t, sdm.do(http.MethodPost, "/v1/admin/announcements", map[string]any{
+		"title": "Dokumen", "body": "Pengumuman", "type": "popup", "starts_at": time.Now().Add(-time.Hour).UTC().Format(time.RFC3339), "division_id": opsAcc.division,
+	}).want(t, http.StatusCreated))
+	pdf := bytes.Repeat([]byte("%PDF-1.4 document\n"), 1000)
+	got := data[announcementWithFiles](t, sdm.send(http.MethodPost, "/v1/admin/announcements/"+a.ID+"/attachments?name=dokumen.pdf", bytes.NewReader(pdf), "application/pdf").want(t, http.StatusCreated))
+	att := got.Attachments[0]
+	var key string
+	if err := ownerPool.QueryRow(context.Background(), "SELECT storage_key FROM announcement_attachments WHERE id=$1", att.ID).Scan(&key); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.HasSuffix(key, ".safe-v1.gz") || len(files[key]) >= len(pdf) || att.SizeBytes != len(pdf) {
+		t.Fatal("storage compression or metadata incorrect")
+	}
+	url := "/v1/announcements/" + a.ID + "/attachments/" + att.ID
+	if res := ops.do(http.MethodGet, url, nil).want(t, http.StatusOK); !bytes.Equal(res.body, pdf) {
+		t.Fatal("PDF round trip changed")
+	}
+	// Simulate a pre-upgrade key: it must be scanned before sending any bytes.
+	files["announcements/legacy.pdf"] = pdf
+	exec(t, "UPDATE announcement_attachments SET storage_key='announcements/legacy.pdf' WHERE id=$1", att.ID)
+	scanner.err = filescan.ErrUnsafe
+	ops.do(http.MethodGet, url, nil).wantError(t, 422, "FILE_UNSAFE")
+	keu.do(http.MethodGet, url, nil).wantError(t, 404, "NOT_FOUND")
+	scanner.err = errors.New("offline")
+	ops.do(http.MethodGet, url, nil).wantError(t, 503, "FILE_SCAN_UNAVAILABLE")
+	scanner.err = nil
+	if res := ops.do(http.MethodGet, url, nil).want(t, http.StatusOK); !bytes.Equal(res.body, pdf) {
+		t.Fatal("clean legacy file unavailable")
+	}
+}
+
+func TestAnnouncementScanFailureDoesNotPublish(t *testing.T) {
+	for _, tc := range []struct {
+		name       string
+		scannerErr error
+		absent     bool
+		status     int
+		code       string
+	}{
+		{"unsafe", filescan.ErrUnsafe, false, 422, "FILE_UNSAFE"},
+		{"offline", errors.New("scanner unavailable"), false, 503, "FILE_SCAN_UNAVAILABLE"},
+		{"not configured", nil, true, 503, "FILE_SCAN_UNAVAILABLE"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			files := attachmentMemoryStore{}
+			srv := fresh(t, options{announcementScanner: testFileScanner{tc.scannerErr}, noAnnouncementScanner: tc.absent, announcementFiles: files})
+			sdm := loginSDM(t, srv)
+			a := data[announcementWithFiles](t, sdm.do(http.MethodPost, "/v1/admin/announcements", map[string]any{
+				"title": "Pemeriksaan lampiran", "body": "Tes keamanan", "type": "popup", "starts_at": time.Now().UTC().Format(time.RFC3339),
+			}).want(t, http.StatusCreated))
+			for _, file := range [][]byte{[]byte("%PDF-1.4 document"), samplePNG(t, 20, 20)} {
+				sdm.send(http.MethodPost, "/v1/admin/announcements/"+a.ID+"/attachments?name=berkas.pdf", bytes.NewReader(file), "application/pdf").wantError(t, tc.status, tc.code)
+			}
+			var count int
+			if err := ownerPool.QueryRow(context.Background(), "SELECT count(*) FROM announcement_attachments WHERE announcement_id=$1", a.ID).Scan(&count); err != nil || count != 0 {
+				t.Fatalf("rejected upload published: %d %v", count, err)
+			}
+			if len(files) != 0 {
+				t.Fatal("rejected upload written to storage")
+			}
+		})
+	}
+}
 
 type attachmentInfo struct {
 	ID          string `json:"id"`

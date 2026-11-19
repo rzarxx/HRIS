@@ -7,6 +7,10 @@ Perubahan penting yang terlihat oleh Pejuang, SDM, atau pengelola server. Keputu
 ## Belum dirilis
 
 ### Ditambahkan
+- **Lampiran pengumuman tampil langsung dan dipindai virus.** Gambar dan PDF lampiran langsung terlihat di pop-up dan
+  detail pengumuman (aplikasi) serta di pratinjau dan form pengumuman (web), tanpa perlu mengetuk nama berkas; PDF bisa
+  digeser per halaman dan ada tombol **Perbesar**. Setiap lampiran dipindai ClamAV sebelum disimpan: berkas berbahaya
+  dijawab `FILE_UNSAFE` (422), dan bila pemindai tidak tersedia unggahan ditunda dengan `FILE_SCAN_UNAVAILABLE` (503).
 - **Lampiran pengumuman (D54).** SDM bisa melampirkan sampai 5 berkas PDF, JPEG, atau PNG (maks 5 MB per berkas) pada
   pengumuman. Lampiran tampil di pop-up dan detail pengumuman di aplikasi, dan dibuka langsung di dalam aplikasi (PDF
   dirender per halaman) tanpa aplikasi lain. Berkas disimpan terenkripsi dan hanya bisa diunduh sasaran pengumuman yang
@@ -28,6 +32,9 @@ Perubahan penting yang terlihat oleh Pejuang, SDM, atau pengelola server. Keputu
   Endpoint `GET /v1/admin/employees/import-template` dan `POST /v1/admin/employees/import`, audit `employee.imported`.
 
 ### Diubah
+- **Lampiran pengumuman dikompres.** Foto diubah ukurannya (sisi terpanjang maks 2560 px, maks 24 MP), arah EXIF
+  diterapkan, dan metadata (termasuk lokasi) dibuang; berkas lalu dikompres gzip sebelum dienkripsi bila hasilnya lebih
+  kecil. Isi PDF tidak diubah.
 - **Pop-up pengumuman tampil ulang harian (D54).** Setelah ditandai "Sudah baca", pop-up yang punya tanggal berakhir
   muncul lagi sekali sehari saat aplikasi dibuka, sampai berakhir, hanya dengan tombol **Tutup** (tanpa hitung mundur
   dan tanpa "Sudah baca" lagi). Pop-up tanpa tanggal berakhir tidak muncul lagi setelah dibaca.
@@ -54,6 +61,9 @@ Perubahan penting yang terlihat oleh Pejuang, SDM, atau pengelola server. Keputu
   hanya tersimpan saat reset kata sandi, sehingga kata sandi awal Pejuang baru tidak kedaluwarsa.
 
 ### Perhatian saat memperbarui
+- Lampiran pengumuman wajib dipindai: pasang dan jalankan clamd di server sesuai `backend/deploy/clamav.md`, lalu isi
+  `CLAMAV_ADDRESS` (socket Unix absolut atau `127.0.0.1:3310`). Tanpa itu, unggahan lampiran dijawab
+  `FILE_SCAN_UNAVAILABLE` dan lampiran lama yang belum pernah dipindai tidak bisa dibuka.
 - Bila server memakai `PLAY_INTEGRITY_PACKAGE` atau `KEY_ATTESTATION_PACKAGE`, ganti nilainya menjadi
   `id.albahjah.hris` bersamaan dengan rilis aplikasi baru. Daftarkan juga package baru di Play Console dan Google Cloud
   (Play Integrity).

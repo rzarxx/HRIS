@@ -27,6 +27,7 @@ import (
 	"github.com/rzarxx/HRIS/backend/internal/platform/config"
 	"github.com/rzarxx/HRIS/backend/internal/platform/database"
 	"github.com/rzarxx/HRIS/backend/internal/platform/fieldcrypt"
+	"github.com/rzarxx/HRIS/backend/internal/platform/filescan"
 	"github.com/rzarxx/HRIS/backend/internal/platform/integrity"
 	"github.com/rzarxx/HRIS/backend/internal/report"
 	"github.com/rzarxx/HRIS/backend/internal/server"
@@ -144,6 +145,15 @@ func run() error {
 	approvalSvc.Register(store.RequestKindLeave, leaveSvc)
 	employeeSvc := employee.NewService(pool, authSvc.ResolveScope)
 	announcementSvc := announcement.NewService(pool)
+	if cfg.ClamAVAddress != "" {
+		scanner, err := filescan.New(cfg.ClamAVAddress)
+		if err != nil {
+			return err
+		}
+		announcementSvc.WithScanner(scanner)
+	} else {
+		slog.Warn("CLAMAV_ADDRESS kosong: unggahan lampiran pengumuman ditolak")
+	}
 	if privateFiles != nil {
 		// Lampiran pengumuman memakai folder terenkripsi yang sama, dengan awalan kunci announcements/.
 		announcementSvc.WithFiles(privateFiles)

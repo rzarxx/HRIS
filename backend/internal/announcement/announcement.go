@@ -15,6 +15,7 @@ import (
 	"github.com/rzarxx/HRIS/backend/internal/audit"
 	"github.com/rzarxx/HRIS/backend/internal/auth"
 	"github.com/rzarxx/HRIS/backend/internal/platform/database"
+	"github.com/rzarxx/HRIS/backend/internal/platform/filescan"
 	"github.com/rzarxx/HRIS/backend/internal/platform/httpx"
 	"github.com/rzarxx/HRIS/backend/internal/platform/pgconv"
 	"github.com/rzarxx/HRIS/backend/internal/store"
@@ -25,11 +26,13 @@ type Service struct {
 	q    *store.Queries
 	now  func() time.Time
 	// files menyimpan lampiran terenkripsi; nil bila SELFIE_DIR belum diisi.
-	files FileStore
+	files      FileStore
+	scanner    filescan.Scanner
+	processing chan struct{}
 }
 
 func NewService(pool *pgxpool.Pool) *Service {
-	return &Service{pool: pool, q: store.New(pool), now: time.Now}
+	return &Service{pool: pool, q: store.New(pool), now: time.Now, processing: make(chan struct{}, 2)}
 }
 
 // SetClock mengganti sumber waktu, untuk tes timer baca.

@@ -405,6 +405,12 @@ func writeOrgAudit(ctx context.Context, q *store.Queries, actor audit.Entry, ent
 	return audit.Write(ctx, q, actor)
 }
 
+// SyncHeadRole menyesuaikan role satu Pejuang dengan unit yang dipimpinnya saat ini (D49). Dipakai
+// impor massal setelah kepala divisi atau subdiv diganti dalam transaksi yang sama.
+func SyncHeadRole(ctx context.Context, q *store.Queries, actor audit.Entry, employeeID uuid.UUID) error {
+	return syncHeadRoles(ctx, q, actor, uuid.NullUUID{UUID: employeeID, Valid: true}, uuid.NullUUID{})
+}
+
 // syncHeadRoles menyesuaikan role kepala lama dan baru (D49): kepala divisi menjadi kadiv, kepala
 // subdiv menjadi subdiv, dan yang tidak lagi memimpin unit mana pun kembali menjadi pejuang. Role
 // sdm dan superadmin tidak pernah diubah. Sesi berjalan memakai role baru setelah token diperbarui.

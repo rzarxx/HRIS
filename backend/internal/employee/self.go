@@ -144,7 +144,7 @@ func writeSelfAudit(ctx context.Context, q *store.Queries, ip audit.Entry, id uu
 	return audit.Write(ctx, q, entry)
 }
 
-// Family adalah data anak milik sendiri (GET/PUT /v1/me/children).
+// Family adalah data anak milik sendiri (GET /v1/me/children). Hanya SDM yang mengubahnya.
 type Family struct {
 	HasChildren   *bool   `json:"has_children"`
 	ChildrenCount *int    `json:"children_count"`
@@ -176,53 +176,6 @@ func (s *Service) OwnFamily(ctx context.Context, p auth.Principal) (Family, erro
 		f.ChildrenCount = &v
 	}
 	return f, nil
-}
-
-// SetOwnFamily mengganti seluruh data anak milik sendiri dengan aturan yang sama seperti form SDM.
-func (s *Service) SetOwnFamily(ctx context.Context, p auth.Principal, ip audit.Entry, in Family, today time.Time) (Family, error) {
-	if p.EmployeeID == uuid.Nil {
-		return Family{}, httpx.ErrForbidden()
-	}
-	fields := map[string]string{}
-	children := validateChildren(in.Children, today, fields)
-	hasChildren := pgtype.Bool{}
-	if in.HasChildren != nil {
-		hasChildren = pgtype.Bool{Bool: *in.HasChildren, Valid: true}
-	}
-	count := pgtype.Int2{}
-	if in.ChildrenCount != nil {
-		if *in.ChildrenCount < 0 || *in.ChildrenCount > maxChildren {
-			fields["children_count"] = fmt.Sprintf("Jumlah anak 0 sampai %d.", maxChildren)
-		} else {
-			count = pgtype.Int2{Int16: int16(*in.ChildrenCount), Valid: true}
-		}
-	}
-	switch {
-	case hasChildren.Valid && !hasChildren.Bool && ((count.Valid && count.Int16 > 0) || len(in.Children) > 0):
-		fields["has_children"] = "Pilih \"Ya\" pada memiliki anak bila ada data anak."
-	case count.Valid && int(count.Int16) < len(in.Children):
-		fields["children_count"] = "Jumlah anak perlu sama atau lebih dari data anak yang diisi."
-	}
-	if len(fields) > 0 {
-		return Family{}, httpx.Validation(fields)
-	}
-	err := database.InTx(ctx, s.pool, func(q *store.Queries) error {
-		affected, err := q.UpdateOwnFamily(ctx, store.UpdateOwnFamilyParams{ID: p.EmployeeID, HasChildren: hasChildren, ChildrenCount: count})
-		if err != nil {
-			return err
-		}
-		if affected == 0 {
-			return httpx.ErrNotFound()
-		}
-		if err := replaceChildren(ctx, q, p.EmployeeID, children); err != nil {
-			return err
-		}
-		return writeSelfAudit(ctx, q, ip, p.EmployeeID, []string{"children"})
-	})
-	if err != nil {
-		return Family{}, err
-	}
-	return s.OwnFamily(ctx, p)
 }
 
 // SetOwnPhoto menyimpan foto profil baru, lalu menghapus berkas foto lama.

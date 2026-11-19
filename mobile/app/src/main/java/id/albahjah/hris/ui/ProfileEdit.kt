@@ -4,36 +4,26 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Lock
-import androidx.compose.material3.DatePicker
-import androidx.compose.material3.DatePickerDialog
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
-import androidx.compose.material3.SelectableDates
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -46,11 +36,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
-import id.albahjah.hris.data.Child
 import id.albahjah.hris.data.Me
 import id.albahjah.hris.data.MyFamily
 import id.albahjah.hris.data.Repository
@@ -60,7 +48,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.time.LocalDate
-import java.time.ZonedDateTime
 
 // ---------------------------------------------------------------------------------------------
 // Data pribadi: foto profil, nomor WA, email
@@ -249,9 +236,7 @@ val ChildEducations = listOf(
     "pondok_pesantren" to "Pondok pesantren",
 )
 
-const val MAX_CHILDREN_SENT = 10
-
-/** Isian satu anak; urutan anak mengikuti posisinya di daftar. */
+/** Data satu anak untuk ditampilkan; urutan mengikuti anak ke-. */
 data class ChildDraft(
     val name: String = "",
     val gender: String? = null,
@@ -262,14 +247,13 @@ data class ChildDraft(
     val school: String = "",
 )
 
+/** Isi layar Data anak. Data anak hanya diubah SDM (D56), jadi layar ini hanya menampilkan. */
 data class FamilyForm(
     val hasChildren: Boolean? = null,
     val count: String = "",
     val children: List<ChildDraft> = emptyList(),
     val loading: Boolean = false,
-    val busy: Boolean = false,
-    val errors: Map<String, String> = emptyMap(),
-    val message: String? = null,
+    val error: String? = null,
 ) {
     companion object
 }
@@ -282,78 +266,19 @@ fun FamilyForm.Companion.from(f: MyFamily) = FamilyForm(
     },
 )
 
-/** Isian menjadi body PUT /v1/me/children; anak ke- diambil dari urutan di daftar. */
-fun FamilyForm.toFamily(): MyFamily = MyFamily(
-    hasChildren = hasChildren,
-    childrenCount = count.trim().toIntOrNull(),
-    children = children.mapIndexed { i, c ->
-        Child(
-            childOrder = i + 1,
-            fullName = c.name.trim(),
-            gender = c.gender,
-            birthPlace = c.birthPlace.trim().ifEmpty { null },
-            birthDate = c.birthDate,
-            relation = c.relation,
-            education = c.education,
-            schoolName = c.school.trim().ifEmpty { null },
-        )
-    },
-)
-
-/** Pemeriksaan sebelum dikirim; aturan sama dengan server. */
-fun familyProblems(form: FamilyForm): Map<String, String> {
-    val errors = mutableMapOf<String, String>()
-    val count = form.count.trim()
-    if (count.isNotEmpty() && (count.toIntOrNull() == null || count.toInt() !in 0..30)) errors["children_count"] = "Jumlah anak 0 sampai 30."
-    if (form.hasChildren == false && (form.children.isNotEmpty() || (count.toIntOrNull() ?: 0) > 0)) {
-        errors["has_children"] = "Pilih \"Ya\" pada memiliki anak bila ada data anak."
-    }
-    val n = count.toIntOrNull()
-    if (n != null && n < form.children.size) errors["children_count"] = "Jumlah anak perlu sama atau lebih dari data anak yang diisi."
-    form.children.forEachIndexed { i, c ->
-        if (c.name.trim().length !in 2..100) errors["children.$i.full_name"] = "Nama anak 2 sampai 100 karakter."
-    }
-    return errors
-}
+private fun List<Pair<String, String>>.labelOf(value: String?): String = firstOrNull { it.first == value }?.second ?: "-"
 
 @Composable
-private fun OptionPill(text: String, selected: Boolean, onClick: () -> Unit) {
-    val shape = RoundedCornerShape(12.dp)
-    Box(
-        Modifier
-            .heightIn(min = 40.dp)
-            .clip(shape)
-            .background(if (selected) Hc.BrandSoft else Hc.Field)
-            .then(if (selected) Modifier.border(2.dp, Hc.Brand, shape) else Modifier)
-            .selectable(selected = selected, role = Role.RadioButton, onClick = onClick)
-            .padding(horizontal = 14.dp, vertical = 10.dp),
-        contentAlignment = Alignment.Center,
-    ) {
-        Text(text, style = figmaText(14, FontWeight.Medium, if (selected) Hc.BrandDeep else Hc.Ink))
+private fun InfoRow(label: String, value: String) {
+    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+        Text(label, style = figmaText(14, color = Hc.InkSoft), modifier = Modifier.weight(0.45f))
+        Text(value.ifBlank { "-" }, style = figmaText(14, FontWeight.Medium, Hc.Ink, lineHeight = 1.35f), modifier = Modifier.weight(0.55f))
     }
 }
 
-@OptIn(ExperimentalLayoutApi::class)
+/** Data anak milik sendiri: hanya terlihat oleh Pejuang dan SDM, dan hanya SDM yang mengubahnya. */
 @Composable
-private fun OptionGroup(label: String, options: List<Pair<String, String>>, selected: String?, onPick: (String?) -> Unit) {
-    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        Text(label, style = figmaText(13, FontWeight.Medium, Hc.InkSoft))
-        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            // Mengetuk pilihan yang sama mengosongkannya.
-            options.forEach { (value, text) -> OptionPill(text, selected == value) { onPick(if (selected == value) null else value) } }
-        }
-    }
-}
-
-/** Data anak milik sendiri: hanya terlihat oleh Pejuang dan SDM. */
-@Composable
-fun ChildrenContent(
-    form: FamilyForm,
-    onBack: () -> Unit,
-    onChange: (FamilyForm) -> Unit = {},
-    onPickDate: (Int) -> Unit = {},
-    onSave: () -> Unit = {},
-) {
+fun ChildrenContent(form: FamilyForm, onBack: () -> Unit) {
     Column(Modifier.fillMaxSize().background(Fg.PageProfile)) {
         FigmaHeader("Data Anak", onBack)
         if (form.loading) {
@@ -361,134 +286,55 @@ fun ChildrenContent(
             return
         }
         Column(
-            Modifier.weight(1f).verticalScroll(rememberScrollState()).imePadding().padding(horizontal = 12.dp, vertical = 16.dp).navigationBarsPadding(),
+            Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(horizontal = 12.dp, vertical = 16.dp).navigationBarsPadding(),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            FigmaCard(title = "Keluarga", subtitle = "Hanya bisa dilihat oleh Anda dan SDM.", gap = 16.dp) {
-                OptionGroup("Memiliki anak", listOf("ya" to "Ya", "tidak" to "Tidak"), form.hasChildren?.let { if (it) "ya" else "tidak" }) {
-                    onChange(form.copy(hasChildren = it?.let { v -> v == "ya" }, errors = form.errors - "has_children", message = null))
-                }
-                form.errors["has_children"]?.let { Text(it, style = figmaText(12, color = Fg.Danger, lineHeight = 1.35f)) }
-                FigmaInput(
-                    "Jumlah anak", form.count,
-                    { onChange(form.copy(count = it.filter(Char::isDigit).take(2), errors = form.errors - "children_count", message = null)) },
-                    FigmaIcons.User,
-                    error = form.errors["children_count"],
-                    keyboard = KeyboardOptions(keyboardType = KeyboardType.Number),
+            Row(
+                Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(Hc.BrandSoft).padding(14.dp),
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                Icon(Icons.Filled.Lock, contentDescription = null, tint = Hc.BrandDeep, modifier = Modifier.size(18.dp))
+                Text(
+                    "Data anak dikelola SDM. Bila ada yang perlu diubah atau ditambah, silakan hubungi SDM.",
+                    style = figmaText(13, color = Hc.BrandDeep, lineHeight = 1.4f),
                 )
             }
-
+            form.error?.let { Text(it, style = figmaText(13, color = Fg.Danger, lineHeight = 1.4f)) }
+            FigmaCard(title = "Keluarga", subtitle = "Hanya bisa dilihat oleh Anda dan SDM.", gap = 12.dp) {
+                InfoRow("Memiliki anak", when (form.hasChildren) { true -> "Ya"; false -> "Tidak"; null -> "-" })
+                InfoRow("Jumlah anak", form.count)
+            }
             form.children.forEachIndexed { i, child ->
-                val update: (ChildDraft) -> Unit = { c -> onChange(form.copy(children = form.children.toMutableList().also { it[i] = c }, message = null)) }
-                FigmaCard(title = "Anak ke-${i + 1}", gap = 14.dp) {
-                    FigmaInput(
-                        "Nama lengkap", child.name, { update(child.copy(name = it)) }, FigmaIcons.User,
-                        error = form.errors["children.$i.full_name"],
-                    )
-                    OptionGroup("Jenis kelamin", ChildGenders, child.gender) { update(child.copy(gender = it)) }
-                    FigmaInput("Tempat lahir", child.birthPlace, { update(child.copy(birthPlace = it)) }, FigmaIcons.LocationTickLinear)
-                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                        Text("Tanggal lahir", style = figmaText(13, FontWeight.Medium, Hc.InkSoft))
-                        Row(
-                            Modifier.fillMaxWidth().heightIn(min = 52.dp).clip(RoundedCornerShape(14.dp)).background(Hc.Field)
-                                .clickable(onClickLabel = "Pilih tanggal lahir") { onPickDate(i) }.padding(horizontal = 14.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(10.dp),
-                        ) {
-                            Icon(FigmaIcons.CalendarOutline, contentDescription = null, tint = Hc.InkMuted, modifier = Modifier.size(20.dp))
-                            Text(
-                                child.birthDate?.let { runCatching { dateLabel(LocalDate.parse(it)) }.getOrNull() } ?: "Pilih tanggal",
-                                style = figmaText(15, color = if (child.birthDate == null) Hc.InkMuted else Hc.Ink),
-                            )
-                        }
-                        form.errors["children.$i.birth_date"]?.let { Text(it, style = figmaText(12, color = Fg.Danger)) }
-                    }
-                    OptionGroup("Status anak", ChildRelations, child.relation) { update(child.copy(relation = it)) }
-                    OptionGroup("Jenjang pendidikan", ChildEducations, child.education) { update(child.copy(education = it)) }
-                    FigmaInput("Nama sekolah", child.school, { update(child.copy(school = it)) }, FigmaIcons.Keyboard)
-                    TextButton(
-                        onClick = { onChange(form.copy(children = form.children.filterIndexed { j, _ -> j != i }, errors = emptyMap(), message = null)) },
-                        modifier = Modifier.fillMaxWidth(),
-                    ) { Text("Hapus data anak ini", style = figmaText(14, FontWeight.Medium, Fg.Danger)) }
+                FigmaCard(title = "Anak ke-${i + 1}", gap = 12.dp) {
+                    InfoRow("Nama lengkap", child.name)
+                    InfoRow("Jenis kelamin", ChildGenders.labelOf(child.gender))
+                    InfoRow("Tempat lahir", child.birthPlace)
+                    InfoRow("Tanggal lahir", child.birthDate?.let { runCatching { dateLabel(LocalDate.parse(it)) }.getOrNull() } ?: "-")
+                    InfoRow("Status anak", ChildRelations.labelOf(child.relation))
+                    InfoRow("Jenjang pendidikan", ChildEducations.labelOf(child.education))
+                    InfoRow("Nama sekolah", child.school)
                 }
             }
-
-            if (form.children.size < MAX_CHILDREN_SENT) {
-                SecondaryButton("Tambah data anak", onClick = {
-                    onChange(form.copy(hasChildren = true, children = form.children + ChildDraft(), message = null))
-                })
+            if (form.children.isEmpty() && form.error == null) {
+                Text("Belum ada data anak yang tercatat.", style = figmaText(14, color = Hc.InkMuted))
             }
-            form.message?.let { Text(it, style = figmaText(13, FontWeight.Medium, Hc.BrandDeep)) }
-            form.errors["general"]?.let { Text(it, style = figmaText(13, color = Fg.Danger, lineHeight = 1.4f)) }
-            PrimaryButton("Simpan data anak", onClick = onSave, loading = form.busy)
         }
     }
 }
 
-/** Layar Data anak dengan pemanggilan API. */
-@OptIn(ExperimentalMaterial3Api::class)
+/** Layar Data anak dengan pemanggilan API (hanya baca). */
 @Composable
 fun ChildrenScreen(repository: Repository, onBack: () -> Unit) {
-    val scope = rememberCoroutineScope()
     var form by remember { mutableStateOf(FamilyForm(loading = true)) }
-    var picking by remember { mutableStateOf<Int?>(null) }
     LaunchedEffect(Unit) {
         form = try {
             FamilyForm.from(repository.myFamily())
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
-            FamilyForm(errors = mapOf("general" to (e.toApiError().message ?: "Data anak belum bisa dimuat.")))
+            FamilyForm(error = e.toApiError().message ?: "Data anak belum bisa dimuat.")
         }
     }
     SecureScreen()
-    ChildrenContent(
-        form = form,
-        onBack = onBack,
-        onChange = { form = it },
-        onPickDate = { picking = it },
-        onSave = save@{
-            if (form.busy) return@save
-            val problems = familyProblems(form)
-            if (problems.isNotEmpty()) {
-                form = form.copy(errors = problems)
-                return@save
-            }
-            form = form.copy(busy = true, errors = emptyMap(), message = null)
-            scope.launch {
-                form = try {
-                    FamilyForm.from(repository.setMyFamily(form.toFamily())).copy(message = "Data anak tersimpan.")
-                } catch (e: CancellationException) {
-                    throw e
-                } catch (e: Exception) {
-                    val err = e.toApiError()
-                    form.copy(busy = false, errors = err.fields.ifEmpty { mapOf("general" to (err.message ?: "Data anak belum tersimpan.")) })
-                }
-            }
-        },
-    )
-    val index = picking
-    if (index != null && index < form.children.size) {
-        val today = ZonedDateTime.now(Wib).toLocalDate()
-        val state = rememberDatePickerState(
-            initialSelectedDateMillis = form.children[index].birthDate?.let { runCatching { LocalDate.parse(it) }.getOrNull() }?.toPickerMillis(),
-            yearRange = (today.year - 60)..today.year,
-            selectableDates = object : SelectableDates {
-                override fun isSelectableDate(utcTimeMillis: Long): Boolean = !pickerMillisToDate(utcTimeMillis).isAfter(today)
-            },
-        )
-        DatePickerDialog(
-            onDismissRequest = { picking = null },
-            confirmButton = {
-                TextButton(enabled = state.selectedDateMillis != null, onClick = {
-                    val date = state.selectedDateMillis?.let(::pickerMillisToDate)?.toString()
-                    form = form.copy(children = form.children.toMutableList().also { it[index] = it[index].copy(birthDate = date) })
-                    picking = null
-                }) { Text("Pilih") }
-            },
-            dismissButton = { TextButton(onClick = { picking = null }) { Text("Batal") } },
-        ) {
-            DatePicker(state = state, showModeToggle = false)
-        }
-    }
+    ChildrenContent(form = form, onBack = onBack)
 }

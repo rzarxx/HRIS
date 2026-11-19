@@ -74,40 +74,30 @@ func TestProfileContact(t *testing.T) {
 	}
 }
 
-func TestProfileChildren(t *testing.T) {
+// Data anak hanya diubah SDM; Pejuang membacanya saja dari profil.
+func TestProfileChildrenReadOnly(t *testing.T) {
 	srv := fresh(t, options{})
 	me := activeAccount(t, "pejuang", "OPS-GDG")
 	c := login(t, srv, me.email, seedPassword)
 
-	body := map[string]any{
-		"has_children": true, "children_count": 2,
-		"children": []map[string]any{{"child_order": 1, "full_name": "Aisyah", "gender": "P", "relation": "kandung", "education": "sd_mi"}},
+	ctx := context.Background()
+	if _, err := ownerPool.Exec(ctx, `UPDATE employees SET has_children = true, children_count = 2 WHERE id = $1`, me.employeeID); err != nil {
+		t.Fatal(err)
 	}
-	got := data[map[string]any](t, c.do(http.MethodPut, "/v1/me/children", body).want(t, http.StatusOK))
+	if _, err := ownerPool.Exec(ctx, `INSERT INTO employee_children (employee_id, child_order, full_name, gender, relation, education)
+		VALUES ($1, 1, 'Aisyah', 'P', 'kandung', 'sd_mi')`, me.employeeID); err != nil {
+		t.Fatal(err)
+	}
+	got := data[map[string]any](t, c.do(http.MethodGet, "/v1/me/children", nil).want(t, http.StatusOK))
 	if got["children_count"] != float64(2) || len(got["children"].([]any)) != 1 {
 		t.Fatalf("data anak = %v", got)
 	}
+
+	c.do(http.MethodPut, "/v1/me/children", map[string]any{"has_children": false, "children_count": 0, "children": []any{}}).
+		wantError(t, http.StatusMethodNotAllowed, "METHOD_NOT_ALLOWED")
 	again := data[map[string]any](t, c.do(http.MethodGet, "/v1/me/children", nil).want(t, http.StatusOK))
 	if len(again["children"].([]any)) != 1 {
-		t.Fatalf("GET data anak = %v", again)
-	}
-
-	bad := c.do(http.MethodPut, "/v1/me/children", map[string]any{
-		"has_children": false, "children_count": 0,
-		"children": []map[string]any{{"child_order": 1, "full_name": "Aisyah"}},
-	}).want(t, http.StatusBadRequest)
-	if bad.fields()["has_children"] == nil {
-		t.Fatalf("galat has_children tidak ada: %s", bad.body)
-	}
-	c.do(http.MethodPut, "/v1/me/children", map[string]any{
-		"has_children": true, "children_count": 1,
-		"children": []map[string]any{{"child_order": 1, "full_name": "A"}, {"child_order": 1, "full_name": "Budi"}},
-	}).want(t, http.StatusBadRequest)
-
-	// Kosongkan data anak.
-	cleared := data[map[string]any](t, c.do(http.MethodPut, "/v1/me/children", map[string]any{"has_children": false, "children_count": 0, "children": []any{}}).want(t, http.StatusOK))
-	if len(cleared["children"].([]any)) != 0 {
-		t.Fatalf("data anak tidak terhapus: %v", cleared)
+		t.Fatalf("data anak berubah lewat profil: %v", again)
 	}
 }
 

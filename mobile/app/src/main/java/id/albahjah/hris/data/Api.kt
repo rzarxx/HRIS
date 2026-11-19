@@ -43,9 +43,6 @@ interface HrisApi {
     @GET("v1/me/children")
     suspend fun myFamily(): DataResponse<MyFamily>
 
-    @PUT("v1/me/children")
-    suspend fun setMyFamily(@Body body: MyFamily): DataResponse<MyFamily>
-
     @PUT("v1/me/photo")
     suspend fun setMyPhoto(@Body body: RequestBody): DataResponse<Me>
 

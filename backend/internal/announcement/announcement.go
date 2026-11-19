@@ -24,6 +24,8 @@ type Service struct {
 	pool *pgxpool.Pool
 	q    *store.Queries
 	now  func() time.Time
+	// files menyimpan lampiran terenkripsi; nil bila SELFIE_DIR belum diisi.
+	files FileStore
 }
 
 func NewService(pool *pgxpool.Pool) *Service {
@@ -55,6 +57,8 @@ type Announcement struct {
 	AudienceCount int64 `json:"audience_count"`
 	OpenedCount   int64 `json:"opened_count"`
 	ReadCount     int64 `json:"read_count"`
+	// Attachments adalah lampiran PDF/JPEG/PNG (D54).
+	Attachments []Attachment `json:"attachments"`
 }
 
 // Input juga dipakai untuk PATCH: field yang tidak dikirim tetap nilai lamanya.
@@ -186,9 +190,17 @@ func (s *Service) withCounts(ctx context.Context, items []Announcement) error {
 	for _, r := range rows {
 		by[r.ID.String()] = r
 	}
+	files, err := s.attachmentsFor(ctx, s.q, ids)
+	if err != nil {
+		return err
+	}
 	for i := range items {
 		if c, ok := by[items[i].ID]; ok {
 			items[i].AudienceCount, items[i].OpenedCount, items[i].ReadCount = c.AudienceCount, c.OpenedCount, c.ReadCount
+		}
+		items[i].Attachments = files[ids[i]]
+		if items[i].Attachments == nil {
+			items[i].Attachments = []Attachment{}
 		}
 	}
 	return nil
@@ -297,7 +309,13 @@ func (s *Service) Update(ctx context.Context, entry audit.Entry, id uuid.UUID, d
 }
 
 func (s *Service) Delete(ctx context.Context, entry audit.Entry, id uuid.UUID) error {
-	return database.InTx(ctx, s.pool, func(q *store.Queries) error {
+	var keys []string
+	err := database.InTx(ctx, s.pool, func(q *store.Queries) error {
+		var err error
+		// Kunci berkas diambil sebelum baris lampiran ikut terhapus (ON DELETE CASCADE).
+		if keys, err = q.AnnouncementAttachmentKeys(ctx, id); err != nil {
+			return err
+		}
 		affected, err := q.DeleteAnnouncement(ctx, id)
 		if err != nil {
 			return err
@@ -308,6 +326,13 @@ func (s *Service) Delete(ctx context.Context, entry audit.Entry, id uuid.UUID) e
 		entry.Action, entry.Entity, entry.EntityID = audit.AnnouncementDeleted, "announcement", id
 		return audit.Write(ctx, q, entry)
 	})
+	if err != nil {
+		return err
+	}
+	for _, key := range keys {
+		s.deleteFile(ctx, key)
+	}
+	return nil
 }
 
 // Handler melayani /v1/admin/announcements.

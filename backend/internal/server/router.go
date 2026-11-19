@@ -171,9 +171,12 @@ func routes(d Deps) []Route {
 		guarded(http.MethodPatch, "/v1/admin/announcements/{id}", d.Announcement.Update, permission.AnnouncementManage),
 		guarded(http.MethodDelete, "/v1/admin/announcements/{id}", d.Announcement.Delete, permission.AnnouncementManage),
 		guarded(http.MethodGet, "/v1/admin/announcements/{id}/reads", d.Announcement.Readers, permission.AnnouncementManage),
+		guarded(http.MethodPost, "/v1/admin/announcements/{id}/attachments", d.Announcement.AddAttachment, permission.AnnouncementManage),
+		guarded(http.MethodDelete, "/v1/admin/announcements/{id}/attachments/{attachment_id}", d.Announcement.DeleteAttachment, permission.AnnouncementManage),
 		guarded(http.MethodGet, "/v1/announcements/active", d.Announcement.Active, permission.AnnouncementRead),
 		guarded(http.MethodPost, "/v1/announcements/{id}/open", d.Announcement.Open, permission.AnnouncementRead),
 		guarded(http.MethodPost, "/v1/announcements/{id}/read", d.Announcement.Read, permission.AnnouncementRead),
+		guarded(http.MethodGet, "/v1/announcements/{id}/attachments/{attachment_id}", d.Announcement.Attachment, permission.AnnouncementRead),
 
 		guarded(http.MethodGet, "/v1/admin/settings/footer", d.Settings.Branding, permission.SettingsManage),
 		guarded(http.MethodPut, "/v1/admin/settings/footer", d.Settings.SetFooter, permission.SettingsManage),

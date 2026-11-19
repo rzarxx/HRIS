@@ -259,6 +259,10 @@ class Repository(
     /** Menandai sudah dibaca; ditolak READ_TOO_SOON bila jeda baca belum lewat. */
     suspend fun readAnnouncement(id: String): MyAnnouncement = call { readAnnouncement(id).data }
 
+    /** Isi lampiran pengumuman (PDF atau gambar), dibuka di dalam aplikasi. */
+    suspend fun attachment(announcementId: String, attachmentId: String): ByteArray =
+        call { announcementAttachment(announcementId, attachmentId).use { it.bytes() } }
+
     /**
      * Memuat footer dari server dan menyimpannya untuk tampilan luring. Gagal dimuat tidak masalah:
      * footer terakhir atau teks bawaan tetap tampil.

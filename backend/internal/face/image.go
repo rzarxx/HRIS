@@ -55,12 +55,12 @@ type Detection struct {
 }
 
 const (
-	yunetScoreMin   = 0.7
+	yunetScoreMin   = 0.6 // dilonggarkan untuk cahaya redup (D55)
 	yunetNMS        = 0.3
 	manyFaceAreaMin = 0.25 // wajah lain dihitung bila luasnya minimal 25% wajah terbesar
 	// Wajah utama harus cukup besar dan di tengah foto, sesuai oval di kamera aplikasi.
-	faceWidthMin = 0.20 // lebar kotak wajah minimal 20% lebar foto
-	faceCenterIn = 0.60 // pusat wajah harus di dalam 60% bagian tengah foto pada tiap sumbu
+	faceWidthMin = 0.15 // lebar kotak wajah minimal 15% lebar foto (D55)
+	faceCenterIn = 0.70 // pusat wajah harus di dalam 70% bagian tengah foto pada tiap sumbu (D55)
 )
 
 var yunetStrides = []int{8, 16, 32}

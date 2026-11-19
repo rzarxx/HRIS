@@ -1,5 +1,8 @@
 package id.albahjah.hris.face
 
+import android.app.Activity
+import android.content.Context
+import android.content.ContextWrapper
 import android.graphics.Bitmap
 import android.graphics.Rect
 import android.util.Size
@@ -31,6 +34,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.viewinterop.AndroidView
+import java.nio.ByteBuffer
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.google.mlkit.vision.common.InputImage
@@ -80,6 +84,42 @@ fun cameraMessage(state: LivenessState, shots: Int, taken: Int, retrying: Boolea
     )
 }
 
+/** Ambang cahaya kurang dari rata-rata luma frame kamera depan (0 gelap sampai 255 terang), D55. */
+object LightRules {
+    /** Di bawah ini wajah biasanya terlalu gelap untuk dikenali dengan baik. */
+    const val LOW_LUMA = 70f
+    /** Bobot frame baru pada rata-rata bergerak, agar satu frame gelap tidak langsung memicu. */
+    const val SMOOTHING = 0.25f
+    /** Frame awal diabaikan karena eksposur kamera masih menyesuaikan dan biasanya gelap. */
+    const val WARMUP_FRAMES = 10
+}
+
+/** Rata-rata luma bidang Y frame kamera, dicuplik tiap [step] piksel agar ringan. */
+fun meanLuma(plane: ByteBuffer, width: Int, height: Int, rowStride: Int, pixelStride: Int, step: Int = 16): Float {
+    var sum = 0L
+    var count = 0
+    var y = 0
+    while (y < height) {
+        var x = 0
+        while (x < width) {
+            val i = y * rowStride + x * pixelStride
+            if (i < plane.limit()) {
+                sum += plane.get(i).toInt() and 0xFF
+                count++
+            }
+            x += step
+        }
+        y += step
+    }
+    return if (count == 0) 255f else sum.toFloat() / count
+}
+
+private tailrec fun Context.findActivity(): Activity? = when (this) {
+    is Activity -> this
+    is ContextWrapper -> baseContext.findActivity()
+    else -> null
+}
+
 // Analisis dan pratinjau sama-sama 4:3 agar kotak wajah dari frame analisis bisa dipetakan ke layar.
 private val ratio43 = AspectRatioStrategy.RATIO_4_3_FALLBACK_AUTO_STRATEGY
 
@@ -116,6 +156,19 @@ fun FaceCamera(
     val currentOnError by rememberUpdatedState(onError)
 
     val previewView = remember { PreviewView(context).apply { scaleType = PreviewView.ScaleType.FILL_CENTER } }
+
+    // Cahaya kurang: layar dibuat terang penuh dan sekitar oval putih sebagai lampu wajah. Setelah
+    // menyala tetap menyala sampai kamera ditutup, agar layar tidak berkedip saat wajah jadi terang.
+    var lowLight by remember(action) { mutableStateOf(false) }
+    val activity = remember(context) { context.findActivity() }
+    DisposableEffect(lowLight, activity) {
+        val window = activity?.window
+        val before = window?.attributes?.screenBrightness
+        if (lowLight && window != null) window.attributes = window.attributes.apply { screenBrightness = 1f }
+        onDispose {
+            if (lowLight && window != null && before != null) window.attributes = window.attributes.apply { screenBrightness = before }
+        }
+    }
 
     // Foto dibatasi sekitar 1280x960: cukup untuk wajah, dan tidak menghabiskan memori HP kelas bawah.
     val imageCapture = remember {
@@ -157,7 +210,16 @@ fun FaceCamera(
                     .build(),
             )
             .build()
+        val mainExecutor = ContextCompat.getMainExecutor(context)
+        var lumaAverage = -1f
+        var frames = 0
         analysis.setAnalyzer(analysisExecutor) { proxy ->
+            val plane = proxy.planes.firstOrNull()
+            if (plane != null && !lowLight && ++frames > LightRules.WARMUP_FRAMES) {
+                val luma = meanLuma(plane.buffer, proxy.width, proxy.height, plane.rowStride, plane.pixelStride)
+                lumaAverage = if (lumaAverage < 0f) luma else lumaAverage + LightRules.SMOOTHING * (luma - lumaAverage)
+                if (lumaAverage < LightRules.LOW_LUMA) mainExecutor.execute { lowLight = true }
+            }
             analyze(proxy, closed, detector) { faces, frameWidth, frameHeight, rotation, grab ->
                 if (!passed) {
                     val viewWidth = previewView.width.toFloat()
@@ -316,6 +378,7 @@ fun FaceCamera(
             gesture = tracker.prompt,
             onClose = onClose,
             progress = message.progress,
+            lowLight = lowLight,
         )
     }
 }

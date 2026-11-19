@@ -391,7 +391,8 @@ Level `MEETS_STRONG_INTEGRITY` tidak diwajibkan karena menolak banyak HP Android
 |---|---|
 | `face.threshold_pass` | 0.50 (kemiripan cosine SFace, D43) |
 | `face.threshold_review` | 0.46 (di bawahnya ditolak; pasangan orang berbeda paling mirip di uji banding 0.448) |
-| `face.enroll_min_similarity` | 0.50 (kemiripan terendah antarselfie pendaftaran) |
+| `face.enroll_min_similarity` | 0.45 (kemiripan terendah antarselfie pendaftaran; dilonggarkan D55) |
+| `face.straight_turn_max` / `face.gesture_turn_min` / `face.gesture_turn_delta` | 0.26 / 0.13 / 0.07 (rasio toleh kepala, D50 dilonggarkan D55) |
 | `risk.review_min` | 30 |
 | `risk.reject_min` | 60 |
 | `challenge.ttl_seconds` | 90 |
@@ -548,6 +549,7 @@ DDL dasar ada di `QUERY.sql`; perubahan di **Lampiran A** (yang berlaku). Beriku
 | `payrolls`, `payroll_items` | `base_salary`, `gross`, `deductions`, `net`; item: `kind`, `label`, `amount` | Unik `(period_id, employee_id)` |
 | `warnings` | `level`, `reason`, `issued_by`, `issued_at`, `acknowledged_at` | |
 | `announcements`, `announcement_reads` | `title`, `body`, `type`, `division_id`, `starts_at`, `ends_at`, `is_active`, `min_read_seconds`; `opened_at`, `read_at` | Timer baca, D27 |
+| `announcement_attachments` | `announcement_id`, `file_name`, `content_type`, `size_bytes`, `storage_key`, `created_by` | Lampiran PDF/JPEG/PNG, maks 5 per pengumuman; berkas terenkripsi di `SELFIE_DIR/announcements/` (D54) |
 | `notifications` | `employee_id`, `type`, `title`, `body`, `is_read`, `opened_at` | Timer baca, D27 |
 | `uploads` | `id`, `owner_employee_id`, `purpose`, `storage_key`, `mime`, `size_bytes`, `sha256` | |
 | `audit_logs` | `id`, `user_id`, `action`, `entity`, `entity_id`, `detail`, `ip`, `created_at` | Append-only |
@@ -718,6 +720,7 @@ Setiap `code` baru wajib ditambahkan di tabel ini.
 | GET | `/v1/payslips`, `/v1/payslips/{id}`, `/v1/payslips/{id}/pdf` | `payslip:read` |
 | GET | `/v1/warnings`, `POST /v1/warnings/{id}/acknowledge` | `warning:read` |
 | GET | `/v1/announcements/active`, `POST /v1/announcements/{id}/open`, `POST /v1/announcements/{id}/read` | `announcement:read` |
+| GET | `/v1/announcements/{id}/attachments/{attachment_id}` | `announcement:read`; hanya pengumuman yang sedang tayang bagi pemanggil (D54) |
 | GET | `/v1/notifications`, `POST /v1/notifications/{id}/open`, `POST /v1/notifications/{id}/read` | self |
 | POST | `/v1/uploads` | self (multipart, `purpose`) |
 
@@ -765,6 +768,7 @@ Setiap `code` baru wajib ditambahkan di tabel ini.
 | GET, POST | `/v1/admin/warnings` | `warning:manage` |
 | CRUD | `/v1/admin/announcements` | `announcement:manage`. Daftar dan detail memuat `audience_count`, `opened_count`, `read_count` |
 | GET | `/v1/admin/announcements/{id}/reads` | `announcement:manage`. Status baca tiap Pejuang sasaran |
+| POST / DELETE | `/v1/admin/announcements/{id}/attachments`, `/v1/admin/announcements/{id}/attachments/{attachment_id}` | `announcement:manage`. Body berkas mentah, nama dari query `name` (D54) |
 | GET | `/v1/admin/dashboard/summary`, `/v1/admin/dashboard/org-chart` | `dashboard:read` |
 | GET, PUT | `/v1/admin/approval-flows/{request_type}` | `approval_flow:manage` |
 | GET | `/v1/admin/audit-logs` | `audit:read` |
@@ -1203,6 +1207,8 @@ flowchart TD
 ### F18. Pengumuman Pop-up & Banner
 **Timer baca (D27):** tombol "Sudah baca" di aplikasi nonaktif dan menampilkan hitung mundur selama `min_read_seconds` (diatur SDM per pengumuman, 0 sampai 120 detik, default 10). Notifikasi memakai `notification.min_read_seconds` (default 5). Timer di app hanya tampilan: saat isi dibuka, app memanggil `/open` dan server mencatat `opened_at` sekali saja; `/read` yang datang lebih cepat dari batas ditolak `422 READ_TOO_SOON`.
 
+**Tampil ulang harian dan lampiran (D54):** pop-up yang sudah dibaca dan punya `ends_at` muncul lagi sekali per hari (WIB) saat aplikasi dibuka, sampai `ends_at`, hanya dengan tombol **Tutup**; tanggal terakhir ditutup disimpan di HP. Pop-up tanpa `ends_at` tidak muncul lagi setelah dibaca. Aplikasi memuat ulang pengumuman setiap kali kembali ke depan, bukan hanya saat pertama dibuka. Pengumuman bisa membawa sampai 5 lampiran PDF/JPEG/PNG yang ditampilkan di pop-up dan detail.
+
 ```mermaid
 flowchart TD
     A["SDM membuat pengumuman"] --> B["Isi: judul, teks, tipe, target divisi, jadwal. Teks disanitasi"]
@@ -1402,7 +1408,7 @@ mobile/app/src/main/java/.../
 4. Deteksi lokal (mock, root, emulator) dijalankan **sebelum** meminta challenge agar pengguna cepat tahu.
 5. `FLAG_SECURE` pada slip dan profil; `allowBackup=false`; log rilis tanpa data pribadi.
 6. Uji di minimal 3 HP Android 10 kelas bawah sebelum rilis.
-7. Kamera presensi: wajah harus **pas di oval** (seluruh wajah di dalam oval, cukup dekat, di tengah, kepala tegak) selama beberapa frame sebelum liveness dimulai dan sebelum foto diambil; wajah yang keluar oval atau hilang membuat liveness diulang. Foto hasil jepretan diperiksa ulang dengan ML Kit dan diambil ulang otomatis bila wajahnya tidak pas. Server menolak wajah utama yang lebarnya < 20% foto atau pusatnya di luar 60% bagian tengah foto (`FACE_NOT_DETECTED`). Rincian di `mobile/README.md`.
+7. Kamera presensi: wajah harus **pas di oval** (seluruh wajah di dalam oval, cukup dekat, di tengah, kepala tegak) selama beberapa frame sebelum liveness dimulai dan sebelum foto diambil; wajah yang keluar oval atau hilang membuat liveness diulang. Foto hasil jepretan diperiksa ulang dengan ML Kit dan diambil ulang otomatis bila wajahnya tidak pas. Server menolak wajah utama yang lebarnya < 15% foto atau pusatnya di luar 70% bagian tengah foto (`FACE_NOT_DETECTED`, dilonggarkan D55). Bila cahaya kurang, layar otomatis menjadi terang penuh dengan latar putih di sekitar oval sebagai lampu wajah (D55). Rincian di `mobile/README.md`.
 8. Liveness dibuktikan server (D51): saat kepala menoleh, frame itu disimpan sebagai foto gerakan dan dikirim bersama selfie lurus; wajah yang keluar oval membuang foto gerakan dan liveness diulang. Sebelum meminta challenge, aplikasi memeriksa root, emulator, dan aplikasi pemalsu lokasi lalu menampilkan pesan yang jelas; hasilnya juga dikirim sebagai `signals`.
 
 **Prinsip "mudah dipakai":**
@@ -1670,6 +1676,8 @@ Estimasi untuk tim kecil; sesuaikan setelah kapasitas tim jelas.
 | D51 | Liveness dibuktikan server dari dua foto: selfie lurus dan foto saat kepala menoleh (`gesture`), yang hash-nya ikut diikat ke `request_hash`. Server memeriksa dari lima titik YuNet bahwa selfie lurus (rasio toleh ≤ 0.20), foto gerakan menoleh (≥ 0.18, selisih ≥ 0.10), dan wajahnya orang yang sama (kemiripan ≥ 0.30). Challenge hanya meminta `turn_left`/`turn_right`. `liveness_retry` dihitung server dari upaya wajah yang ditolak, dan aplikasi mendeteksi root, emulator, serta aplikasi pemalsu lokasi sebelum meminta challenge | Keputusan pemilik proyek: sebelumnya server hanya mempercayai `liveness_passed` dari aplikasi. Kedip dan senyum tidak bisa dibuktikan dari lima titik, jadi tidak diminta lagi. Konsekuensi: foto cetak atau layar yang diam ditolak, tetapi video wajah yang diputar ulang masih bisa lolos; anti-spoof berbasis model atau layanan komersial tetap pilihan berikutnya. Ambang toleh adalah nilai awal dari geometri wajah dan wajib dikalibrasi dengan foto HP sungguhan. Aplikasi lama yang belum mengirim foto gerakan ditolak `VALIDATION_FAILED` (`gesture`), jadi server dan aplikasi harus diperbarui bersamaan. Deteksi di HP bersifat saran dan konservatif (tidak memakai `test-keys`) |
 | D52 | Distribusi dan pembaruan aplikasi Android beralih dari GitHub Releases ke **Google Play Store** (dibangun menggunakan Android Studio sebagai Android App Bundle `.aab`, tanpa pembaruan mandiri dari GitHub dan tanpa izin `REQUEST_INSTALL_PACKAGES`). Domain produksi ditetapkan di `hris.albahjah.or.id` (web admin, direktori `/www/wwwroot/HRIS`) dan `api.albahjah.or.id` (API). Menggantikan D45 | Keputusan pemilik proyek untuk distribusi resmi lewat Play Store. Menghapus `REQUEST_INSTALL_PACKAGES` dan kode updater GitHub agar lolos review Google Play (`Device and Network Abuse`). Build rilis di `mobile/app/build.gradle.kts` langsung mengarah ke `https://api.albahjah.or.id`, dan skrip `backend/deploy/` menggunakan domain `hris.albahjah.or.id` dan `api.albahjah.or.id` |
 | D53 | Akun Pejuang dibuat langsung aktif dengan kata sandi awal `@` + nama depan + tahun dibuat (WIB) yang wajib diganti saat login pertama, menggantikan tautan aktivasi (D17, D30). Login memakai NIPY, email, atau nomor WA; email tidak lagi wajib dan nomor WA disimpan `62…` serta unik. Cabang (`branches`) menjadi induk divisi dengan struktur dan atasan sendiri; SDM pusat dan super admin melihat semua cabang. Data Pejuang mengikuti formulir yayasan (jenis kelamin, status pernikahan, anak, dan data tiap anak); data anak hanya untuk SDM, super admin, dan Pejuang sendiri | Keputusan pemilik proyek: Pejuang banyak yang belum punya email dan SMTP belum siap, jadi penyerahan akun lewat SDM. Konsekuensi: kata sandi awal mudah ditebak rekan kerja yang tahu nama dan tahun. Mitigasinya kata sandi awal hanya berlaku 72 jam, kunci 5 kali gagal, popup wajib ganti sebelum fitur lain bisa dipakai, dan reset tercatat `user.password_reset`. SDM sempat mengetahui kata sandi awal |
+| D54 | Pop-up pengumuman yang sudah dibaca tampil ulang sekali per hari sampai `ends_at` dengan tombol Tutup saja; pengumuman bisa diberi lampiran PDF/JPEG/PNG (maks 5 per pengumuman, 5 MB per berkas) yang disimpan terenkripsi seperti selfie dan hanya bisa diunduh sasaran pengumuman yang sedang tayang | Pengumuman penting perlu diingatkan setiap hari tanpa memaksa Pejuang menekan "Sudah baca" berulang; status baca tetap tercatat sekali. Penanda harian disimpan di HP karena satu akun hanya punya satu perangkat aktif. Konsekuensi: menghapus data aplikasi membuat pop-up tampil lagi pada hari yang sama |
+| D55 | Deteksi wajah dibuat lebih mudah untuk Pejuang lanjut usia. Di aplikasi: bingkai oval lebih longgar (jarak, posisi, kemiringan 20°), cukup tahan 5 frame, ambang mata terbuka, senyum, dan toleh (20°) diturunkan, serta pemeriksaan foto lebih toleran. Di server: lebar wajah minimal 15% foto, pusat di 70% bagian tengah, skor deteksi YuNet 0.6, kemiripan antarselfie pendaftaran 0.45, dan batas rasio toleh 0.26/0.13/0.07. Bila cahaya kurang (rata-rata luma kamera rendah), layar dibuat terang penuh dan sekeliling oval menjadi putih sebagai lampu wajah. Ambang pencocokan identitas presensi (0.50/0.46) **tidak** diubah | Banyak Pejuang berusia lanjut kesulitan menahan posisi, mata cenderung sipit, dan sering presensi di ruangan redup. Ambang identitas tetap karena pasangan orang berbeda paling mirip di uji banding 0.448; menurunkannya membuka peluang presensi diwakilkan. Konsekuensi: foto yang sedikit miring atau kecil lebih sering lolos ke pencocokan; ambang wajib dikalibrasi ulang dengan `hris-calibrate -from-db` setelah 1–2 minggu data lapangan |
 | D15 | `/v1/admin/reports/payroll-preview` mewajibkan `attendance:report` dan `payroll:manage` | Respons memuat gaji, sedangkan §7.6 membatasi `base_salary` untuk `sdm` dan pemilik data |
 
 ### 14.2 Pertanyaan yang Harus Dijawab (blokir pekerjaan terkait)

@@ -101,7 +101,7 @@ func TestProvesTurn(t *testing.T) {
 		{"menoleh ke kiri", straight, face.Analysis{Vector: same, Turn: 0.28}, true},
 		{"menoleh ke kanan", straight, face.Analysis{Vector: same, Turn: -0.28}, true},
 		{"foto gerakan lurus", straight, face.Analysis{Vector: same, Turn: 0.05}, false},
-		{"tolehan terlalu kecil", straight, face.Analysis{Vector: same, Turn: 0.15}, false},
+		{"tolehan terlalu kecil", straight, face.Analysis{Vector: same, Turn: 0.10}, false},
 		{"selisih terlalu kecil", face.Analysis{Vector: person, Turn: 0.19}, face.Analysis{Vector: same, Turn: 0.25}, false},
 		{"foto utama menoleh", face.Analysis{Vector: person, Turn: 0.3}, face.Analysis{Vector: same, Turn: -0.3}, false},
 		{"orang lain", straight, face.Analysis{Vector: other, Turn: 0.3}, false},

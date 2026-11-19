@@ -130,11 +130,13 @@ class LivenessTracker(private val action: String, private val holdFrames: Int = 
         face.leftEyeOpen != null && face.rightEyeOpen != null && face.leftEyeOpen > OPEN && face.rightEyeOpen > OPEN
 
     companion object {
-        const val OPEN = 0.6f
-        const val CLOSED = 0.25f
-        const val SMILE = 0.8f
-        const val NEUTRAL_SMILE = 0.4f
-        const val STRAIGHT_YAW = 12f
-        const val TURN_YAW = 25f
+        // Dilonggarkan untuk Pejuang lanjut usia (D55): mata yang cenderung sipit tetap dianggap terbuka, dan
+        // toleh 20 derajat sudah cukup. Server membuktikan toleh dengan rasio minimal 0.13 (sekitar 12 derajat).
+        const val OPEN = 0.4f
+        const val CLOSED = 0.3f
+        const val SMILE = 0.6f
+        const val NEUTRAL_SMILE = 0.5f
+        const val STRAIGHT_YAW = 15f
+        const val TURN_YAW = 20f
     }
 }

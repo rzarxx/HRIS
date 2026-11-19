@@ -49,6 +49,7 @@ type Config struct {
 	FaceModelsDir              string
 	OnnxRuntimeLib             string
 	SelfieDir                  string
+	ClamAVAddress              string
 	PlayIntegrityPackage       string
 	PlayIntegrityCredentials   string
 	KeyAttestationRootCAPath   string
@@ -121,6 +122,7 @@ func Load() (Config, error) {
 		FaceModelsDir:              os.Getenv("FACE_MODELS_DIR"),
 		OnnxRuntimeLib:             os.Getenv("ONNXRUNTIME_LIB"),
 		SelfieDir:                  os.Getenv("SELFIE_DIR"),
+		ClamAVAddress:              strings.TrimSpace(os.Getenv("CLAMAV_ADDRESS")),
 		PlayIntegrityPackage:       playPkg,
 		PlayIntegrityCredentials:   playCreds,
 		KeyAttestationRootCAPath:   os.Getenv("KEY_ATTESTATION_ROOT_CA_PATH"),

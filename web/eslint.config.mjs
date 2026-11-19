@@ -23,6 +23,8 @@ const eslintConfig = [
       "out/**",
       "build/**",
       "next-env.d.ts",
+      // Salinan aset PDF.js dari node_modules (scripts/pdf-assets.mjs), bukan kode proyek.
+      "public/pdfjs/**",
     ],
   },
 ];

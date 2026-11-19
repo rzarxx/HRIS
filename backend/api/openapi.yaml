@@ -1785,6 +1785,10 @@ paths:
         Permission `announcement:manage`. Body adalah isi berkas PDF, JPEG, atau PNG (maks 5 MB, jenis dicek dari
         magic bytes); nama berkas dari query `name`. Paling banyak 5 lampiran per pengumuman. Berkas disimpan
         terenkripsi di penyimpanan privat server dan dicatat sebagai `announcement.updated`.
+        Semua lampiran dipindai ClamAV sebelum disimpan. FILE_UNSAFE (422) menolak berkas berbahaya;
+        FILE_SCAN_UNAVAILABLE (503) menolak unggahan bila pemindai tidak tersedia. Gambar didekode ulang,
+        dibatasi 24 juta piksel dan diperkecil proporsional sampai 2560 px; JPEG kualitas 85, PNG tetap
+        transparan. Gzip sebelum enkripsi digunakan bila lebih kecil; isi PDF tidak diubah.
       parameters:
         - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
         - { name: name, in: query, required: true, schema: { type: string, maxLength: 120 } }
@@ -1810,6 +1814,7 @@ paths:
         "400": { $ref: "#/components/responses/ValidationFailed" }
         "404": { $ref: "#/components/responses/Error" }
         "413": { $ref: "#/components/responses/Error" }
+        "422": { $ref: "#/components/responses/Error" }
         "503": { $ref: "#/components/responses/Error" }
   /v1/admin/announcements/{id}/attachments/{attachment_id}:
     delete:
@@ -1829,6 +1834,8 @@ paths:
       description: >-
         Permission `announcement:read`. Hanya untuk pengumuman yang sedang tayang bagi pemanggil; pemegang
         `announcement:manage` boleh mengunduh lampiran pengumuman apa pun. Jawaban `Cache-Control: private, no-store`.
+        Isi didekompresi oleh server untuk pratinjau langsung. Lampiran lama dipindai sebelum dikirim;
+        FILE_UNSAFE (422) atau FILE_SCAN_UNAVAILABLE (503) menghalangi pengiriman jika tidak lolos.
       parameters:
         - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
         - { name: attachment_id, in: path, required: true, schema: { type: string, format: uuid } }
@@ -1843,6 +1850,8 @@ paths:
             image/png:
               schema: { type: string, format: binary }
         "404": { $ref: "#/components/responses/Error" }
+        "422": { $ref: "#/components/responses/Error" }
+        "503": { $ref: "#/components/responses/Error" }
 
   /v1/announcements/active:
     get:
@@ -2472,6 +2481,8 @@ components:
         - FACE_NOT_DETECTED
         - FACE_SERVICE_UNAVAILABLE
         - STORAGE_UNAVAILABLE
+        - FILE_UNSAFE
+        - FILE_SCAN_UNAVAILABLE
         - CHALLENGE_EXPIRED
         - ATTENDANCE_BLOCKED
         - LEAVE_ACTIVE

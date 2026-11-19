@@ -321,7 +321,9 @@ export default function AnnouncementsPage() {
               body={form.body}
               type={form.type}
               minRead={Number(form.min_read_seconds) || 0}
-              files={[...savedFiles.map((a) => a.file_name), ...pendingFiles.map((f) => f.name)]}
+              files={pendingFiles.map((f) => `${f.name} · menunggu pemeriksaan`)}
+              announcementId={editingId}
+              attachments={savedFiles}
             />
           </div>
         </div>
@@ -334,7 +336,8 @@ export default function AnnouncementsPage() {
             body={previewing.body}
             type={previewing.type}
             minRead={previewing.min_read_seconds}
-            files={previewing.attachments.map((a) => a.file_name)}
+            announcementId={previewing.id}
+            attachments={previewing.attachments}
           />
         )}
       </Modal>

@@ -23,6 +23,10 @@ selfie (D42), jadi aplikasi tidak memuat model pengenalan wajah. Play Integrity 
 - Pengumuman dari SDM, diambil saat aplikasi dibuka: pop-up satu per satu (bisa ditunda dengan "Nanti saja"),
   banner di Beranda, dan daftar Pengumuman. Tombol "Sudah baca" menghitung mundur sesuai jeda yang diatur SDM;
   server mencatat waktu buka sekali dan menolak "Sudah baca" yang terlalu cepat (D27).
+- Lampiran JPEG/PNG dan PDF langsung dimuat di pop-up dan detail pengumuman melalui API bersesi.
+  Gambar tampil proporsional; halaman PDF dirender seperlunya di area gulir, dengan tombol Perbesar.
+  Berkas sementara PDF di cache privat dihapus saat pratinjau ditutup; pemindaian malware dan kompresi
+  dilakukan server sebelum publikasi (lihat `backend/deploy/clamav.md`).
 - Tarik ke bawah untuk memuat ulang di Beranda, Presensi, dan Pengajuan; kerangka abu-abu saat memuat; getar
   singkat saat presensi, pengajuan, atau keputusan berhasil; pesan singkat (snackbar) hasil tindakan.
 - Tampilan Clean Minimalist / Soft UI (DESIGN.md §8): latar terang, kartu putih dengan bayangan lembut, hijau terang

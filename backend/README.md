@@ -5,6 +5,7 @@ API Go (chi, pgx, sqlc, golang-migrate) dengan PostgreSQL. Acuan: `../MASTER.md`
 ## Prasyarat
 - Go 1.27+
 - PostgreSQL 16+ berjalan di `localhost:5432`
+- ClamAV untuk lampiran pengumuman: [konfigurasi dan verifikasi](deploy/clamav.md). Unggahan ditolak bila pemindai belum tersedia.
 - [sqlc](https://sqlc.dev) hanya bila mengubah file di `queries/` atau `migrations/`
 
 ## Menyiapkan (sekali)

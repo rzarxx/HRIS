@@ -1,5 +1,6 @@
 import { CalendarCheck, FileText, Home, Megaphone, Paperclip, User, Wallet, X } from "lucide-react";
-import type { AnnouncementType } from "@/lib/types";
+import type { AnnouncementAttachment, AnnouncementType } from "@/lib/types";
+import { AttachmentPreview } from "./attachment-preview";
 
 /** Pratinjau tampilan pengumuman di aplikasi HP Pejuang (DESIGN.md §8). */
 export function PhonePreview({
@@ -8,12 +9,16 @@ export function PhonePreview({
   type,
   minRead = 0,
   files = [],
+  announcementId,
+  attachments = [],
 }: {
   title: string;
   body: string;
   type: AnnouncementType;
   minRead?: number;
   files?: string[];
+  announcementId?: string;
+  attachments?: AnnouncementAttachment[];
 }) {
   const t = title.trim() || "Judul pengumuman";
   const b = body.trim() || "Isi pengumuman akan tampil di sini.";
@@ -30,12 +35,15 @@ export function PhonePreview({
         </div>
 
         {type === "banner" && (
-          <div className="mx-3 mt-3 rounded-lg bg-primary-600 p-3 text-white">
+          <div className="mx-3 mt-3 max-h-72 overflow-y-auto rounded-lg bg-primary-600 p-3 text-white">
             <div className="flex items-center gap-1.5 text-[10px] font-medium opacity-90">
               <Megaphone className="size-3" aria-hidden /> Pengumuman
             </div>
             <p className="mt-1 text-xs font-semibold">{t}</p>
             <p className="mt-0.5 line-clamp-3 text-[11px] opacity-90">{b}</p>
+            {announcementId && attachments.map((attachment) => (
+              <AttachmentPreview key={attachment.id} announcementId={announcementId} attachment={attachment} />
+            ))}
           </div>
         )}
 
@@ -67,7 +75,7 @@ export function PhonePreview({
 
         {type === "popup" && (
           <div className="absolute inset-0 flex items-center justify-center bg-slate-900/50 p-4">
-            <div className="w-full rounded-xl bg-white p-4 shadow-xl">
+            <div className="max-h-full w-full overflow-y-auto rounded-xl bg-white p-4 shadow-xl">
               <div className="flex items-start justify-between gap-2">
                 <div className="flex size-8 items-center justify-center rounded-full bg-primary-50">
                   <Megaphone className="size-4 text-primary-600" aria-hidden />
@@ -76,6 +84,9 @@ export function PhonePreview({
               </div>
               <p className="mt-2 text-sm font-semibold text-slate-900">{t}</p>
               <p className="mt-1 max-h-40 overflow-hidden text-[11px] text-slate-600">{b}</p>
+              {announcementId && attachments.map((attachment) => (
+                <AttachmentPreview key={attachment.id} announcementId={announcementId} attachment={attachment} />
+              ))}
               {files.map((name) => (
                 <p key={name} className="mt-1.5 flex items-center gap-1 truncate rounded bg-slate-100 px-2 py-1 text-[10px] text-slate-700">
                   <Paperclip className="size-3 shrink-0" aria-hidden /> {name}

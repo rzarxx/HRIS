@@ -126,16 +126,20 @@ func (s *Service) AddAttachment(ctx context.Context, entry audit.Entry, id uuid.
 	} else if err != nil {
 		return Announcement{}, err
 	}
-	contentType, ext, ok := detectAttachment(data)
-	if !ok {
-		return Announcement{}, httpx.Validation(map[string]string{"file": "Mohon gunakan berkas PDF, JPEG, atau PNG."})
-	}
-	fileName := cleanFileName(name, ext)
-	key := fmt.Sprintf("announcements/%s/%s%s", id, uuid.New(), ext)
-	if err := s.files.Put(ctx, key, data); err != nil {
+	data, contentType, ext, err := s.prepareAttachment(ctx, data)
+	if err != nil {
 		return Announcement{}, err
 	}
-	err := database.InTx(ctx, s.pool, func(q *store.Queries) error {
+	fileName := cleanFileName(name, ext)
+	packed, suffix, err := packAttachment(data)
+	if err != nil {
+		return Announcement{}, err
+	}
+	key := fmt.Sprintf("announcements/%s/%s%s%s", id, uuid.New(), ext, suffix)
+	if err := s.files.Put(ctx, key, packed); err != nil {
+		return Announcement{}, err
+	}
+	err = database.InTx(ctx, s.pool, func(q *store.Queries) error {
 		// Batas dihitung di dalam transaksi agar dua unggahan bersamaan tidak melewatinya.
 		if err := q.LockAnnouncement(ctx, id); err != nil {
 			return err
@@ -209,6 +213,15 @@ func (s *Service) AttachmentFile(ctx context.Context, p auth.Principal, id, atta
 	data, err := s.files.Get(ctx, a.StorageKey)
 	if err != nil {
 		return a, nil, err
+	}
+	data, err = unpackAttachment(a.StorageKey, data, int(a.SizeBytes))
+	if err != nil {
+		return a, nil, err
+	}
+	if !isProcessedAttachment(a.StorageKey) {
+		if err := s.scan(ctx, data); err != nil {
+			return a, nil, err
+		}
 	}
 	return a, data, nil
 }

@@ -37,6 +37,7 @@ import (
 	"github.com/rzarxx/HRIS/backend/internal/org"
 	"github.com/rzarxx/HRIS/backend/internal/platform/database"
 	"github.com/rzarxx/HRIS/backend/internal/platform/fieldcrypt"
+	"github.com/rzarxx/HRIS/backend/internal/platform/filescan"
 	"github.com/rzarxx/HRIS/backend/internal/report"
 	"github.com/rzarxx/HRIS/backend/internal/server"
 	"github.com/rzarxx/HRIS/backend/internal/settings"
@@ -133,9 +134,12 @@ func (noLimiter) Allow(string, int, time.Duration, time.Time) (bool, time.Durati
 func (noLimiter) Reset(string)                                                      {}
 
 type options struct {
-	requireMFA bool
-	limiter    auth.Limiter
-	signer     *auth.TokenSigner
+	announcementScanner   filescan.Scanner
+	noAnnouncementScanner bool
+	announcementFiles     announcement.FileStore
+	requireMFA            bool
+	limiter               auth.Limiter
+	signer                *auth.TokenSigner
 	// clock dan izin presensi tanpa verifikasi untuk tes presensi.
 	clock           func() time.Time
 	allowUnverified bool
@@ -202,6 +206,16 @@ func fresh(t *testing.T, opt options) *httptest.Server {
 	approvalSvc := approval.NewService(appPool)
 	leaveSvc := leave.NewService(appPool, authSvc.ResolveScope)
 	announcementSvc := announcement.NewService(appPool)
+	if opt.announcementFiles != nil {
+		announcementFiles = opt.announcementFiles
+	}
+	if !opt.noAnnouncementScanner {
+		scanner := opt.announcementScanner
+		if scanner == nil {
+			scanner = testFileScanner{}
+		}
+		announcementSvc.WithScanner(scanner)
+	}
 	if announcementFiles != nil {
 		announcementSvc.WithFiles(announcementFiles)
 	}

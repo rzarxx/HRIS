@@ -6,6 +6,7 @@ API Go (chi, pgx, sqlc, golang-migrate) dengan PostgreSQL. Acuan: `../MASTER.md`
 - Go 1.27+
 - PostgreSQL 16+ berjalan di `localhost:5432`
 - ClamAV untuk lampiran pengumuman: [konfigurasi dan verifikasi](deploy/clamav.md). Unggahan ditolak bila pemindai belum tersedia.
+- SeaweedFS S3 untuk berkas privat: [konfigurasi, migrasi, backup, dan retensi](deploy/seaweedfs-storage.md).
 - [sqlc](https://sqlc.dev) hanya bila mengubah file di `queries/` atau `migrations/`
 
 ## Menyiapkan (sekali)
@@ -44,16 +45,17 @@ development sampai pengikatan kriptografis instalasi perangkat selesai. Tanpa ko
 pendaftaran wajah tetap ditolak di luar mode development yang secara eksplisit mengizinkan bypass.
 Jangan commit file kredensial. Gangguan layanan Google saat ini menyebabkan penolakan tertutup.
 
-Retensi selfie dijalankan harian dengan environment yang sama dengan API dan `SELFIE_DIR` yang
-menunjuk penyimpanan sebenarnya. Di lokal, dari direktori `backend`:
+Retensi selfie dijalankan harian dengan environment yang sama dengan API. Perintah memakai
+`SELFIE_DIR` bila driver `disk`, atau bucket privat bila S3 diaktifkan melalui environment/panel Super Admin. Di lokal, dari direktori `backend`:
 
 ```bash
 go run ./cmd/purge-selfies
 ```
 
-Jalankan migrasi terlebih dahulu. Perintah menghapus berkas setelah 90 hari, mempertahankan hash
+Jalankan migrasi terlebih dahulu. Perintah menghapus selfie setelah 90 hari, mempertahankan hash
 untuk menolak replay, dan dapat dijalankan ulang setelah gagal. Di server development, `deploy.sh`
 membangun `hris-purge-selfies` dan memasang timer systemd harian (lihat `deploy/README.md`).
+Dalam mode S3, perintah yang sama menghapus XLSX hasil generate setelah 7 hari.
 
 Saat `DEV_SIMULATE_ATTENDANCE=true`, API mengisi presensi dummy sampai hari ini setiap 5 menit.
 Presensi nyata dari aplikasi HP menyusul di Fase 2-3.

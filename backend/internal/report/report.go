@@ -250,9 +250,21 @@ func Calculate(base decimal.Decimal, absent, late int64) (absentDeduction, lateD
 }
 
 // Handler melayani /v1/admin/reports/*.
-type Handler struct{ svc *Service }
+type Handler struct {
+	svc       *Service
+	generated interface {
+		Put(context.Context, string, []byte) error
+	}
+}
 
 func NewHandler(svc *Service) *Handler { return &Handler{svc: svc} }
+
+func (h *Handler) WithGeneratedFiles(store interface {
+	Put(context.Context, string, []byte) error
+}) *Handler {
+	h.generated = store
+	return h
+}
 
 func readPeriod(r *http.Request) (Period, error) {
 	fields := map[string]string{}

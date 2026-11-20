@@ -255,7 +255,7 @@ func limitBody(next http.Handler) http.Handler {
 func withTimeout(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		timeout := requestTimeout
-		if r.Method == http.MethodPost && longRoutes[r.URL.Path] {
+		if (r.Method == http.MethodPost && longRoutes[r.URL.Path]) || r.URL.Path == "/v1/admin/settings/storage/sync" || r.URL.Path == "/v1/admin/settings/storage" {
 			timeout = longRequestTimeout
 		}
 		ctx, cancel := context.WithTimeout(r.Context(), timeout)

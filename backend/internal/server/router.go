@@ -23,6 +23,7 @@ import (
 	"github.com/rzarxx/HRIS/backend/internal/report"
 	"github.com/rzarxx/HRIS/backend/internal/settings"
 	"github.com/rzarxx/HRIS/backend/internal/shift"
+	"github.com/rzarxx/HRIS/backend/internal/storageadmin"
 )
 
 // Deps adalah handler tiap modul.
@@ -32,6 +33,7 @@ type Deps struct {
 	Employee     *employee.Handler
 	Announcement *announcement.Handler
 	Settings     *settings.Handler
+	Storage      *storageadmin.Handler
 	Dashboard    *dashboard.Handler
 	Report       *report.Handler
 	Location     *location.Handler
@@ -179,6 +181,9 @@ func routes(d Deps) []Route {
 
 		guarded(http.MethodGet, "/v1/admin/settings/footer", d.Settings.Branding, permission.SettingsManage),
 		guarded(http.MethodPut, "/v1/admin/settings/footer", d.Settings.SetFooter, permission.SettingsManage),
+		guarded(http.MethodGet, "/v1/admin/settings/storage", d.Storage.Settings, permission.SettingsManage),
+		guarded(http.MethodPut, "/v1/admin/settings/storage", d.Storage.Save, permission.SettingsManage),
+		guarded(http.MethodPost, "/v1/admin/settings/storage/sync", d.Storage.Sync, permission.SettingsManage),
 
 		guarded(http.MethodGet, "/v1/admin/dashboard/summary", d.Dashboard.Summary, permission.DashboardRead),
 		guarded(http.MethodGet, "/v1/admin/dashboard/org-chart", d.Dashboard.OrgChart, permission.DashboardRead),

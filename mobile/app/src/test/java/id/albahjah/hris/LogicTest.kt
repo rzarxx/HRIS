@@ -28,11 +28,15 @@ import id.albahjah.hris.security.DeviceRules
 import id.albahjah.hris.security.RequestHash
 import id.albahjah.hris.data.Child
 import id.albahjah.hris.data.MeUpdate
+import id.albahjah.hris.data.MyAnnouncement
 import id.albahjah.hris.data.MyFamily
 import id.albahjah.hris.ui.FamilyForm
 import id.albahjah.hris.ui.centerSquare
 import id.albahjah.hris.ui.from
 import id.albahjah.hris.ui.localPhone
+import id.albahjah.hris.ui.nextPopup
+import id.albahjah.hris.ui.ANNOUNCEMENT_POLL_MS
+import id.albahjah.hris.ui.ANNOUNCEMENT_RETRY_MS
 import id.albahjah.hris.ui.sampleSizeFor
 import id.albahjah.hris.ui.toPickerMillis
 import java.security.KeyPairGenerator
@@ -736,6 +740,24 @@ class RequestHashTest {
         assertEquals(1, sampleSizeFor(1200, 1600))
         assertEquals(2, sampleSizeFor(3000, 4000))
         assertEquals(4, sampleSizeFor(4096, 4096))
+    }
+
+    @Test
+    fun nextPopupSkipsPostponedAndRepeatsDaily() {
+        fun ann(id: String, type: String = "popup", read: Boolean = false, ends: String? = null) =
+            MyAnnouncement(id = id, title = id, body = "", type = type, startsAt = "2026-11-20T00:00:00Z", endsAt = ends, readAt = if (read) "2026-11-19T01:00:00Z" else null)
+        val items = listOf(ann("banner", type = "banner"), ann("a"), ann("b", read = true, ends = "2026-11-30T00:00:00Z"), ann("c", read = true))
+        val never: (String) -> String? = { null }
+        // Banner tidak pernah jadi pop-up; yang belum dibaca didahulukan.
+        assertEquals("a", nextPopup(items, emptySet(), "2026-11-20", never)?.id)
+        // "Nanti saja" melewati pop-up itu sampai daftar tunda dikosongkan saat aplikasi dibuka lagi.
+        assertEquals("b", nextPopup(items, setOf("a"), "2026-11-20", never)?.id)
+        // Sudah dibaca dan sudah ditutup hari ini: tidak muncul lagi sampai besok; tanpa tanggal berakhir tidak muncul lagi.
+        assertEquals(null, nextPopup(items, setOf("a"), "2026-11-20") { if (it == "b") "2026-11-20" else null })
+        assertEquals("b", nextPopup(items, setOf("a"), "2026-11-21") { if (it == "b") "2026-11-20" else null }?.id)
+        assertEquals(null, nextPopup(null, emptySet(), "2026-11-20", never))
+        // Muat ulang berkala lebih jarang dari coba ulang, dan keduanya wajar untuk baterai.
+        assertTrue(ANNOUNCEMENT_RETRY_MS < ANNOUNCEMENT_POLL_MS && ANNOUNCEMENT_POLL_MS >= 60_000L)
     }
 
     @Test

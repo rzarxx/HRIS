@@ -31,7 +31,10 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -284,6 +287,8 @@ fun FigmaInput(
 ) {
     val interaction = remember { MutableInteractionSource() }
     val focused by interaction.collectIsFocusedAsState()
+    // Kata sandi tersembunyi sampai ikon mata diketuk.
+    var shown by rememberSaveable { mutableStateOf(false) }
     Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
         FieldLabel(label)
         BasicTextField(
@@ -292,7 +297,7 @@ fun FigmaInput(
             readOnly = readOnly,
             singleLine = true,
             textStyle = figmaText(15, color = if (readOnly) Hc.InkSoft else Hc.Ink).copy(lineHeight = 20.sp),
-            visualTransformation = if (password) PasswordVisualTransformation() else VisualTransformation.None,
+            visualTransformation = if (password && !shown) PasswordVisualTransformation() else VisualTransformation.None,
             keyboardOptions = keyboard,
             keyboardActions = KeyboardActions(onDone = { onDone?.invoke() }),
             interactionSource = interaction,
@@ -305,10 +310,35 @@ fun FigmaInput(
                 ) {
                     Icon(icon, contentDescription = null, tint = if (focused) Hc.Brand else Hc.InkMuted, modifier = Modifier.size(20.dp))
                     Box(Modifier.weight(1f)) { inner() }
+                    if (password) PasswordEye(shown) { shown = !shown }
                 }
             },
         )
         if (error != null) Text(error, style = figmaText(12, color = Fg.Danger, lineHeight = 1.35f))
+    }
+}
+
+/**
+ * Ikon mata untuk mengintip kata sandi. Target sentuh 48dp, dan pembaca layar membacakan
+ * aksi serta keadaannya.
+ */
+@Composable
+fun PasswordEye(shown: Boolean, onToggle: () -> Unit) {
+    val action = if (shown) "Sembunyikan kata sandi" else "Tampilkan kata sandi"
+    Box(
+        Modifier
+            .size(48.dp)
+            .clip(CircleShape)
+            .clickable(role = Role.Button, onClickLabel = action, onClick = onToggle)
+            .semantics { contentDescription = action },
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(
+            if (shown) HrisIcons.VisibilityOff else HrisIcons.Visibility,
+            contentDescription = null,
+            tint = Hc.InkMuted,
+            modifier = Modifier.size(22.dp),
+        )
     }
 }
 

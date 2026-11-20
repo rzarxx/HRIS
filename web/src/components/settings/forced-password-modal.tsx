@@ -4,7 +4,8 @@ import { useQueryClient } from "@tanstack/react-query";
 import { KeyRound } from "lucide-react";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Field, Input } from "@/components/ui/form";
+import { Field } from "@/components/ui/form";
+import { PasswordInput } from "@/components/ui/password-input";
 import { Modal } from "@/components/ui/modal";
 import { api } from "@/lib/api-client";
 import { useSave } from "@/lib/hooks";
@@ -73,9 +74,8 @@ export function ForcedPasswordModal({ name }: { name: string }) {
       </div>
       <form id="forced-password-form" onSubmit={submit} noValidate className="space-y-4">
         <Field label="Kata sandi awal" htmlFor="forced-current" error={errors.current_password}>
-          <Input
+          <PasswordInput
             id="forced-current"
-            type="password"
             autoComplete="current-password"
             autoFocus
             value={form.current_password}
@@ -84,9 +84,8 @@ export function ForcedPasswordModal({ name }: { name: string }) {
           />
         </Field>
         <Field label="Kata sandi baru" htmlFor="forced-new" error={errors.new_password} hint="Minimal 10 karakter, hindari kata sandi umum.">
-          <Input
+          <PasswordInput
             id="forced-new"
-            type="password"
             autoComplete="new-password"
             value={form.new_password}
             onChange={(e) => setForm({ ...form, new_password: e.target.value })}
@@ -94,9 +93,8 @@ export function ForcedPasswordModal({ name }: { name: string }) {
           />
         </Field>
         <Field label="Ulangi kata sandi baru" htmlFor="forced-confirm" error={errors.confirm}>
-          <Input
+          <PasswordInput
             id="forced-confirm"
-            type="password"
             autoComplete="new-password"
             value={form.confirm}
             onChange={(e) => setForm({ ...form, confirm: e.target.value })}

@@ -2,7 +2,8 @@
 
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Field, Input } from "@/components/ui/form";
+import { Field } from "@/components/ui/form";
+import { PasswordInput } from "@/components/ui/password-input";
 import { Card } from "@/components/ui/layout";
 import { api } from "@/lib/api-client";
 import { useSave } from "@/lib/hooks";
@@ -33,9 +34,8 @@ export function PasswordCard() {
     <Card title="Ganti kata sandi">
       <form onSubmit={submit} noValidate className="space-y-4">
         <Field label="Kata sandi saat ini" htmlFor="current_password" error={errors.current_password}>
-          <Input
+          <PasswordInput
             id="current_password"
-            type="password"
             autoComplete="current-password"
             value={form.current_password}
             onChange={(e) => setForm({ ...form, current_password: e.target.value })}
@@ -43,9 +43,8 @@ export function PasswordCard() {
           />
         </Field>
         <Field label="Kata sandi baru" htmlFor="new_password" error={errors.new_password} hint="Minimal 10 karakter, hindari kata sandi umum.">
-          <Input
+          <PasswordInput
             id="new_password"
-            type="password"
             autoComplete="new-password"
             value={form.new_password}
             onChange={(e) => setForm({ ...form, new_password: e.target.value })}
@@ -53,9 +52,8 @@ export function PasswordCard() {
           />
         </Field>
         <Field label="Ulangi kata sandi baru" htmlFor="confirm" error={errors.confirm}>
-          <Input
+          <PasswordInput
             id="confirm"
-            type="password"
             autoComplete="new-password"
             value={form.confirm}
             onChange={(e) => setForm({ ...form, confirm: e.target.value })}

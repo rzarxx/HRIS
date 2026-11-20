@@ -1,10 +1,11 @@
 "use client";
 
-import { Eye, EyeOff, ShieldCheck } from "lucide-react";
+import { ShieldCheck } from "lucide-react";
 import { useSearchParams } from "next/navigation";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Field, Input } from "@/components/ui/form";
+import { PasswordInput } from "@/components/ui/password-input";
 import { api, ApiError } from "@/lib/api-client";
 import { loginSchema, validate } from "@/lib/schemas";
 
@@ -14,7 +15,6 @@ export function LoginForm() {
   const next = useSearchParams().get("next");
   const [identifier, setIdentifier] = useState(DEMO ? "sdm@pejuang.id" : "");
   const [password, setPassword] = useState("");
-  const [show, setShow] = useState(false);
   const [mfaToken, setMfaToken] = useState("");
   const [code, setCode] = useState("");
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -133,25 +133,13 @@ export function LoginForm() {
         />
       </Field>
       <Field label="Kata sandi" htmlFor="password" error={errors.password}>
-        <div className="relative">
-          <Input
-            id="password"
-            type={show ? "text" : "password"}
-            autoComplete="current-password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            invalid={!!errors.password}
-            className="pr-10"
-          />
-          <button
-            type="button"
-            onClick={() => setShow((s) => !s)}
-            aria-label={show ? "Sembunyikan kata sandi" : "Tampilkan kata sandi"}
-            className="absolute inset-y-0 right-0 flex w-10 items-center justify-center text-slate-400 hover:text-slate-600"
-          >
-            {show ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
-          </button>
-        </div>
+        <PasswordInput
+          id="password"
+          autoComplete="current-password"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          invalid={!!errors.password}
+        />
       </Field>
       <Button type="submit" loading={loading} className="w-full">
         Masuk

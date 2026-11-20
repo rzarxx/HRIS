@@ -36,8 +36,7 @@ import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.unit.dp
 import id.albahjah.hris.BuildConfig
-import androidx.lifecycle.Lifecycle
-import androidx.lifecycle.compose.LifecycleEventEffect
+import androidx.lifecycle.compose.LifecycleResumeEffect
 import id.albahjah.hris.data.AnnouncementAttachment
 import id.albahjah.hris.data.AttendanceRecord
 import id.albahjah.hris.data.FontSize
@@ -85,7 +84,7 @@ fun MainScreen(
     var announcementList by rememberSaveable { mutableStateOf(false) }
     // Lampiran yang sedang dibuka: (id pengumuman, lampiran).
     var viewing by remember { mutableStateOf<Pair<String, AnnouncementAttachment>?>(null) }
-    // Pop-up yang ditunda ("Nanti saja") tidak muncul lagi sampai aplikasi dibuka ulang.
+    // Pop-up yang ditunda ("Nanti saja") tidak muncul lagi sampai aplikasi dibuka lagi dari latar belakang.
     var postponed by remember { mutableStateOf(setOf<String>()) }
     val snackbar = remember { SnackbarHostState() }
     val notify: (String) -> Unit = { message -> scope.launch { snackbar.showSnackbar(message) } }
@@ -140,6 +139,15 @@ fun MainScreen(
         return
     }
 
+    // Pengumuman dimuat saat aplikasi dibuka atau kembali dari latar belakang, lalu tiap 2 menit selama di
+    // depan layar, karena notifikasi push belum ada. Tunda "Nanti saja" berakhir di sini. Efek ini berada di
+    // atas halaman sub (Data pribadi, Ganti kata sandi) agar tetap berjalan walau halaman itu sedang dibuka.
+    LifecycleResumeEffect(announcements) {
+        postponed = emptySet()
+        val job = scope.launch { announcements.poll() }
+        onPauseOrDispose { job.cancel() }
+    }
+
     // Foto profil diunduh sekali per versi (photo_updated_at) lalu dipakai Beranda, Profil, dan Data pribadi.
     var photo by remember { mutableStateOf<ImageBitmap?>(null) }
     LaunchedEffect(current.employeeId, current.hasPhoto, current.photoUpdatedAt) {
@@ -192,7 +200,6 @@ fun MainScreen(
         repository.refreshBranding()
     }
     LaunchedEffect(tab) { if (tab == MainTab.Requests) requests.refresh(canApprove) }
-    LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { announcements.refresh() }
 
     if (tab != MainTab.Home) BackHandler { tab = MainTab.Home }
     val now = ZonedDateTime.now(Wib)
@@ -204,10 +211,7 @@ fun MainScreen(
     // tombol Tutup saja sampai berakhir (D54).
     val today = now.toLocalDate().toString()
     val popup = if (onSubPage || leaveForm || deciding != null || askLogout) null
-    else announcements.items?.firstOrNull {
-        it.type == "popup" && it.id !in postponed &&
-            (it.readAt == null || (it.endsAt != null && repository.prefs.popupClosedOn(it.id) != today))
-    }
+    else nextPopup(announcements.items, postponed, today, repository.prefs::popupClosedOn)
     Box(Modifier.fillMaxSize()) {
         val shownFile = viewing
         if (shownFile != null) {

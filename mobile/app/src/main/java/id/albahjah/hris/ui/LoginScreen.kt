@@ -28,7 +28,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -173,11 +172,7 @@ fun LoginContent(
                         ),
                         hidden = !showPassword,
                         onDone = { if (canSubmit) onSubmit() },
-                        trailing = {
-                            TextButton(onClick = { showPassword = !showPassword }) {
-                                Text(if (showPassword) "Sembunyikan" else "Lihat", color = Hc.BrandDark)
-                            }
-                        },
+                        trailing = { PasswordEye(showPassword) { showPassword = !showPassword } },
                     )
                     if (form.askMfa) {
                         Field(

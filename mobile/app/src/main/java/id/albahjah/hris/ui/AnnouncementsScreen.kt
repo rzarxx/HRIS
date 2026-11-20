@@ -53,6 +53,27 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
+/** Jeda muat ulang pengumuman selama aplikasi di depan layar (belum ada notifikasi push). */
+const val ANNOUNCEMENT_POLL_MS = 120_000L
+
+/** Jeda sebelum mencoba sekali lagi bila memuat pengumuman gagal (mis. sinyal sesaat hilang). */
+const val ANNOUNCEMENT_RETRY_MS = 15_000L
+
+/**
+ * Pop-up yang tampil berikutnya: yang belum dibaca meminta "Sudah baca"; yang sudah dibaca dan punya
+ * tanggal berakhir tampil lagi sekali sehari (D54). Yang ditunda ("Nanti saja") dilewati sampai
+ * aplikasi dibuka lagi.
+ */
+fun nextPopup(
+    items: List<MyAnnouncement>?,
+    postponed: Set<String>,
+    today: String,
+    closedOn: (String) -> String?,
+): MyAnnouncement? = items?.firstOrNull {
+    it.type == "popup" && it.id !in postponed &&
+        (it.readAt == null || (it.endsAt != null && closedOn(it.id) != today))
+}
+
 /** Memuat pengumuman yang tayang dan mencatat buka/baca; dipegang [MainScreen] selama sesi. */
 class AnnouncementsController(private val repository: Repository, private val scope: CoroutineScope) {
     /** Null berarti belum pernah dimuat. */
@@ -60,9 +81,28 @@ class AnnouncementsController(private val repository: Repository, private val sc
         private set
 
     fun refresh() {
-        scope.launch {
-            // Gagal memuat pengumuman tidak menghalangi presensi; daftar lama tetap dipakai.
-            attempt { repository.announcements() }.getOrNull()?.let { items = it }
+        scope.launch { load() }
+    }
+
+    /**
+     * Memuat daftar, dan bila gagal mencoba sekali lagi setelah [ANNOUNCEMENT_RETRY_MS]. Gagal memuat
+     * pengumuman tidak menghalangi presensi; daftar lama tetap dipakai.
+     */
+    private suspend fun load() {
+        val first = attempt { repository.announcements() }
+        if (first.isSuccess) {
+            items = first.getOrThrow()
+            return
+        }
+        delay(ANNOUNCEMENT_RETRY_MS)
+        attempt { repository.announcements() }.getOrNull()?.let { items = it }
+    }
+
+    /** Memuat sekarang lalu setiap [ANNOUNCEMENT_POLL_MS]; dibatalkan saat aplikasi ke latar belakang. */
+    suspend fun poll() {
+        while (true) {
+            load()
+            delay(ANNOUNCEMENT_POLL_MS)
         }
     }
 

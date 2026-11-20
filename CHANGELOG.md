@@ -64,6 +64,12 @@ Perubahan penting yang terlihat oleh Pejuang, SDM, atau pengelola server. Keputu
   (sekitar 4 detik untuk 1.000 baris). Kata sandi pilihan sendiri tetap memakai parameter penuh.
 
 ### Diperbaiki
+- **Pengumuman lebih andal muncul di aplikasi.** Pop-up yang ditunda dengan **Nanti saja** muncul lagi saat aplikasi
+  dibuka kembali, tidak lagi tertahan sampai aplikasi ditutup penuh. Selama aplikasi terbuka, pengumuman dimuat ulang
+  tiap 2 menit, dan bila gagal memuat (misalnya sinyal sesaat hilang) dicoba lagi setelah 15 detik.
+- **Ikon mata di semua kolom kata sandi.** Web (masuk, ganti kata sandi, wajib ganti kata sandi, konfirmasi ganti email)
+  dan aplikasi (masuk, ganti kata sandi, konfirmasi ganti email) kini punya ikon mata untuk melihat kata sandi yang
+  diketik. Di web, isian kembali tersembunyi saat form dikirim.
 - Pengumuman baru kini muncul di aplikasi setiap kali aplikasi dibuka kembali dari latar belakang. Sebelumnya hanya
   dimuat saat aplikasi pertama kali dibuka, sehingga pengumuman baru tidak muncul sampai aplikasi ditutup penuh.
 - Batas 72 jam kata sandi awal kini benar-benar tersimpan untuk Pejuang baru yang ditambahkan lewat form. Sebelumnya

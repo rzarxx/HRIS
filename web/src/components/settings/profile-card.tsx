@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from "react";
 import { Avatar } from "@/components/avatar";
 import { Button } from "@/components/ui/button";
 import { Field, Input } from "@/components/ui/form";
+import { PasswordInput } from "@/components/ui/password-input";
 import { Card } from "@/components/ui/layout";
 import { api } from "@/lib/api-client";
 import { dateTime } from "@/lib/format";
@@ -151,9 +152,8 @@ export function ProfileCard() {
         </Field>
         {emailChanged && (
           <Field label="Kata sandi saat ini" htmlFor="profile_current_password" error={errors.current_password} hint="Diperlukan karena email juga dipakai untuk masuk.">
-            <Input
+            <PasswordInput
               id="profile_current_password"
-              type="password"
               autoComplete="current-password"
               value={form.current_password}
               onChange={(e) => setForm({ ...form, current_password: e.target.value })}

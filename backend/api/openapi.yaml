@@ -1940,6 +1940,66 @@ paths:
                 properties:
                   data: { $ref: "#/components/schemas/Branding" }
         "400": { $ref: "#/components/responses/ValidationFailed" }
+  /v1/admin/settings/storage:
+    get:
+      tags: [Sistem]
+      summary: Status penyimpanan S3 dan migrasi
+      description: Permission `settings:manage` (hanya super admin). Secret key tidak dikirim balik.
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data: { $ref: "#/components/schemas/StorageSettings" }
+    put:
+      tags: [Sistem]
+      summary: Uji koneksi lalu aktifkan SeaweedFS S3
+      description: >-
+        Permission `settings:manage`. Server menguji HeadBucket dan tulis/baca/hapus objek uji sebelum menyimpan.
+        Secret key terenkripsi; kosong berarti mempertahankan yang lama. Setelah aktif, unggahan baru menuju S3,
+        pembacaan berkas lama memiliki fallback disk. Endpoint dan bucket yang sudah aktif tidak dapat diganti.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/StorageInput" }
+      responses:
+        "200":
+          description: Aktif
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data: { $ref: "#/components/schemas/StorageSettings" }
+        "400": { $ref: "#/components/responses/ValidationFailed" }
+        "409": { $ref: "#/components/responses/Error" }
+        "422": { $ref: "#/components/responses/Error" }
+  /v1/admin/settings/storage/sync:
+    post:
+      tags: [Sistem]
+      summary: Salin dan verifikasi batch berkas lama ke S3
+      description: >-
+        Permission `settings:manage`. Memproses hingga dua puluh berkas per panggilan; panggil berulang sampai migration.done
+        bernilai true. Kursor tersimpan di database; salinan disk tidak dihapus. Objek S3 yang sudah ada dibandingkan,
+        dan konflik isi menghentikan proses tanpa menimpa objek.
+      responses:
+        "200":
+          description: Status migrasi
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data: { $ref: "#/components/schemas/StorageSettings" }
+        "409": { $ref: "#/components/responses/Error" }
+        "422": { $ref: "#/components/responses/Error" }
   /v1/admin/dashboard/summary:
     get:
       tags: [Dashboard]
@@ -2467,6 +2527,12 @@ components:
         - FACE_NOT_DETECTED
         - FACE_SERVICE_UNAVAILABLE
         - STORAGE_UNAVAILABLE
+        - STORAGE_DESTINATION_LOCKED
+        - STORAGE_TEST_FAILED
+        - STORAGE_NOT_ACTIVE
+        - STORAGE_SOURCE_MISSING
+        - STORAGE_SYNC_BUSY
+        - STORAGE_SYNC_FAILED
         - FILE_UNSAFE
         - FILE_SCAN_UNAVAILABLE
         - CHALLENGE_EXPIRED
@@ -2971,6 +3037,36 @@ components:
         file_name: { type: string }
         content_type: { type: string, enum: [application/pdf, image/jpeg, image/png] }
         size_bytes: { type: integer }
+    StorageSettings:
+      type: object
+      required: [configured, active, endpoint, bucket, region, access_key, secret_set, migration]
+      properties:
+        configured: { type: boolean }
+        active: { type: boolean }
+        endpoint: { type: string }
+        bucket: { type: string }
+        region: { type: string }
+        access_key: { type: string }
+        secret_set: { type: boolean }
+        migration: { $ref: "#/components/schemas/StorageMigration" }
+    StorageMigration:
+      type: object
+      required: [cursor, scanned, copied, done]
+      properties:
+        cursor: { type: string, description: Kunci terakhir yang sudah diperiksa }
+        scanned: { type: integer }
+        copied: { type: integer }
+        done: { type: boolean }
+        updated_at: { type: string, format: date-time }
+    StorageInput:
+      type: object
+      required: [endpoint, bucket, region, access_key]
+      properties:
+        endpoint: { type: string, format: uri, description: URL HTTPS tanpa path atau HTTP loopback }
+        bucket: { type: string, minLength: 3, maxLength: 63 }
+        region: { type: string, example: us-east-1 }
+        access_key: { type: string }
+        secret_key: { type: string, description: Kosong berarti mempertahankan secret key tersimpan }
     Branding:
       type: object
       required: [footer, footer_template, is_default, updated_at]

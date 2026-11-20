@@ -38,7 +38,7 @@ type Service struct {
 	pool  *pgxpool.Pool
 	q     *store.Queries
 	scope ScopeResolver
-	// photos menyimpan foto profil; nil bila SELFIE_DIR belum diisi.
+	// photos menyimpan foto profil; nil bila penyimpanan privat belum diisi.
 	photos PhotoStore
 }
 

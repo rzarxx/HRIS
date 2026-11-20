@@ -1,11 +1,15 @@
 package employee
 
 import (
+	"context"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"strings"
 	"time"
+
+	"github.com/google/uuid"
 
 	"github.com/rzarxx/HRIS/backend/internal/audit"
 	"github.com/rzarxx/HRIS/backend/internal/auth"
@@ -13,11 +17,21 @@ import (
 )
 
 type Handler struct {
-	svc *Service
-	me  MeFunc
+	svc       *Service
+	me        MeFunc
+	generated interface {
+		Put(context.Context, string, []byte) error
+	}
 }
 
 func NewHandler(svc *Service) *Handler { return &Handler{svc: svc} }
+
+func (h *Handler) WithGeneratedFiles(store interface {
+	Put(context.Context, string, []byte) error
+}) *Handler {
+	h.generated = store
+	return h
+}
 
 func actor(r *http.Request) (auth.Principal, audit.Entry) {
 	p, _ := auth.PrincipalFrom(r.Context())
@@ -119,6 +133,12 @@ func (h *Handler) ImportTemplate(w http.ResponseWriter, r *http.Request) error {
 	body, err := h.svc.ImportTemplate(r.Context())
 	if err != nil {
 		return err
+	}
+	if h.generated != nil {
+		key := fmt.Sprintf("generated/templates/%s/%s.xlsx", time.Now().UTC().Format("2006/01/02"), uuid.New())
+		if err := h.generated.Put(r.Context(), key, body); err != nil {
+			return fmt.Errorf("simpan template impor: %w", err)
+		}
 	}
 	w.Header().Set("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
 	w.Header().Set("Content-Disposition", `attachment; filename="template-impor-pejuang.xlsx"`)

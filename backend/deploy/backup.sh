@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Backup terenkripsi database PostgreSQL, .env, .secrets, dan folder selfie HRIS Pejuang.
+# Backup terenkripsi database PostgreSQL, .env, .secrets, dan berkas privat HRIS Pejuang.
 # Dijalankan otomatis oleh hris-backup.timer atau manual sebagai root:
 #   bash /opt/hris/src/backend/deploy/backup.sh
 set -euo pipefail
@@ -20,7 +20,7 @@ BACKUP_PASS_FILE="${BACKUP_PASS_FILE:-/etc/hris/backup.pass}"
 BACKUP_REMOTE_DEST="${BACKUP_REMOTE_DEST:-}"
 
 [ "$(id -u)" -eq 0 ] || { echo "Jalankan sebagai root." >&2; exit 1; }
-for bin in pg_dump openssl tar sha256sum find; do
+for bin in pg_dump psql openssl tar sha256sum find realpath; do
   command -v "$bin" >/dev/null || { echo "Perintah wajib tidak ditemukan: $bin" >&2; exit 1; }
 done
 [ -f "$ENV_FILE" ] || { echo "Berkas $ENV_FILE tidak ditemukan." >&2; exit 1; }
@@ -29,14 +29,25 @@ done
 set -a
 # shellcheck disable=SC1090
 source "$ENV_FILE"
+storage_driver="${STORAGE_DRIVER:-disk}"
 if [ -f "$DEPLOY_ENV" ]; then
   # shellcheck disable=SC1090
   source "$DEPLOY_ENV"
 fi
 set +a
 
+case "$storage_driver" in
+  disk|s3) ;;
+  *) echo "STORAGE_DRIVER tidak dikenal: $storage_driver" >&2; exit 1 ;;
+esac
+
 DB_URL="${MIGRATE_DATABASE_URL:-${DATABASE_URL:-}}"
 [ -n "$DB_URL" ] || { echo "MIGRATE_DATABASE_URL atau DATABASE_URL wajib diisi di $ENV_FILE." >&2; exit 1; }
+# Pengaturan dari panel disimpan di database dan mengalahkan STORAGE_DRIVER lama.
+managed_s3="$(psql "$DB_URL" -Atq -v ON_ERROR_STOP=1 -c "SELECT CASE WHEN EXISTS (SELECT 1 FROM app_settings WHERE key = 'storage_s3') THEN 1 ELSE 0 END")"
+if [ "$managed_s3" = "1" ]; then
+  storage_driver=s3
+fi
 
 install -d -m 700 "$(dirname "$BACKUP_PASS_FILE")" "$BACKUP_DIR"
 if [ ! -s "$BACKUP_PASS_FILE" ]; then
@@ -53,8 +64,20 @@ cleanup() {
 }
 trap cleanup EXIT
 
+if [ "$storage_driver" = "s3" ]; then
+  [ -n "${STORAGE_BACKUP_REMOTE:-}" ] || { echo "STORAGE_BACKUP_REMOTE wajib untuk backup S3." >&2; exit 1; }
+  command -v rclone >/dev/null || { echo "rclone wajib untuk backup S3." >&2; exit 1; }
+  mkdir -p "$work/objects"
+  # Objek memakai kunci unik dan tidak ditimpa. Salin sebelum dan sesudah pg_dump
+  # agar objek yang dihapus atau dibuat saat dump tetap tersedia untuk snapshot DB.
+  echo "==> Salin objek S3 sebelum snapshot database"
+  rclone copy "$STORAGE_BACKUP_REMOTE" "$work/objects"
+fi
+
 echo "==> Dump database PostgreSQL"
 pg_dump --format=custom --no-owner --no-acl -f "$work/db.dump" "$DB_URL"
+managed_s3_after="$(psql "$DB_URL" -Atq -v ON_ERROR_STOP=1 -c "SELECT CASE WHEN EXISTS (SELECT 1 FROM app_settings WHERE key = 'storage_s3') THEN 1 ELSE 0 END")"
+[ "$managed_s3" = "$managed_s3_after" ] || { echo "Mode penyimpanan berubah selama backup; ulangi backup agar snapshot lengkap." >&2; exit 1; }
 
 mkdir -p "$work/config"
 cp -a "$ENV_FILE" "$work/config/.env"
@@ -64,9 +87,18 @@ fi
 if [ -d "$APP_DIR/.secrets" ]; then
   cp -a "$APP_DIR/.secrets" "$work/secrets"
 fi
-if [ -d "$APP_DIR/selfies" ]; then
-  cp -a "$APP_DIR/selfies" "$work/selfies"
+if [ "$storage_driver" = "s3" ]; then
+  echo "==> Salin objek S3 setelah snapshot database"
+  rclone copy "$STORAGE_BACKUP_REMOTE" "$work/objects"
 fi
+# Salinan disk tetap diperlukan selama migrasi dan sebagai fallback bila objek lama
+# belum berada di S3. SELFIE_DIR dapat berbeda dari lokasi default instalasi.
+legacy_dir="${SELFIE_DIR:-$APP_DIR/selfies}"
+if [ -d "$legacy_dir" ]; then
+  legacy_dir="$(realpath -e "$legacy_dir")"
+  cp -a "$legacy_dir" "$work/selfies"
+fi
+printf '%s\n' "$storage_driver" > "$work/storage-mode.txt"
 
 {
   echo "created_at_utc=$ts"

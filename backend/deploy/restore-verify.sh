@@ -66,6 +66,19 @@ openssl enc -d -aes-256-cbc -pbkdf2 -iter 600000 -pass "file:$BACKUP_PASS_FILE" 
 pg_restore --list "$work/db.dump" >/dev/null
 echo "==> Verifikasi checksum, secrets, dan daftar isi pg_restore OK"
 
+storage_mode="disk"
+if [ -f "$work/storage-mode.txt" ]; then
+  IFS= read -r storage_mode < "$work/storage-mode.txt"
+fi
+case "$storage_mode" in
+  disk|s3) ;;
+  *) echo "Mode penyimpanan backup tidak dikenal: $storage_mode" >&2; exit 1 ;;
+esac
+if [ "$storage_mode" = "s3" ] && [ ! -d "$work/objects" ]; then
+  echo "Folder objek S3 hilang dari arsip." >&2
+  exit 1
+fi
+
 if [ "$ARCHIVE_ONLY" -eq 1 ]; then
   exit 0
 fi
@@ -89,6 +102,31 @@ psql "$admin_url" -v ON_ERROR_STOP=1 -c "CREATE DATABASE \"$temp_db\";" >/dev/nu
 restore_url="$(echo "$admin_url" | sed -E "s#(postgres(ql)?://[^/]+/)[^?]+#\1$temp_db#")"
 
 pg_restore --no-owner --no-acl --exit-on-error -d "$restore_url" "$work/db.dump"
+if [ "$storage_mode" = "s3" ]; then
+  # Cocokkan semua berkas yang masih dirujuk oleh snapshot database dengan isi arsip.
+  psql "$restore_url" -At -F $'\t' -v ON_ERROR_STOP=1 -c "
+    SELECT 'selfie', storage_key FROM face_captures WHERE selfie_deleted_at IS NULL
+    UNION ALL SELECT 'foto', photo_key FROM employees WHERE photo_key IS NOT NULL
+    UNION ALL SELECT 'lampiran', storage_key FROM announcement_attachments;
+  " > "$work/referenced-objects.txt"
+  object_count=0
+  while IFS=$'\t' read -r object_type object_key; do
+    # Kunci dibuat API; tolak path yang bisa keluar dari direktori arsip.
+    if [[ ! "$object_key" =~ ^[[:alnum:]_./-]+$ ]] ||
+       [[ "$object_key" == /* ]] || [[ "$object_key" == *//* ]] ||
+       [[ "$object_key" == .. ]] || [[ "$object_key" == ../* ]] ||
+       [[ "$object_key" == */../* ]] || [[ "$object_key" == */.. ]]; then
+      echo "Kunci $object_type tidak valid dalam database hasil restore." >&2
+      exit 1
+    fi
+    if [ ! -f "$work/objects/$object_key" ] && [ ! -f "$work/selfies/$object_key" ]; then
+      echo "Objek $object_type hilang dari backup S3 dan salinan disk: $object_key" >&2
+      exit 1
+    fi
+    object_count=$((object_count + 1))
+  done < "$work/referenced-objects.txt"
+  echo "==> $object_count berkas yang dirujuk database tersedia di S3 atau salinan disk dalam arsip"
+fi
 counts="$(psql "$restore_url" -At -v ON_ERROR_STOP=1 -c "
   SELECT 'schema_migrations=' || COALESCE((SELECT max(version)::text FROM schema_migrations), '0')
       || ' divisions=' || (SELECT count(*) FROM divisions)

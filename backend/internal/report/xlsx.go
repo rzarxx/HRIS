@@ -156,6 +156,12 @@ func (h *Handler) AttendanceExport(w http.ResponseWriter, r *http.Request) error
 	if err != nil {
 		return err
 	}
+	if h.generated != nil {
+		key := fmt.Sprintf("generated/reports/%s/%s.xlsx", time.Now().UTC().Format("2006/01/02"), uuid.New())
+		if err := h.generated.Put(r.Context(), key, xlsxBytes); err != nil {
+			return fmt.Errorf("simpan rekap presensi: %w", err)
+		}
+	}
 	filename := fmt.Sprintf("Rekap_Absen_Yayasan_%s_%d.xlsx", indonesianMonthsTitle[period.Month], period.Year)
 	w.Header().Set("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
 	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=%q", filename))

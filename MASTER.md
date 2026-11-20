@@ -181,7 +181,7 @@ Role `superadmin` (D34) adalah role tertinggi dan tidak ditulis sebagai kolom di
 - SDM tetap bisa menyetujui perangkat baru super admin, karena perangkat sendiri harus disetujui peninjau lain. Bila HP super admin hilang, super admin sendiri yang mencabutnya; SDM tidak bisa menggantikan.
 - MFA wajib. Role diberikan lewat `hris-superadmin grant --email ...` di server, pada akun Pejuang biasa; `--email` juga menerima NIPY atau nomor WA (D53). Bila akun lama belum pernah aktif, kata sandi awal tampil di terminal dan wajib diganti saat login pertama.
 - Penampil audit yang dibuat nanti wajib menyembunyikan nilai `employee.salary_changed` dari super admin.
-- `settings:manage` (pengaturan aplikasi: footer web dan aplikasi, SMTP) **hanya milik super admin**, tidak dimiliki SDM.
+- `settings:manage` (pengaturan aplikasi: footer web dan aplikasi, SMTP, penyimpanan S3) **hanya milik super admin**, tidak dimiliki SDM.
 
 | Permission key | pejuang | subdiv | kadiv | sdm |
 |---|---|---|---|---|
@@ -448,7 +448,7 @@ Semua HP Android didukung lewat jalur berjenjang. Jalur ditetapkan **server** da
 - Pendaftaran wajah wajib: perangkat `approved`, persetujuan (*consent*) biometrik, liveness, challenge, dan dianjurkan dilakukan di lokasi kantor. Reset hanya oleh SDM dan tercatat.
 - Pendaftaran di luar geofence hanya dengan izin satu kali per Pejuang dari peninjau `face:reset`, berlaku 24 jam dan dapat dicabut; pemberian, pencabutan, serta pemakaian dicatat di audit. Izin tidak menghapus syarat lokasi, perangkat, integritas, challenge, liveness, dan consent. Peninjau tidak boleh memberi izin kepada dirinya sendiri dan perlindungan akun super admin tetap berlaku.
 - Embedding dihitung server dari selfie dengan detektor YuNet dan pengenal SFace lewat ONNX Runtime (D43); HP tidak mengirim angka wajah.
-- Selfie disimpan terenkripsi AES-GCM di folder privat server (`SELFIE_DIR`), dicatat di `face_captures`, dan dihapus setelah masa retensi. Akses selfie absen review memakai permission `attendance:review` dan dicatat sebagai `face.capture_viewed`; signed URL dipakai bila nanti pindah ke bucket.
+- Selfie disimpan terenkripsi AES-GCM di penyimpanan privat (`SELFIE_DIR` untuk disk atau bucket S3 kompatibel SeaweedFS), dicatat di `face_captures`, dan dihapus setelah masa retensi. Akses selfie absen review memakai permission `attendance:review` dan dicatat sebagai `face.capture_viewed`; berkas tetap dikirim melalui API, tanpa URL bucket publik.
 
 ### 5.6 Klasifikasi & Retensi Data
 | Kelas | Contoh | Perlindungan | Retensi (usulan, konfirmasi legal/SDM) |
@@ -521,7 +521,7 @@ DDL dasar ada di `QUERY.sql`; perubahan di **Lampiran A** (yang berlaku). Beriku
 | `branches` | `id`, `code`, `name`, `created_at` | Cabang yayasan dengan struktur sendiri; baris awal `PUSAT` (D53, migrasi 000016) |
 | `divisions` | `id`, `branch_id`, `code`, `name`, `head_employee_id` | Kode unik per cabang |
 | `subdivisions` | `id`, `division_id`, `code`, `name`, `head_employee_id` | Kode unik per divisi |
-| `employees` | `id`, `nip`, `full_name`, `email`, `phone`, `gender`, `marital_status`, `has_children`, `children_count`, `subdivision_id`, `position`, `join_date`, `exit_date`, `base_salary`, `default_shift_id`, `status`, `photo_key`, `photo_updated_at`, `deleted_at` | Soft delete. `phone` = nomor WA bentuk `62…`, unik. `photo_key` menunjuk foto profil terenkripsi di `SELFIE_DIR/profile/` |
+| `employees` | `id`, `nip`, `full_name`, `email`, `phone`, `gender`, `marital_status`, `has_children`, `children_count`, `subdivision_id`, `position`, `join_date`, `exit_date`, `base_salary`, `default_shift_id`, `status`, `photo_key`, `photo_updated_at`, `deleted_at` | Soft delete. `phone` = nomor WA bentuk `62…`, unik. `photo_key` menunjuk foto profil terenkripsi pada kunci `profile/` di penyimpanan privat |
 | `employee_children` | `id`, `employee_id`, `child_order`, `full_name`, `gender`, `birth_place`, `birth_date`, `relation`, `education`, `school_name` | Unik `(employee_id, child_order)`; hanya untuk SDM, super admin, dan Pejuang sendiri (D53) |
 | `users` | `id`, `employee_id`, `email` (boleh kosong), `password_hash`, `role`, `is_active`, `failed_login_count`, `locked_until`, `must_change_password`, `initial_password_expires_at` | 1:1 employee. `initial_password_expires_at` terisi selama kata sandi awal belum diganti (D53) |
 | `user_mfa` | `user_id`, `secret_enc`, `enabled_at`, `recovery_hashes` | |
@@ -549,7 +549,7 @@ DDL dasar ada di `QUERY.sql`; perubahan di **Lampiran A** (yang berlaku). Beriku
 | `payrolls`, `payroll_items` | `base_salary`, `gross`, `deductions`, `net`; item: `kind`, `label`, `amount` | Unik `(period_id, employee_id)` |
 | `warnings` | `level`, `reason`, `issued_by`, `issued_at`, `acknowledged_at` | |
 | `announcements`, `announcement_reads` | `title`, `body`, `type`, `division_id`, `starts_at`, `ends_at`, `is_active`, `min_read_seconds`; `opened_at`, `read_at` | Timer baca, D27 |
-| `announcement_attachments` | `announcement_id`, `file_name`, `content_type`, `size_bytes`, `storage_key`, `created_by` | Lampiran PDF/JPEG/PNG, maks 5 per pengumuman; berkas terenkripsi di `SELFIE_DIR/announcements/` (D54) |
+| `announcement_attachments` | `announcement_id`, `file_name`, `content_type`, `size_bytes`, `storage_key`, `created_by` | Lampiran PDF/JPEG/PNG, maks 5 per pengumuman; berkas terenkripsi pada kunci `announcements/` di penyimpanan privat (D54) |
 | `notifications` | `employee_id`, `type`, `title`, `body`, `is_read`, `opened_at` | Timer baca, D27 |
 | `uploads` | `id`, `owner_employee_id`, `purpose`, `storage_key`, `mime`, `size_bytes`, `sha256` | |
 | `audit_logs` | `id`, `user_id`, `action`, `entity`, `entity_id`, `detail`, `ip`, `created_at` | Append-only |
@@ -669,7 +669,13 @@ Daftar memakai `?page=&per_page=&q=&sort=` (contoh `sort=-created_at`) dan filte
 | 429 | `RATE_LIMITED` | Terlalu banyak permintaan (`Retry-After`) |
 | 500 | `INTERNAL_ERROR` | Kesalahan server |
 | 503 | `FACE_SERVICE_UNAVAILABLE` | Mesin wajah server belum dipasang (`FACE_MODELS_DIR` kosong) |
-| 503 | `STORAGE_UNAVAILABLE` | Penyimpanan berkas privat server belum disiapkan (`SELFIE_DIR` kosong), mis. untuk foto profil |
+| 503 | `STORAGE_UNAVAILABLE` | Penyimpanan berkas privat belum disiapkan, mis. `SELFIE_DIR` kosong dalam mode disk |
+| 409 | `STORAGE_DESTINATION_LOCKED` | Endpoint atau bucket aktif tidak dapat diganti tanpa migrasi antar-bucket |
+| 422 | `STORAGE_TEST_FAILED` | Uji baca, tulis, atau hapus pada bucket S3 gagal; konfigurasi lama tetap dipakai |
+| 409 | `STORAGE_NOT_ACTIVE` | S3 belum diaktifkan sebelum sinkronisasi |
+| 409 | `STORAGE_SOURCE_MISSING` | Folder berkas lama belum tersedia untuk migrasi |
+| 409 | `STORAGE_SYNC_BUSY` | Sinkronisasi sedang berjalan pada proses lain |
+| 422 | `STORAGE_SYNC_FAILED` | Berkas lama gagal dibaca, disalin, atau diverifikasi; salinan disk tetap ada |
 | 422 | `FILE_UNSAFE` | Lampiran terdeteksi berbahaya atau tidak dapat dipindai lengkap; unggahan ditolak |
 | 503 | `FILE_SCAN_UNAVAILABLE` | Pemindai malware tidak tersedia atau gagal memberi hasil; unggahan ditolak |
 
@@ -754,6 +760,8 @@ Setiap `code` baru wajib ditambahkan di tabel ini.
 | GET, POST | `/v1/admin/employees/{id}/work-arrangements` | `employee:write` |
 | DELETE | `/v1/admin/employees/{id}/work-arrangements/{arrangement_id}` | `employee:write` |
 | GET | `/v1/branding` | Tanpa login. Footer jadi (`{tahun}` diganti tahun berjalan WIB) untuk layar masuk, web, dan aplikasi |
+| GET, PUT | `/v1/admin/settings/storage` | `settings:manage`. Uji bucket dan tulis/baca/hapus sebelum aktivasi S3; secret key terenkripsi dan tulis-saja |
+| POST | `/v1/admin/settings/storage/sync` | `settings:manage`. Salin dan verifikasi batch berkas disk lama ke S3; kursor tersimpan, disk tidak dihapus |
 | GET, PUT | `/v1/admin/settings/footer` | `settings:manage`. Teks bawaan: `© {tahun} PUTI (Pusat Teknologi Informasi) Al Bahjah` |
 | GET, PUT | `/v1/admin/settings/mail` | `settings:manage` |
 | POST | `/v1/admin/settings/mail/test` | `settings:manage` |
@@ -1915,7 +1923,7 @@ Query rekap dan dashboard di `QUERY.sql` tetap berlaku, dengan pengecualian:
 | `PLAY_INTEGRITY_PACKAGE_NAME`, `PLAY_INTEGRITY_CREDENTIALS_PATH` | |
 | `FCM_CREDENTIALS_PATH` | |
 | `PUBLIC_WEB_URL` | Alamat dasar tautan di email (D30) |
-| `STORAGE_ENDPOINT`, `STORAGE_BUCKET`, `STORAGE_ACCESS_KEY`, `STORAGE_SECRET_KEY` | Object storage privat |
+| `STORAGE_DRIVER`, `STORAGE_ENDPOINT`, `STORAGE_BUCKET`, `STORAGE_REGION`, `STORAGE_ACCESS_KEY`, `STORAGE_SECRET_KEY` | `disk` (bawaan) atau bucket S3 privat melalui gateway SeaweedFS; konfigurasi S3 wajib lengkap bila driver `s3`. Konfigurasi S3 dari panel Super Admin tersimpan terenkripsi di `app_settings` dan dipakai lebih dahulu pada operasi berkas berikutnya |
 | `FACE_THRESHOLD_PASS`, `FACE_THRESHOLD_REVIEW` | Ambang wajah |
 | `RISK_REVIEW_MIN`, `RISK_REJECT_MIN` | Ambang risiko |
 | `CHALLENGE_TTL_SECONDS` | Default 90 |

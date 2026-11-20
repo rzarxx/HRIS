@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"net/url"
 	"os"
 	"strconv"
 	"strings"
@@ -50,6 +51,12 @@ type Config struct {
 	OnnxRuntimeLib             string
 	SelfieDir                  string
 	ClamAVAddress              string
+	StorageDriver              string
+	StorageEndpoint            string
+	StorageBucket              string
+	StorageRegion              string
+	StorageAccessKey           string
+	StorageSecretKey           string
 	PlayIntegrityPackage       string
 	PlayIntegrityCredentials   string
 	KeyAttestationRootCAPath   string
@@ -123,6 +130,12 @@ func Load() (Config, error) {
 		OnnxRuntimeLib:             os.Getenv("ONNXRUNTIME_LIB"),
 		SelfieDir:                  os.Getenv("SELFIE_DIR"),
 		ClamAVAddress:              strings.TrimSpace(os.Getenv("CLAMAV_ADDRESS")),
+		StorageDriver:              env("STORAGE_DRIVER", "disk"),
+		StorageEndpoint:            strings.TrimRight(strings.TrimSpace(os.Getenv("STORAGE_ENDPOINT")), "/"),
+		StorageBucket:              strings.TrimSpace(os.Getenv("STORAGE_BUCKET")),
+		StorageRegion:              env("STORAGE_REGION", "us-east-1"),
+		StorageAccessKey:           os.Getenv("STORAGE_ACCESS_KEY"),
+		StorageSecretKey:           os.Getenv("STORAGE_SECRET_KEY"),
 		PlayIntegrityPackage:       playPkg,
 		PlayIntegrityCredentials:   playCreds,
 		KeyAttestationRootCAPath:   os.Getenv("KEY_ATTESTATION_ROOT_CA_PATH"),
@@ -197,8 +210,22 @@ func Load() (Config, error) {
 	if cfg.FieldEncryptionKeyPath == "" {
 		return cfg, errors.New("FIELD_ENCRYPTION_KEY_PATH wajib diisi")
 	}
-	if cfg.FaceModelsDir != "" && (cfg.SelfieDir == "" || cfg.OnnxRuntimeLib == "") {
-		return cfg, errors.New("SELFIE_DIR dan ONNXRUNTIME_LIB wajib diisi bila FACE_MODELS_DIR diisi")
+	if cfg.StorageDriver != "disk" && cfg.StorageDriver != "s3" {
+		return cfg, errors.New("STORAGE_DRIVER harus disk atau s3")
+	}
+	if cfg.StorageDriver == "s3" {
+		u, err := url.Parse(cfg.StorageEndpoint)
+		if err != nil || u.Host == "" || u.User != nil || u.RawQuery != "" || u.Fragment != "" ||
+			(u.Scheme != "https" && !(u.Scheme == "http" && (u.Hostname() == "127.0.0.1" || u.Hostname() == "localhost" || u.Hostname() == "::1"))) ||
+			(u.Path != "" && u.Path != "/") {
+			return cfg, errors.New("STORAGE_ENDPOINT harus URL HTTPS atau HTTP loopback tanpa path")
+		}
+		if cfg.StorageBucket == "" || cfg.StorageRegion == "" || cfg.StorageAccessKey == "" || cfg.StorageSecretKey == "" {
+			return cfg, errors.New("STORAGE_BUCKET, STORAGE_REGION, STORAGE_ACCESS_KEY, dan STORAGE_SECRET_KEY wajib untuk S3")
+		}
+	}
+	if cfg.FaceModelsDir != "" && ((cfg.StorageDriver == "disk" && cfg.SelfieDir == "") || cfg.OnnxRuntimeLib == "") {
+		return cfg, errors.New("penyimpanan privat dan ONNXRUNTIME_LIB wajib diisi bila FACE_MODELS_DIR diisi")
 	}
 	if (cfg.PlayIntegrityPackage == "") != (cfg.PlayIntegrityCredentials == "") {
 		return cfg, errors.New("PLAY_INTEGRITY_PACKAGE dan PLAY_INTEGRITY_CREDENTIALS harus diisi bersama")

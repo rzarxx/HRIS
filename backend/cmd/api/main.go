@@ -28,11 +28,13 @@ import (
 	"github.com/rzarxx/HRIS/backend/internal/platform/database"
 	"github.com/rzarxx/HRIS/backend/internal/platform/fieldcrypt"
 	"github.com/rzarxx/HRIS/backend/internal/platform/filescan"
+	"github.com/rzarxx/HRIS/backend/internal/platform/filestore"
 	"github.com/rzarxx/HRIS/backend/internal/platform/integrity"
 	"github.com/rzarxx/HRIS/backend/internal/report"
 	"github.com/rzarxx/HRIS/backend/internal/server"
 	"github.com/rzarxx/HRIS/backend/internal/settings"
 	"github.com/rzarxx/HRIS/backend/internal/shift"
+	"github.com/rzarxx/HRIS/backend/internal/storageadmin"
 	"github.com/rzarxx/HRIS/backend/internal/store"
 )
 
@@ -113,15 +115,37 @@ func run() error {
 			Roots:             roots,
 		}
 	}
-	var privateFiles *attendance.DiskStore
+	var diskFiles filestore.Store
 	if cfg.SelfieDir != "" {
-		selfies, err := attendance.NewDiskStore(cfg.SelfieDir, fieldCipher)
+		diskFiles, err = attendance.NewDiskStore(cfg.SelfieDir, fieldCipher)
 		if err != nil {
 			return err
 		}
-		attendanceOpt.Selfies = selfies
-		privateFiles = selfies
 	}
+	var privateFiles filestore.Store
+	var s3Files *filestore.S3Store
+	var initialS3 filestore.S3Config
+	if cfg.StorageDriver == "s3" {
+		initialS3 = filestore.S3Config{
+			Endpoint: cfg.StorageEndpoint, Bucket: cfg.StorageBucket, Region: cfg.StorageRegion,
+			AccessKey: cfg.StorageAccessKey, SecretKey: cfg.StorageSecretKey,
+		}
+		s3Files, err = filestore.NewS3Store(initialS3, fieldCipher)
+		if err != nil {
+			return err
+		}
+		privateFiles = s3Files
+	} else {
+		privateFiles = diskFiles
+	}
+	managedFiles := filestore.NewManagedStore(privateFiles, diskFiles, s3Files)
+	storageSvc := storageadmin.NewService(pool, fieldCipher, managedFiles, diskFiles, cfg.SelfieDir, initialS3)
+	if err := storageSvc.Refresh(ctx); err != nil {
+		return err
+	}
+	managedFiles.SetRefresh(storageSvc.Refresh)
+	attendanceOpt.Selfies = managedFiles
+	privateFiles = managedFiles
 	if cfg.FaceModelsDir != "" {
 		engine, err := face.NewSFace(cfg.FaceModelsDir, cfg.OnnxRuntimeLib)
 		if err != nil {
@@ -155,20 +179,32 @@ func run() error {
 		slog.Warn("CLAMAV_ADDRESS kosong: unggahan lampiran pengumuman ditolak")
 	}
 	if privateFiles != nil {
-		// Lampiran pengumuman memakai folder terenkripsi yang sama, dengan awalan kunci announcements/.
+		// Berkas privat memakai penyimpanan terenkripsi yang sama, dengan awalan kunci terpisah.
 		announcementSvc.WithFiles(privateFiles)
-		// Foto profil memakai folder terenkripsi yang sama dengan selfie, dengan awalan kunci profile/.
 		employeeSvc.WithPhotos(privateFiles)
+	}
+	employeeHandler := employee.NewHandler(employeeSvc)
+	reportHandler := report.NewHandler(report.NewService(q, authSvc.ResolveScope))
+	employeeHandler.WithGeneratedFiles(managedFiles.Generated())
+	reportHandler.WithGeneratedFiles(managedFiles.Generated())
+	ready := func(ctx context.Context) error {
+		if err := pool.Ping(ctx); err != nil {
+			return err
+		}
+		checkCtx, cancel := context.WithTimeout(ctx, 3*time.Second)
+		defer cancel()
+		return managedFiles.Check(checkCtx)
 	}
 
 	handler := server.New(server.Deps{
 		Auth:         auth.NewHandler(authSvc, secure, cfg.CookieDomain, limiter),
 		Org:          org.NewHandler(org.NewService(pool)),
-		Employee:     employee.NewHandler(employeeSvc).WithMe(authSvc.Me),
+		Employee:     employeeHandler.WithMe(authSvc.Me),
 		Announcement: announcement.NewHandler(announcementSvc),
 		Settings:     settings.NewHandler(settings.NewService(pool)),
+		Storage:      storageadmin.NewHandler(storageSvc),
 		Dashboard:    dashboard.NewHandler(q),
-		Report:       report.NewHandler(report.NewService(q, authSvc.ResolveScope)),
+		Report:       reportHandler,
 		Location:     location.NewHandler(location.NewService(pool)),
 		Device:       device.NewHandler(device.NewService(pool)),
 		Attendance:   attendance.NewHandler(attendance.NewService(pool, attendanceOpt)),
@@ -178,7 +214,7 @@ func run() error {
 		Signer:       signer,
 		SessionCheck: authSvc.SessionState,
 		Limiter:      limiter,
-		Ready:        pool.Ping,
+		Ready:        ready,
 		Options:      server.Options{AllowedOrigins: cfg.CORSAllowedOrigins, Secure: secure, TrustProxy: cfg.TrustProxy},
 	})
 

@@ -170,12 +170,13 @@ func (d *DiskStore) Get(_ context.Context, key string) ([]byte, error) {
 		return nil, err
 	}
 	defer f.Close()
-	enc, err := io.ReadAll(io.LimitReader(f, MaxSelfieBytes+1025))
+	// Toko ini juga dipakai foto pegawai dan lampiran hingga 5 MB.
+	enc, err := io.ReadAll(io.LimitReader(f, (64<<20)+1))
 	if err != nil {
 		return nil, err
 	}
-	if len(enc) > MaxSelfieBytes+1024 {
-		return nil, errors.New("berkas selfie terlalu besar")
+	if len(enc) > 64<<20 {
+		return nil, errors.New("berkas privat terlalu besar")
 	}
 	return d.cipher.Decrypt(enc)
 }

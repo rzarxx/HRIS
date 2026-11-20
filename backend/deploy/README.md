@@ -162,8 +162,8 @@ Saat server siap digunakan untuk data Pejuang asli (HTTPS aktif di `hris.albahja
 ## Backup Terenkripsi & Verifikasi Restore Otomatis
 
 `setup-production.sh` dan `deploy.sh` memasang dua timer systemd:
-- `hris-backup.timer` (`01:30` setiap hari): menjalankan `backup.sh` untuk mencadangkan PostgreSQL (`pg_dump --format=custom`), `.env`, `deploy.env`, `.secrets`, dan `selfies/`, lalu mengenkripsinya dengan AES-256-CBC PBKDF2 (`/etc/hris/backup.pass`) ke `/var/backups/hris/`. Bila `OFFSITE_DEST` diisi di `/opt/hris/deploy.env` (mis. `rclone://gdrive:hris-backup` atau `user@host:/path`), arsip terenkripsi ikut dikirim ke lokasi terpisah.
-- `hris-restore-verify.timer` (Ahad `03:10` setiap minggu): menjalankan `restore-verify.sh` untuk mendekripsi cadangan terbaru, memeriksa checksum `manifest.sha256` dan kunci, serta menguji `pg_restore` ke database sementara `hris_restore_verify_*`.
+- `hris-backup.timer` (`01:30` setiap hari): menjalankan `backup.sh` untuk mencadangkan PostgreSQL (`pg_dump --format=custom`), `.env`, `deploy.env`, `.secrets`, dan berkas privat dari `selfies/` atau bucket S3, lalu mengenkripsinya dengan AES-256-CBC PBKDF2 (`/etc/hris/backup.pass`) ke direktori `BACKUP_DIR` (bawaan `/opt/hris/backups`). Bila `BACKUP_REMOTE_DEST` diisi di `/opt/hris/deploy.env` (mis. `rclone://gdrive:hris-backup` atau `user@host:/path`), arsip terenkripsi ikut dikirim ke lokasi terpisah. Mode S3 juga memerlukan `STORAGE_BACKUP_REMOTE` sebagai sumber bucket rclone.
+- `hris-restore-verify.timer` (Ahad `03:10` setiap minggu): menjalankan `restore-verify.sh` untuk mendekripsi cadangan terbaru, memeriksa checksum `manifest.sha256` dan kunci, serta menguji `pg_restore` ke database sementara `hris_restore_verify_*`. Dalam mode S3, skrip juga memeriksa bahwa seluruh objek yang masih dirujuk database ada di arsip.
 
 Menjalankan backup dan verifikasi restore secara manual:
 ```bash
@@ -215,13 +215,14 @@ jalan, tetapi daftar wajah dan absen yang membawa selfie dijawab `FACE_SERVICE_U
 
 Template wajah dari model lain (dlib, D42) dianggap belum terdaftar, jadi Pejuang mendaftar ulang.
 
-Selfie disimpan terenkripsi dengan kunci `FIELD_ENCRYPTION_KEY_PATH`. Folder selfie ikut dicadangkan
-bersama kunci itu; tanpa kunci, selfie tidak bisa dibuka.
+Selfie disimpan terenkripsi dengan kunci `FIELD_ENCRYPTION_KEY_PATH`. Dalam mode disk folder selfie
+ikut dicadangkan; dalam mode S3 objek bucket ikut dicadangkan melalui `STORAGE_BACKUP_REMOTE`.
+Tanpa kunci itu, berkas tidak bisa dibuka. Lihat [panduan SeaweedFS](seaweedfs-storage.md).
 
 Selfie dihapus setelah 90 hari oleh `hris-purge-selfies.timer`, yang dipasang dan diaktifkan
 `deploy.sh` (setiap hari pukul 02.17 waktu server, ditambah jeda acak sampai 10 menit; yang
 terlewat saat server mati dijalankan begitu menyala). Hash selfie tetap disimpan untuk menolak foto
-yang dikirim ulang. Service-nya dilewati bila `/opt/hris/selfies` belum ada. Periksa jadwal dan hasil
+yang dikirim ulang. Dalam mode S3, objek hasil generate dihapus setelah 7 hari. Periksa jadwal dan hasil
 terakhir:
 
 ```bash

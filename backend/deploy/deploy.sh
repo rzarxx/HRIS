@@ -101,7 +101,7 @@ curl -fsS -o /dev/null http://127.0.0.1:8080/readyz || {
 
 echo "==> Jadwal hapus selfie lama"
 # Timer harian purge-selfies (retensi 90 hari, MASTER.md §5.6). Dipasang ulang setiap deploy agar
-# ikut berubah bersama repo; service-nya sendiri dilewati bila /opt/hris/selfies belum ada.
+# ikut berubah bersama repo; perintah memakai disk atau S3 sesuai STORAGE_DRIVER.
 install -m 644 "$SRC_DIR/backend/deploy/hris-purge-selfies.service" /etc/systemd/system/hris-purge-selfies.service
 install -m 644 "$SRC_DIR/backend/deploy/hris-purge-selfies.timer" /etc/systemd/system/hris-purge-selfies.timer
 systemctl daemon-reload

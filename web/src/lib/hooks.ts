@@ -8,6 +8,7 @@ import type {
   AnnouncementListItem,
   AnnouncementReader,
   Branding,
+  StorageSettings,
   ApprovalFlow,
   ApprovalItem,
   AttendanceAttempt,
@@ -180,6 +181,12 @@ export const useBranding = () =>
     queryFn: () => api.get<ItemResponse<Branding>>("/branding").then((r) => r.data),
     staleTime: 60 * 60 * 1000,
     retry: 1,
+  });
+
+export const useStorageSettings = () =>
+  useQuery({
+    queryKey: ["settings", "storage"],
+    queryFn: () => api.get<ItemResponse<StorageSettings>>("/admin/settings/storage").then((r) => r.data),
   });
 
 /** Status baca tiap Pejuang sasaran satu pengumuman; dimuat saat dialog rekap dibuka. */

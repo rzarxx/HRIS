@@ -6,6 +6,7 @@ import { Suspense } from "react";
 import { FooterCard } from "@/components/settings/footer-card";
 import { MfaCard } from "@/components/settings/mfa-card";
 import { PasswordCard } from "@/components/settings/password-card";
+import { StorageCard } from "@/components/settings/storage-card";
 import { ProfileCard } from "@/components/settings/profile-card";
 import { SessionsCard } from "@/components/settings/sessions-card";
 import { Loading, PageHeader } from "@/components/ui/layout";
@@ -37,6 +38,7 @@ function SettingsView() {
         <div className="flex flex-col gap-4">
           <PasswordCard />
           <SessionsCard />
+          {me?.permissions.includes("settings:manage") && <StorageCard />}
           {me?.permissions.includes("settings:manage") && <FooterCard />}
         </div>
       </div>

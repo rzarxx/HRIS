@@ -25,7 +25,7 @@ type Service struct {
 	pool *pgxpool.Pool
 	q    *store.Queries
 	now  func() time.Time
-	// files menyimpan lampiran terenkripsi; nil bila SELFIE_DIR belum diisi.
+	// files menyimpan lampiran terenkripsi; nil bila penyimpanan privat belum diisi.
 	files      FileStore
 	scanner    filescan.Scanner
 	processing chan struct{}

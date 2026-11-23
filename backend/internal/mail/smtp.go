@@ -62,6 +62,16 @@ const sendTimeout = 20 * time.Second
 
 var hostPattern = regexp.MustCompile(`^[A-Za-z0-9]([A-Za-z0-9-]{0,61}[A-Za-z0-9])?(\.[A-Za-z0-9]([A-Za-z0-9-]{0,61}[A-Za-z0-9])?)+$`)
 
+// senderPattern membatasi email pengirim ke alamat biasa: tanpa local-part berkutip, komentar,
+// domain literal, atau karakter yang punya arti khusus di header email. Alamat ini masuk ke header
+// From dan Message-ID.
+var senderPattern = regexp.MustCompile(`^[A-Za-z0-9._%+-]{1,64}@[A-Za-z0-9]([A-Za-z0-9-]{0,61}[A-Za-z0-9])?(\.[A-Za-z0-9]([A-Za-z0-9-]{0,61}[A-Za-z0-9])?)+$`)
+
+// ValidSender menjawab apakah alamat aman dipakai sebagai email pengirim.
+func ValidSender(addr string) bool {
+	return len(addr) <= 254 && senderPattern.MatchString(addr)
+}
+
 // ErrHostNotAllowed berarti host SMTP mengarah ke alamat internal server.
 var ErrHostNotAllowed = errors.New("alamat SMTP tidak diizinkan")
 
@@ -212,6 +222,9 @@ func (s *Sender) build(cfg Config, msg Message) ([]byte, error) {
 		if err := checkHeader(v); err != nil {
 			return nil, err
 		}
+	}
+	if !ValidSender(cfg.FromEmail) {
+		return nil, errors.New("email pengirim tidak valid")
 	}
 	from := (&mail.Address{Name: cfg.FromName, Address: cfg.FromEmail}).String()
 	id := make([]byte, 16)

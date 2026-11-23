@@ -16,6 +16,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -34,6 +35,7 @@ import (
 	"github.com/rzarxx/HRIS/backend/internal/employee"
 	"github.com/rzarxx/HRIS/backend/internal/leave"
 	"github.com/rzarxx/HRIS/backend/internal/location"
+	"github.com/rzarxx/HRIS/backend/internal/mail"
 	"github.com/rzarxx/HRIS/backend/internal/org"
 	"github.com/rzarxx/HRIS/backend/internal/platform/database"
 	"github.com/rzarxx/HRIS/backend/internal/platform/fieldcrypt"
@@ -149,6 +151,47 @@ type options struct {
 	}
 	// noFaceEngine mematikan mesin wajah, seperti server tanpa FACE_MODELS_DIR.
 	noFaceEngine bool
+	// mailbox menangkap email yang dikirim lewat SMTP tiruan; nil berarti pengiriman tidak dipakai.
+	mailbox *mailbox
+}
+
+// mailbox adalah SMTP tiruan: menyimpan email terkirim, atau gagal bila fail diisi.
+type mailbox struct {
+	mu   sync.Mutex
+	sent []mail.Message
+	fail error
+}
+
+func (m *mailbox) send(_ context.Context, _ mail.Config, msg mail.Message) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.fail != nil {
+		return m.fail
+	}
+	m.sent = append(m.sent, msg)
+	return nil
+}
+
+// wait menunggu sampai ada n email (pengiriman berjalan di latar belakang).
+func (m *mailbox) wait(t *testing.T, n int) []mail.Message {
+	t.Helper()
+	for i := 0; i < 100; i++ {
+		m.mu.Lock()
+		got := append([]mail.Message(nil), m.sent...)
+		m.mu.Unlock()
+		if len(got) >= n {
+			return got
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+	t.Fatalf("email yang terkirim kurang dari %d", n)
+	return nil
+}
+
+func (m *mailbox) count() int {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return len(m.sent)
 }
 
 // fresh mengisi ulang data dummy dan menyalakan API baru.
@@ -202,6 +245,11 @@ func fresh(t *testing.T, opt options) *httptest.Server {
 		announcementFiles = selfies
 	}
 	authSvc.SetDeviceBinder(device.BindForLogin)
+	mailSvc := mail.NewService(appPool, cipher)
+	if opt.mailbox != nil {
+		mailSvc.WithTransport(opt.mailbox.send)
+		authSvc.SetMailer(mailSvc, "https://admin.test")
+	}
 	q := store.New(appPool)
 	approvalSvc := approval.NewService(appPool)
 	leaveSvc := leave.NewService(appPool, authSvc.ResolveScope)
@@ -233,6 +281,7 @@ func fresh(t *testing.T, opt options) *httptest.Server {
 		Employee:     employee.NewHandler(employeeSvc).WithMe(authSvc.Me),
 		Announcement: announcement.NewHandler(announcementSvc),
 		Settings:     settings.NewHandler(settingsSvc),
+		Mail:         mail.NewHandler(mailSvc),
 		Dashboard:    dashboard.NewHandler(q),
 		Report:       report.NewHandler(report.NewService(q, authSvc.ResolveScope)),
 		Location:     location.NewHandler(location.NewService(appPool)),

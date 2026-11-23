@@ -238,16 +238,18 @@ func (s *Service) Save(ctx context.Context, entry audit.Entry, in Input) (View, 
 		defer cancel()
 		_, _ = conn.Exec(unlockCtx, "SELECT pg_advisory_unlock(78342160)")
 	}()
+	// s.mu tidak ditahan selama uji koneksi (bisa 15 detik) karena Refresh memakainya di setiap
+	// operasi berkas; advisory lock di atas sudah mencegah dua Save berjalan bersamaan.
 	s.mu.Lock()
+	current := s.identity
+	s.mu.Unlock()
 	old, had, err := s.load(ctx)
 	if err != nil {
-		s.mu.Unlock()
 		return View{}, err
 	}
 	identity := in.Endpoint + "\x00" + in.Bucket
-	if s.identity != "" && s.identity != identity || had && (old.Endpoint != in.Endpoint || old.Bucket != in.Bucket) {
-		s.mu.Unlock()
-		return View{}, httpx.NewError(http.StatusConflict, "STORAGE_DESTINATION_LOCKED", "Tujuan S3 yang aktif tidak dapat diganti selama data tersimpan. Rotasi kredensial pada tujuan yang sama diperbolehkan.")
+	if current != "" && current != identity || had && (old.Endpoint != in.Endpoint || old.Bucket != in.Bucket) {
+		return View{}, errDestinationLocked()
 	}
 	secretEnc := old.SecretEnc
 	secret := in.SecretKey
@@ -262,18 +264,15 @@ func (s *Service) Save(ctx context.Context, entry audit.Entry, in Input) (View, 
 			secret = string(plain)
 		}
 		if err != nil {
-			s.mu.Unlock()
 			return View{}, err
 		}
 	}
 	if secret == "" {
-		s.mu.Unlock()
 		return View{}, httpx.Validation(map[string]string{"secret_key": "Secret key wajib diisi."})
 	}
 	if !had || in.SecretKey != "" {
 		enc, err := s.cipher.Encrypt([]byte(secret))
 		if err != nil {
-			s.mu.Unlock()
 			return View{}, err
 		}
 		secretEnc = base64.StdEncoding.EncodeToString(enc)
@@ -281,20 +280,25 @@ func (s *Service) Save(ctx context.Context, entry audit.Entry, in Input) (View, 
 	st := stored{Endpoint: in.Endpoint, Bucket: in.Bucket, Region: in.Region, AccessKey: in.AccessKey, SecretEnc: secretEnc}
 	client, err := filestore.NewS3Store(filestore.S3Config{Endpoint: in.Endpoint, Bucket: in.Bucket, Region: in.Region, AccessKey: in.AccessKey, SecretKey: secret}, s.cipher)
 	if err != nil {
-		s.mu.Unlock()
 		return View{}, err
 	}
 	probeCtx, cancel := context.WithTimeout(ctx, 15*time.Second)
 	err = client.Probe(probeCtx)
 	cancel()
 	if err != nil {
-		s.mu.Unlock()
+		// Galat SDK tidak memuat secret key; dicatat agar operator bisa mendiagnosis.
+		slog.WarnContext(ctx, "uji S3 gagal", "endpoint", in.Endpoint, "bucket", in.Bucket, "error", err)
 		return View{}, httpx.NewError(http.StatusUnprocessableEntity, "STORAGE_TEST_FAILED", "Koneksi atau izin baca/tulis/hapus pada bucket S3 gagal. Periksa endpoint, bucket, region, dan kredensial.")
 	}
 	value, err := json.Marshal(st)
 	if err != nil {
-		s.mu.Unlock()
 		return View{}, err
+	}
+	s.mu.Lock()
+	// Proses lain bisa saja sudah memuat tujuan berbeda selama uji berlangsung.
+	if s.identity != "" && s.identity != identity {
+		s.mu.Unlock()
+		return View{}, errDestinationLocked()
 	}
 	err = database.InTx(ctx, s.pool, func(q *store.Queries) error {
 		if err := q.UpsertAppSetting(ctx, store.UpsertAppSettingParams{Key: settingKey, Value: string(value), UpdatedBy: entry.UserID}); err != nil {
@@ -315,6 +319,10 @@ func (s *Service) Save(ctx context.Context, entry audit.Entry, in Input) (View, 
 		return View{}, err
 	}
 	return s.Settings(ctx)
+}
+
+func errDestinationLocked() error {
+	return httpx.NewError(http.StatusConflict, "STORAGE_DESTINATION_LOCKED", "Tujuan S3 yang aktif tidak dapat diganti selama data tersimpan. Rotasi kredensial pada tujuan yang sama diperbolehkan.")
 }
 
 // SyncBatch copies at most twenty encrypted disk objects. Each object is read

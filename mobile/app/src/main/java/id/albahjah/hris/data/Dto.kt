@@ -206,6 +206,18 @@ data class PasswordChangeRequest(
     @SerialName("new_password") val newPassword: String,
 )
 
+// schema: PasswordForgotRequest
+@Serializable
+data class PasswordForgotRequest(
+    @SerialName("identifier") val identifier: String,
+)
+
+// schema: PasswordForgotResult
+@Serializable
+data class PasswordForgotResult(
+    @SerialName("message") val message: String,
+)
+
 // schema: ConsentInput
 @Serializable
 data class ConsentInput(

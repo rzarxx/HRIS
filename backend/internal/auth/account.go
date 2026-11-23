@@ -105,7 +105,7 @@ func (s *Service) ChangePassword(ctx context.Context, p Principal, current, next
 	if err != nil {
 		return err
 	}
-	return database.InTx(ctx, s.pool, func(q *store.Queries) error {
+	err = database.InTx(ctx, s.pool, func(q *store.Queries) error {
 		if err := q.SetUserPassword(ctx, store.SetUserPasswordParams{ID: p.UserID, PasswordHash: hash}); err != nil {
 			return err
 		}
@@ -118,6 +118,14 @@ func (s *Service) ChangePassword(ctx context.Context, p Principal, current, next
 			UserID: audit.Actor(p.UserID), Action: audit.AuthPasswordChanged, Entity: "user", EntityID: p.UserID, IP: ip,
 		})
 	})
+	if err != nil {
+		return err
+	}
+	// Kata sandi awal yang diganti saat login pertama bukan perubahan yang perlu diwaspadai.
+	if !user.MustChangePassword {
+		s.notifySecurity(ctx, p.UserID, "password_changed", "Kata sandi diganti")
+	}
+	return nil
 }
 
 // SessionView adalah sesi aktif untuk ditampilkan ke pemiliknya.

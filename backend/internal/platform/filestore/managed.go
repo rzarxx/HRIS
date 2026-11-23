@@ -21,26 +21,6 @@ type ManagedStore struct {
 	refresh func(context.Context) error
 }
 
-type generatedStore struct{ owner *ManagedStore }
-
-func (g generatedStore) Put(ctx context.Context, key string, data []byte) error {
-	if err := g.owner.refreshNow(ctx); err != nil {
-		return err
-	}
-	g.owner.mu.RLock()
-	defer g.owner.mu.RUnlock()
-	if g.owner.s3 == nil {
-		return nil
-	} // disk mode historically streams generated files only
-	return g.owner.s3.Put(ctx, key, data)
-}
-
-func (m *ManagedStore) Generated() interface {
-	Put(context.Context, string, []byte) error
-} {
-	return generatedStore{owner: m}
-}
-
 func NewManagedStore(primary, disk Store, s3 *S3Store) *ManagedStore {
 	return &ManagedStore{primary: primary, disk: disk, s3: s3}
 }

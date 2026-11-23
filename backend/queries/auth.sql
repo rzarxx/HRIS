@@ -174,3 +174,16 @@ SELECT EXISTS (SELECT 1 FROM face_templates WHERE employee_id = $1 AND is_active
 
 -- name: HasSDMUser :one
 SELECT EXISTS (SELECT 1 FROM users WHERE role = 'sdm');
+
+-- Tautan baru membatalkan tautan reset lama milik akun yang sama.
+-- name: InvalidatePasswordResetTokens :exec
+UPDATE password_reset_tokens SET used_at = @now WHERE user_id = @user_id AND used_at IS NULL;
+
+-- name: CreatePasswordResetToken :exec
+INSERT INTO password_reset_tokens (user_id, token_hash, expires_at) VALUES (@user_id, @token_hash, @expires_at);
+
+-- Pemakaian atomik: hanya satu permintaan yang bisa memakai satu tautan.
+-- name: ConsumePasswordResetToken :one
+UPDATE password_reset_tokens SET used_at = @now
+WHERE token_hash = @token_hash AND used_at IS NULL AND expires_at > @now
+RETURNING user_id;

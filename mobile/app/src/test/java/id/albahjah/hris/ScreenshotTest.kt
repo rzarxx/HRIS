@@ -63,6 +63,7 @@ import id.albahjah.hris.ui.FamilyForm
 import id.albahjah.hris.ui.PersonalDataContent
 import id.albahjah.hris.ui.HomeContent
 import id.albahjah.hris.ui.HrisTheme
+import id.albahjah.hris.ui.ForgotPasswordContent
 import id.albahjah.hris.ui.LoginContent
 import id.albahjah.hris.ui.LoginForm
 import id.albahjah.hris.ui.PermissionContent
@@ -213,6 +214,22 @@ class ScreenshotTest {
             version = "0.4.0",
             crash = "2026-11-09 07:40:00 WIB · v0.2.0\njava.lang.IllegalStateException: contoh",
             onCopyCrash = {}, onDismissCrash = {}, onServer = {}, onIdentifier = {}, onPassword = {}, onMfa = {}, onSubmit = {}, footer = footer,
+        )
+    }
+
+    @Test
+    fun forgotPassword() = shot {
+        ForgotPasswordContent(identifier = "2024.07.0153", busy = false, error = null, sent = null, onIdentifier = {}, onBack = {}, onSubmit = {})
+    }
+
+    @Test
+    fun forgotPasswordSent() = shot {
+        ForgotPasswordContent(
+            identifier = "2024.07.0153",
+            busy = false,
+            error = null,
+            sent = "Bila akun terdaftar dan memiliki email, tautan untuk membuat kata sandi baru sudah dikirim.",
+            onIdentifier = {}, onBack = {}, onSubmit = {},
         )
     }
 

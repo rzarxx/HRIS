@@ -222,8 +222,7 @@ Tanpa kunci itu, berkas tidak bisa dibuka. Lihat [panduan SeaweedFS](seaweedfs-s
 Selfie dihapus setelah 90 hari oleh `hris-purge-selfies.timer`, yang dipasang dan diaktifkan
 `deploy.sh` (setiap hari pukul 02.17 waktu server, ditambah jeda acak sampai 10 menit; yang
 terlewat saat server mati dijalankan begitu menyala). Hash selfie tetap disimpan untuk menolak foto
-yang dikirim ulang. Dalam mode S3, objek hasil generate dihapus setelah 7 hari. Periksa jadwal dan hasil
-terakhir:
+yang dikirim ulang. Periksa jadwal dan hasil terakhir:
 
 ```bash
 systemctl list-timers hris-purge-selfies.timer

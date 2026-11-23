@@ -14,6 +14,7 @@ import (
 	"github.com/rzarxx/HRIS/backend/internal/audit"
 	"github.com/rzarxx/HRIS/backend/internal/auth"
 	"github.com/rzarxx/HRIS/backend/internal/platform/database"
+	"github.com/rzarxx/HRIS/backend/internal/platform/filestore"
 	"github.com/rzarxx/HRIS/backend/internal/platform/httpx"
 	"github.com/rzarxx/HRIS/backend/internal/platform/pgconv"
 	"github.com/rzarxx/HRIS/backend/internal/store"
@@ -36,7 +37,7 @@ func (s *Service) reviewSelfie(ctx context.Context, p auth.Principal, ip *netip.
 			return err
 		}
 		photo, err = s.opt.Selfies.Get(ctx, capture.StorageKey)
-		if errors.Is(err, os.ErrNotExist) {
+		if errors.Is(err, os.ErrNotExist) || filestore.IsMissing(err) {
 			return httpx.ErrNotFound()
 		}
 		if err != nil {

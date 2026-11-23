@@ -84,12 +84,5 @@ func run() error {
 		return err
 	}
 	fmt.Printf("selfie dihapus: %d\n", n)
-	if managed.CurrentS3() != nil {
-		generated, err := managed.CurrentS3().PurgeGenerated(ctx, time.Now().Add(-7*24*time.Hour))
-		if err != nil {
-			return fmt.Errorf("hapus berkas hasil generate: %w", err)
-		}
-		fmt.Printf("hasil generate dihapus: %d\n", generated)
-	}
 	return nil
 }

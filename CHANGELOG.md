@@ -7,6 +7,27 @@ Perubahan penting yang terlihat oleh Pejuang, SDM, atau pengelola server. Keputu
 ## Belum dirilis
 
 ### Ditambahkan
+- **Lupa kata sandi lewat email (D30).** Di halaman masuk web dan aplikasi ada tautan **Lupa kata sandi?**. Pejuang
+  menulis NIPY, email, atau nomor WA, lalu tautan dikirim ke email akunnya. Kata sandi baru dibuat di halaman web
+  `/reset-kata-sandi`.
+  - Jawaban selalu sama, baik akun ada atau tidak, agar tidak membocorkan akun yang terdaftar. Dibatasi 3 permintaan
+    per jam per akun dan 10 per jam per alamat IP.
+  - Tautan sekali pakai, berlaku 1 jam, dan tautan baru membatalkan yang lama. Setelah reset, kunci akun dibuka, semua
+    sesi dikeluarkan, dan verifikasi dua langkah tetap diminta saat masuk.
+  - Pemberitahuan keamanan dikirim ke email saat kata sandi diganti atau direset.
+  - Endpoint `POST /v1/auth/password/forgot` dan `POST /v1/auth/password/reset`; migrasi 19.
+- **Pengaturan email (SMTP) untuk super admin.** Kartu **Pengaturan → Email (SMTP)** mengatur host, port (465 atau 587,
+  TLS wajib), akun, dan pengirim. Saat disimpan, email uji dikirim ke akun super admin dan pengaturan baru hanya
+  tersimpan bila email uji terkirim. Kata sandi SMTP disimpan terenkripsi dan tidak pernah ditampilkan kembali. Endpoint
+  `GET`/`PUT`/`DELETE /v1/admin/settings/smtp`.
+- **Penyimpanan berkas di SeaweedFS (S3).** Selfie presensi, foto profil, dan lampiran pengumuman bisa disimpan di
+  bucket privat S3 (SeaweedFS), tetap dienkripsi oleh API dan tanpa URL bucket untuk browser atau HP. Rekap XLSX dan
+  template impor tidak ikut disimpan; keduanya langsung diunduh.
+  - Super admin mengaktifkannya di **Pengaturan → Penyimpanan S3**; konfigurasi baru tersimpan setelah uji
+    tulis/baca/hapus berhasil, dan secret key disimpan terenkripsi.
+  - Berkas lama dipindah dari `SELFIE_DIR` dengan tombol sinkronisasi yang bisa dilanjutkan; salinan disk tidak dihapus
+    otomatis. Endpoint dan bucket aktif dikunci.
+  - Backup dan uji restore ikut menyalin isi bucket. Panduan: `backend/deploy/seaweedfs-storage.md`.
 - **Impor Pejuang sekaligus menyiapkan struktur, shift, dan lokasi (D56).** Template impor kini punya kolom **Peran**
   (Kepala Subdiv, Kepala Divisi, Pejuang), **Shift**, dan **Lokasi 1–3**, serta sheet **Lokasi** dan **Shift**.
   - Cabang, divisi, dan subdiv yang belum ada cukup ditulis namanya, lalu dibuat otomatis dengan kode dari namanya.
@@ -76,6 +97,12 @@ Perubahan penting yang terlihat oleh Pejuang, SDM, atau pengelola server. Keputu
   hanya tersimpan saat reset kata sandi, sehingga kata sandi awal Pejuang baru tidak kedaluwarsa.
 
 ### Perhatian saat memperbarui
+- Lupa kata sandi lewat email butuh `PUBLIC_WEB_URL` di `.env` server (alamat web admin, wajib `https`, contoh
+  `https://hris.albahjah.or.id`) dan SMTP yang diatur super admin di panel. Tanpa keduanya, permintaan lupa kata sandi
+  tetap dijawab tetapi tidak ada email yang dikirim.
+- Sebelum mengaktifkan penyimpanan S3, isi `STORAGE_BACKUP_REMOTE` (remote rclone yang membaca bucket) di
+  `/opt/hris/deploy.env`; tanpa itu backup gagal tertutup saat S3 aktif. Jangan hapus `SELFIE_DIR` dan jangan ganti
+  `FIELD_ENCRYPTION_KEY_PATH` sampai migrasi selesai serta backup dan restore terverifikasi.
 - Lampiran pengumuman wajib dipindai: pasang dan jalankan clamd di server sesuai `backend/deploy/clamav.md`, lalu isi
   `CLAMAV_ADDRESS` (socket Unix absolut atau `127.0.0.1:3310`). Tanpa itu, unggahan lampiran dijawab
   `FILE_SCAN_UNAVAILABLE` dan lampiran lama yang belum pernah dipindai tidak bisa dibuka.

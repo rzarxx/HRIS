@@ -15,7 +15,7 @@ import (
 )
 
 // TestSeaweedFSIntegration runs only when an explicit test endpoint is configured.
-// Use a dedicated, empty bucket: the optional retention check deletes generated/ objects.
+// Use a dedicated test bucket; the test only creates and removes its own objects.
 func TestSeaweedFSIntegration(t *testing.T) {
 	endpoint := os.Getenv("HRIS_TEST_S3_ENDPOINT")
 	if endpoint == "" {
@@ -114,25 +114,6 @@ func TestSeaweedFSIntegration(t *testing.T) {
 	got, err = store.Get(ctx, migratedKey)
 	if err != nil || !bytes.Equal(got, plain) {
 		t.Fatalf("ciphertext hasil migrasi tidak dapat dibuka: %v", err)
-	}
-
-	if createdBucket {
-		generatedKey := fmt.Sprintf("generated/integration/%d.xlsx", time.Now().UnixNano())
-		if err := store.Put(ctx, generatedKey, []byte("generated")); err != nil {
-			t.Fatal(err)
-		}
-		t.Cleanup(func() {
-			cleanupCtx, cleanupCancel := context.WithTimeout(context.Background(), 10*time.Second)
-			defer cleanupCancel()
-			_ = store.Delete(cleanupCtx, generatedKey)
-		})
-		n, err := store.PurgeGenerated(ctx, time.Now().Add(time.Minute))
-		if err != nil || n != 1 {
-			t.Fatalf("retensi berkas generate: n=%d err=%v", n, err)
-		}
-		if _, err := store.Get(ctx, generatedKey); err == nil {
-			t.Fatal("hasil generate masih ada setelah retensi")
-		}
 	}
 
 	if os.Getenv("HRIS_TEST_S3_CHECK_AUTH") == "1" {

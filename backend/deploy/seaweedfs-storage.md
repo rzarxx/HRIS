@@ -1,7 +1,6 @@
 # Penyimpanan berkas HRIS di SeaweedFS S3
 
-API menyimpan selfie presensi, foto profil, lampiran pengumuman, rekap XLSX, dan template XLSX
-di bucket privat melalui S3 API. Semua isi objek dienkripsi AES-GCM oleh API sebelum dikirim.
+API menyimpan selfie presensi, foto profil, dan lampiran pengumuman di bucket privat melalui S3 API. Semua isi objek dienkripsi AES-GCM oleh API sebelum dikirim.
 Nama objek tetap berupa kunci internal; tidak ada URL bucket yang diberikan ke browser atau HP.
 Database PostgreSQL, kunci enkripsi, kunci JWT, model wajah, dan berkas konfigurasi tetap di
 penyimpanan server yang sesuai dan harus masuk backup terpisah.
@@ -63,7 +62,7 @@ Isi endpoint HTTPS, bucket, region, access key, dan secret key. Tombol **Uji kon
 baru menyimpan konfigurasi setelah uji HeadBucket dan operasi tulis/baca/hapus berhasil. Secret key
 disimpan terenkripsi dalam `app_settings` dan tidak dikirim kembali ke browser.
 
-Setelah aktif, unggahan baru dan XLSX hasil generate menuju S3. Berkas lama tetap dibaca dari
+Setelah aktif, unggahan baru menuju S3. Berkas lama tetap dibaca dari
 `SELFIE_DIR` bila objeknya belum ada di S3. Tekan **Mulai / lanjutkan sinkronisasi**; panel
 memanggil batch kecil berulang sampai selesai. Kursor tersimpan di database sehingga proses bisa
 dilanjutkan setelah koneksi browser terputus. Setiap berkas didekripsi oleh API lalu dienkripsi
@@ -97,12 +96,10 @@ arsip. Opsi `--archive-only` hanya memeriksa checksum arsip, tanpa pemeriksaan r
 database. Uji pemulihan objek ke bucket staging secara berkala sebelum mengandalkan backup
 untuk pemulihan produksi.
 
-Timer `hris-purge-selfies` menghapus selfie setelah 90 hari sesuai database, dan objek di
-`generated/` setelah 7 hari. XLSX yang baru dibuat tetap langsung dikirim lewat API setelah
-berhasil disimpan. Objek hasil generate tidak memiliki URL publik dan tidak ditautkan ulang
-oleh database. Workbook kata sandi awal dari impor Pejuang tetap hanya dikirim sekali dalam
-respons impor dan tidak diarsipkan, agar kata sandi tidak tersimpan lebih lama. Berkas impor
-yang diunggah untuk diproses juga tidak diarsipkan. Jika SeaweedFS atau bucket tidak tersedia,
+Timer `hris-purge-selfies` menghapus selfie setelah 90 hari sesuai database. Rekap XLSX,
+template impor, workbook kata sandi awal, dan berkas impor yang diunggah tidak disimpan di
+bucket: semuanya langsung dikirim lewat respons API, agar data pribadi tidak tersimpan lebih
+lama dari kebutuhan. Jika SeaweedFS atau bucket tidak tersedia,
 `/readyz` gagal dan operasi berkas tidak dianggap berhasil.
 
 ## Uji integrasi di bucket sementara
@@ -112,8 +109,7 @@ Tes `TestSeaweedFSIntegration` memakai bucket uji khusus. Atur `HRIS_TEST_S3_END
 `go test -run '^TestSeaweedFSIntegration$' ./internal/platform/filestore` dari `backend/`.
 Untuk membuat dan menghapus bucket uji secara otomatis, set `HRIS_TEST_S3_CREATE_BUCKET=1`
 dan berikan identity admin terpisah melalui `HRIS_TEST_S3_ADMIN_ACCESS_KEY` serta
-`HRIS_TEST_S3_ADMIN_SECRET_KEY`. Opsi ini juga menguji pembersihan `generated/`, sehingga
-bucket harus khusus untuk tes. `HRIS_TEST_S3_CHECK_AUTH=1` memeriksa kredensial salah ditolak.
+`HRIS_TEST_S3_ADMIN_SECRET_KEY`; bucket itu harus khusus untuk tes. `HRIS_TEST_S3_CHECK_AUTH=1` memeriksa kredensial salah ditolak.
 
 Referensi: [SeaweedFS S3 API](https://github.com/seaweedfs/seaweedfs/wiki/Amazon-S3-API),
 [AWS SDK for Go v2 custom endpoints](https://docs.aws.amazon.com/sdk-for-go/v2/developer-guide/configure-endpoints.html).

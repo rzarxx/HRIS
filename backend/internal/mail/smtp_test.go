@@ -220,6 +220,12 @@ func TestSendRefusals(t *testing.T) {
 	if err := s.Send(context.Background(), ipCfg, Message{To: "a@b.id", Subject: "x", Body: "y"}); !errors.Is(err, ErrHostNotAllowed) {
 		t.Errorf("host IP tidak ditolak: %v", err)
 	}
+	// Email pengirim yang tidak biasa ditolak juga di pengirim, bukan hanya saat validasi input.
+	badFrom := testConfig(465)
+	badFrom.FromEmail = `"x>"@b.id`
+	if err := s.Send(context.Background(), badFrom, Message{To: "a@b.id", Subject: "x", Body: "y"}); stageOf(err) != StageAddress {
+		t.Errorf("email pengirim tidak biasa tidak ditolak: %v", err)
+	}
 	// Header tidak bisa disisipi baris baru.
 	for _, msg := range []Message{
 		{To: "a@b.id\r\nBcc: x@y.id", Subject: "x", Body: "y"},
@@ -242,6 +248,11 @@ func TestInputValidation(t *testing.T) {
 		"host spasi": {Host: "smtp gmail.com", Port: 587, FromEmail: "a@b.id"},
 		"from salah": {Host: "smtp.gmail.com", Port: 587, FromEmail: "bukan email"},
 		"nama CRLF":  {Host: "smtp.gmail.com", Port: 587, FromEmail: "a@b.id", FromName: "a\r\nb"},
+		// Alamat yang sah menurut RFC 5322 tetapi tidak dipakai untuk pengirim: berkutip, domain
+		// literal, atau domain tanpa titik.
+		"from berkutip":  {Host: "smtp.gmail.com", Port: 587, FromEmail: `"a b"@b.id`},
+		"from literal":   {Host: "smtp.gmail.com", Port: 587, FromEmail: "a@[203.0.113.10]"},
+		"from tanpa tld": {Host: "smtp.gmail.com", Port: 587, FromEmail: "a@localhost"},
 	} {
 		if f := in.normalize(); len(f) == 0 {
 			t.Errorf("%s diterima", name)

@@ -146,7 +146,7 @@ func (in *Input) normalize() map[string]string {
 	if utf8.RuneCountInString(in.FromName) > 80 || strings.ContainsAny(in.FromName, "\r\n") {
 		fields["from_name"] = "Nama pengirim maksimal 80 karakter."
 	}
-	if addr, err := mail.ParseAddress(in.FromEmail); err != nil || addr.Address != in.FromEmail || len(in.FromEmail) > 254 {
+	if addr, err := mail.ParseAddress(in.FromEmail); err != nil || addr.Address != in.FromEmail || !ValidSender(in.FromEmail) {
 		fields["from_email"] = "Tulis email pengirim yang sesuai, contoh hris@albahjah.or.id."
 	}
 	return fields

@@ -82,6 +82,8 @@ func routes(d Deps) []Route {
 		// Lupa kata sandi lewat email (D30): selalu 202 dan dibatasi per akun dan per IP.
 		{http.MethodPost, "/v1/auth/password/forgot", Public, nil, d.Auth.ForgotPassword},
 		{http.MethodPost, "/v1/auth/password/reset", Public, nil, d.Auth.ResetPassword},
+		// Konfirmasi ganti email (D59): tautan bisa dibuka di perangkat mana pun, tanpa login.
+		{http.MethodPost, "/v1/auth/email/confirm", Public, nil, d.Auth.ConfirmEmail},
 		// Footer dan merek tampil di layar masuk web dan aplikasi, sebelum login.
 		{http.MethodGet, "/v1/branding", Public, nil, d.Settings.Branding},
 		{http.MethodPost, "/v1/auth/logout", AnyUser, nil, d.Auth.Logout},
@@ -93,6 +95,7 @@ func routes(d Deps) []Route {
 		// Tetap terbuka saat sandi/MFA belum dipenuhi agar web tahu apa yang harus dilakukan.
 		{http.MethodGet, "/v1/me", AnyUser, nil, d.Auth.GetMe},
 		guarded(http.MethodPatch, "/v1/me", d.Employee.UpdateMe, permission.ProfileUpdate),
+		guarded(http.MethodDelete, "/v1/me/email-change", d.Auth.CancelEmailChange, permission.ProfileUpdate),
 		guarded(http.MethodGet, "/v1/me/children", d.Employee.MyChildren, permission.ProfileRead),
 		guarded(http.MethodPut, "/v1/me/photo", d.Employee.SetMyPhoto, permission.ProfileUpdate),
 		guarded(http.MethodDelete, "/v1/me/photo", d.Employee.DeleteMyPhoto, permission.ProfileUpdate),

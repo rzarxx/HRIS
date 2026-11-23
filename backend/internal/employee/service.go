@@ -40,6 +40,8 @@ type Service struct {
 	scope ScopeResolver
 	// photos menyimpan foto profil; nil bila penyimpanan privat belum diisi.
 	photos PhotoStore
+	// emails mengatur konfirmasi dan pemberitahuan ganti email (D59); nil berarti tanpa email.
+	emails EmailChanges
 }
 
 func NewService(pool *pgxpool.Pool, scope ScopeResolver) *Service {
@@ -540,6 +542,9 @@ func (s *Service) Update(ctx context.Context, p auth.Principal, ip audit.Entry, 
 	if err != nil {
 		return Employee{}, err
 	}
+	if v.Email != current.Email && s.emails != nil {
+		s.emails.NotifyEmailChanged(ctx, id, current.Email.String, v.Email.String, true)
+	}
 	return s.Get(ctx, p, id)
 }
 
@@ -568,10 +573,14 @@ func update(ctx context.Context, q *store.Queries, ip audit.Entry, id uuid.UUID,
 			return err
 		}
 	}
-	// Email login ikut berubah bersama email Pejuang agar keduanya selalu sama (D53).
+	// Email login ikut berubah bersama email Pejuang agar keduanya selalu sama (D53). Perubahan oleh
+	// SDM langsung berlaku, semua sesi Pejuang itu dicabut, dan dicatat sebagai user.email_changed (D59).
 	if v.Email != current.Email {
 		if err := q.UpdateUserEmail(ctx, store.UpdateUserEmailParams{EmployeeID: id, Email: v.Email}); err != nil {
 			return mapUnique(err)
+		}
+		if err := adminEmailChanged(ctx, q, ip, id); err != nil {
+			return err
 		}
 	}
 	if v.Status == "inactive" && current.Status != "inactive" {

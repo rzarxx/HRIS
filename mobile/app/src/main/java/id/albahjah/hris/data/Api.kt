@@ -49,6 +49,9 @@ interface HrisApi {
     @DELETE("v1/me/photo")
     suspend fun deleteMyPhoto(): retrofit2.Response<Unit>
 
+    @DELETE("v1/me/email-change")
+    suspend fun cancelEmailChange(): retrofit2.Response<Unit>
+
     @GET("v1/employees/{id}/photo")
     suspend fun photo(@Path("id") id: String): ResponseBody
 

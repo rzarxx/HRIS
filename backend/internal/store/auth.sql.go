@@ -13,6 +13,30 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const consumeEmailChangeRequest = `-- name: ConsumeEmailChangeRequest :one
+UPDATE email_change_requests SET used_at = $1
+WHERE token_hash = $2 AND used_at IS NULL AND expires_at > $1
+RETURNING user_id, new_email
+`
+
+type ConsumeEmailChangeRequestParams struct {
+	Now       pgtype.Timestamptz
+	TokenHash string
+}
+
+type ConsumeEmailChangeRequestRow struct {
+	UserID   uuid.UUID
+	NewEmail string
+}
+
+// Pemakaian atomik: satu tautan hanya bisa dipakai sekali.
+func (q *Queries) ConsumeEmailChangeRequest(ctx context.Context, arg ConsumeEmailChangeRequestParams) (ConsumeEmailChangeRequestRow, error) {
+	row := q.db.QueryRow(ctx, consumeEmailChangeRequest, arg.Now, arg.TokenHash)
+	var i ConsumeEmailChangeRequestRow
+	err := row.Scan(&i.UserID, &i.NewEmail)
+	return i, err
+}
+
 const consumePasswordResetToken = `-- name: ConsumePasswordResetToken :one
 UPDATE password_reset_tokens SET used_at = $1
 WHERE token_hash = $2 AND used_at IS NULL AND expires_at > $1
@@ -30,6 +54,44 @@ func (q *Queries) ConsumePasswordResetToken(ctx context.Context, arg ConsumePass
 	var user_id uuid.UUID
 	err := row.Scan(&user_id)
 	return user_id, err
+}
+
+const countEmailChangeRequestsSince = `-- name: CountEmailChangeRequestsSince :one
+SELECT count(*) FROM email_change_requests WHERE user_id = $1 AND created_at > $2
+`
+
+type CountEmailChangeRequestsSinceParams struct {
+	UserID uuid.UUID
+	Since  pgtype.Timestamptz
+}
+
+func (q *Queries) CountEmailChangeRequestsSince(ctx context.Context, arg CountEmailChangeRequestsSinceParams) (int64, error) {
+	row := q.db.QueryRow(ctx, countEmailChangeRequestsSince, arg.UserID, arg.Since)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
+const createEmailChangeRequest = `-- name: CreateEmailChangeRequest :exec
+INSERT INTO email_change_requests (user_id, new_email, token_hash, expires_at)
+VALUES ($1, $2, $3, $4)
+`
+
+type CreateEmailChangeRequestParams struct {
+	UserID    uuid.UUID
+	NewEmail  string
+	TokenHash string
+	ExpiresAt pgtype.Timestamptz
+}
+
+func (q *Queries) CreateEmailChangeRequest(ctx context.Context, arg CreateEmailChangeRequestParams) error {
+	_, err := q.db.Exec(ctx, createEmailChangeRequest,
+		arg.UserID,
+		arg.NewEmail,
+		arg.TokenHash,
+		arg.ExpiresAt,
+	)
+	return err
 }
 
 const createPasswordResetToken = `-- name: CreatePasswordResetToken :exec
@@ -133,6 +195,26 @@ func (q *Queries) CreateUserWithInitialPassword(ctx context.Context, arg CreateU
 	var id uuid.UUID
 	err := row.Scan(&id)
 	return id, err
+}
+
+const emailInUse = `-- name: EmailInUse :one
+SELECT EXISTS (
+  SELECT 1 FROM employees e WHERE lower(e.email) = lower($1::text) AND e.id <> $2::uuid
+  UNION ALL
+  SELECT 1 FROM users u WHERE lower(u.email) = lower($1::text) AND u.employee_id <> $2::uuid
+)
+`
+
+type EmailInUseParams struct {
+	Email      string
+	EmployeeID uuid.UUID
+}
+
+func (q *Queries) EmailInUse(ctx context.Context, arg EmailInUseParams) (bool, error) {
+	row := q.db.QueryRow(ctx, emailInUse, arg.Email, arg.EmployeeID)
+	var exists bool
+	err := row.Scan(&exists)
+	return exists, err
 }
 
 const employeeHasFace = `-- name: EmployeeHasFace :one
@@ -253,6 +335,24 @@ func (q *Queries) GetMe(ctx context.Context, id uuid.UUID) (GetMeRow, error) {
 		&i.DivisionName,
 	)
 	return i, err
+}
+
+const getPendingEmailChange = `-- name: GetPendingEmailChange :one
+SELECT new_email FROM email_change_requests
+WHERE user_id = $1 AND used_at IS NULL AND expires_at > $2
+ORDER BY created_at DESC LIMIT 1
+`
+
+type GetPendingEmailChangeParams struct {
+	UserID uuid.UUID
+	Now    pgtype.Timestamptz
+}
+
+func (q *Queries) GetPendingEmailChange(ctx context.Context, arg GetPendingEmailChangeParams) (string, error) {
+	row := q.db.QueryRow(ctx, getPendingEmailChange, arg.UserID, arg.Now)
+	var new_email string
+	err := row.Scan(&new_email)
+	return new_email, err
 }
 
 const getSessionAuthState = `-- name: GetSessionAuthState :one
@@ -581,6 +681,21 @@ func (q *Queries) InsertAuditLog(ctx context.Context, arg InsertAuditLogParams) 
 	return err
 }
 
+const invalidateEmailChangeRequests = `-- name: InvalidateEmailChangeRequests :exec
+UPDATE email_change_requests SET used_at = $1 WHERE user_id = $2 AND used_at IS NULL
+`
+
+type InvalidateEmailChangeRequestsParams struct {
+	Now    pgtype.Timestamptz
+	UserID uuid.UUID
+}
+
+// Ganti email lewat konfirmasi (D59). Permintaan baru membatalkan permintaan lama.
+func (q *Queries) InvalidateEmailChangeRequests(ctx context.Context, arg InvalidateEmailChangeRequestsParams) error {
+	_, err := q.db.Exec(ctx, invalidateEmailChangeRequests, arg.Now, arg.UserID)
+	return err
+}
+
 const invalidatePasswordResetTokens = `-- name: InvalidatePasswordResetTokens :exec
 UPDATE password_reset_tokens SET used_at = $1 WHERE user_id = $2 AND used_at IS NULL
 `
@@ -805,6 +920,23 @@ type RotateSessionParams struct {
 func (q *Queries) RotateSession(ctx context.Context, arg RotateSessionParams) error {
 	_, err := q.db.Exec(ctx, rotateSession, arg.NewHash, arg.IdleExpiresAt, arg.ID)
 	return err
+}
+
+const setEmployeeEmail = `-- name: SetEmployeeEmail :execrows
+UPDATE employees SET email = $1, updated_at = now() WHERE id = $2
+`
+
+type SetEmployeeEmailParams struct {
+	Email pgtype.Text
+	ID    uuid.UUID
+}
+
+func (q *Queries) SetEmployeeEmail(ctx context.Context, arg SetEmployeeEmailParams) (int64, error) {
+	result, err := q.db.Exec(ctx, setEmployeeEmail, arg.Email, arg.ID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }
 
 const setInitialPassword = `-- name: SetInitialPassword :exec

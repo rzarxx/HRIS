@@ -175,6 +175,7 @@ var publicPaths = map[string]bool{
 	"/v1/auth/mobile/refresh":  true,
 	"/v1/auth/password/forgot": true,
 	"/v1/auth/password/reset":  true,
+	"/v1/auth/email/confirm":   true,
 	"/v1/branding":             true,
 }
 

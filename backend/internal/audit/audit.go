@@ -30,6 +30,8 @@ const (
 	UserLocked                     = "user.locked"
 	UserUnlocked                   = "user.unlocked"
 	UserPasswordReset              = "user.password_reset"
+	UserEmailChanged               = "user.email_changed"
+	UserEmailChangeRequested       = "user.email_change_requested"
 	OrgUpdated                     = "org.updated"
 	EmployeeCreated                = "employee.created"
 	EmployeeUpdated                = "employee.updated"

@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Field, Input } from "@/components/ui/form";
 import { PasswordInput } from "@/components/ui/password-input";
 import { Card } from "@/components/ui/layout";
+import { useToast } from "@/components/ui/toast";
 import { api } from "@/lib/api-client";
 import { dateTime } from "@/lib/format";
 import { useMe, useSave } from "@/lib/hooks";
@@ -32,6 +33,7 @@ export function ProfileCard() {
   const fileRef = useRef<HTMLInputElement>(null);
   const [form, setForm] = useState<Contact>({ phone: "", email: "", current_password: "" });
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const toast = useToast();
 
   useEffect(() => {
     if (me) setForm({ phone: localPhone(me.phone), email: me.email ?? "", current_password: "" });
@@ -39,12 +41,20 @@ export function ProfileCard() {
 
   const applyMe = (res: { data: CurrentUser }) => qc.setQueryData<CurrentUser>(["me"], res.data);
   const saveContact = useSave((v: Partial<Contact>) => api.patch<{ data: CurrentUser }>("/me", v), {
-    success: "Kontak diperbarui.",
     onDone: (res) => {
+      // Bila SMTP aktif, email baru menunggu konfirmasi dari tautan di email itu (D59).
+      const pending = res.data.pending_email;
+      toast.success(pending && pending !== me?.pending_email ? `Tautan konfirmasi dikirim ke ${pending}. Email baru berlaku setelah tautan dibuka.` : "Kontak diperbarui.");
       applyMe(res);
       setErrors({});
     },
     onFieldErrors: setErrors,
+  });
+  const cancelEmail = useSave(() => api.del("/me/email-change"), {
+    success: "Ganti email dibatalkan.",
+    onDone: () => {
+      if (me) qc.setQueryData<CurrentUser>(["me"], { ...me, pending_email: null });
+    },
   });
   const savePhoto = useSave((file: File) => api.putFile<{ data: CurrentUser }>("/me/photo", file), {
     success: "Foto profil diperbarui.",
@@ -150,6 +160,16 @@ export function ProfileCard() {
             invalid={!!errors.email}
           />
         </Field>
+        {me?.pending_email && (
+          <div role="status" className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+            <span>
+              Menunggu konfirmasi ke <span className="font-medium">{me.pending_email}</span>. Buka tautan di email itu dalam 24 jam.
+            </span>
+            <Button type="button" variant="ghost" size="sm" loading={cancelEmail.isPending} onClick={() => cancelEmail.mutate(undefined)}>
+              Batalkan
+            </Button>
+          </div>
+        )}
         {emailChanged && (
           <Field label="Kata sandi saat ini" htmlFor="profile_current_password" error={errors.current_password} hint="Diperlukan karena email juga dipakai untuk masuk.">
             <PasswordInput

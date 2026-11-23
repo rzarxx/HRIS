@@ -175,7 +175,7 @@ func run() error {
 	approvalSvc := approval.NewService(pool)
 	leaveSvc := leave.NewService(pool, authSvc.ResolveScope)
 	approvalSvc.Register(store.RequestKindLeave, leaveSvc)
-	employeeSvc := employee.NewService(pool, authSvc.ResolveScope)
+	employeeSvc := employee.NewService(pool, authSvc.ResolveScope).WithEmailChanges(authSvc)
 	announcementSvc := announcement.NewService(pool)
 	if cfg.ClamAVAddress != "" {
 		scanner, err := filescan.New(cfg.ClamAVAddress)

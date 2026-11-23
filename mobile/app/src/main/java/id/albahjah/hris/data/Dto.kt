@@ -69,6 +69,7 @@ data class Me(
     @SerialName("phone") val phone: String? = null,
     @SerialName("has_photo") val hasPhoto: Boolean = false,
     @SerialName("photo_updated_at") val photoUpdatedAt: String? = null,
+    @SerialName("pending_email") val pendingEmail: String? = null,
 )
 
 // schema: MeUpdate

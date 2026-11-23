@@ -232,7 +232,7 @@ func fresh(t *testing.T, opt options) *httptest.Server {
 	if err != nil {
 		t.Fatal(err)
 	}
-	employeeSvc := employee.NewService(appPool, authSvc.ResolveScope)
+	employeeSvc := employee.NewService(appPool, authSvc.ResolveScope).WithEmailChanges(authSvc)
 	var announcementFiles announcement.FileStore
 	attendanceOpt := attendance.Options{AllowUnverified: opt.allowUnverified, Now: opt.clock, Cipher: cipher, PlayVerifier: opt.playVerifier}
 	if !opt.noFaceEngine {

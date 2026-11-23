@@ -534,6 +534,60 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/auth/email/confirm": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Konfirmasi email baru dari tautan email
+         * @description Publik (D59). `token` diambil web dari fragmen URL tautan di email baru (`/konfirmasi-email/#token=…`). Tautan sekali pakai dan berlaku 24 jam. Berhasil berarti email Pejuang dan email login berubah dalam satu transaksi, semua sesi dicabut, dan email lama diberi tahu. Dicatat `user.email_changed`. Dibatasi 10 per jam per IP.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        token: string;
+                    };
+                };
+            };
+            responses: {
+                /** @description Email baru berlaku */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description EMAIL_CHANGE_INVALID bila tautan salah, kedaluwarsa, atau sudah dipakai */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                409: components["responses"]["Error"];
+                429: components["responses"]["Error"];
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/auth/sessions": {
         parameters: {
             query?: never;
@@ -738,7 +792,7 @@ export interface paths {
         head?: never;
         /**
          * Ubah nomor WA dan email sendiri
-         * @description Permission `profile:update`. Field yang tidak dikirim tetap nilai lamanya; `null` mengosongkan. Mengganti email wajib menyertakan `current_password` karena email dipakai untuk masuk. Email login ikut berubah, dan perubahan dicatat sebagai `employee.updated` dengan nama field saja. Email baru belum diverifikasi lewat email (SMTP menyusul).
+         * @description Permission `profile:update`. Field yang tidak dikirim tetap nilai lamanya; `null` mengosongkan. Mengganti email wajib menyertakan `current_password` karena email dipakai untuk masuk. Bila SMTP aktif (D59), email baru belum berlaku: tautan konfirmasi dikirim ke email baru, email lama diberi tahu, dan `pending_email` terisi sampai tautan dibuka (dicatat `user.email_change_requested`, maks 3 per jam, lebih dari itu `RATE_LIMITED`). Tanpa SMTP, email login berubah langsung dan dicatat `user.email_changed`. Perubahan lain dicatat `employee.updated` dengan nama field saja.
          */
         patch: {
             parameters: {
@@ -767,8 +821,48 @@ export interface paths {
                 400: components["responses"]["ValidationFailed"];
                 403: components["responses"]["Error"];
                 409: components["responses"]["Error"];
+                429: components["responses"]["Error"];
             };
         };
+        trace?: never;
+    };
+    "/v1/me/email-change": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Batalkan ganti email yang belum dikonfirmasi
+         * @description Permission `profile:update`. Tautan konfirmasi yang sudah terkirim tidak berlaku lagi (D59).
+         */
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Dibatalkan */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                401: components["responses"]["Error"];
+                403: components["responses"]["Error"];
+            };
+        };
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
     "/v1/me/children": {
@@ -5244,7 +5338,7 @@ export interface components {
          * @description Registry MASTER.md §7.4
          * @enum {string}
          */
-        ErrorCode: "VALIDATION_FAILED" | "AUTH_INVALID_CREDENTIALS" | "AUTH_TOKEN_INVALID" | "AUTH_MFA_REQUIRED" | "AUTH_MFA_INVALID" | "FORBIDDEN_ROLE" | "CSRF_INVALID" | "PASSWORD_CHANGE_REQUIRED" | "MFA_SETUP_REQUIRED" | "DEVICE_NOT_REGISTERED" | "DEVICE_PENDING_APPROVAL" | "DEVICE_REVOKED" | "APPROVAL_NOT_YOUR_TURN" | "APPROVAL_SELF_FORBIDDEN" | "MAKER_CHECKER_VIOLATION" | "NOT_FOUND" | "METHOD_NOT_ALLOWED" | "ALREADY_CLOCKED_IN" | "ALREADY_CLOCKED_OUT" | "SHIFT_NOT_ASSIGNED" | "NOT_CLOCKED_IN" | "REQUEST_NOT_PENDING" | "PERIOD_LOCKED" | "DUPLICATE_REQUEST" | "CONFLICT_DUPLICATE" | "CONFLICT_HAS_DEPENDENTS" | "CONFLICT_SELF_ACTION" | "MFA_ALREADY_ENABLED" | "PAYLOAD_TOO_LARGE" | "UNSUPPORTED_MEDIA_TYPE" | "GEOFENCE_OUT" | "FACE_NOT_ENROLLED" | "FACE_MISMATCH" | "LIVENESS_FAILED" | "FACE_NOT_DETECTED" | "FACE_SERVICE_UNAVAILABLE" | "STORAGE_UNAVAILABLE" | "STORAGE_DESTINATION_LOCKED" | "STORAGE_TEST_FAILED" | "STORAGE_NOT_ACTIVE" | "STORAGE_SOURCE_MISSING" | "STORAGE_SYNC_BUSY" | "STORAGE_SYNC_FAILED" | "FILE_UNSAFE" | "FILE_SCAN_UNAVAILABLE" | "SMTP_TEST_FAILED" | "RESET_TOKEN_INVALID" | "CHALLENGE_EXPIRED" | "ATTENDANCE_BLOCKED" | "LEAVE_ACTIVE" | "READ_TOO_SOON" | "AUTH_ACCOUNT_LOCKED" | "AUTH_INITIAL_PASSWORD_EXPIRED" | "APP_UPDATE_REQUIRED" | "RATE_LIMITED" | "API_ACCESS_DENIED" | "INTERNAL_ERROR";
+        ErrorCode: "VALIDATION_FAILED" | "AUTH_INVALID_CREDENTIALS" | "AUTH_TOKEN_INVALID" | "AUTH_MFA_REQUIRED" | "AUTH_MFA_INVALID" | "FORBIDDEN_ROLE" | "CSRF_INVALID" | "PASSWORD_CHANGE_REQUIRED" | "MFA_SETUP_REQUIRED" | "DEVICE_NOT_REGISTERED" | "DEVICE_PENDING_APPROVAL" | "DEVICE_REVOKED" | "APPROVAL_NOT_YOUR_TURN" | "APPROVAL_SELF_FORBIDDEN" | "MAKER_CHECKER_VIOLATION" | "NOT_FOUND" | "METHOD_NOT_ALLOWED" | "ALREADY_CLOCKED_IN" | "ALREADY_CLOCKED_OUT" | "SHIFT_NOT_ASSIGNED" | "NOT_CLOCKED_IN" | "REQUEST_NOT_PENDING" | "PERIOD_LOCKED" | "DUPLICATE_REQUEST" | "CONFLICT_DUPLICATE" | "CONFLICT_HAS_DEPENDENTS" | "CONFLICT_SELF_ACTION" | "MFA_ALREADY_ENABLED" | "PAYLOAD_TOO_LARGE" | "UNSUPPORTED_MEDIA_TYPE" | "GEOFENCE_OUT" | "FACE_NOT_ENROLLED" | "FACE_MISMATCH" | "LIVENESS_FAILED" | "FACE_NOT_DETECTED" | "FACE_SERVICE_UNAVAILABLE" | "STORAGE_UNAVAILABLE" | "STORAGE_DESTINATION_LOCKED" | "STORAGE_TEST_FAILED" | "STORAGE_NOT_ACTIVE" | "STORAGE_SOURCE_MISSING" | "STORAGE_SYNC_BUSY" | "STORAGE_SYNC_FAILED" | "FILE_UNSAFE" | "FILE_SCAN_UNAVAILABLE" | "SMTP_TEST_FAILED" | "RESET_TOKEN_INVALID" | "EMAIL_CHANGE_INVALID" | "CHALLENGE_EXPIRED" | "ATTENDANCE_BLOCKED" | "LEAVE_ACTIVE" | "READ_TOO_SOON" | "AUTH_ACCOUNT_LOCKED" | "AUTH_INITIAL_PASSWORD_EXPIRED" | "APP_UPDATE_REQUIRED" | "RATE_LIMITED" | "API_ACCESS_DENIED" | "INTERNAL_ERROR";
         /**
          * @description Matriks MASTER.md §3.2
          * @enum {string}
@@ -5345,6 +5439,8 @@ export interface components {
              * @description Waktu foto terakhir diganti; dipakai klien sebagai penanda cache.
              */
             photo_updated_at: string | null;
+            /** @description Email baru yang menunggu konfirmasi lewat tautan di email itu (D59); null bila tidak ada. */
+            pending_email: string | null;
         };
         MeUpdate: {
             /** @description Nomor WA, contoh 081234567890; disimpan sebagai 62… */

@@ -378,6 +378,8 @@ type Me struct {
 	HasPhoto     bool    `json:"has_photo"`
 	// PhotoUpdatedAt dipakai klien sebagai penanda cache foto profil.
 	PhotoUpdatedAt *string `json:"photo_updated_at"`
+	// PendingEmail adalah email baru yang menunggu konfirmasi lewat tautan di email itu (D59).
+	PendingEmail *string `json:"pending_email"`
 }
 
 type Ref struct {
@@ -414,6 +416,10 @@ func (s *Service) Me(ctx context.Context, userID, deviceID uuid.UUID) (Me, error
 			deviceStatus = &v
 		}
 	}
+	pendingEmail, err := s.PendingEmail(ctx, userID, time.Now())
+	if err != nil {
+		return Me{}, err
+	}
 	return Me{
 		UserID:             row.UserID.String(),
 		EmployeeID:         row.EmployeeID.String(),
@@ -432,6 +438,7 @@ func (s *Service) Me(ctx context.Context, userID, deviceID uuid.UUID) (Me, error
 		Phone:              pgconv.TextPtr(row.Phone),
 		HasPhoto:           row.HasPhoto,
 		PhotoUpdatedAt:     pgconv.TimeString(row.PhotoUpdatedAt),
+		PendingEmail:       pendingEmail,
 	}, nil
 }
 

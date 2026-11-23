@@ -583,6 +583,16 @@ type Division struct {
 	BranchID       uuid.UUID
 }
 
+type EmailChangeRequest struct {
+	ID        uuid.UUID
+	UserID    uuid.UUID
+	NewEmail  string
+	TokenHash string
+	ExpiresAt pgtype.Timestamptz
+	UsedAt    pgtype.Timestamptz
+	CreatedAt pgtype.Timestamptz
+}
+
 type Employee struct {
 	ID             uuid.UUID
 	Nip            string

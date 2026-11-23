@@ -23,6 +23,7 @@ const ERROR_MESSAGES: Partial<Record<ErrorCode, string>> = {
   APPROVAL_NOT_YOUR_TURN: "Belum giliran Anda. Langkah sebelumnya belum diproses.",
   REQUEST_NOT_PENDING: "Pengajuan ini sudah diproses atau dibatalkan. Muat ulang untuk melihat status terbaru.",
   RESET_TOKEN_INVALID: "Tautan sudah tidak berlaku. Silakan minta tautan baru.",
+  EMAIL_CHANGE_INVALID: "Tautan konfirmasi email sudah tidak berlaku. Silakan ajukan ganti email lagi.",
 };
 
 /** Kode yang pesannya dari server lebih spesifik daripada pesan umum. */

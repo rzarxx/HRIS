@@ -218,6 +218,62 @@ func (h *Handler) ChangePassword(w http.ResponseWriter, r *http.Request) error {
 	return httpx.NoContent(w)
 }
 
+// Batas permintaan tautan reset: per akun (dengan IP) dan per IP saja.
+const (
+	forgotPerAccountLimit = 3
+	forgotPerIPLimit      = 10
+	forgotWindow          = time.Hour
+)
+
+type forgotRequest struct {
+	Identifier string `json:"identifier"`
+}
+
+// ForgotPassword melayani POST /v1/auth/password/forgot. Selalu 202 dengan pesan sama agar tidak
+// membocorkan akun mana yang terdaftar atau punya email (D30).
+func (h *Handler) ForgotPassword(w http.ResponseWriter, r *http.Request) error {
+	var req forgotRequest
+	if err := httpx.Decode(r, &req); err != nil {
+		return err
+	}
+	req.Identifier = strings.TrimSpace(req.Identifier)
+	if req.Identifier == "" || len(req.Identifier) > 254 {
+		return httpx.Validation(map[string]string{"identifier": "Isi NIPY, email, atau nomor WA."})
+	}
+	if err := h.checkLimit(w, r, "forgot-ip", forgotPerIPLimit, forgotWindow); err != nil {
+		return err
+	}
+	if err := h.checkLimit(w, r, "forgot:"+strings.ToLower(req.Identifier), forgotPerAccountLimit, forgotWindow); err != nil {
+		return err
+	}
+	if err := h.svc.ForgotPassword(r.Context(), req.Identifier, audit.ClientIP(r), time.Now()); err != nil {
+		return err
+	}
+	return httpx.Data(w, http.StatusAccepted, map[string]string{
+		"message": "Bila akun terdaftar dan memiliki email, tautan atur ulang kata sandi sudah dikirim. Periksa kotak masuk dan folder spam.",
+	})
+}
+
+type resetRequest struct {
+	Token    string `json:"token"`
+	Password string `json:"password"`
+}
+
+// ResetPassword melayani POST /v1/auth/password/reset dari tautan di email.
+func (h *Handler) ResetPassword(w http.ResponseWriter, r *http.Request) error {
+	var req resetRequest
+	if err := httpx.Decode(r, &req); err != nil {
+		return err
+	}
+	if err := h.checkLimit(w, r, "reset-ip", forgotPerIPLimit, forgotWindow); err != nil {
+		return err
+	}
+	if err := h.svc.ResetPasswordWithToken(r.Context(), req.Token, req.Password, audit.ClientIP(r), time.Now()); err != nil {
+		return err
+	}
+	return httpx.NoContent(w)
+}
+
 func (h *Handler) ListSessions(w http.ResponseWriter, r *http.Request) error {
 	p, ok := PrincipalFrom(r.Context())
 	if !ok {

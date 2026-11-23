@@ -8,6 +8,7 @@ import type {
   AnnouncementListItem,
   AnnouncementReader,
   Branding,
+  SmtpSettings,
   StorageSettings,
   ApprovalFlow,
   ApprovalItem,
@@ -181,6 +182,13 @@ export const useBranding = () =>
     queryFn: () => api.get<ItemResponse<Branding>>("/branding").then((r) => r.data),
     staleTime: 60 * 60 * 1000,
     retry: 1,
+  });
+
+/** Pengaturan SMTP (super admin); kata sandi tidak pernah dikirim balik. */
+export const useSmtpSettings = () =>
+  useQuery({
+    queryKey: ["settings", "smtp"],
+    queryFn: () => api.get<ItemResponse<SmtpSettings>>("/admin/settings/smtp").then((r) => r.data),
   });
 
 export const useStorageSettings = () =>

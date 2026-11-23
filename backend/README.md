@@ -7,6 +7,10 @@ API Go (chi, pgx, sqlc, golang-migrate) dengan PostgreSQL. Acuan: `../MASTER.md`
 - PostgreSQL 16+ berjalan di `localhost:5432`
 - ClamAV untuk lampiran pengumuman: [konfigurasi dan verifikasi](deploy/clamav.md). Unggahan ditolak bila pemindai belum tersedia.
 - SeaweedFS S3 untuk berkas privat: [konfigurasi, migrasi, backup, dan retensi](deploy/seaweedfs-storage.md).
+- Lupa kata sandi lewat email: isi `PUBLIC_WEB_URL` (alamat web admin, wajib `https` di luar development, contoh
+  `https://hris.albahjah.or.id`), lalu super admin mengatur SMTP di **Pengaturan → Email (SMTP)**. SMTP hanya port 465 atau
+  587 dengan TLS, dan pengaturan baru tersimpan setelah email uji ke akun super admin terkirim. Tanpa keduanya, permintaan
+  lupa kata sandi tetap dijawab 202 tetapi tidak ada email.
 - [sqlc](https://sqlc.dev) hanya bila mengubah file di `queries/` atau `migrations/`
 
 ## Menyiapkan (sekali)
@@ -55,7 +59,6 @@ go run ./cmd/purge-selfies
 Jalankan migrasi terlebih dahulu. Perintah menghapus selfie setelah 90 hari, mempertahankan hash
 untuk menolak replay, dan dapat dijalankan ulang setelah gagal. Di server development, `deploy.sh`
 membangun `hris-purge-selfies` dan memasang timer systemd harian (lihat `deploy/README.md`).
-Dalam mode S3, perintah yang sama menghapus XLSX hasil generate setelah 7 hari.
 
 Saat `DEV_SIMULATE_ATTENDANCE=true`, API mengisi presensi dummy sampai hari ini setiap 5 menit.
 Presensi nyata dari aplikasi HP menyusul di Fase 2-3.

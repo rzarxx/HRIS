@@ -168,12 +168,14 @@ func TestPermissionMatrix(t *testing.T) {
 var mobileAuthPaths = map[string]bool{"/v1/auth/mobile/login": true, "/v1/auth/mobile/refresh": true}
 
 var publicPaths = map[string]bool{
-	"/v1/auth/web/login":      true,
-	"/v1/auth/web/refresh":    true,
-	"/v1/auth/web/mfa/verify": true,
-	"/v1/auth/mobile/login":   true,
-	"/v1/auth/mobile/refresh": true,
-	"/v1/branding":            true,
+	"/v1/auth/web/login":       true,
+	"/v1/auth/web/refresh":     true,
+	"/v1/auth/web/mfa/verify":  true,
+	"/v1/auth/mobile/login":    true,
+	"/v1/auth/mobile/refresh":  true,
+	"/v1/auth/password/forgot": true,
+	"/v1/auth/password/reset":  true,
+	"/v1/branding":             true,
 }
 
 // Saat sandi atau MFA belum dipenuhi, hanya route akun sendiri yang terbuka.

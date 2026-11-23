@@ -716,6 +716,15 @@ type OfficeLocation struct {
 	UpdatedAt pgtype.Timestamptz
 }
 
+type PasswordResetToken struct {
+	ID        uuid.UUID
+	UserID    uuid.UUID
+	TokenHash string
+	ExpiresAt pgtype.Timestamptz
+	UsedAt    pgtype.Timestamptz
+	CreatedAt pgtype.Timestamptz
+}
+
 type Session struct {
 	ID                uuid.UUID
 	UserID            uuid.UUID

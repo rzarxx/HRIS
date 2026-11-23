@@ -43,6 +43,10 @@ type Service struct {
 	dummyHash string
 	// bindDevice mengikat perangkat saat login mobile (F5).
 	bindDevice DeviceBinder
+	// mailer mengirim email akun (reset kata sandi, pemberitahuan keamanan); nil bila tidak dipasang.
+	mailer Mailer
+	// publicWebURL adalah alamat web admin untuk tautan di email (PUBLIC_WEB_URL).
+	publicWebURL string
 }
 
 func NewService(pool *pgxpool.Pool, signer *TokenSigner, fieldCipher *fieldcrypt.Cipher, requireMFA bool) (*Service, error) {

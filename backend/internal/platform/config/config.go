@@ -47,16 +47,19 @@ type Config struct {
 	// FaceModelsDir berisi yunet.onnx dan sface.onnx untuk menghitung wajah dari selfie (D43), dan
 	// OnnxRuntimeLib adalah pustaka ONNX Runtime. Kosong berarti verifikasi wajah tidak tersedia.
 	// SelfieDir adalah folder selfie terenkripsi.
-	FaceModelsDir              string
-	OnnxRuntimeLib             string
-	SelfieDir                  string
-	ClamAVAddress              string
-	StorageDriver              string
-	StorageEndpoint            string
-	StorageBucket              string
-	StorageRegion              string
-	StorageAccessKey           string
-	StorageSecretKey           string
+	FaceModelsDir    string
+	OnnxRuntimeLib   string
+	SelfieDir        string
+	ClamAVAddress    string
+	StorageDriver    string
+	StorageEndpoint  string
+	StorageBucket    string
+	StorageRegion    string
+	StorageAccessKey string
+	StorageSecretKey string
+	// PublicWebURL adalah alamat web admin untuk tautan di email (reset kata sandi). Kosong berarti
+	// lupa kata sandi lewat email tidak aktif.
+	PublicWebURL               string
 	PlayIntegrityPackage       string
 	PlayIntegrityCredentials   string
 	KeyAttestationRootCAPath   string
@@ -136,6 +139,7 @@ func Load() (Config, error) {
 		StorageRegion:              env("STORAGE_REGION", "us-east-1"),
 		StorageAccessKey:           os.Getenv("STORAGE_ACCESS_KEY"),
 		StorageSecretKey:           os.Getenv("STORAGE_SECRET_KEY"),
+		PublicWebURL:               strings.TrimRight(strings.TrimSpace(os.Getenv("PUBLIC_WEB_URL")), "/"),
 		PlayIntegrityPackage:       playPkg,
 		PlayIntegrityCredentials:   playCreds,
 		KeyAttestationRootCAPath:   os.Getenv("KEY_ATTESTATION_ROOT_CA_PATH"),
@@ -209,6 +213,13 @@ func Load() (Config, error) {
 	}
 	if cfg.FieldEncryptionKeyPath == "" {
 		return cfg, errors.New("FIELD_ENCRYPTION_KEY_PATH wajib diisi")
+	}
+	if cfg.PublicWebURL != "" {
+		u, err := url.Parse(cfg.PublicWebURL)
+		if err != nil || u.Host == "" || u.User != nil || u.RawQuery != "" || u.Fragment != "" ||
+			(u.Scheme != "https" && !(cfg.IsDevelopment() && u.Scheme == "http")) {
+			return cfg, errors.New("PUBLIC_WEB_URL harus alamat https (http hanya di APP_ENV=development), contoh https://admin.albahjah.or.id")
+		}
 	}
 	if cfg.StorageDriver != "disk" && cfg.StorageDriver != "s3" {
 		return cfg, errors.New("STORAGE_DRIVER harus disk atau s3")

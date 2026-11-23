@@ -1,6 +1,7 @@
 "use client";
 
 import { ShieldCheck } from "lucide-react";
+import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
@@ -141,6 +142,11 @@ export function LoginForm() {
           invalid={!!errors.password}
         />
       </Field>
+      <div className="-mt-2 text-right">
+        <Link href="/lupa-kata-sandi/" className="text-sm text-primary-700 hover:underline">
+          Lupa kata sandi?
+        </Link>
+      </div>
       <Button type="submit" loading={loading} className="w-full">
         Masuk
       </Button>

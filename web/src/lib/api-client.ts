@@ -22,7 +22,11 @@ const ERROR_MESSAGES: Partial<Record<ErrorCode, string>> = {
   APPROVAL_SELF_FORBIDDEN: "Pengajuan Anda sendiri ditindaklanjuti oleh approver lain.",
   APPROVAL_NOT_YOUR_TURN: "Belum giliran Anda. Langkah sebelumnya belum diproses.",
   REQUEST_NOT_PENDING: "Pengajuan ini sudah diproses atau dibatalkan. Muat ulang untuk melihat status terbaru.",
+  RESET_TOKEN_INVALID: "Tautan sudah tidak berlaku. Silakan minta tautan baru.",
 };
+
+/** Kode yang pesannya dari server lebih spesifik daripada pesan umum. */
+const SERVER_MESSAGE_CODES = new Set<string>(["CONFLICT_HAS_DEPENDENTS", "SMTP_TEST_FAILED"]);
 
 export class ApiError extends Error {
   constructor(
@@ -120,8 +124,7 @@ async function request<T>(method: string, path: string, opts: { query?: Query; b
     if (res.status === 401 && !path.startsWith("/auth/")) redirectToLogin();
     const code = (err?.code ?? "UNKNOWN") as ErrorCode;
     const requestId: string | undefined = err?.request_id;
-    // CONFLICT_HAS_DEPENDENTS memakai pesan server karena lebih spesifik.
-    let message: string = (code === "CONFLICT_HAS_DEPENDENTS" ? err?.message : ERROR_MESSAGES[code]) ?? err?.message ?? "Mohon maaf, terjadi kendala. Silakan coba lagi.";
+    let message: string = (SERVER_MESSAGE_CODES.has(code) ? err?.message : ERROR_MESSAGES[code]) ?? err?.message ?? "Mohon maaf, terjadi kendala. Silakan coba lagi.";
     if (code === "INTERNAL_ERROR" && requestId) message = `Mohon maaf, server sedang mengalami kendala. Silakan coba lagi. Kode: ${requestId}`;
     // Sandi sementara atau MFA wajib: arahkan ke halaman yang bisa menyelesaikannya.
     // PASSWORD_CHANGE_REQUIRED ditangani popup di AppShell, jadi tidak dialihkan.

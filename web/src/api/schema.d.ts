@@ -433,6 +433,107 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/auth/password/forgot": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Minta tautan atur ulang kata sandi lewat email
+         * @description Publik (D30). Selalu menjawab 202 dengan pesan yang sama, baik akun ada atau tidak, punya email atau tidak, agar tidak membocorkan akun mana yang terdaftar. Tautan hanya dikirim ke email terdaftar akun aktif bila SMTP sudah diatur super admin dan PUBLIC_WEB_URL terisi. Tautan sekali pakai, berlaku 1 jam, dan tautan baru membatalkan yang lama. Dibatasi 3 permintaan per jam per akun dan IP, serta 10 per jam per IP. Dicatat `auth.password_reset_requested`; gagal kirim dicatat `email.delivery_failed`.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["PasswordForgotRequest"];
+                };
+            };
+            responses: {
+                /** @description Diterima */
+                202: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data: components["schemas"]["PasswordForgotResult"];
+                        };
+                    };
+                };
+                400: components["responses"]["ValidationFailed"];
+                429: components["responses"]["Error"];
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/auth/password/reset": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Pasang kata sandi baru dari tautan email
+         * @description Publik. `token` diambil web dari fragmen URL tautan email (`/reset-kata-sandi/#token=…`). Kata sandi baru minimal 10 karakter dan bukan kata sandi umum; isian yang belum sesuai tidak menghabiskan tautan. Berhasil berarti akun dibuka kuncinya, kata sandi awal tidak berlaku lagi, dan semua sesi dicabut. MFA tetap diminta saat login berikutnya. Dicatat `auth.password_reset_completed`.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        token: string;
+                        password: string;
+                    };
+                };
+            };
+            responses: {
+                /** @description Kata sandi baru terpasang */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description VALIDATION_FAILED, atau RESET_TOKEN_INVALID bila tautan salah, kedaluwarsa, atau sudah dipakai */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                429: components["responses"]["Error"];
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/auth/sessions": {
         parameters: {
             query?: never;
@@ -4047,6 +4148,100 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/admin/settings/smtp": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Pengaturan email (SMTP) saat ini
+         * @description Permission `settings:manage` (hanya super admin). Kata sandi SMTP tidak pernah dikirim; hanya `password_set`.
+         */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data: components["schemas"]["SmtpSettings"];
+                        };
+                    };
+                };
+            };
+        };
+        /**
+         * Simpan pengaturan email (SMTP) setelah uji kirim
+         * @description Permission `settings:manage`. Email uji dikirim lebih dulu ke email akun yang sedang login; pengaturan baru baru disimpan bila uji berhasil, dan pengaturan lama tetap dipakai bila gagal (`SMTP_TEST_FAILED`, `details.stage`: connect, tls, auth, atau send). Hanya port 465 (TLS) atau 587 (STARTTLS wajib), sertifikat diverifikasi, dan host yang mengarah ke alamat internal (loopback, link-local, privat) ditolak. Kata sandi disimpan terenkripsi dan tulis-saja; kosong berarti tetap memakai kata sandi lama. Dicatat `settings.changed` tanpa nilai rahasia.
+         */
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["SmtpInput"];
+                };
+            };
+            responses: {
+                /** @description Tersimpan */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data: components["schemas"]["SmtpSettings"];
+                        };
+                    };
+                };
+                400: components["responses"]["ValidationFailed"];
+                422: components["responses"]["Error"];
+            };
+        };
+        post?: never;
+        /**
+         * Matikan pengiriman email
+         * @description Permission `settings:manage`. Lupa kata sandi lewat email dan pemberitahuan keamanan berhenti dikirim.
+         */
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Dimatikan */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                404: components["responses"]["Error"];
+            };
+        };
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/admin/settings/storage": {
         parameters: {
             query?: never;
@@ -5049,7 +5244,7 @@ export interface components {
          * @description Registry MASTER.md §7.4
          * @enum {string}
          */
-        ErrorCode: "VALIDATION_FAILED" | "AUTH_INVALID_CREDENTIALS" | "AUTH_TOKEN_INVALID" | "AUTH_MFA_REQUIRED" | "AUTH_MFA_INVALID" | "FORBIDDEN_ROLE" | "CSRF_INVALID" | "PASSWORD_CHANGE_REQUIRED" | "MFA_SETUP_REQUIRED" | "DEVICE_NOT_REGISTERED" | "DEVICE_PENDING_APPROVAL" | "DEVICE_REVOKED" | "APPROVAL_NOT_YOUR_TURN" | "APPROVAL_SELF_FORBIDDEN" | "MAKER_CHECKER_VIOLATION" | "NOT_FOUND" | "METHOD_NOT_ALLOWED" | "ALREADY_CLOCKED_IN" | "ALREADY_CLOCKED_OUT" | "SHIFT_NOT_ASSIGNED" | "NOT_CLOCKED_IN" | "REQUEST_NOT_PENDING" | "PERIOD_LOCKED" | "DUPLICATE_REQUEST" | "CONFLICT_DUPLICATE" | "CONFLICT_HAS_DEPENDENTS" | "CONFLICT_SELF_ACTION" | "MFA_ALREADY_ENABLED" | "PAYLOAD_TOO_LARGE" | "UNSUPPORTED_MEDIA_TYPE" | "GEOFENCE_OUT" | "FACE_NOT_ENROLLED" | "FACE_MISMATCH" | "LIVENESS_FAILED" | "FACE_NOT_DETECTED" | "FACE_SERVICE_UNAVAILABLE" | "STORAGE_UNAVAILABLE" | "STORAGE_DESTINATION_LOCKED" | "STORAGE_TEST_FAILED" | "STORAGE_NOT_ACTIVE" | "STORAGE_SOURCE_MISSING" | "STORAGE_SYNC_BUSY" | "STORAGE_SYNC_FAILED" | "FILE_UNSAFE" | "FILE_SCAN_UNAVAILABLE" | "CHALLENGE_EXPIRED" | "ATTENDANCE_BLOCKED" | "LEAVE_ACTIVE" | "READ_TOO_SOON" | "AUTH_ACCOUNT_LOCKED" | "AUTH_INITIAL_PASSWORD_EXPIRED" | "APP_UPDATE_REQUIRED" | "RATE_LIMITED" | "API_ACCESS_DENIED" | "INTERNAL_ERROR";
+        ErrorCode: "VALIDATION_FAILED" | "AUTH_INVALID_CREDENTIALS" | "AUTH_TOKEN_INVALID" | "AUTH_MFA_REQUIRED" | "AUTH_MFA_INVALID" | "FORBIDDEN_ROLE" | "CSRF_INVALID" | "PASSWORD_CHANGE_REQUIRED" | "MFA_SETUP_REQUIRED" | "DEVICE_NOT_REGISTERED" | "DEVICE_PENDING_APPROVAL" | "DEVICE_REVOKED" | "APPROVAL_NOT_YOUR_TURN" | "APPROVAL_SELF_FORBIDDEN" | "MAKER_CHECKER_VIOLATION" | "NOT_FOUND" | "METHOD_NOT_ALLOWED" | "ALREADY_CLOCKED_IN" | "ALREADY_CLOCKED_OUT" | "SHIFT_NOT_ASSIGNED" | "NOT_CLOCKED_IN" | "REQUEST_NOT_PENDING" | "PERIOD_LOCKED" | "DUPLICATE_REQUEST" | "CONFLICT_DUPLICATE" | "CONFLICT_HAS_DEPENDENTS" | "CONFLICT_SELF_ACTION" | "MFA_ALREADY_ENABLED" | "PAYLOAD_TOO_LARGE" | "UNSUPPORTED_MEDIA_TYPE" | "GEOFENCE_OUT" | "FACE_NOT_ENROLLED" | "FACE_MISMATCH" | "LIVENESS_FAILED" | "FACE_NOT_DETECTED" | "FACE_SERVICE_UNAVAILABLE" | "STORAGE_UNAVAILABLE" | "STORAGE_DESTINATION_LOCKED" | "STORAGE_TEST_FAILED" | "STORAGE_NOT_ACTIVE" | "STORAGE_SOURCE_MISSING" | "STORAGE_SYNC_BUSY" | "STORAGE_SYNC_FAILED" | "FILE_UNSAFE" | "FILE_SCAN_UNAVAILABLE" | "SMTP_TEST_FAILED" | "RESET_TOKEN_INVALID" | "CHALLENGE_EXPIRED" | "ATTENDANCE_BLOCKED" | "LEAVE_ACTIVE" | "READ_TOO_SOON" | "AUTH_ACCOUNT_LOCKED" | "AUTH_INITIAL_PASSWORD_EXPIRED" | "APP_UPDATE_REQUIRED" | "RATE_LIMITED" | "API_ACCESS_DENIED" | "INTERNAL_ERROR";
         /**
          * @description Matriks MASTER.md §3.2
          * @enum {string}
@@ -5409,6 +5604,13 @@ export interface components {
             current_password: string;
             new_password: string;
         };
+        PasswordForgotRequest: {
+            /** @description NIPY, email, atau nomor WA */
+            identifier: string;
+        };
+        PasswordForgotResult: {
+            message: string;
+        };
         Session: {
             /** Format: uuid */
             id: string;
@@ -5495,6 +5697,30 @@ export interface components {
             /** @enum {string} */
             content_type: "application/pdf" | "image/jpeg" | "image/png";
             size_bytes: number;
+        };
+        SmtpSettings: {
+            configured: boolean;
+            host: string;
+            port: number;
+            username: string;
+            password_set: boolean;
+            from_name: string;
+            from_email: string;
+            /** Format: date-time */
+            updated_at: string | null;
+        };
+        SmtpInput: {
+            /** @example smtp.gmail.com */
+            host: string;
+            /** @enum {integer} */
+            port: 465 | 587;
+            username?: string;
+            /** @description Kosong berarti tetap memakai kata sandi lama */
+            password?: string;
+            /** @example HRIS Al Bahjah */
+            from_name?: string;
+            /** @example hris@albahjah.or.id */
+            from_email: string;
         };
         StorageSettings: {
             configured: boolean;

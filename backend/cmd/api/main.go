@@ -23,6 +23,7 @@ import (
 	"github.com/rzarxx/HRIS/backend/internal/face"
 	"github.com/rzarxx/HRIS/backend/internal/leave"
 	"github.com/rzarxx/HRIS/backend/internal/location"
+	"github.com/rzarxx/HRIS/backend/internal/mail"
 	"github.com/rzarxx/HRIS/backend/internal/org"
 	"github.com/rzarxx/HRIS/backend/internal/platform/config"
 	"github.com/rzarxx/HRIS/backend/internal/platform/database"
@@ -161,6 +162,13 @@ func run() error {
 		return err
 	}
 	authSvc.SetDeviceBinder(device.BindForLogin)
+	// Email akun lewat SMTP yang diatur super admin di panel (D30). Tanpa PUBLIC_WEB_URL, lupa kata sandi
+	// lewat email tidak aktif dan permintaan tetap dijawab 202.
+	mailSvc := mail.NewService(pool, fieldCipher)
+	authSvc.SetMailer(mailSvc, cfg.PublicWebURL)
+	if cfg.PublicWebURL == "" {
+		slog.Warn("PUBLIC_WEB_URL kosong: lupa kata sandi lewat email tidak aktif")
+	}
 	q := store.New(pool)
 	secure := cfg.CookieSecure
 	limiter := auth.NewMemoryLimiter()
@@ -183,10 +191,6 @@ func run() error {
 		announcementSvc.WithFiles(privateFiles)
 		employeeSvc.WithPhotos(privateFiles)
 	}
-	employeeHandler := employee.NewHandler(employeeSvc)
-	reportHandler := report.NewHandler(report.NewService(q, authSvc.ResolveScope))
-	employeeHandler.WithGeneratedFiles(managedFiles.Generated())
-	reportHandler.WithGeneratedFiles(managedFiles.Generated())
 	ready := func(ctx context.Context) error {
 		if err := pool.Ping(ctx); err != nil {
 			return err
@@ -199,12 +203,13 @@ func run() error {
 	handler := server.New(server.Deps{
 		Auth:         auth.NewHandler(authSvc, secure, cfg.CookieDomain, limiter),
 		Org:          org.NewHandler(org.NewService(pool)),
-		Employee:     employeeHandler.WithMe(authSvc.Me),
+		Employee:     employee.NewHandler(employeeSvc).WithMe(authSvc.Me),
 		Announcement: announcement.NewHandler(announcementSvc),
 		Settings:     settings.NewHandler(settings.NewService(pool)),
 		Storage:      storageadmin.NewHandler(storageSvc),
+		Mail:         mail.NewHandler(mailSvc),
 		Dashboard:    dashboard.NewHandler(q),
-		Report:       reportHandler,
+		Report:       report.NewHandler(report.NewService(q, authSvc.ResolveScope)),
 		Location:     location.NewHandler(location.NewService(pool)),
 		Device:       device.NewHandler(device.NewService(pool)),
 		Attendance:   attendance.NewHandler(attendance.NewService(pool, attendanceOpt)),

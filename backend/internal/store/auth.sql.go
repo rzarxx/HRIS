@@ -13,6 +13,40 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const consumePasswordResetToken = `-- name: ConsumePasswordResetToken :one
+UPDATE password_reset_tokens SET used_at = $1
+WHERE token_hash = $2 AND used_at IS NULL AND expires_at > $1
+RETURNING user_id
+`
+
+type ConsumePasswordResetTokenParams struct {
+	Now       pgtype.Timestamptz
+	TokenHash string
+}
+
+// Pemakaian atomik: hanya satu permintaan yang bisa memakai satu tautan.
+func (q *Queries) ConsumePasswordResetToken(ctx context.Context, arg ConsumePasswordResetTokenParams) (uuid.UUID, error) {
+	row := q.db.QueryRow(ctx, consumePasswordResetToken, arg.Now, arg.TokenHash)
+	var user_id uuid.UUID
+	err := row.Scan(&user_id)
+	return user_id, err
+}
+
+const createPasswordResetToken = `-- name: CreatePasswordResetToken :exec
+INSERT INTO password_reset_tokens (user_id, token_hash, expires_at) VALUES ($1, $2, $3)
+`
+
+type CreatePasswordResetTokenParams struct {
+	UserID    uuid.UUID
+	TokenHash string
+	ExpiresAt pgtype.Timestamptz
+}
+
+func (q *Queries) CreatePasswordResetToken(ctx context.Context, arg CreatePasswordResetTokenParams) error {
+	_, err := q.db.Exec(ctx, createPasswordResetToken, arg.UserID, arg.TokenHash, arg.ExpiresAt)
+	return err
+}
+
 const createSession = `-- name: CreateSession :one
 INSERT INTO sessions (user_id, client, device_id, refresh_hash, ip, user_agent, idle_expires_at, absolute_expires_at)
 VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
@@ -544,6 +578,21 @@ func (q *Queries) InsertAuditLog(ctx context.Context, arg InsertAuditLogParams) 
 		arg.Detail,
 		arg.Ip,
 	)
+	return err
+}
+
+const invalidatePasswordResetTokens = `-- name: InvalidatePasswordResetTokens :exec
+UPDATE password_reset_tokens SET used_at = $1 WHERE user_id = $2 AND used_at IS NULL
+`
+
+type InvalidatePasswordResetTokensParams struct {
+	Now    pgtype.Timestamptz
+	UserID uuid.UUID
+}
+
+// Tautan baru membatalkan tautan reset lama milik akun yang sama.
+func (q *Queries) InvalidatePasswordResetTokens(ctx context.Context, arg InvalidatePasswordResetTokensParams) error {
+	_, err := q.db.Exec(ctx, invalidatePasswordResetTokens, arg.Now, arg.UserID)
 	return err
 }
 

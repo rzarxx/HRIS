@@ -88,6 +88,9 @@ interface HrisApi {
     @POST("v1/auth/password/change")
     suspend fun changePassword(@Body body: PasswordChangeRequest): retrofit2.Response<Unit>
 
+    @POST("v1/auth/password/forgot")
+    suspend fun forgotPassword(@Body body: PasswordForgotRequest): DataResponse<PasswordForgotResult>
+
     @POST("v1/consents")
     suspend fun consent(@Body body: ConsentInput): retrofit2.Response<Unit>
 

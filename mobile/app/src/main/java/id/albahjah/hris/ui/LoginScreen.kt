@@ -1,5 +1,6 @@
 package id.albahjah.hris.ui
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -19,6 +20,7 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Settings
@@ -28,6 +30,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -75,8 +78,14 @@ fun LoginScreen(repository: Repository, crash: String?, onDismissCrash: () -> Un
     var busy by rememberSaveable { mutableStateOf(false) }
     var error by rememberSaveable { mutableStateOf<String?>(null) }
 
+    var forgot by rememberSaveable { mutableStateOf(false) }
+
     // Footer bisa diubah super admin; dimuat tanpa login dan disimpan untuk tampilan luring.
     LaunchedEffect(Unit) { repository.refreshBranding() }
+    if (forgot) {
+        ForgotPasswordScreen(repository, server, identifier, onBack = { forgot = false })
+        return
+    }
     LoginContent(
         footer = repository.prefs.footer,
         form = LoginForm(server, identifier, password, mfa, askMfa, busy, error),
@@ -89,6 +98,10 @@ fun LoginScreen(repository: Repository, crash: String?, onDismissCrash: () -> Un
         onIdentifier = { identifier = it },
         onPassword = { password = it },
         onMfa = { mfa = it.filter(Char::isDigit).take(6) },
+        onForgot = {
+            error = null
+            forgot = true
+        },
         onSubmit = {
             if (busy) return@LoginContent
             busy = true
@@ -123,6 +136,7 @@ fun LoginContent(
     onMfa: (String) -> Unit,
     onSubmit: () -> Unit,
     footer: String? = null,
+    onForgot: () -> Unit = {},
 ) {
     StatusBarIcons(dark = true)
     var showPassword by rememberSaveable { mutableStateOf(false) }
@@ -174,6 +188,11 @@ fun LoginContent(
                         onDone = { if (canSubmit) onSubmit() },
                         trailing = { PasswordEye(showPassword) { showPassword = !showPassword } },
                     )
+                    if (!form.askMfa) {
+                        TextButton(onClick = onForgot, modifier = Modifier.align(Alignment.End)) {
+                            Text("Lupa kata sandi?", style = MaterialTheme.typography.labelLarge, color = Hc.BrandDark)
+                        }
+                    }
                     if (form.askMfa) {
                         Field(
                             value = form.mfa,
@@ -233,6 +252,98 @@ fun LoginContent(
     }
 }
 
+/** Lupa kata sandi (D30): meminta tautan ke email akun, lalu kata sandi baru dibuat di halaman web. */
+@Composable
+fun ForgotPasswordScreen(repository: Repository, server: String, initialIdentifier: String, onBack: () -> Unit) {
+    val scope = rememberCoroutineScope()
+    var identifier by rememberSaveable { mutableStateOf(initialIdentifier) }
+    var busy by rememberSaveable { mutableStateOf(false) }
+    var error by rememberSaveable { mutableStateOf<String?>(null) }
+    var sent by rememberSaveable { mutableStateOf<String?>(null) }
+
+    BackHandler(onBack = onBack)
+    ForgotPasswordContent(
+        identifier = identifier,
+        busy = busy,
+        error = error,
+        sent = sent,
+        onIdentifier = { identifier = it },
+        onBack = onBack,
+        onSubmit = {
+            if (busy || identifier.isBlank()) return@ForgotPasswordContent
+            busy = true
+            error = null
+            scope.launch {
+                try {
+                    sent = repository.forgotPassword(server, identifier)
+                } catch (e: Exception) {
+                    error = e.toApiError().message
+                } finally {
+                    busy = false
+                }
+            }
+        },
+    )
+}
+
+@Composable
+fun ForgotPasswordContent(
+    identifier: String,
+    busy: Boolean,
+    error: String?,
+    sent: String?,
+    onIdentifier: (String) -> Unit,
+    onBack: () -> Unit,
+    onSubmit: () -> Unit,
+) {
+    Column(Modifier.fillMaxSize().background(Hc.Canvas)) {
+        TopBar("Lupa kata sandi", onBack)
+        Column(
+            ContentWidth.fillMaxWidth()
+                .align(Alignment.CenterHorizontally)
+                .imePadding()
+                .verticalScroll(rememberScrollState())
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            if (sent != null) {
+                StatusBanner(Tone.Success, Icons.Filled.CheckCircle, "Permintaan terkirim", sent)
+                Text(
+                    "Buka tautan di email untuk membuat kata sandi baru. Tautan berlaku 1 jam dan hanya bisa dipakai sekali. " +
+                        "Periksa juga folder spam. Bila akun belum memiliki email, hubungi SDM.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = Hc.InkSoft,
+                )
+                PrimaryButton(text = "Kembali ke halaman masuk", onClick = onBack, modifier = Modifier.padding(top = 8.dp))
+            } else {
+                SectionCard {
+                    Text(
+                        "Tulis NIPY, email, atau nomor WA Anda. Tautan untuk membuat kata sandi baru dikirim ke email yang terdaftar di akun.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = Hc.InkSoft,
+                    )
+                    Spacer(Modifier.height(16.dp))
+                    Field(
+                        value = identifier,
+                        onChange = onIdentifier,
+                        label = "NIPY, email, atau nomor WA",
+                        icon = Icons.Filled.Person,
+                        keyboard = KeyboardOptions(keyboardType = KeyboardType.Email, imeAction = ImeAction.Done),
+                        onDone = onSubmit,
+                    )
+                }
+                if (error != null) StatusBanner(Tone.Danger, Icons.Filled.Warning, "Belum terkirim", error)
+                PrimaryButton(
+                    text = "Kirim tautan",
+                    onClick = onSubmit,
+                    enabled = identifier.isNotBlank(),
+                    loading = busy,
+                    modifier = Modifier.padding(top = 4.dp),
+                )
+            }
+        }
+    }
+}
 
 @Composable
 private fun Field(

@@ -17,6 +17,7 @@ import (
 	"github.com/rzarxx/HRIS/backend/internal/employee"
 	"github.com/rzarxx/HRIS/backend/internal/leave"
 	"github.com/rzarxx/HRIS/backend/internal/location"
+	"github.com/rzarxx/HRIS/backend/internal/mail"
 	"github.com/rzarxx/HRIS/backend/internal/org"
 	"github.com/rzarxx/HRIS/backend/internal/permission"
 	"github.com/rzarxx/HRIS/backend/internal/platform/httpx"
@@ -34,6 +35,7 @@ type Deps struct {
 	Announcement *announcement.Handler
 	Settings     *settings.Handler
 	Storage      *storageadmin.Handler
+	Mail         *mail.Handler
 	Dashboard    *dashboard.Handler
 	Report       *report.Handler
 	Location     *location.Handler
@@ -77,6 +79,9 @@ func routes(d Deps) []Route {
 		{http.MethodPost, "/v1/auth/web/mfa/verify", Public, nil, d.Auth.MFAVerify},
 		{http.MethodPost, "/v1/auth/mobile/login", Public, nil, d.Auth.MobileLogin},
 		{http.MethodPost, "/v1/auth/mobile/refresh", Public, nil, d.Auth.MobileRefresh},
+		// Lupa kata sandi lewat email (D30): selalu 202 dan dibatasi per akun dan per IP.
+		{http.MethodPost, "/v1/auth/password/forgot", Public, nil, d.Auth.ForgotPassword},
+		{http.MethodPost, "/v1/auth/password/reset", Public, nil, d.Auth.ResetPassword},
 		// Footer dan merek tampil di layar masuk web dan aplikasi, sebelum login.
 		{http.MethodGet, "/v1/branding", Public, nil, d.Settings.Branding},
 		{http.MethodPost, "/v1/auth/logout", AnyUser, nil, d.Auth.Logout},
@@ -181,6 +186,9 @@ func routes(d Deps) []Route {
 
 		guarded(http.MethodGet, "/v1/admin/settings/footer", d.Settings.Branding, permission.SettingsManage),
 		guarded(http.MethodPut, "/v1/admin/settings/footer", d.Settings.SetFooter, permission.SettingsManage),
+		guarded(http.MethodGet, "/v1/admin/settings/smtp", d.Mail.Settings, permission.SettingsManage),
+		guarded(http.MethodPut, "/v1/admin/settings/smtp", d.Mail.Save, permission.SettingsManage),
+		guarded(http.MethodDelete, "/v1/admin/settings/smtp", d.Mail.Disable, permission.SettingsManage),
 		guarded(http.MethodGet, "/v1/admin/settings/storage", d.Storage.Settings, permission.SettingsManage),
 		guarded(http.MethodPut, "/v1/admin/settings/storage", d.Storage.Save, permission.SettingsManage),
 		guarded(http.MethodPost, "/v1/admin/settings/storage/sync", d.Storage.Sync, permission.SettingsManage),

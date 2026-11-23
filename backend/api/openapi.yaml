@@ -196,6 +196,62 @@ paths:
         "204": { description: Kata sandi diganti }
         "400": { $ref: "#/components/responses/ValidationFailed" }
         "401": { $ref: "#/components/responses/Error" }
+  /v1/auth/password/forgot:
+    post:
+      tags: [Auth]
+      summary: Minta tautan atur ulang kata sandi lewat email
+      security: []
+      description: >-
+        Publik (D30). Selalu menjawab 202 dengan pesan yang sama, baik akun ada atau tidak, punya email atau tidak,
+        agar tidak membocorkan akun mana yang terdaftar. Tautan hanya dikirim ke email terdaftar akun aktif bila
+        SMTP sudah diatur super admin dan PUBLIC_WEB_URL terisi. Tautan sekali pakai, berlaku 1 jam, dan tautan
+        baru membatalkan yang lama. Dibatasi 3 permintaan per jam per akun dan IP, serta 10 per jam per IP.
+        Dicatat `auth.password_reset_requested`; gagal kirim dicatat `email.delivery_failed`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/PasswordForgotRequest" }
+      responses:
+        "202":
+          description: Diterima
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data: { $ref: "#/components/schemas/PasswordForgotResult" }
+        "400": { $ref: "#/components/responses/ValidationFailed" }
+        "429": { $ref: "#/components/responses/Error" }
+  /v1/auth/password/reset:
+    post:
+      tags: [Auth]
+      summary: Pasang kata sandi baru dari tautan email
+      security: []
+      description: >-
+        Publik. `token` diambil web dari fragmen URL tautan email (`/reset-kata-sandi/#token=…`). Kata sandi baru
+        minimal 10 karakter dan bukan kata sandi umum; isian yang belum sesuai tidak menghabiskan tautan. Berhasil
+        berarti akun dibuka kuncinya, kata sandi awal tidak berlaku lagi, dan semua sesi dicabut. MFA tetap diminta
+        saat login berikutnya. Dicatat `auth.password_reset_completed`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [token, password]
+              properties:
+                token: { type: string, maxLength: 128 }
+                password: { type: string, maxLength: 256 }
+      responses:
+        "204": { description: Kata sandi baru terpasang }
+        "400":
+          description: VALIDATION_FAILED, atau RESET_TOKEN_INVALID bila tautan salah, kedaluwarsa, atau sudah dipakai
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+        "429": { $ref: "#/components/responses/Error" }
   /v1/auth/sessions:
     get:
       tags: [Auth]
@@ -1940,6 +1996,55 @@ paths:
                 properties:
                   data: { $ref: "#/components/schemas/Branding" }
         "400": { $ref: "#/components/responses/ValidationFailed" }
+  /v1/admin/settings/smtp:
+    get:
+      tags: [Sistem]
+      summary: Pengaturan email (SMTP) saat ini
+      description: Permission `settings:manage` (hanya super admin). Kata sandi SMTP tidak pernah dikirim; hanya `password_set`.
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data: { $ref: "#/components/schemas/SmtpSettings" }
+    put:
+      tags: [Sistem]
+      summary: Simpan pengaturan email (SMTP) setelah uji kirim
+      description: >-
+        Permission `settings:manage`. Email uji dikirim lebih dulu ke email akun yang sedang login; pengaturan baru
+        baru disimpan bila uji berhasil, dan pengaturan lama tetap dipakai bila gagal (`SMTP_TEST_FAILED`,
+        `details.stage`: connect, tls, auth, atau send). Hanya port 465 (TLS) atau 587 (STARTTLS wajib), sertifikat
+        diverifikasi, dan host yang mengarah ke alamat internal (loopback, link-local, privat) ditolak. Kata sandi
+        disimpan terenkripsi dan tulis-saja; kosong berarti tetap memakai kata sandi lama. Dicatat
+        `settings.changed` tanpa nilai rahasia.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/SmtpInput" }
+      responses:
+        "200":
+          description: Tersimpan
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data: { $ref: "#/components/schemas/SmtpSettings" }
+        "400": { $ref: "#/components/responses/ValidationFailed" }
+        "422": { $ref: "#/components/responses/Error" }
+    delete:
+      tags: [Sistem]
+      summary: Matikan pengiriman email
+      description: Permission `settings:manage`. Lupa kata sandi lewat email dan pemberitahuan keamanan berhenti dikirim.
+      responses:
+        "204": { description: Dimatikan }
+        "404": { $ref: "#/components/responses/Error" }
   /v1/admin/settings/storage:
     get:
       tags: [Sistem]
@@ -2535,6 +2640,8 @@ components:
         - STORAGE_SYNC_FAILED
         - FILE_UNSAFE
         - FILE_SCAN_UNAVAILABLE
+        - SMTP_TEST_FAILED
+        - RESET_TOKEN_INVALID
         - CHALLENGE_EXPIRED
         - ATTENDANCE_BLOCKED
         - LEAVE_ACTIVE
@@ -2951,6 +3058,16 @@ components:
       properties:
         current_password: { type: string }
         new_password: { type: string, minLength: 10, maxLength: 256 }
+    PasswordForgotRequest:
+      type: object
+      required: [identifier]
+      properties:
+        identifier: { type: string, maxLength: 254, description: "NIPY, email, atau nomor WA" }
+    PasswordForgotResult:
+      type: object
+      required: [message]
+      properties:
+        message: { type: string }
     Session:
       type: object
       required: [id, client, ip, user_agent, created_at, last_used_at, is_current]
@@ -3037,6 +3154,28 @@ components:
         file_name: { type: string }
         content_type: { type: string, enum: [application/pdf, image/jpeg, image/png] }
         size_bytes: { type: integer }
+    SmtpSettings:
+      type: object
+      required: [configured, host, port, username, password_set, from_name, from_email, updated_at]
+      properties:
+        configured: { type: boolean }
+        host: { type: string }
+        port: { type: integer }
+        username: { type: string }
+        password_set: { type: boolean }
+        from_name: { type: string }
+        from_email: { type: string }
+        updated_at: { type: string, format: date-time, nullable: true }
+    SmtpInput:
+      type: object
+      required: [host, port, from_email]
+      properties:
+        host: { type: string, maxLength: 253, example: smtp.gmail.com }
+        port: { type: integer, enum: [465, 587] }
+        username: { type: string, maxLength: 254 }
+        password: { type: string, maxLength: 256, description: "Kosong berarti tetap memakai kata sandi lama" }
+        from_name: { type: string, maxLength: 80, example: HRIS Al Bahjah }
+        from_email: { type: string, maxLength: 254, example: hris@albahjah.or.id }
     StorageSettings:
       type: object
       required: [configured, active, endpoint, bucket, region, access_key, secret_set, migration]

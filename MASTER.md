@@ -314,6 +314,7 @@ Domain terpisah: `admin.<domain>` (web statis) dan `api.<domain>` (API), keduany
 ### 5.2.1 Akses Akun Lewat Email Terdaftar (D30)
 
 - Akun baru tidak lagi memakai tautan aktivasi (D53). Bagian ini berlaku untuk lupa kata sandi, ganti email, dan pemberitahuan keamanan setelah SMTP siap.
+- **Status:** lupa kata sandi lewat email, pengaturan SMTP di panel super admin, dan pemberitahuan keamanan (kata sandi diganti atau direset) sudah berjalan. Tautan berbentuk `PUBLIC_WEB_URL/reset-kata-sandi/#token=…`; token di fragmen URL sehingga tidak masuk log server maupun header Referer. Tanpa SMTP atau `PUBLIC_WEB_URL`, permintaan tetap dijawab `202` tetapi tidak ada email. Ganti email lewat konfirmasi email belum dibangun.
 - Tautan reset kata sandi **hanya dikirim ke email terdaftar**. Di luar `APP_ENV=development`, API tidak mengembalikan token dan layar SDM tidak menampilkannya; SDM hanya melihat status terkirim atau gagal, dan bisa mengirim ulang.
 - **Email tidak pernah memuat kata sandi**, hanya tautan sekali pakai. Yang disimpan di DB hanya hash-nya. Masa berlaku: aktivasi 24 jam, reset 1 jam. Mengirim ulang membatalkan tautan lama.
 - **Lupa kata sandi:** `POST /v1/auth/password/forgot` selalu menjawab `202` dengan pesan yang sama agar tidak membocorkan email mana yang terdaftar, dan dibatasi rate limit per email + IP.
@@ -502,7 +503,7 @@ Data biometrik tergolong data pribadi bersifat spesifik dalam UU PDP (UU 27/2022
 - Monitoring: error rate, latensi clock-in, lonjakan login gagal, lonjakan `review`.
 
 ### 5.11 Registry Event Audit
-`auth.login_success`, `auth.login_failed`, `auth.logout`, `auth.mfa_enabled`, `auth.mfa_failed`, `auth.password_changed`, `auth.session_revoked`, `auth.refresh_reuse_detected`, `org.updated`, `user.created`, `user.locked`, `user.unlocked`, `user.role_changed`, `user.password_reset`, `user.email_changed`, `auth.password_reset_requested`, `email.delivery_failed`, `employee.created`, `employee.updated`, `employee.deactivated`, `employee.imported`, `employee.salary_changed`, `device.registered`, `device.approved`, `device.revoked`, `device.integrity_tier_changed`, `employee.work_arrangement_changed`, `face.enrolled`, `face.reset`, `attendance.clock_in`, `attendance.clock_out`, `attendance.rejected`, `attendance.review_resolved`, `attendance.adjusted`, `approval.approved`, `approval.rejected`, `leave.requested`, `leave.cancelled`, `leave_type.changed`, `payroll.rules_changed`, `payroll.generated`, `payroll.submitted`, `payroll.finalized`, `payroll.paid`, `warning.issued`, `announcement.created`, `announcement.updated`, `announcement.deleted`, `settings.changed`, `data.exported`.
+`auth.login_success`, `auth.login_failed`, `auth.logout`, `auth.mfa_enabled`, `auth.mfa_failed`, `auth.password_changed`, `auth.session_revoked`, `auth.refresh_reuse_detected`, `org.updated`, `user.created`, `user.locked`, `user.unlocked`, `user.role_changed`, `user.password_reset`, `user.email_changed`, `auth.password_reset_requested`, `auth.password_reset_completed`, `email.delivery_failed`, `employee.created`, `employee.updated`, `employee.deactivated`, `employee.imported`, `employee.salary_changed`, `device.registered`, `device.approved`, `device.revoked`, `device.integrity_tier_changed`, `employee.work_arrangement_changed`, `face.enrolled`, `face.reset`, `attendance.clock_in`, `attendance.clock_out`, `attendance.rejected`, `attendance.review_resolved`, `attendance.adjusted`, `approval.approved`, `approval.rejected`, `leave.requested`, `leave.cancelled`, `leave_type.changed`, `payroll.rules_changed`, `payroll.generated`, `payroll.submitted`, `payroll.finalized`, `payroll.paid`, `warning.issued`, `announcement.created`, `announcement.updated`, `announcement.deleted`, `settings.changed`, `data.exported`.
 
 Tambahan event: `face.capture_viewed` untuk akses selfie peninjauan, `face.remote_permission_granted` dan `face.remote_permission_revoked` untuk pengelolaan izin jarak jauh. Pemakaian izin dicatat pada `face.enrolled`.
 
@@ -677,6 +678,8 @@ Daftar memakai `?page=&per_page=&q=&sort=` (contoh `sort=-created_at`) dan filte
 | 409 | `STORAGE_SYNC_BUSY` | Sinkronisasi sedang berjalan pada proses lain |
 | 422 | `STORAGE_SYNC_FAILED` | Berkas lama gagal dibaca, disalin, atau diverifikasi; salinan disk tetap ada |
 | 422 | `FILE_UNSAFE` | Lampiran terdeteksi berbahaya atau tidak dapat dipindai lengkap; unggahan ditolak |
+| 422 | `SMTP_TEST_FAILED` | Email uji pengaturan SMTP belum terkirim; `details.stage`: connect, tls, auth, atau send. Pengaturan lama tetap dipakai |
+| 400 | `RESET_TOKEN_INVALID` | Tautan reset kata sandi salah, kedaluwarsa, atau sudah dipakai |
 | 503 | `FILE_SCAN_UNAVAILABLE` | Pemindai malware tidak tersedia atau gagal memberi hasil; unggahan ditolak |
 
 Setiap `code` baru wajib ditambahkan di tabel ini.
@@ -692,8 +695,8 @@ Setiap `code` baru wajib ditambahkan di tabel ini.
 | POST | `/v1/auth/mobile/login` | Token di body; mendaftarkan atau mengenali perangkat (F5); akun ber-MFA wajib `mfa_code` (D40) |
 | POST | `/v1/auth/mobile/refresh` | Body `refresh_token`; rotasi seperti F6 |
 | POST | `/v1/auth/logout` | Cabut sesi saat ini |
-| POST | `/v1/auth/password/forgot` | Minta tautan reset ke email terdaftar, selalu `202` (D30) |
-| POST | `/v1/auth/password/reset` | Set sandi baru dari tautan reset (D30) |
+| POST | `/v1/auth/password/forgot` | Publik. Body `identifier` (NIPY, email, atau nomor WA). Minta tautan reset ke email terdaftar, selalu `202` (D30). 3/jam per akun dan IP, 10/jam per IP |
+| POST | `/v1/auth/password/reset` | Publik. Body `token`, `password`. Pasang sandi baru dari tautan reset, buka kunci akun, cabut semua sesi (D30) |
 | POST | `/v1/auth/password/change` | |
 | GET | `/v1/auth/sessions` | Sesi aktif milik sendiri |
 | DELETE | `/v1/auth/sessions/{session_id}` | |
@@ -760,6 +763,7 @@ Setiap `code` baru wajib ditambahkan di tabel ini.
 | GET, POST | `/v1/admin/employees/{id}/work-arrangements` | `employee:write` |
 | DELETE | `/v1/admin/employees/{id}/work-arrangements/{arrangement_id}` | `employee:write` |
 | GET | `/v1/branding` | Tanpa login. Footer jadi (`{tahun}` diganti tahun berjalan WIB) untuk layar masuk, web, dan aplikasi |
+| GET, PUT, DELETE | `/v1/admin/settings/smtp` | `settings:manage`. Pengaturan SMTP; PUT menyimpan hanya setelah email uji ke akun sendiri terkirim; kata sandi tulis-saja (§5.2.1) |
 | GET, PUT | `/v1/admin/settings/storage` | `settings:manage`. Uji bucket dan tulis/baca/hapus sebelum aktivasi S3; secret key terenkripsi dan tulis-saja |
 | POST | `/v1/admin/settings/storage/sync` | `settings:manage`. Salin dan verifikasi batch berkas disk lama ke S3; kursor tersimpan, disk tidak dihapus |
 | GET, PUT | `/v1/admin/settings/footer` | `settings:manage`. Teks bawaan: `© {tahun} PUTI (Pusat Teknologi Informasi) Al Bahjah` |

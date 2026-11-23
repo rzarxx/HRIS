@@ -278,6 +278,15 @@ class Repository(
     }
 
     /** Mengganti kata sandi sendiri. Server mencabut sesi lain, sesi HP ini tetap aktif. */
+    /**
+     * Meminta tautan atur ulang kata sandi ke email akun (D30). Server menjawab pesan yang sama
+     * baik akun ada atau tidak; tautannya dibuka di web.
+     */
+    suspend fun forgotPassword(server: String, identifier: String): String {
+        if (BuildConfig.SERVER_EDITABLE) session.serverUrl = server.trim()
+        return call { forgotPassword(PasswordForgotRequest(identifier.trim())).data.message }
+    }
+
     suspend fun changePassword(current: String, next: String) {
         call {
             val response = changePassword(PasswordChangeRequest(current, next))

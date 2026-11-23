@@ -133,7 +133,7 @@ func (s *S3Store) Probe(ctx context.Context) error {
 	if err := s.Check(ctx); err != nil {
 		return err
 	}
-	key := "generated/probes/" + uuid.NewString()
+	key := "probes/" + uuid.NewString()
 	if err := s.Put(ctx, key, []byte("hris-s3-probe")); err != nil {
 		return err
 	}
@@ -146,28 +146,4 @@ func (s *S3Store) Probe(ctx context.Context) error {
 		return errors.New("hasil baca uji S3 tidak sesuai")
 	}
 	return s.Delete(ctx, key)
-}
-
-// PurgeGenerated removes unreferenced exports and templates after their retention period.
-func (s *S3Store) PurgeGenerated(ctx context.Context, cutoff time.Time) (int, error) {
-	pager := s3.NewListObjectsV2Paginator(s.client, &s3.ListObjectsV2Input{
-		Bucket: aws.String(s.bucket), Prefix: aws.String("generated/"),
-	})
-	count := 0
-	for pager.HasMorePages() {
-		page, err := pager.NextPage(ctx)
-		if err != nil {
-			return count, err
-		}
-		for _, object := range page.Contents {
-			if object.Key == nil || object.LastModified == nil || !object.LastModified.Before(cutoff) {
-				continue
-			}
-			if err := s.Delete(ctx, *object.Key); err != nil {
-				return count, err
-			}
-			count++
-		}
-	}
-	return count, nil
 }

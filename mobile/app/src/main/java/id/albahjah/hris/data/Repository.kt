@@ -298,6 +298,14 @@ class Repository(
     suspend fun updateContact(phone: String, email: String, currentPassword: String?): Me =
         call { updateMe(MeUpdate(phone = phone, email = email, currentPassword = currentPassword?.takeIf { it.isNotEmpty() })).data }
 
+    /** Membatalkan ganti email yang masih menunggu konfirmasi (D59). */
+    suspend fun cancelEmailChange() {
+        call {
+            val response = cancelEmailChange()
+            if (!response.isSuccessful) throw retrofit2.HttpException(response)
+        }
+    }
+
     suspend fun myFamily(): MyFamily = call { myFamily().data }
 
     /** Mengunggah foto profil JPEG; server memotong persegi 512 px dan membuang EXIF. */

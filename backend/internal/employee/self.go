@@ -60,7 +60,8 @@ func (s *Service) self(ctx context.Context, p auth.Principal) (store.GetEmployee
 }
 
 // UpdateOwnContact mengubah nomor WA dan email milik sendiri. Ganti email wajib kata sandi saat ini
-// karena email juga dipakai untuk masuk; email login ikut berubah dalam transaksi yang sama.
+// karena email juga dipakai untuk masuk. Bila SMTP aktif, email baru menunggu konfirmasi lewat tautan
+// di email itu (D59); tanpa SMTP, email login berubah langsung dalam transaksi yang sama.
 func (s *Service) UpdateOwnContact(ctx context.Context, p auth.Principal, ip audit.Entry, decode func(*ContactInput) error) error {
 	current, err := s.self(ctx, p)
 	if err != nil {
@@ -109,6 +110,13 @@ func (s *Service) UpdateOwnContact(ctx context.Context, p auth.Principal, ip aud
 	if len(fields) > 0 {
 		return httpx.Validation(fields)
 	}
+	// Email baru diuji dulu lewat tautan konfirmasi; email lama tetap dipakai sampai tautan dibuka.
+	if emailChanged && email.Valid && s.emails != nil && s.emails.EmailConfirmationEnabled(ctx) {
+		if err := s.emails.RequestEmailChange(ctx, p.UserID, p.EmployeeID, current.Email.String, email.String, ip.IP, time.Now()); err != nil {
+			return err
+		}
+		emailChanged, email = false, current.Email
+	}
 	changed := []string{}
 	if emailChanged {
 		changed = append(changed, "email")
@@ -119,7 +127,7 @@ func (s *Service) UpdateOwnContact(ctx context.Context, p auth.Principal, ip aud
 	if len(changed) == 0 {
 		return nil
 	}
-	return database.InTx(ctx, s.pool, func(q *store.Queries) error {
+	err = database.InTx(ctx, s.pool, func(q *store.Queries) error {
 		affected, err := q.UpdateOwnContact(ctx, store.UpdateOwnContactParams{ID: p.EmployeeID, Email: email, Phone: wa})
 		if err != nil {
 			return mapUnique(err)
@@ -131,9 +139,16 @@ func (s *Service) UpdateOwnContact(ctx context.Context, p auth.Principal, ip aud
 			if err := q.UpdateUserEmail(ctx, store.UpdateUserEmailParams{EmployeeID: p.EmployeeID, Email: email}); err != nil {
 				return mapUnique(err)
 			}
+			if err := recordEmailChange(ctx, q, ip, p.EmployeeID, "self"); err != nil {
+				return err
+			}
 		}
 		return writeSelfAudit(ctx, q, ip, p.EmployeeID, changed)
 	})
+	if err == nil && emailChanged && s.emails != nil {
+		s.emails.NotifyEmailChanged(ctx, p.EmployeeID, current.Email.String, email.String, false)
+	}
+	return err
 }
 
 // writeSelfAudit mencatat perubahan oleh Pejuang sendiri; isinya nama field saja, bukan nilainya.

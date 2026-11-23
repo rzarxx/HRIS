@@ -401,7 +401,14 @@ func (s *Service) Import(ctx context.Context, p auth.Principal, ip audit.Entry, 
 		return ImportResult{}, err
 	}
 	errRollback := errors.New("impor dibatalkan")
+	// Email yang diganti lewat impor diberi tahu setelah transaksi tersimpan (D59).
+	type emailNotice struct {
+		id       uuid.UUID
+		old, new string
+	}
+	var notices []emailNotice
 	err = database.InTx(ctx, s.pool, func(q *store.Queries) error {
+		notices = notices[:0]
 		res.Rows = res.Rows[:0]
 		res.Created, res.Updated = 0, 0
 		if err := ref.createRefs(ctx, q, ip); err != nil {
@@ -442,6 +449,9 @@ func (s *Service) Import(ctx context.Context, p auth.Principal, ip audit.Entry, 
 			} else {
 				if err := update(ctx, q, ip, plan.id, plan.current, v); err != nil {
 					return importRowError(err, plan.row, addIssue, errRollback)
+				}
+				if v.Email != plan.current.Email {
+					notices = append(notices, emailNotice{id: plan.id, old: plan.current.Email.String, new: v.Email.String})
 				}
 				if v.SubdivisionID != plan.current.SubdivisionID || v.Status == "inactive" {
 					moved = append(moved, plan.id)
@@ -488,6 +498,11 @@ func (s *Service) Import(ctx context.Context, p auth.Principal, ip audit.Entry, 
 		return ImportResult{}, err
 	}
 	res.Applied = true
+	if s.emails != nil {
+		for _, n := range notices {
+			s.emails.NotifyEmailChanged(ctx, n.id, n.old, n.new, true)
+		}
+	}
 	if res.Created > 0 {
 		file, err := credentialsWorkbook(res.Rows)
 		if err != nil {

@@ -86,6 +86,7 @@ fun PersonalDataContent(
     onSave: () -> Unit = {},
     onPickPhoto: () -> Unit = {},
     onRemovePhoto: () -> Unit = {},
+    onCancelEmail: () -> Unit = {},
 ) {
     Column(Modifier.fillMaxSize().background(Fg.PageProfile)) {
         FigmaHeader("Data Pribadi", onBack)
@@ -134,6 +135,16 @@ fun PersonalDataContent(
                         keyboard = KeyboardOptions(keyboardType = KeyboardType.Password),
                     )
                     Text("Diperlukan karena email juga dipakai untuk masuk.", style = figmaText(12, color = Hc.InkSoft, lineHeight = 1.35f))
+                }
+                me.pendingEmail?.let { pending ->
+                    // Email baru berlaku setelah tautan di email itu dibuka (D59).
+                    Text(
+                        "Menunggu konfirmasi ke $pending. Buka tautan di email itu dalam 24 jam; sampai saat itu email lama tetap dipakai.",
+                        style = figmaText(13, FontWeight.Medium, Tone.Warning.content, lineHeight = 1.35f),
+                    )
+                    TextButton(onClick = onCancelEmail, enabled = !form.busy) {
+                        Text("Batalkan ganti email", style = figmaText(14, FontWeight.Medium, Fg.Danger))
+                    }
                 }
                 form.message?.let { Text(it, style = figmaText(13, FontWeight.Medium, Hc.BrandDeep)) }
                 PrimaryButton("Simpan kontak", onClick = onSave, enabled = form.changed(me), loading = form.busy)
@@ -196,6 +207,20 @@ fun PersonalDataScreen(repository: Repository, me: Me, photo: ImageBitmap?, onBa
                 }
             }
         },
+        onCancelEmail = {
+            form = form.copy(busy = true, errors = emptyMap(), message = null)
+            scope.launch {
+                form = try {
+                    repository.cancelEmailChange()
+                    onUpdated(me.copy(pendingEmail = null))
+                    form.copy(busy = false, message = "Ganti email dibatalkan.")
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    form.copy(busy = false, errors = mapOf("email" to (e.toApiError().message ?: "Belum bisa dibatalkan.")))
+                }
+            }
+        },
         onSave = save@{
             if (form.busy) return@save
             val emailChanged = form.emailChanged(me)
@@ -208,7 +233,12 @@ fun PersonalDataScreen(repository: Repository, me: Me, photo: ImageBitmap?, onBa
                 form = try {
                     val updated = repository.updateContact(form.phone.trim(), form.email.trim(), form.password.takeIf { emailChanged })
                     onUpdated(updated)
-                    ContactForm(phone = localPhone(updated.phone), email = updated.email.orEmpty(), message = "Kontak diperbarui.")
+                    val message = if (emailChanged && updated.pendingEmail != null && updated.pendingEmail != me.pendingEmail) {
+                        "Tautan konfirmasi dikirim ke ${updated.pendingEmail}. Email baru berlaku setelah tautan dibuka."
+                    } else {
+                        "Kontak diperbarui."
+                    }
+                    ContactForm(phone = localPhone(updated.phone), email = updated.email.orEmpty(), message = message)
                 } catch (e: CancellationException) {
                     throw e
                 } catch (e: Exception) {

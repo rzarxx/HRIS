@@ -252,6 +252,34 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/ErrorResponse" }
         "429": { $ref: "#/components/responses/Error" }
+  /v1/auth/email/confirm:
+    post:
+      tags: [Auth]
+      summary: Konfirmasi email baru dari tautan email
+      security: []
+      description: >-
+        Publik (D59). `token` diambil web dari fragmen URL tautan di email baru (`/konfirmasi-email/#token=…`).
+        Tautan sekali pakai dan berlaku 24 jam. Berhasil berarti email Pejuang dan email login berubah dalam satu
+        transaksi, semua sesi dicabut, dan email lama diberi tahu. Dicatat `user.email_changed`. Dibatasi 10 per
+        jam per IP.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [token]
+              properties:
+                token: { type: string, maxLength: 128 }
+      responses:
+        "204": { description: Email baru berlaku }
+        "400":
+          description: EMAIL_CHANGE_INVALID bila tautan salah, kedaluwarsa, atau sudah dipakai
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+        "409": { $ref: "#/components/responses/Error" }
+        "429": { $ref: "#/components/responses/Error" }
   /v1/auth/sessions:
     get:
       tags: [Auth]
@@ -336,9 +364,11 @@ paths:
       summary: Ubah nomor WA dan email sendiri
       description: >-
         Permission `profile:update`. Field yang tidak dikirim tetap nilai lamanya; `null` mengosongkan. Mengganti
-        email wajib menyertakan `current_password` karena email dipakai untuk masuk. Email login ikut berubah,
-        dan perubahan dicatat sebagai `employee.updated` dengan nama field saja. Email baru belum diverifikasi
-        lewat email (SMTP menyusul).
+        email wajib menyertakan `current_password` karena email dipakai untuk masuk. Bila SMTP aktif (D59), email
+        baru belum berlaku: tautan konfirmasi dikirim ke email baru, email lama diberi tahu, dan `pending_email`
+        terisi sampai tautan dibuka (dicatat `user.email_change_requested`, maks 3 per jam, lebih dari itu
+        `RATE_LIMITED`). Tanpa SMTP, email login berubah langsung dan dicatat `user.email_changed`. Perubahan
+        lain dicatat `employee.updated` dengan nama field saja.
       requestBody:
         required: true
         content:
@@ -357,6 +387,17 @@ paths:
         "400": { $ref: "#/components/responses/ValidationFailed" }
         "403": { $ref: "#/components/responses/Error" }
         "409": { $ref: "#/components/responses/Error" }
+        "429": { $ref: "#/components/responses/Error" }
+
+  /v1/me/email-change:
+    delete:
+      tags: [Profil]
+      summary: Batalkan ganti email yang belum dikonfirmasi
+      description: Permission `profile:update`. Tautan konfirmasi yang sudah terkirim tidak berlaku lagi (D59).
+      responses:
+        "204": { description: Dibatalkan }
+        "401": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
 
   /v1/me/children:
     get:
@@ -2642,6 +2683,7 @@ components:
         - FILE_SCAN_UNAVAILABLE
         - SMTP_TEST_FAILED
         - RESET_TOKEN_INVALID
+        - EMAIL_CHANGE_INVALID
         - CHALLENGE_EXPIRED
         - ATTENDANCE_BLOCKED
         - LEAVE_ACTIVE
@@ -2756,7 +2798,7 @@ components:
     Me:
       type: object
       required:
-        [user_id, employee_id, role, full_name, nip, email, phone, position, subdivision, division, permissions, must_change_password, mfa_enabled, face_enrolled, has_photo, photo_updated_at]
+        [user_id, employee_id, role, full_name, nip, email, phone, position, subdivision, division, permissions, must_change_password, mfa_enabled, face_enrolled, has_photo, photo_updated_at, pending_email]
       properties:
         user_id: { type: string, format: uuid }
         employee_id: { type: string, format: uuid }
@@ -2785,6 +2827,10 @@ components:
           format: date-time
           nullable: true
           description: Waktu foto terakhir diganti; dipakai klien sebagai penanda cache.
+        pending_email:
+          type: string
+          nullable: true
+          description: Email baru yang menunggu konfirmasi lewat tautan di email itu (D59); null bila tidak ada.
     MeUpdate:
       type: object
       properties:

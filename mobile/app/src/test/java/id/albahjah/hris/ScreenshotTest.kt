@@ -554,6 +554,9 @@ class ScreenshotTest {
     fun personalData() = shot { PersonalDataContent(me, onBack = {}) }
 
     @Test
+    fun personalDataPendingEmail() = shot { PersonalDataContent(me.copy(pendingEmail = "siti.baru@gmail.com"), onBack = {}) }
+
+    @Test
     fun personalDataEmailChange() = shot {
         PersonalDataContent(
             me.copy(phone = "6281234567001"),

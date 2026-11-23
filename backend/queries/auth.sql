@@ -187,3 +187,35 @@ INSERT INTO password_reset_tokens (user_id, token_hash, expires_at) VALUES (@use
 UPDATE password_reset_tokens SET used_at = @now
 WHERE token_hash = @token_hash AND used_at IS NULL AND expires_at > @now
 RETURNING user_id;
+
+-- Ganti email lewat konfirmasi (D59). Permintaan baru membatalkan permintaan lama.
+-- name: InvalidateEmailChangeRequests :exec
+UPDATE email_change_requests SET used_at = @now WHERE user_id = @user_id AND used_at IS NULL;
+
+-- name: CountEmailChangeRequestsSince :one
+SELECT count(*) FROM email_change_requests WHERE user_id = @user_id AND created_at > @since;
+
+-- name: CreateEmailChangeRequest :exec
+INSERT INTO email_change_requests (user_id, new_email, token_hash, expires_at)
+VALUES (@user_id, @new_email, @token_hash, @expires_at);
+
+-- name: GetPendingEmailChange :one
+SELECT new_email FROM email_change_requests
+WHERE user_id = @user_id AND used_at IS NULL AND expires_at > @now
+ORDER BY created_at DESC LIMIT 1;
+
+-- Pemakaian atomik: satu tautan hanya bisa dipakai sekali.
+-- name: ConsumeEmailChangeRequest :one
+UPDATE email_change_requests SET used_at = @now
+WHERE token_hash = @token_hash AND used_at IS NULL AND expires_at > @now
+RETURNING user_id, new_email;
+
+-- name: EmailInUse :one
+SELECT EXISTS (
+  SELECT 1 FROM employees e WHERE lower(e.email) = lower(@email::text) AND e.id <> @employee_id::uuid
+  UNION ALL
+  SELECT 1 FROM users u WHERE lower(u.email) = lower(@email::text) AND u.employee_id <> @employee_id::uuid
+);
+
+-- name: SetEmployeeEmail :execrows
+UPDATE employees SET email = sqlc.narg(email), updated_at = now() WHERE id = @id;

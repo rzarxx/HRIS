@@ -274,6 +274,37 @@ func (h *Handler) ResetPassword(w http.ResponseWriter, r *http.Request) error {
 	return httpx.NoContent(w)
 }
 
+type confirmEmailRequest struct {
+	Token string `json:"token"`
+}
+
+// ConfirmEmail melayani POST /v1/auth/email/confirm dari tautan konfirmasi di email baru (D59).
+func (h *Handler) ConfirmEmail(w http.ResponseWriter, r *http.Request) error {
+	var req confirmEmailRequest
+	if err := httpx.Decode(r, &req); err != nil {
+		return err
+	}
+	if err := h.checkLimit(w, r, "email-confirm-ip", forgotPerIPLimit, forgotWindow); err != nil {
+		return err
+	}
+	if err := h.svc.ConfirmEmailChange(r.Context(), req.Token, audit.ClientIP(r), time.Now()); err != nil {
+		return err
+	}
+	return httpx.NoContent(w)
+}
+
+// CancelEmailChange melayani DELETE /v1/me/email-change: email baru yang belum dikonfirmasi dibatalkan.
+func (h *Handler) CancelEmailChange(w http.ResponseWriter, r *http.Request) error {
+	p, ok := PrincipalFrom(r.Context())
+	if !ok {
+		return httpx.ErrUnauthenticated()
+	}
+	if err := h.svc.CancelEmailChange(r.Context(), p.UserID, time.Now()); err != nil {
+		return err
+	}
+	return httpx.NoContent(w)
+}
+
 func (h *Handler) ListSessions(w http.ResponseWriter, r *http.Request) error {
 	p, ok := PrincipalFrom(r.Context())
 	if !ok {

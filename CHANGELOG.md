@@ -7,6 +7,16 @@ Perubahan penting yang terlihat oleh Pejuang, SDM, atau pengelola server. Keputu
 ## Belum dirilis
 
 ### Ditambahkan
+- **Ganti email lebih aman (D59).** Bila SMTP aktif, email yang diganti Pejuang sendiri belum langsung berlaku.
+  - Tautan konfirmasi dikirim ke email baru (berlaku 24 jam, sekali pakai) dan dibuka di halaman web
+    `/konfirmasi-email`. Email lama diberi tahu dengan alamat baru disamarkan.
+  - Sampai dikonfirmasi, web (Pengaturan → Akun saya) dan aplikasi (Profil → Data pribadi) menampilkan
+    "Menunggu konfirmasi" dengan tombol batal. Maksimal 3 permintaan per jam.
+  - Setelah dikonfirmasi, email login berubah, semua sesi lama dikeluarkan, dan email lama diberi tahu.
+  - Ganti email oleh SDM (form atau impor) tetap langsung berlaku, tetapi kini mengeluarkan semua sesi Pejuang itu
+    dan memberi tahu email lama dan baru.
+  - Endpoint `POST /v1/auth/email/confirm` dan `DELETE /v1/me/email-change`; `/v1/me` memuat `pending_email`;
+    migrasi 20.
 - **Lupa kata sandi lewat email (D30).** Di halaman masuk web dan aplikasi ada tautan **Lupa kata sandi?**. Pejuang
   menulis NIPY, email, atau nomor WA, lalu tautan dikirim ke email akunnya. Kata sandi baru dibuat di halaman web
   `/reset-kata-sandi`.

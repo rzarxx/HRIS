@@ -63,7 +63,7 @@ func realIP(trust bool) func(http.Handler) http.Handler {
 func blockDirectAccess(allowed []string) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			if slices.Contains(allowed, r.Header.Get("Origin")) || r.Header.Get("Authorization") != "" || isDirectLocal(r) || isMobileAuth(r) {
+			if slices.Contains(allowed, r.Header.Get("Origin")) || r.Header.Get("Authorization") != "" || isDirectLocal(r) || isMobileAuth(r) || isMobileApp(r) {
 				next.ServeHTTP(w, r)
 				return
 			}
@@ -91,6 +91,14 @@ func isDirectLocal(r *http.Request) bool {
 // dan tidak mengirim Origin. Keduanya tetap wajib kredensial (D37).
 func isMobileAuth(r *http.Request) bool {
 	return r.Method == http.MethodPost && strings.HasPrefix(r.URL.Path, "/v1/auth/mobile/")
+}
+
+// isMobileApp mengenali aplikasi Android dari header X-App-Version yang selalu dikirimnya (D63), agar
+// permintaan sebelum login (lupa kata sandi, footer, cek versi) tidak ditolak D37. Sama seperti Origin,
+// header ini bisa dipalsukan; perlindungan data tetap di autentikasi dan permission.
+func isMobileApp(r *http.Request) bool {
+	_, ok := parseAppVersion(r.Header.Get(HeaderAppVersion))
+	return ok
 }
 
 func isBrowserNavigation(r *http.Request) bool {

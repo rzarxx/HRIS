@@ -236,7 +236,7 @@ class ScreenshotTest {
 
     @Test
     fun updateRequired() = shot {
-        UpdateRequiredContent(AppVersion(latestCode = 1400, latestName = "0.14.0", minCode = 1400, notes = "Aplikasi tetap bisa dibuka saat offline."), onUpdate = {})
+        UpdateRequiredContent(AppVersion(latestCode = 14000, latestName = "0.14.0", minCode = 14000, notes = "Aplikasi tetap bisa dibuka saat offline."), onUpdate = {})
     }
 
     @Test
@@ -277,7 +277,7 @@ class ScreenshotTest {
         HomeContent(
             me = me, today = today, now = now, refreshing = false, crash = null,
             onCopyCrash = {}, onDismissCrash = {}, onCapture = {}, onHistory = {}, onRefresh = {}, onLogout = {},
-            update = AppVersion(latestCode = 1400, latestName = "0.14.0", notes = "Kunci aplikasi dengan sidik jari."),
+            update = AppVersion(latestCode = 14000, latestName = "0.14.0", notes = "Kunci aplikasi dengan sidik jari."),
         )
     }
 

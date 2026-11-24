@@ -396,8 +396,23 @@ func TestDirectAccessIsBlocked(t *testing.T) {
 		}
 	}
 
-	// Asal yang tidak dikenal, termasuk preflight, juga ditolak tanpa header CORS.
+	// Aplikasi sebelum login mengirim X-App-Version tanpa token: lupa kata sandi, footer, dan cek versi diteruskan.
+	for _, p := range []struct{ method, path string }{{http.MethodPost, "/v1/auth/password/forgot"}, {http.MethodGet, "/v1/branding"}, {http.MethodGet, "/v1/app/version"}} {
+		rec := httptest.NewRecorder()
+		h.ServeHTTP(rec, directRequest(p.method, p.path, map[string]string{HeaderAppVersion: "0.14.0+14000"}))
+		if rec.Code == http.StatusForbidden {
+			t.Errorf("aplikasi %s %s ditolak: %s", p.method, p.path, rec.Body.String())
+		}
+	}
+	// Header yang tidak terbaca sebagai versi tetap ditolak.
 	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, directRequest(http.MethodGet, "/v1/app/version", map[string]string{HeaderAppVersion: "curl"}))
+	if rec.Code != http.StatusForbidden {
+		t.Errorf("X-App-Version asal-asalan diteruskan: %d", rec.Code)
+	}
+
+	// Asal yang tidak dikenal, termasuk preflight, juga ditolak tanpa header CORS.
+	rec = httptest.NewRecorder()
 	h.ServeHTTP(rec, directRequest(http.MethodOptions, "/v1/me", map[string]string{"Origin": "https://evil.example", "Access-Control-Request-Method": "GET"}))
 	if rec.Code != http.StatusForbidden || rec.Header().Get("Access-Control-Allow-Origin") != "" {
 		t.Errorf("preflight asing: %d %v", rec.Code, rec.Header())

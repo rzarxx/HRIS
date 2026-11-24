@@ -8,7 +8,7 @@ import { IconButton } from "@/components/ui/button";
 import { Input, Select } from "@/components/ui/form";
 import { Badge, Card, EmptyState, ErrorState, Loading, PageHeader } from "@/components/ui/layout";
 import { Pagination, Table, Td, Th } from "@/components/ui/table";
-import { dateTime, number, TZ, todayWib } from "@/lib/format";
+import { dateTime, duration, number, TZ, todayWib } from "@/lib/format";
 import { useAttendanceMonitor, useDivisions, useOfficeLocations } from "@/lib/hooks";
 import type { AttendanceMonitorItem } from "@/lib/types";
 
@@ -168,7 +168,7 @@ export function AttendanceMonitor() {
                         </Td>
                         <Td>
                           <Badge tone={STATE[stateOf(a)].tone}>{STATE[stateOf(a)].label}</Badge>
-                          {a.late_minutes > 0 && <p className="mt-1 text-xs text-slate-500">{a.late_minutes} menit</p>}
+                          {a.late_minutes > 0 && <p className="mt-1 text-xs text-slate-500">{duration(a.late_minutes)}</p>}
                         </Td>
                         <Td className="tabular-nums whitespace-nowrap">{timeOf(a.clock_in_at)}</Td>
                         <Td className="tabular-nums whitespace-nowrap">{timeOf(a.clock_out_at)}</Td>

@@ -20,6 +20,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -62,12 +63,18 @@ fun MainScreen(
     onDismissCrash: () -> Unit,
     onCapture: (String) -> Unit,
     onLoggedOut: () -> Unit,
+    /** Null bila HP tidak punya sidik jari, wajah, atau PIN; selain itu meminta konfirmasi lalu mengaktifkan kunci. */
+    onEnableAppLock: (() -> Unit)? = null,
 ) {
     val scope = rememberCoroutineScope()
     val clipboard = LocalClipboardManager.current
     var tab by rememberSaveable { mutableStateOf(MainTab.Home) }
     var sub by rememberSaveable { mutableStateOf<SubPage?>(null) }
     var askLogout by rememberSaveable { mutableStateOf(false) }
+    // Tawaran kunci sidik jari muncul sekali setelah masuk (D62).
+    var offerLock by rememberSaveable {
+        mutableStateOf(onEnableAppLock != null && !repository.prefs.appLock && !repository.prefs.appLockOffered)
+    }
     var me by remember { mutableStateOf<Me?>(null) }
     var records by remember { mutableStateOf<List<AttendanceRecord>?>(null) }
     var historyError by remember { mutableStateOf<String?>(null) }
@@ -96,7 +103,12 @@ fun MainScreen(
         }
     }
 
+    val offlineSince by repository.offlineSince.collectAsState()
+
     LaunchedEffect(reload) {
+        // Tampilkan salinan terakhir lebih dulu agar beranda tidak kosong saat server lambat atau offline (D62).
+        if (me == null) me = repository.cachedMe()
+        if (records == null) records = repository.cachedHistory()
         loading = true
         error = null
         historyError = null
@@ -114,9 +126,13 @@ fun MainScreen(
             throw e
         } catch (e: Exception) {
             val err = e.toApiError()
-            if (err.code == "AUTH_TOKEN_INVALID" || !repository.loggedIn) {
+            // Keluar hanya bila server menolak sesi (refresh token dicabut atau kedaluwarsa, Session dikosongkan
+            // Refresher). Internet putus atau server sibuk tidak membuat keluar (D62).
+            if (!repository.loggedIn) {
                 repository.logout()
                 onLoggedOut()
+            } else if (me != null) {
+                notify(err.message ?: "Data belum bisa diperbarui.")
             } else {
                 error = err.message
             }
@@ -210,7 +226,7 @@ fun MainScreen(
     // meminta "Sudah baca"; yang sudah dibaca dan punya tanggal berakhir muncul lagi sekali sehari dengan
     // tombol Tutup saja sampai berakhir (D54).
     val today = now.toLocalDate().toString()
-    val popup = if (onSubPage || leaveForm || deciding != null || askLogout) null
+    val popup = if (onSubPage || leaveForm || deciding != null || askLogout || offerLock) null
     else nextPopup(announcements.items, postponed, today, repository.prefs::popupClosedOn)
     Box(Modifier.fillMaxSize()) {
         val shownFile = viewing
@@ -254,6 +270,7 @@ fun MainScreen(
             onChangePassword = { sub = SubPage.Password },
             onLogout = { askLogout = true },
             footer = repository.prefs.footer,
+            offlineSince = offlineSince,
             fontSize = repository.prefs.fontSize,
             onFontSize = { sub = SubPage.FontSize },
             requests = RequestsUi(
@@ -270,6 +287,8 @@ fun MainScreen(
             onAnnouncement = { openAnnouncementId = it.id },
             onAnnouncements = { announcementList = true },
             onChildren = { sub = SubPage.Children },
+            appLock = if (onEnableAppLock != null) repository.prefs.appLock else null,
+            onAppLock = { on -> if (on) onEnableAppLock?.invoke() else repository.prefs.updateAppLock(false) },
         ) }
         if (popup != null) {
             val repeat = popup.readAt != null
@@ -312,6 +331,25 @@ fun MainScreen(
                 if (!onSubPage) Modifier.padding(bottom = glassBarSpace()) else Modifier.navigationBarsPadding().padding(bottom = 16.dp),
             ),
         )
+        if (offerLock && !onSubPage && !askLogout) {
+            val close = {
+                offerLock = false
+                repository.prefs.markAppLockOffered()
+            }
+            BackHandler(onBack = close)
+            FigmaPopup(
+                icon = HrisIcons.Shield,
+                title = "Kunci dengan sidik jari?",
+                body = "Aplikasi tetap masuk seperti biasa, lalu dikunci dengan sidik jari, wajah, atau PIN HP setiap dibuka. Kata sandi tidak disimpan di HP.",
+                primary = "Aktifkan",
+                onPrimary = {
+                    close()
+                    onEnableAppLock?.invoke()
+                },
+                secondary = "Nanti saja",
+                onSecondary = close,
+            )
+        }
         if (askLogout) {
             BackHandler { askLogout = false }
             FigmaPopup(
@@ -354,6 +392,9 @@ fun MainTabs(
     fontSize: FontSize = FontSize.Normal,
     onFontSize: () -> Unit = {},
     onChildren: () -> Unit = {},
+    offlineSince: Long? = null,
+    appLock: Boolean? = null,
+    onAppLock: (Boolean) -> Unit = {},
 ) {
     // Isi tab menjadi sumber blur; bottom bar kaca mengambang di atasnya.
     val haze = remember { HazeState() }
@@ -384,6 +425,7 @@ fun MainTabs(
                         onAnnouncements = onAnnouncements,
                         onPayslip = { onTab(MainTab.Payslip) },
                         footer = footer,
+                        offlineSince = offlineSince,
                     )
                 }
                 MainTab.Attendance -> RefreshBox(refreshing && records != null, onRefresh, Modifier.fillMaxSize()) {
@@ -412,6 +454,8 @@ fun MainTabs(
                         onFontSize = onFontSize,
                         footer = footer,
                         onChildren = onChildren,
+                        appLock = appLock,
+                        onAppLock = onAppLock,
                     )
                 }
             }

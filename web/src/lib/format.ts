@@ -49,6 +49,17 @@ export function dateRange(start: string, end: string) {
   return `${dateLong(start)} – ${dateLong(end)}`;
 }
 
+/**
+ * Lama waktu untuk dibaca (D62): di bawah 60 menit "45 menit", selebihnya "1 jam 15 menit" atau "2 jam".
+ * Dipakai untuk lama terlambat; hitungan potongan di payroll tidak berubah.
+ */
+export function duration(minutes: number) {
+  if (minutes < 60) return `${minutes} menit`;
+  const h = Math.floor(minutes / 60);
+  const m = minutes % 60;
+  return m === 0 ? `${numberFmt.format(h)} jam` : `${numberFmt.format(h)} jam ${m} menit`;
+}
+
 /** Waktu relatif singkat untuk kotak masuk: "baru saja", "5 menit lalu", "2 hari lalu". */
 export function timeAgo(iso: string, now = Date.now()) {
   const minutes = Math.floor((now - new Date(iso).getTime()) / 60_000);

@@ -342,7 +342,7 @@ func (s *Service) SessionState(ctx context.Context, sessionID uuid.UUID) (Sessio
 	return SessionState{
 		Active:             row.IsActive,
 		MustChangePassword: row.MustChangePassword,
-		MFASetupRequired:   s.mfaSetupRequired(string(row.Role), row.MfaEnabled),
+		MFASetupRequired:   s.mfaSetupRequired(string(row.Role), row.MfaEnabled, row.MfaRequired),
 		UserID:             row.UserID,
 		EmployeeID:         row.EmployeeID,
 		Role:               string(row.Role),
@@ -352,8 +352,8 @@ func (s *Service) SessionState(ctx context.Context, sessionID uuid.UUID) (Sessio
 	}, nil
 }
 
-func (s *Service) mfaSetupRequired(role string, enabled bool) bool {
-	return s.requireMFA && permission.RequiresMFA(role) && !enabled
+func (s *Service) mfaSetupRequired(role string, enabled, accountRequired bool) bool {
+	return s.requireMFA && permission.RequiresMFA(role, accountRequired) && !enabled
 }
 
 // Me membentuk objek baku GET /v1/me (MASTER.md §7.6).
@@ -370,6 +370,8 @@ type Me struct {
 	Permissions        []string `json:"permissions"`
 	MustChangePassword bool     `json:"must_change_password"`
 	MFAEnabled         bool     `json:"mfa_enabled"`
+	// MFARequired menyatakan A2F wajib untuk akun ini (D60).
+	MFARequired bool `json:"mfa_required"`
 	// DeviceStatus hanya terisi untuk sesi aplikasi, agar aplikasi tahu layar yang harus ditampilkan (F5).
 	DeviceStatus *string `json:"device_status"`
 	// FaceEnrolled memberi tahu aplikasi apakah harus membuka alur daftar wajah (F7).
@@ -433,6 +435,7 @@ func (s *Service) Me(ctx context.Context, userID, deviceID uuid.UUID) (Me, error
 		Permissions:        permission.Keys(role),
 		MustChangePassword: row.MustChangePassword,
 		MFAEnabled:         mfaEnabled,
+		MFARequired:        permission.RequiresMFA(role, row.MfaRequired),
 		DeviceStatus:       deviceStatus,
 		FaceEnrolled:       faceEnrolled,
 		Phone:              pgconv.TextPtr(row.Phone),

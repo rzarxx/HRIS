@@ -15,7 +15,8 @@ import (
 	"github.com/rzarxx/HRIS/backend/internal/store"
 )
 
-func changeRole(ctx context.Context, q *store.Queries, user store.User, to store.UserRole) error {
+// changeRole mengganti peran akun. source adalah "cli" (perintah server) atau "panel" (super admin, D60).
+func changeRole(ctx context.Context, q *store.Queries, user store.User, to store.UserRole, entry audit.Entry, source string) error {
 	if err := q.SetUserRole(ctx, store.SetUserRoleParams{Role: to, ID: user.ID}); err != nil {
 		return err
 	}
@@ -23,10 +24,9 @@ func changeRole(ctx context.Context, q *store.Queries, user store.User, to store
 	if err := q.RevokeAllSessions(ctx, store.RevokeAllSessionsParams{UserID: user.ID, Reason: pgtype.Text{String: "role_changed", Valid: true}}); err != nil {
 		return err
 	}
-	return audit.Write(ctx, q, audit.Entry{
-		Action: audit.UserRoleChanged, Entity: "user", EntityID: user.ID,
-		Detail: map[string]any{"from": string(user.Role), "to": string(to), "source": "cli"},
-	})
+	entry.Action, entry.Entity, entry.EntityID = audit.UserRoleChanged, "user", user.ID
+	entry.Detail = map[string]any{"from": string(user.Role), "to": string(to), "source": source}
+	return audit.Write(ctx, q, entry)
 }
 
 // userByIdentifier mencari akun dari NIPY, email, atau nomor WA, sama dengan login (D53).
@@ -83,7 +83,7 @@ func GrantSuperadmin(ctx context.Context, pool *pgxpool.Pool, identifier string,
 		switch user.Role {
 		case store.UserRoleSuperadmin:
 		case store.UserRolePejuang:
-			if err := changeRole(ctx, q, user, store.UserRoleSuperadmin); err != nil {
+			if err := changeRole(ctx, q, user, store.UserRoleSuperadmin, audit.Entry{}, "cli"); err != nil {
 				return err
 			}
 		default:
@@ -136,6 +136,6 @@ func RevokeSuperadmin(ctx context.Context, pool *pgxpool.Pool, identifier string
 		if user.Role != store.UserRoleSuperadmin {
 			return fmt.Errorf("akun ini ber-role %s, bukan super admin", user.Role)
 		}
-		return changeRole(ctx, q, user, store.UserRolePejuang)
+		return changeRole(ctx, q, user, store.UserRolePejuang, audit.Entry{}, "cli")
 	})
 }

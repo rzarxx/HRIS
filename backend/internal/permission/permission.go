@@ -61,10 +61,15 @@ const (
 	AuditRead          = "audit:read"
 	// Pengaturan aplikasi (footer, SMTP): hanya super admin.
 	SettingsManage = "settings:manage"
+	// Peran SDM dan A2F wajib per akun (D60): hanya super admin.
+	AccountManage = "account:manage"
 )
 
-// RequiresMFA menjawab role mana yang wajib memakai MFA (§5.2, D25).
-func RequiresMFA(role string) bool { return role == RoleSDM || role == RoleSuperadmin }
+// RequiresMFA menjawab apakah akun wajib memakai MFA (§5.2, D25, D60). Super admin selalu wajib;
+// SDM wajib kecuali super admin menjadikannya opsional untuk akun itu (accountRequired false).
+func RequiresMFA(role string, accountRequired bool) bool {
+	return role == RoleSuperadmin || (role == RoleSDM && accountRequired)
+}
 
 // ManagesSalary menjawab siapa yang boleh melihat dan mengubah ubar orang lain (D34).
 func ManagesSalary(role string) bool { return role == RoleSDM }
@@ -116,6 +121,7 @@ var extra = map[string]map[string]Scope{
 		ApprovalFlowManage: ScopeAll,
 		AuditRead:          ScopeAll,
 		SettingsManage:     ScopeAll,
+		AccountManage:      ScopeAll,
 	},
 	RoleSubdiv: {
 		EmployeeRead:    ScopeSubdivision,

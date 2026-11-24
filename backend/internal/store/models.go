@@ -784,6 +784,7 @@ type User struct {
 	LastLoginAt              pgtype.Timestamptz
 	CreatedAt                pgtype.Timestamptz
 	InitialPasswordExpiresAt pgtype.Timestamptz
+	MfaRequired              bool
 }
 
 type UserInvite struct {

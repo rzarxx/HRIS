@@ -86,6 +86,8 @@ type Account struct {
 	IsActive   bool   `json:"is_active"`
 	IsLocked   bool   `json:"is_locked"`
 	MFAEnabled bool   `json:"mfa_enabled"`
+	// MFARequired menyatakan A2F wajib untuk akun ini (D60): super admin selalu, SDM sesuai pengaturan.
+	MFARequired bool `json:"mfa_required"`
 }
 
 // Created adalah respons pembuatan Pejuang, memuat kata sandi awal untuk disampaikan SDM (D53).
@@ -283,11 +285,12 @@ func (s *Service) attachAccounts(ctx context.Context, p auth.Principal, employee
 	accounts := make(map[string]*Account, len(rows))
 	for _, r := range rows {
 		accounts[r.EmployeeID.String()] = &Account{
-			UserID:     r.UserID.String(),
-			Role:       string(r.Role),
-			IsActive:   r.IsActive,
-			IsLocked:   r.LockedUntil.Valid && r.LockedUntil.Time.After(time.Now()),
-			MFAEnabled: r.MfaEnabled,
+			UserID:      r.UserID.String(),
+			Role:        string(r.Role),
+			IsActive:    r.IsActive,
+			IsLocked:    r.LockedUntil.Valid && r.LockedUntil.Time.After(time.Now()),
+			MFAEnabled:  r.MfaEnabled,
+			MFARequired: permission.RequiresMFA(string(r.Role), r.MfaRequired),
 		}
 	}
 	for i := range employees {

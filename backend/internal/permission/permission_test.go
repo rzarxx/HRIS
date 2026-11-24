@@ -55,8 +55,12 @@ func TestSuperadminHasAllExceptFinance(t *testing.T) {
 	if ManagesSalary(RoleSuperadmin) || !ManagesSalary(RoleSDM) {
 		t.Error("ubar orang lain hanya untuk SDM")
 	}
-	if !RequiresMFA(RoleSuperadmin) || !RequiresMFA(RoleSDM) || RequiresMFA(RolePejuang) {
+	if !RequiresMFA(RoleSuperadmin, false) || !RequiresMFA(RoleSDM, true) || RequiresMFA(RolePejuang, true) {
 		t.Error("MFA wajib untuk SDM dan super admin saja")
+	}
+	// D60: A2F opsional hanya bisa untuk SDM; super admin tetap wajib.
+	if RequiresMFA(RoleSDM, false) || !RequiresMFA(RoleSuperadmin, false) {
+		t.Error("A2F opsional hanya untuk akun SDM")
 	}
 }
 

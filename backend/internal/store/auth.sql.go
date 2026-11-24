@@ -285,7 +285,7 @@ func (q *Queries) GetEmployeeAccount(ctx context.Context, employeeID uuid.UUID) 
 }
 
 const getMe = `-- name: GetMe :one
-SELECT u.id AS user_id, u.employee_id, u.role, u.email, u.must_change_password,
+SELECT u.id AS user_id, u.employee_id, u.role, u.email, u.must_change_password, u.mfa_required,
        e.full_name, e.nip, e.position, e.phone, e.photo_updated_at, (e.photo_key IS NOT NULL)::boolean AS has_photo,
        s.id AS subdivision_id, s.name AS subdivision_name,
        d.id AS division_id, d.name AS division_name
@@ -302,6 +302,7 @@ type GetMeRow struct {
 	Role               UserRole
 	Email              pgtype.Text
 	MustChangePassword bool
+	MfaRequired        bool
 	FullName           string
 	Nip                string
 	Position           pgtype.Text
@@ -323,6 +324,7 @@ func (q *Queries) GetMe(ctx context.Context, id uuid.UUID) (GetMeRow, error) {
 		&i.Role,
 		&i.Email,
 		&i.MustChangePassword,
+		&i.MfaRequired,
 		&i.FullName,
 		&i.Nip,
 		&i.Position,
@@ -358,6 +360,7 @@ func (q *Queries) GetPendingEmailChange(ctx context.Context, arg GetPendingEmail
 const getSessionAuthState = `-- name: GetSessionAuthState :one
 SELECT (s.revoked_at IS NULL AND s.absolute_expires_at > now() AND u.is_active)::boolean AS is_active,
        u.must_change_password,
+       u.mfa_required,
        u.role,
        s.user_id, u.employee_id, s.client, s.device_id,
        (d.status IS NOT NULL AND d.status <> 'revoked')::boolean AS device_active,
@@ -372,6 +375,7 @@ WHERE s.id = $1
 type GetSessionAuthStateRow struct {
 	IsActive           bool
 	MustChangePassword bool
+	MfaRequired        bool
 	Role               UserRole
 	UserID             uuid.UUID
 	EmployeeID         uuid.UUID
@@ -388,6 +392,7 @@ func (q *Queries) GetSessionAuthState(ctx context.Context, id uuid.UUID) (GetSes
 	err := row.Scan(
 		&i.IsActive,
 		&i.MustChangePassword,
+		&i.MfaRequired,
 		&i.Role,
 		&i.UserID,
 		&i.EmployeeID,
@@ -475,7 +480,7 @@ func (q *Queries) GetSessionByRefreshHash(ctx context.Context, refreshHash strin
 }
 
 const getUserByEmployee = `-- name: GetUserByEmployee :one
-SELECT id, employee_id, email, password_hash, role, is_active, failed_login_count, locked_until, must_change_password, password_changed_at, last_login_at, created_at, initial_password_expires_at FROM users WHERE employee_id = $1
+SELECT id, employee_id, email, password_hash, role, is_active, failed_login_count, locked_until, must_change_password, password_changed_at, last_login_at, created_at, initial_password_expires_at, mfa_required FROM users WHERE employee_id = $1
 `
 
 func (q *Queries) GetUserByEmployee(ctx context.Context, employeeID uuid.UUID) (User, error) {
@@ -495,12 +500,13 @@ func (q *Queries) GetUserByEmployee(ctx context.Context, employeeID uuid.UUID) (
 		&i.LastLoginAt,
 		&i.CreatedAt,
 		&i.InitialPasswordExpiresAt,
+		&i.MfaRequired,
 	)
 	return i, err
 }
 
 const getUserByID = `-- name: GetUserByID :one
-SELECT id, employee_id, email, password_hash, role, is_active, failed_login_count, locked_until, must_change_password, password_changed_at, last_login_at, created_at, initial_password_expires_at FROM users WHERE id = $1
+SELECT id, employee_id, email, password_hash, role, is_active, failed_login_count, locked_until, must_change_password, password_changed_at, last_login_at, created_at, initial_password_expires_at, mfa_required FROM users WHERE id = $1
 `
 
 func (q *Queries) GetUserByID(ctx context.Context, id uuid.UUID) (User, error) {
@@ -520,12 +526,13 @@ func (q *Queries) GetUserByID(ctx context.Context, id uuid.UUID) (User, error) {
 		&i.LastLoginAt,
 		&i.CreatedAt,
 		&i.InitialPasswordExpiresAt,
+		&i.MfaRequired,
 	)
 	return i, err
 }
 
 const getUserForLogin = `-- name: GetUserForLogin :one
-SELECT u.id, u.employee_id, u.email, u.password_hash, u.role, u.is_active, u.failed_login_count, u.locked_until, u.must_change_password, u.password_changed_at, u.last_login_at, u.created_at, u.initial_password_expires_at, e.full_name
+SELECT u.id, u.employee_id, u.email, u.password_hash, u.role, u.is_active, u.failed_login_count, u.locked_until, u.must_change_password, u.password_changed_at, u.last_login_at, u.created_at, u.initial_password_expires_at, u.mfa_required, e.full_name
 FROM users u JOIN employees e ON e.id = u.employee_id
 WHERE e.deleted_at IS NULL
   AND (($1::text IS NOT NULL AND lower(u.email) = lower($1))
@@ -553,6 +560,7 @@ type GetUserForLoginRow struct {
 	LastLoginAt              pgtype.Timestamptz
 	CreatedAt                pgtype.Timestamptz
 	InitialPasswordExpiresAt pgtype.Timestamptz
+	MfaRequired              bool
 	FullName                 string
 }
 
@@ -574,6 +582,7 @@ func (q *Queries) GetUserForLogin(ctx context.Context, arg GetUserForLoginParams
 		&i.LastLoginAt,
 		&i.CreatedAt,
 		&i.InitialPasswordExpiresAt,
+		&i.MfaRequired,
 		&i.FullName,
 	)
 	return i, err
@@ -764,7 +773,7 @@ func (q *Queries) ListActiveSessions(ctx context.Context, userID uuid.UUID) ([]L
 }
 
 const listEmployeeAccounts = `-- name: ListEmployeeAccounts :many
-SELECT u.employee_id, u.id AS user_id, u.role, u.is_active, u.locked_until,
+SELECT u.employee_id, u.id AS user_id, u.role, u.is_active, u.locked_until, u.mfa_required,
        (m.enabled_at IS NOT NULL)::boolean AS mfa_enabled
 FROM users u
 LEFT JOIN user_mfa m ON m.user_id = u.id
@@ -777,6 +786,7 @@ type ListEmployeeAccountsRow struct {
 	Role        UserRole
 	IsActive    bool
 	LockedUntil pgtype.Timestamptz
+	MfaRequired bool
 	MfaEnabled  bool
 }
 
@@ -795,6 +805,7 @@ func (q *Queries) ListEmployeeAccounts(ctx context.Context, employeeIds []uuid.U
 			&i.Role,
 			&i.IsActive,
 			&i.LockedUntil,
+			&i.MfaRequired,
 			&i.MfaEnabled,
 		); err != nil {
 			return nil, err
@@ -1014,6 +1025,21 @@ type SetUserLockParams struct {
 
 func (q *Queries) SetUserLock(ctx context.Context, arg SetUserLockParams) error {
 	_, err := q.db.Exec(ctx, setUserLock, arg.LockedUntil, arg.ID)
+	return err
+}
+
+const setUserMFARequired = `-- name: SetUserMFARequired :exec
+UPDATE users SET mfa_required = $1 WHERE id = $2
+`
+
+type SetUserMFARequiredParams struct {
+	MfaRequired bool
+	ID          uuid.UUID
+}
+
+// A2F wajib per akun SDM (D60), diatur super admin.
+func (q *Queries) SetUserMFARequired(ctx context.Context, arg SetUserMFARequiredParams) error {
+	_, err := q.db.Exec(ctx, setUserMFARequired, arg.MfaRequired, arg.ID)
 	return err
 }
 

@@ -48,6 +48,7 @@ type bootstrapRepo interface {
 	ListSubdivisions(ctx context.Context, divisionID uuid.NullUUID) ([]store.ListSubdivisionsRow, error)
 	CreateSubdivision(ctx context.Context, arg store.CreateSubdivisionParams) (store.Subdivision, error)
 	CreateEmployee(ctx context.Context, arg store.CreateEmployeeParams) (uuid.UUID, error)
+	AddEmployeeShift(ctx context.Context, arg store.AddEmployeeShiftParams) error
 	CreateUser(ctx context.Context, arg store.CreateUserParams) (uuid.UUID, error)
 	InsertAuditLog(ctx context.Context, arg store.InsertAuditLogParams) error
 }
@@ -175,6 +176,10 @@ func bootstrapSDM(ctx context.Context, repo bootstrapRepo, opts options, now tim
 	if err != nil {
 		return result{}, err
 	}
+	// Shift ganda (D61): shift utama juga tercatat di daftar shift Pejuang.
+	if err := repo.AddEmployeeShift(ctx, store.AddEmployeeShiftParams{EmployeeID: empID, ShiftID: shiftID}); err != nil {
+		return result{}, err
+	}
 
 	hash, err := auth.HashPassword(opts.Password)
 	if err != nil {
@@ -234,6 +239,7 @@ func ensureShift(ctx context.Context, repo bootstrapRepo) (uuid.UUID, error) {
 		EndTime:              pgtype.Time{Microseconds: 17 * 3600 * 1_000_000, Valid: true},
 		LateToleranceMinutes: 10,
 		WorkDays:             []int16{1, 2, 3, 4, 5},
+		Kind:                 "regular",
 	})
 	if err != nil {
 		return uuid.Nil, err

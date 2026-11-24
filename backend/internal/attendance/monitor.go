@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
 
 	"github.com/rzarxx/HRIS/backend/internal/platform/httpx"
 	"github.com/rzarxx/HRIS/backend/internal/platform/pgconv"
@@ -70,8 +71,8 @@ func (s *Service) Monitor(ctx context.Context, dateRaw, divisionRaw string) ([]M
 	for _, r := range rows {
 		item := MonitorItem{
 			EmployeeID: r.ID.String(), EmployeeName: r.FullName, Nip: r.Nip, SubdivisionName: r.SubdivisionName,
-			DivisionID: r.DivisionID.String(), DivisionName: r.DivisionName, ShiftName: pgconv.TextPtr(r.ShiftName),
-			Scheduled:  !holiday && r.ShiftName.Valid && IsWorkDay(date, Schedule{WorkDays: r.WorkDays}),
+			DivisionID: r.DivisionID.String(), DivisionName: r.DivisionName, ShiftName: pgconv.TextPtr(pgtype.Text{String: r.ShiftName, Valid: r.ShiftName != ""}),
+			Scheduled:  !holiday && r.ShiftName != "" && IsWorkDay(date, Schedule{WorkDays: r.WorkDays}),
 			ClockInAt:  pgconv.TimeString(r.ClockInAt),
 			ClockOutAt: pgconv.TimeString(r.ClockOutAt), LateMinutes: r.LateMinutes.Int32, WorkMode: pgconv.TextPtr(r.WorkMode),
 			LocationName: pgconv.TextPtr(r.LocationName), InLatitude: floatPtr(r.InLatitude), InLongitude: floatPtr(r.InLongitude),

@@ -50,31 +50,33 @@ func NewService(pool *pgxpool.Pool, scope ScopeResolver) *Service {
 
 // Employee adalah objek baku (MASTER.md §7.6). base_salary hanya untuk sdm dan pemilik data.
 type Employee struct {
-	ID               string   `json:"id"`
-	Nip              string   `json:"nip"`
-	FullName         string   `json:"full_name"`
-	Email            *string  `json:"email"`
-	Phone            *string  `json:"phone"`
-	Gender           *string  `json:"gender"`
-	MaritalStatus    *string  `json:"marital_status"`
-	HasChildren      *bool    `json:"has_children"`
-	ChildrenCount    *int     `json:"children_count"`
-	SubdivisionID    string   `json:"subdivision_id"`
-	SubdivisionName  string   `json:"subdivision_name"`
-	DivisionID       string   `json:"division_id"`
-	DivisionName     string   `json:"division_name"`
-	BranchID         string   `json:"branch_id"`
-	BranchName       string   `json:"branch_name"`
-	Position         *string  `json:"position"`
-	JoinDate         *string  `json:"join_date"`
-	Status           string   `json:"status"`
-	DefaultShiftID   *string  `json:"default_shift_id"`
-	DefaultShiftName *string  `json:"default_shift_name"`
-	FaceEnrolled     bool     `json:"face_enrolled"`
-	HasPhoto         bool     `json:"has_photo"`
-	PhotoUpdatedAt   *string  `json:"photo_updated_at"`
-	BaseSalary       *string  `json:"base_salary,omitempty"`
-	Account          *Account `json:"account,omitempty"`
+	ID               string  `json:"id"`
+	Nip              string  `json:"nip"`
+	FullName         string  `json:"full_name"`
+	Email            *string `json:"email"`
+	Phone            *string `json:"phone"`
+	Gender           *string `json:"gender"`
+	MaritalStatus    *string `json:"marital_status"`
+	HasChildren      *bool   `json:"has_children"`
+	ChildrenCount    *int    `json:"children_count"`
+	SubdivisionID    string  `json:"subdivision_id"`
+	SubdivisionName  string  `json:"subdivision_name"`
+	DivisionID       string  `json:"division_id"`
+	DivisionName     string  `json:"division_name"`
+	BranchID         string  `json:"branch_id"`
+	BranchName       string  `json:"branch_name"`
+	Position         *string `json:"position"`
+	JoinDate         *string `json:"join_date"`
+	Status           string  `json:"status"`
+	DefaultShiftID   *string `json:"default_shift_id"`
+	DefaultShiftName *string `json:"default_shift_name"`
+	// Shifts adalah semua shift Pejuang (D61), shift utama lebih dulu.
+	Shifts         []ShiftRef `json:"shifts"`
+	FaceEnrolled   bool       `json:"face_enrolled"`
+	HasPhoto       bool       `json:"has_photo"`
+	PhotoUpdatedAt *string    `json:"photo_updated_at"`
+	BaseSalary     *string    `json:"base_salary,omitempty"`
+	Account        *Account   `json:"account,omitempty"`
 	// Children hanya dikirim di detail untuk SDM dan super admin (D53).
 	Children *[]Child `json:"children,omitempty"`
 }
@@ -114,6 +116,8 @@ type Input struct {
 	BaseSalary     string   `json:"base_salary"`
 	Status         string   `json:"status"`
 	DefaultShiftID *string  `json:"default_shift_id"`
+	// ShiftIDs menggantikan seluruh daftar shift (D61); shift pertama menjadi shift utama.
+	ShiftIDs *[]string `json:"shift_ids"`
 }
 
 type validated struct {
@@ -133,6 +137,9 @@ type validated struct {
 	BaseSalary     decimal.Decimal
 	Status         string
 	DefaultShiftID uuid.NullUUID
+	// ShiftIDs adalah daftar shift baru; ShiftIDsExplicit berarti klien mengirim shift_ids.
+	ShiftIDs         []uuid.UUID
+	ShiftIDsExplicit bool
 }
 
 func (in Input) validate(today time.Time) (validated, error) {
@@ -233,6 +240,20 @@ func (in Input) validate(today time.Time) (validated, error) {
 		fields["default_shift_id"] = "Pilih shift."
 	}
 	v.DefaultShiftID = shiftID
+	switch {
+	case in.ShiftIDs != nil:
+		ids, ok := parseShiftIDs(*in.ShiftIDs)
+		if !ok {
+			fields["shift_ids"] = "Pilih shift dari daftar."
+		}
+		v.ShiftIDs, v.ShiftIDsExplicit = ids, true
+		v.DefaultShiftID = uuid.NullUUID{}
+		if len(ids) > 0 {
+			v.DefaultShiftID = uuid.NullUUID{UUID: ids[0], Valid: true}
+		}
+	case v.DefaultShiftID.Valid:
+		v.ShiftIDs = []uuid.UUID{v.DefaultShiftID.UUID}
+	}
 	if len(fields) > 0 {
 		return v, httpx.Validation(fields)
 	}
@@ -337,6 +358,9 @@ func (s *Service) List(ctx context.Context, p auth.Principal, params ListParams)
 	if err := s.attachAccounts(ctx, p, out, ids); err != nil {
 		return nil, 0, err
 	}
+	if err := s.attachShifts(ctx, out, ids); err != nil {
+		return nil, 0, err
+	}
 	return out, total, nil
 }
 
@@ -347,6 +371,9 @@ func (s *Service) Get(ctx context.Context, p auth.Principal, id uuid.UUID) (Empl
 		return Employee{}, err
 	}
 	out := []Employee{present(p, row)}
+	if err := s.attachShifts(ctx, out, []uuid.UUID{id}); err != nil {
+		return Employee{}, err
+	}
 	if err := s.attachAccounts(ctx, p, out, []uuid.UUID{id}); err != nil {
 		return Employee{}, err
 	}
@@ -463,6 +490,9 @@ func (s *Service) insert(ctx context.Context, q *store.Queries, ip audit.Entry, 
 	if err := replaceChildren(ctx, q, id, v.Children); err != nil {
 		return uuid.Nil, "", err
 	}
+	if err := setShifts(ctx, q, id, v.ShiftIDs); err != nil {
+		return uuid.Nil, "", err
+	}
 	userID, err := q.CreateUserWithInitialPassword(ctx, store.CreateUserWithInitialPasswordParams{
 		EmployeeID: id, Email: v.Email, PasswordHash: passwordHash, Role: store.UserRolePejuang,
 		InitialPasswordExpiresAt: expires,
@@ -568,6 +598,13 @@ func update(ctx context.Context, q *store.Queries, ip audit.Entry, id uuid.UUID,
 	}
 	if v.SetChildren {
 		if err := replaceChildren(ctx, q, id, v.Children); err != nil {
+			return err
+		}
+	}
+	// Daftar shift hanya diganti bila klien mengirim shift_ids, atau shift utama diganti lewat
+	// default_shift_id (klien lama dan impor satu shift).
+	if v.ShiftIDsExplicit || v.DefaultShiftID != current.DefaultShiftID {
+		if err := setShifts(ctx, q, id, v.ShiftIDs); err != nil {
 			return err
 		}
 	}

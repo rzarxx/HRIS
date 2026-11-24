@@ -79,6 +79,8 @@ export const employeeSchema = z.object({
   base_salary: required("Ubar pokok").regex(/^\d+(\.\d{1,2})?$/, "Ubar pokok harus angka.").optional(),
   status: z.enum(["active", "inactive"]),
   default_shift_id: z.string().uuid().nullable().optional(),
+  // Shift ganda (D61): shift pertama menjadi shift utama.
+  shift_ids: z.array(z.string().uuid()).max(7, "Maksimal 7 shift.").optional(),
 });
 
 export const announcementSchema = z
@@ -146,6 +148,7 @@ export const shiftSchema = z
     end_time: z.string().regex(clock, "Isi jam pulang."),
     late_tolerance_minutes: required("Toleransi").refine((v) => Number.isInteger(Number(v)) && Number(v) >= 0 && Number(v) <= 240, "Toleransi harus 0 sampai 240 menit."),
     work_days: z.array(z.number()).min(1, "Pilih minimal satu hari kerja."),
+    kind: z.enum(["regular", "half_day"]),
   })
   .refine((v) => v.start_time !== v.end_time, { path: ["end_time"], message: "Jam pulang perlu berbeda dari jam masuk." });
 export type ShiftForm = z.infer<typeof shiftSchema>;

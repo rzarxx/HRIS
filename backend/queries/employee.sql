@@ -109,3 +109,21 @@ WITH old AS (SELECT photo_key FROM employees WHERE id = @id AND deleted_at IS NU
 UPDATE employees e SET photo_key = sqlc.narg(photo_key), photo_updated_at = sqlc.narg(photo_updated_at)
 FROM old WHERE e.id = @id
 RETURNING old.photo_key AS previous_key;
+
+-- Shift ganda (D61): semua shift Pejuang, shift utama (default_shift_id) lebih dulu.
+-- name: ListShiftsForEmployees :many
+SELECT es.employee_id, sh.id, sh.name, sh.kind, sh.work_days, (sh.id IS NOT DISTINCT FROM e.default_shift_id)::boolean AS is_primary
+FROM employee_shift_set es
+JOIN shifts sh ON sh.id = es.shift_id
+JOIN employees e ON e.id = es.employee_id
+WHERE es.employee_id = ANY(@employee_ids::uuid[])
+ORDER BY es.employee_id, (sh.id IS NOT DISTINCT FROM e.default_shift_id) DESC, sh.start_time, sh.name;
+
+-- name: DeleteEmployeeShifts :exec
+DELETE FROM employee_shifts WHERE employee_id = $1;
+
+-- name: AddEmployeeShift :exec
+INSERT INTO employee_shifts (employee_id, shift_id) VALUES ($1, $2) ON CONFLICT DO NOTHING;
+
+-- name: GetShiftsByIDs :many
+SELECT * FROM shifts WHERE id = ANY(@ids::uuid[]);

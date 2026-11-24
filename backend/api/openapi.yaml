@@ -3008,11 +3008,20 @@ components:
         join_date: { type: string, format: date, nullable: true }
         base_salary: { $ref: "#/components/schemas/Money" }
         status: { $ref: "#/components/schemas/EmployeeStatus" }
-        default_shift_id: { type: string, format: uuid, nullable: true, description: "Shift Pejuang. null = belum ditentukan" }
+        default_shift_id:
+          type: string
+          format: uuid
+          nullable: true
+          description: "Shift utama. Bila `shift_ids` tidak dikirim, mengganti seluruh daftar shift dengan shift ini (klien lama). null = belum ditentukan"
+        shift_ids:
+          type: array
+          maxItems: 7
+          description: "Seluruh daftar shift (D61); shift pertama menjadi shift utama. Hari kerja antar-shift tidak boleh bertabrakan (`VALIDATION_FAILED` pada `shift_ids`). Tidak dikirim = daftar tetap."
+          items: { type: string, format: uuid }
     Employee:
       type: object
       required:
-        [id, nip, full_name, email, phone, gender, marital_status, subdivision_id, subdivision_name, division_id, division_name, branch_id, branch_name, position, join_date, status, default_shift_id, default_shift_name, face_enrolled, has_photo, photo_updated_at]
+        [id, nip, full_name, email, phone, gender, marital_status, subdivision_id, subdivision_name, division_id, division_name, branch_id, branch_name, position, join_date, status, default_shift_id, default_shift_name, shifts, face_enrolled, has_photo, photo_updated_at]
       properties:
         id: { type: string, format: uuid }
         nip: { type: string }
@@ -3042,8 +3051,12 @@ components:
         position: { type: string, nullable: true }
         join_date: { type: string, format: date, nullable: true }
         status: { $ref: "#/components/schemas/EmployeeStatus" }
-        default_shift_id: { type: string, format: uuid, nullable: true }
+        default_shift_id: { type: string, format: uuid, nullable: true, description: Shift utama }
         default_shift_name: { type: string, nullable: true }
+        shifts:
+          type: array
+          description: Semua shift Pejuang, shift utama lebih dulu (D61)
+          items: { $ref: "#/components/schemas/EmployeeShift" }
         face_enrolled: { type: boolean, description: Pejuang punya template wajah aktif }
         has_photo: { type: boolean, description: "Pejuang punya foto profil (`GET /v1/employees/{id}/photo`)" }
         photo_updated_at: { type: string, format: date-time, nullable: true }
@@ -3394,7 +3407,7 @@ components:
         full_name: { type: string }
         division: { type: string }
         subdivision: { type: string }
-        work_days: { type: integer, description: "Hadir, menunggu review, cuti, dan alpha" }
+        work_days: { type: number, description: "Hadir, menunggu review, cuti, dan alpha; hari dari shift setengah hari dihitung 0,5 (D61)" }
         present: { type: integer, description: Hadir termasuk telat }
         late: { type: integer }
         leave: { type: integer, description: "Hari berstatus cuti/izin; sama dengan leave_quota + leave_non_quota + leave_other" }
@@ -3963,6 +3976,18 @@ components:
           minItems: 1
           description: 1=Senin sampai 7=Ahad
           items: { type: integer, minimum: 1, maximum: 7 }
+        kind: { $ref: "#/components/schemas/ShiftKind" }
+    ShiftKind:
+      type: string
+      enum: [regular, half_day]
+      description: "Reguler, atau setengah hari yang dihitung 0,5 hari kerja di rekap (D61). Bawaan regular."
+    EmployeeShift:
+      type: object
+      required: [id, name, kind]
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        kind: { $ref: "#/components/schemas/ShiftKind" }
     ShiftInput:
       allOf:
         - $ref: "#/components/schemas/ShiftPatch"
@@ -3970,7 +3995,7 @@ components:
           required: [name, start_time, end_time, late_tolerance_minutes, work_days]
     Shift:
       type: object
-      required: [id, name, start_time, end_time, late_tolerance_minutes, work_days]
+      required: [id, name, start_time, end_time, late_tolerance_minutes, work_days, kind]
       properties:
         id: { type: string, format: uuid }
         name: { type: string }
@@ -3980,6 +4005,7 @@ components:
         work_days:
           type: array
           items: { type: integer }
+        kind: { $ref: "#/components/schemas/ShiftKind" }
     Holiday:
       type: object
       required: [date, name]

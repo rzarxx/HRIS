@@ -37,7 +37,7 @@ func (q *Queries) DeleteShift(ctx context.Context, id uuid.UUID) (int64, error) 
 }
 
 const getShift = `-- name: GetShift :one
-SELECT id, name, start_time, end_time, late_tolerance_minutes, work_days FROM shifts WHERE id = $1
+SELECT id, name, start_time, end_time, late_tolerance_minutes, work_days, kind FROM shifts WHERE id = $1
 `
 
 func (q *Queries) GetShift(ctx context.Context, id uuid.UUID) (Shift, error) {
@@ -50,6 +50,7 @@ func (q *Queries) GetShift(ctx context.Context, id uuid.UUID) (Shift, error) {
 		&i.EndTime,
 		&i.LateToleranceMinutes,
 		&i.WorkDays,
+		&i.Kind,
 	)
 	return i, err
 }
@@ -69,9 +70,9 @@ func (q *Queries) InsertHoliday(ctx context.Context, arg InsertHolidayParams) er
 }
 
 const insertShift = `-- name: InsertShift :one
-INSERT INTO shifts (name, start_time, end_time, late_tolerance_minutes, work_days)
-VALUES ($1, $2, $3, $4, $5)
-RETURNING id, name, start_time, end_time, late_tolerance_minutes, work_days
+INSERT INTO shifts (name, start_time, end_time, late_tolerance_minutes, work_days, kind)
+VALUES ($1, $2, $3, $4, $5, $6)
+RETURNING id, name, start_time, end_time, late_tolerance_minutes, work_days, kind
 `
 
 type InsertShiftParams struct {
@@ -80,6 +81,7 @@ type InsertShiftParams struct {
 	EndTime              pgtype.Time
 	LateToleranceMinutes int32
 	WorkDays             []int16
+	Kind                 string
 }
 
 func (q *Queries) InsertShift(ctx context.Context, arg InsertShiftParams) (Shift, error) {
@@ -89,6 +91,7 @@ func (q *Queries) InsertShift(ctx context.Context, arg InsertShiftParams) (Shift
 		arg.EndTime,
 		arg.LateToleranceMinutes,
 		arg.WorkDays,
+		arg.Kind,
 	)
 	var i Shift
 	err := row.Scan(
@@ -98,6 +101,7 @@ func (q *Queries) InsertShift(ctx context.Context, arg InsertShiftParams) (Shift
 		&i.EndTime,
 		&i.LateToleranceMinutes,
 		&i.WorkDays,
+		&i.Kind,
 	)
 	return i, err
 }
@@ -132,7 +136,7 @@ func (q *Queries) ListHolidays(ctx context.Context, arg ListHolidaysParams) ([]H
 }
 
 const listShifts = `-- name: ListShifts :many
-SELECT id, name, start_time, end_time, late_tolerance_minutes, work_days FROM shifts ORDER BY start_time, name
+SELECT id, name, start_time, end_time, late_tolerance_minutes, work_days, kind FROM shifts ORDER BY start_time, name
 `
 
 func (q *Queries) ListShifts(ctx context.Context) ([]Shift, error) {
@@ -151,6 +155,7 @@ func (q *Queries) ListShifts(ctx context.Context) ([]Shift, error) {
 			&i.EndTime,
 			&i.LateToleranceMinutes,
 			&i.WorkDays,
+			&i.Kind,
 		); err != nil {
 			return nil, err
 		}
@@ -163,9 +168,9 @@ func (q *Queries) ListShifts(ctx context.Context) ([]Shift, error) {
 }
 
 const updateShift = `-- name: UpdateShift :one
-UPDATE shifts SET name = $2, start_time = $3, end_time = $4, late_tolerance_minutes = $5, work_days = $6
+UPDATE shifts SET name = $2, start_time = $3, end_time = $4, late_tolerance_minutes = $5, work_days = $6, kind = $7
 WHERE id = $1
-RETURNING id, name, start_time, end_time, late_tolerance_minutes, work_days
+RETURNING id, name, start_time, end_time, late_tolerance_minutes, work_days, kind
 `
 
 type UpdateShiftParams struct {
@@ -175,6 +180,7 @@ type UpdateShiftParams struct {
 	EndTime              pgtype.Time
 	LateToleranceMinutes int32
 	WorkDays             []int16
+	Kind                 string
 }
 
 func (q *Queries) UpdateShift(ctx context.Context, arg UpdateShiftParams) (Shift, error) {
@@ -185,6 +191,7 @@ func (q *Queries) UpdateShift(ctx context.Context, arg UpdateShiftParams) (Shift
 		arg.EndTime,
 		arg.LateToleranceMinutes,
 		arg.WorkDays,
+		arg.Kind,
 	)
 	var i Shift
 	err := row.Scan(
@@ -194,6 +201,7 @@ func (q *Queries) UpdateShift(ctx context.Context, arg UpdateShiftParams) (Shift
 		&i.EndTime,
 		&i.LateToleranceMinutes,
 		&i.WorkDays,
+		&i.Kind,
 	)
 	return i, err
 }

@@ -108,7 +108,9 @@ export function MfaCard() {
         </form>
       ) : (
         <>
-          <p className="text-sm text-slate-600">Tambahkan lapisan keamanan dengan kode dari aplikasi authenticator di HP Anda. Wajib untuk role SDM.</p>
+          <p className="text-sm text-slate-600">Tambahkan lapisan keamanan dengan kode dari aplikasi authenticator di HP Anda.{" "}
+            {me?.mfa_required ? "Wajib untuk akun Anda." : "Tidak wajib untuk akun Anda, tetapi sangat dianjurkan."}
+          </p>
           <Button className="mt-4" loading={loading} onClick={start}>
             Mulai pendaftaran
           </Button>

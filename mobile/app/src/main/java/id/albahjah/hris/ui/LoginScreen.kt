@@ -5,6 +5,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -15,6 +16,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.ui.Alignment
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
@@ -25,6 +27,8 @@ import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Warning
+import androidx.compose.material3.Checkbox
+import androidx.compose.material3.CheckboxDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
@@ -43,6 +47,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
@@ -64,6 +69,8 @@ data class LoginForm(
     val askMfa: Boolean = false,
     val busy: Boolean = false,
     val error: String? = null,
+    /** Ingat NIPY/email/WA di HP ini (D62). */
+    val remember: Boolean = false,
 )
 
 @Composable
@@ -71,7 +78,8 @@ fun LoginScreen(repository: Repository, crash: String?, onDismissCrash: () -> Un
     val scope = rememberCoroutineScope()
     val clipboard = LocalClipboardManager.current
     var server by rememberSaveable { mutableStateOf(repository.serverUrl) }
-    var identifier by rememberSaveable { mutableStateOf("") }
+    var identifier by rememberSaveable { mutableStateOf(repository.prefs.rememberedIdentifier.orEmpty()) }
+    var rememberMe by rememberSaveable { mutableStateOf(repository.prefs.rememberedIdentifier != null) }
     var password by rememberSaveable { mutableStateOf("") }
     var mfa by rememberSaveable { mutableStateOf("") }
     var askMfa by rememberSaveable { mutableStateOf(false) }
@@ -88,7 +96,7 @@ fun LoginScreen(repository: Repository, crash: String?, onDismissCrash: () -> Un
     }
     LoginContent(
         footer = repository.prefs.footer,
-        form = LoginForm(server, identifier, password, mfa, askMfa, busy, error),
+        form = LoginForm(server, identifier, password, mfa, askMfa, busy, error, rememberMe),
         showServer = BuildConfig.SERVER_EDITABLE,
         version = BuildConfig.VERSION_NAME,
         crash = crash,
@@ -98,6 +106,7 @@ fun LoginScreen(repository: Repository, crash: String?, onDismissCrash: () -> Un
         onIdentifier = { identifier = it },
         onPassword = { password = it },
         onMfa = { mfa = it.filter(Char::isDigit).take(6) },
+        onRemember = { rememberMe = it },
         onForgot = {
             error = null
             forgot = true
@@ -109,6 +118,7 @@ fun LoginScreen(repository: Repository, crash: String?, onDismissCrash: () -> Un
             scope.launch {
                 try {
                     repository.login(server, identifier, password, if (askMfa) mfa else null)
+                    repository.prefs.rememberIdentifier(if (rememberMe) identifier else null)
                     onLoggedIn()
                 } catch (e: Exception) {
                     val err = e.toApiError()
@@ -137,6 +147,7 @@ fun LoginContent(
     onSubmit: () -> Unit,
     footer: String? = null,
     onForgot: () -> Unit = {},
+    onRemember: (Boolean) -> Unit = {},
 ) {
     StatusBarIcons(dark = true)
     var showPassword by rememberSaveable { mutableStateOf(false) }
@@ -188,9 +199,25 @@ fun LoginContent(
                         onDone = { if (canSubmit) onSubmit() },
                         trailing = { PasswordEye(showPassword) { showPassword = !showPassword } },
                     )
-                    if (!form.askMfa) {
-                        TextButton(onClick = onForgot, modifier = Modifier.align(Alignment.End)) {
-                            Text("Lupa kata sandi?", style = MaterialTheme.typography.labelLarge, color = Hc.BrandDark)
+                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                        Row(
+                            Modifier.weight(1f).clip(RoundedCornerShape(12.dp))
+                                .toggleable(value = form.remember, role = Role.Checkbox, onValueChange = onRemember)
+                                .padding(end = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Checkbox(
+                                checked = form.remember,
+                                onCheckedChange = null,
+                                colors = CheckboxDefaults.colors(checkedColor = Hc.Brand),
+                                modifier = Modifier.padding(12.dp),
+                            )
+                            Text("Ingat NIPY/email", style = MaterialTheme.typography.bodyMedium, color = Hc.Ink)
+                        }
+                        if (!form.askMfa) {
+                            TextButton(onClick = onForgot) {
+                                Text("Lupa kata sandi?", style = MaterialTheme.typography.labelLarge, color = Hc.BrandDark)
+                            }
                         }
                     }
                     if (form.askMfa) {

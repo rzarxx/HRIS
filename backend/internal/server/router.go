@@ -48,7 +48,9 @@ type Deps struct {
 	SessionCheck auth.SessionChecker
 	Limiter      auth.Limiter
 	Ready        func(context.Context) error
-	Options      Options
+	// MinAppCode adalah versi minimum aplikasi Android (D63); nil berarti tidak diperiksa.
+	MinAppCode func(context.Context) int
+	Options    Options
 }
 
 // Access menyatakan siapa yang boleh memanggil route.
@@ -86,6 +88,8 @@ func routes(d Deps) []Route {
 		{http.MethodPost, "/v1/auth/email/confirm", Public, nil, d.Auth.ConfirmEmail},
 		// Footer dan merek tampil di layar masuk web dan aplikasi, sebelum login.
 		{http.MethodGet, "/v1/branding", Public, nil, d.Settings.Branding},
+		// Versi aplikasi terbaru dan minimum (D63): dibaca aplikasi saat dibuka, termasuk versi lama.
+		{http.MethodGet, "/v1/app/version", Public, nil, d.Settings.AppVersion},
 		{http.MethodPost, "/v1/auth/logout", AnyUser, nil, d.Auth.Logout},
 		{http.MethodPost, "/v1/auth/password/change", AnyUser, nil, d.Auth.ChangePassword},
 		{http.MethodGet, "/v1/auth/sessions", AnyUser, nil, d.Auth.ListSessions},
@@ -105,6 +109,9 @@ func routes(d Deps) []Route {
 		guarded(http.MethodPost, "/v1/admin/users/{user_id}/lock", d.Auth.AdminLock, permission.UserManage),
 		guarded(http.MethodPost, "/v1/admin/users/{user_id}/unlock", d.Auth.AdminUnlock, permission.UserManage),
 		guarded(http.MethodPost, "/v1/admin/users/{user_id}/revoke-sessions", d.Auth.AdminRevokeSessions, permission.UserManage),
+		// Peran SDM dan A2F wajib per akun, hanya super admin (D60).
+		guarded(http.MethodPut, "/v1/admin/users/{user_id}/role", d.Auth.AdminSetRole, permission.AccountManage),
+		guarded(http.MethodPut, "/v1/admin/users/{user_id}/mfa-policy", d.Auth.AdminSetMFAPolicy, permission.AccountManage),
 
 		guarded(http.MethodGet, "/v1/admin/branches", d.Org.ListBranches, permission.OrgWrite),
 		guarded(http.MethodPost, "/v1/admin/branches", d.Org.CreateBranch, permission.OrgWrite),
@@ -189,6 +196,8 @@ func routes(d Deps) []Route {
 
 		guarded(http.MethodGet, "/v1/admin/settings/footer", d.Settings.Branding, permission.SettingsManage),
 		guarded(http.MethodPut, "/v1/admin/settings/footer", d.Settings.SetFooter, permission.SettingsManage),
+		guarded(http.MethodGet, "/v1/admin/settings/app-version", d.Settings.AppVersion, permission.SettingsManage),
+		guarded(http.MethodPut, "/v1/admin/settings/app-version", d.Settings.SetAppVersion, permission.SettingsManage),
 		guarded(http.MethodGet, "/v1/admin/settings/smtp", d.Mail.Settings, permission.SettingsManage),
 		guarded(http.MethodPut, "/v1/admin/settings/smtp", d.Mail.Save, permission.SettingsManage),
 		guarded(http.MethodDelete, "/v1/admin/settings/smtp", d.Mail.Disable, permission.SettingsManage),
@@ -230,7 +239,7 @@ func New(d Deps) http.Handler {
 
 func build(d Deps, table []Route) http.Handler {
 	r := chi.NewRouter()
-	r.Use(realIP(d.Options.TrustProxy), requestID, recoverer, requestLogger, securityHeaders(d.Options.Secure), blockDirectAccess(d.Options.AllowedOrigins), limitBody, withTimeout, cors(d.Options.AllowedOrigins), limitByIP(d.Limiter))
+	r.Use(realIP(d.Options.TrustProxy), requestID, recoverer, requestLogger, securityHeaders(d.Options.Secure), blockDirectAccess(d.Options.AllowedOrigins), limitBody, withTimeout, cors(d.Options.AllowedOrigins), limitByIP(d.Limiter), requireAppVersion(d.MinAppCode))
 
 	r.NotFound(func(w http.ResponseWriter, req *http.Request) { httpx.WriteError(w, req, httpx.ErrNotFound()) })
 	r.MethodNotAllowed(func(w http.ResponseWriter, req *http.Request) {

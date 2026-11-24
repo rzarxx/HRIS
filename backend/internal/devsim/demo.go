@@ -134,6 +134,12 @@ func SeedDemo(ctx context.Context, pool *pgxpool.Pool, now time.Time) (DemoSumma
 		if _, err := tx.Exec(ctx, `UPDATE employees SET default_shift_id = $1 WHERE id = ANY($2) AND default_shift_id IS NULL`, shiftID, employees); err != nil {
 			return err
 		}
+		// Shift ganda (D61): shift utama juga tercatat di daftar shift Pejuang.
+		if _, err := tx.Exec(ctx, `INSERT INTO employee_shifts (employee_id, shift_id)
+			SELECT id, default_shift_id FROM employees WHERE id = ANY($1) AND default_shift_id IS NOT NULL
+			ON CONFLICT DO NOTHING`, employees); err != nil {
+			return err
+		}
 		locationID, err := demoLocation(ctx, tx, employees)
 		if err != nil {
 			return err

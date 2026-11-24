@@ -8,7 +8,12 @@ import id.albahjah.hris.security.DeviceRisk
 import id.albahjah.hris.security.RequestHash
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.withContext
+import kotlinx.serialization.KSerializer
+import kotlinx.serialization.builtins.ListSerializer
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.RequestBody.Companion.toRequestBody
@@ -25,11 +30,45 @@ const val PURPOSE_FACE_ENROLL = "face_enroll"
 /** Ringkasan hasil presensi untuk layar hasil. */
 data class ClockOutcome(val title: String, val detail: String, val needsReview: Boolean)
 
+/** Hasil memulihkan sesi saat aplikasi dibuka (D62). */
+enum class ResumeState {
+    /** Sesi diperpanjang server. */
+    Active,
+
+    /** Server belum bisa dihubungi; sesi tersimpan tetap dipakai dengan data cache. */
+    Offline,
+
+    /** Belum masuk, atau server menolak sesi (dicabut atau kedaluwarsa): harus masuk ulang. */
+    LoggedOut,
+}
+
+/**
+ * Lama waktu untuk dibaca: di bawah 60 menit "45 menit", selebihnya "1 jam 15 menit" atau "2 jam".
+ * Dipakai untuk lama terlambat (D62).
+ */
+fun durationText(minutes: Int): String {
+    if (minutes < 60) return "$minutes menit"
+    val hours = minutes / 60
+    val rest = minutes % 60
+    return if (rest == 0) "$hours jam" else "$hours jam $rest menit"
+}
+
 class Repository(
     private val session: Session,
     val prefs: AppPrefs,
     private val identity: DeviceIdentity? = null,
+    private val cache: LocalCache? = null,
 ) {
+    private val offline = MutableStateFlow<Long?>(null)
+    private val update = MutableStateFlow<AppUpdateState?>(null)
+    private var versionCheckedAt = 0L
+
+    /** Hasil pemeriksaan versi terakhir; Required juga terisi saat server menjawab 426 (D63). */
+    val appUpdate: StateFlow<AppUpdateState?> = update.asStateFlow()
+
+    /** Waktu data cache yang sedang tampil karena server belum bisa dihubungi; null bila online (D62). */
+    val offlineSince: StateFlow<Long?> = offline.asStateFlow()
+
     @Volatile
     private var client: ApiClient? = null
 
@@ -56,13 +95,66 @@ class Repository(
 
     private var lastUrl: String? = null
 
+    /**
+     * Memuat dari server lalu menyimpan salinannya. Bila server belum bisa dihubungi, salinan terakhir
+     * dipakai dan [offlineSince] terisi; galat lain (mis. ditolak server) tetap dilempar.
+     */
+    private suspend fun <T> cached(key: String, serializer: KSerializer<T>, block: suspend HrisApi.() -> T): T {
+        try {
+            val value = call(block)
+            withContext(Dispatchers.IO) { cache?.put(key, serializer, value) }
+            offline.value = null
+            return value
+        } catch (e: ApiError) {
+            if (!unreachable(e)) throw e
+            val saved = withContext(Dispatchers.IO) { cache?.get(key, serializer) } ?: throw e
+            offline.value = saved.savedAt
+            return saved.value
+        }
+    }
+
+    /**
+     * Server tidak terjangkau: tanpa internet, gateway 5xx tanpa body JSON (server mati atau sedang
+     * deploy), atau 401 yang refresh-nya gagal karena jaringan sehingga sesi tersimpan masih utuh.
+     */
+    private fun unreachable(e: ApiError): Boolean =
+        e.code == "NETWORK" || e.code.startsWith("HTTP_5") || (e.code == "AUTH_TOKEN_INVALID" && session.loggedIn)
+
+    /** Profil terakhir dari cache, agar beranda langsung tampil sebelum server menjawab. */
+    suspend fun cachedMe(): Me? = withContext(Dispatchers.IO) { cache?.get(KEY_ME, Me.serializer())?.value }
+
+    suspend fun cachedHistory(): List<AttendanceRecord>? =
+        withContext(Dispatchers.IO) { cache?.get(KEY_HISTORY, ListSerializer(AttendanceRecord.serializer()))?.value }
+
     private suspend fun <T> call(block: suspend HrisApi.() -> T): T = withContext(Dispatchers.IO) {
         try {
             api().block()
         } catch (e: CancellationException) {
             throw e
         } catch (e: Throwable) {
-            throw e.toApiError()
+            val err = e.toApiError()
+            if (err.code == "APP_UPDATE_REQUIRED") {
+                update.value = AppUpdateState(UpdateLevel.Required, update.value?.version ?: AppVersion())
+            }
+            throw err
+        }
+    }
+
+    /**
+     * Membandingkan versi terpasang dengan versi di server (D63), paling sering sekali per jam kecuali [force].
+     * Gagal dimuat (mis. offline) mengembalikan hasil terakhir, atau null bila belum pernah berhasil.
+     */
+    suspend fun checkAppVersion(force: Boolean = false): AppUpdateState? {
+        val now = System.currentTimeMillis()
+        if (!force && versionCheckedAt != 0L && now - versionCheckedAt < APP_VERSION_CHECK_MS) return update.value
+        return try {
+            val version = call { appVersion().data }
+            versionCheckedAt = now
+            AppUpdateState(updateLevel(BuildConfig.VERSION_CODE, version), version).also { update.value = it }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            update.value
         }
     }
 
@@ -83,21 +175,41 @@ class Repository(
                 ),
             ).data
         }
+        // Salinan data dari akun sebelumnya di HP ini tidak boleh tampil untuk akun yang baru masuk.
+        withContext(Dispatchers.IO) { cache?.clear() }
+        offline.value = null
+        photoCache = null
         session.save(tokens)
         return tokens
     }
 
-    /** Memulihkan sesi dari refresh token tersimpan. False berarti harus masuk ulang. */
-    suspend fun resume(): Boolean = withContext(Dispatchers.IO) {
-        if (!session.loggedIn) return@withContext false
-        runCatching { clientFor(serverUrl).refreshNow() }.getOrDefault(false)
+    /**
+     * Memulihkan sesi dari refresh token tersimpan. Internet putus atau server sibuk tidak membuat
+     * keluar (D62): sesi hanya dianggap berakhir bila server menolak refresh token.
+     */
+    suspend fun resume(): ResumeState = withContext(Dispatchers.IO) {
+        if (!session.loggedIn) return@withContext ResumeState.LoggedOut
+        val refreshed = runCatching { clientFor(serverUrl).refreshNow() }.getOrDefault(false)
+        when {
+            refreshed -> ResumeState.Active
+            session.loggedIn -> ResumeState.Offline
+            else -> {
+                // Sesi ditolak server: buang salinan data agar tidak tertinggal untuk akun berikutnya.
+                cache?.clear()
+                ResumeState.LoggedOut
+            }
+        }
     }
 
-    suspend fun me(): Me = call { me().data }
+    suspend fun me(): Me = cached(KEY_ME, Me.serializer()) { me().data }
 
     suspend fun logout() {
         runCatching { call { logout() } }
         session.clear()
+        withContext(Dispatchers.IO) { cache?.clear() }
+        offline.value = null
+        prefs.resetAppLock()
+        photoCache = null
     }
 
     suspend fun challenge(purpose: String): AttendanceChallenge =
@@ -161,7 +273,7 @@ class Repository(
         val gesturePart = jpegPart("gesture", "gerakan.jpg", gesture)
         return if (purpose == PURPOSE_CLOCK_IN) {
             val r = call { clockIn(jsonPart(payload), part, gesturePart).data }
-            val late = if (r.lateMinutes > 0) "Terlambat ${r.lateMinutes} menit. " else ""
+            val late = if (r.lateMinutes > 0) "Terlambat ${durationText(r.lateMinutes)}. " else ""
             val place = r.officeLocation?.name ?: when (r.workMode) {
                 "wfa" -> "WFA"
                 "field" -> "Di luar kantor"
@@ -227,20 +339,21 @@ class Repository(
         call { consent(ConsentInput("location", CONSENT_VERSION)) }
     }
 
-    suspend fun history(): List<AttendanceRecord> = call { history().data }
+    suspend fun history(): List<AttendanceRecord> = cached(KEY_HISTORY, ListSerializer(AttendanceRecord.serializer())) { history().data }
 
     /** Jenis cuti aktif beserta hak cuti tahun ini. */
-    suspend fun leaveTypes(): List<LeaveType> = call { leaveTypes().data }
+    suspend fun leaveTypes(): List<LeaveType> = cached("leave_types", ListSerializer(LeaveType.serializer())) { leaveTypes().data }
 
     /** Pengajuan cuti/izin milik sendiri, terbaru dulu, lengkap dengan timeline. */
-    suspend fun leaves(): List<LeaveRequest> = call { leaves().data }
+    suspend fun leaves(): List<LeaveRequest> = cached("leaves", ListSerializer(LeaveRequest.serializer())) { leaves().data }
 
     suspend fun createLeave(input: LeaveInput): LeaveRequest = call { createLeave(input).data }
 
     suspend fun cancelLeave(id: String): LeaveRequest = call { cancelLeave(id).data }
 
     /** Langkah persetujuan yang menunggu keputusan akun ini (izin approval:act). */
-    suspend fun pendingApprovals(): List<ApprovalItem> = call { pendingApprovals().data }
+    suspend fun pendingApprovals(): List<ApprovalItem> =
+        cached("approvals", ListSerializer(ApprovalItem.serializer())) { pendingApprovals().data }
 
     /** Detail langkah persetujuan beserta seluruh langkahnya. */
     suspend fun approval(id: String): ApprovalItem = call { approval(id).data }
@@ -251,7 +364,8 @@ class Repository(
     }
 
     /** Pengumuman yang sedang tayang untuk Pejuang ini; belum dibaca lebih dulu. */
-    suspend fun announcements(): List<MyAnnouncement> = call { announcements().data }
+    suspend fun announcements(): List<MyAnnouncement> =
+        cached("announcements", ListSerializer(MyAnnouncement.serializer())) { announcements().data }
 
     /** Mencatat isi dibuka; server memulai timer baca sekali saja (D27). */
     suspend fun openAnnouncement(id: String): MyAnnouncement = call { openAnnouncement(id).data }
@@ -259,9 +373,17 @@ class Repository(
     /** Menandai sudah dibaca; ditolak READ_TOO_SOON bila jeda baca belum lewat. */
     suspend fun readAnnouncement(id: String): MyAnnouncement = call { readAnnouncement(id).data }
 
-    /** Isi lampiran pengumuman (PDF atau gambar), dibuka di dalam aplikasi. */
-    suspend fun attachment(announcementId: String, attachmentId: String): ByteArray =
-        call { announcementAttachment(announcementId, attachmentId).use { it.bytes() } }
+    /**
+     * Isi lampiran pengumuman (PDF atau gambar), dibuka di dalam aplikasi. Isi lampiran tidak berubah
+     * untuk id yang sama, jadi salinan lokal dipakai lebih dulu dan bisa dibuka saat offline (D62).
+     */
+    suspend fun attachment(announcementId: String, attachmentId: String): ByteArray {
+        val key = "attachment:$attachmentId"
+        withContext(Dispatchers.IO) { cache?.getBlob(key) }?.let { return it }
+        val bytes = call { announcementAttachment(announcementId, attachmentId).use { it.bytes() } }
+        withContext(Dispatchers.IO) { cache?.putBlob(key, bytes) }
+        return bytes
+    }
 
     /**
      * Memuat footer dari server dan menyimpannya untuk tampilan luring. Gagal dimuat tidak masalah:
@@ -306,7 +428,7 @@ class Repository(
         }
     }
 
-    suspend fun myFamily(): MyFamily = call { myFamily().data }
+    suspend fun myFamily(): MyFamily = cached("family", MyFamily.serializer()) { myFamily().data }
 
     /** Mengunggah foto profil JPEG; server memotong persegi 512 px dan membuang EXIF. */
     suspend fun setPhoto(jpeg: ByteArray): Me {
@@ -333,8 +455,15 @@ class Repository(
         if (!me.hasPhoto) return null
         val key = "${me.employeeId}@$version"
         photoCache?.takeIf { it.first == key }?.let { return it.second }
-        val bytes = call { photo(me.employeeId).use { it.bytes() } }
+        // Foto per versi tidak berubah, jadi salinan lokal dipakai lebih dulu (D62).
+        val bytes = withContext(Dispatchers.IO) { cache?.getBlob("photo:$key") }
+            ?: call { photo(me.employeeId).use { it.bytes() } }.also { b -> withContext(Dispatchers.IO) { cache?.putBlob("photo:$key", b) } }
         photoCache = key to bytes
         return bytes
+    }
+
+    private companion object {
+        const val KEY_ME = "me"
+        const val KEY_HISTORY = "history"
     }
 }

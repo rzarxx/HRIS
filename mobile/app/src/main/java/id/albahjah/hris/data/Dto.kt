@@ -367,6 +367,17 @@ data class AnnouncementAttachment(
     @SerialName("size_bytes") val sizeBytes: Int = 0,
 )
 
+// schema: AppVersion
+@Serializable
+data class AppVersion(
+    @SerialName("latest_code") val latestCode: Int = 0,
+    @SerialName("latest_name") val latestName: String = "",
+    @SerialName("min_code") val minCode: Int = 0,
+    @SerialName("store_url") val storeUrl: String = "",
+    @SerialName("notes") val notes: String = "",
+    @SerialName("updated_at") val updatedAt: String? = null,
+)
+
 // schema: Branding
 @Serializable
 data class Branding(

@@ -361,11 +361,15 @@ func (d *refData) readRefSheets(locationRows, shiftRows [][]string, issue refIss
 		if !okDays {
 			bad("Hari kerja", "Tulis hari kerja seperti 1-5, Senin-Jumat, atau Senin, Rabu, Jumat.")
 		}
+		kind, okKind := parseShiftKind(cell(row, 5))
+		if !okKind {
+			bad("Jenis", "Tulis Reguler atau Setengah hari.")
+		}
 		if !ok {
 			continue
 		}
 		d.newShifts = append(d.newShifts, newShift{key: key, params: store.InsertShiftParams{
-			Name: strings.Join(strings.Fields(name), " "), StartTime: start, EndTime: end, LateToleranceMinutes: int32(tolerance), WorkDays: days,
+			Name: strings.Join(strings.Fields(name), " "), StartTime: start, EndTime: end, LateToleranceMinutes: int32(tolerance), WorkDays: days, Kind: kind,
 		}})
 	}
 }

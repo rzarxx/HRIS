@@ -17,8 +17,13 @@ RETURNING id, nonce, liveness_action;
 INSERT INTO attendance_attempts (employee_id, device_id, challenge_id, purpose, outcome, reason_code, risk_score, risk_flags, latitude, longitude, ip)
 VALUES (@employee_id, @device_id, @challenge_id, @purpose, @outcome, @reason_code, @risk_score, @risk_flags, @latitude, @longitude, @ip);
 
--- name: GetEmployeeDefaultShift :one
-SELECT sh.* FROM employees e JOIN shifts sh ON sh.id = e.default_shift_id WHERE e.id = $1;
+-- Semua shift Pejuang (D61); presensi memilih shift yang hari kerjanya cocok. Shift utama lebih dulu.
+-- name: ListEmployeeShifts :many
+SELECT sh.* FROM employee_shift_set es
+JOIN shifts sh ON sh.id = es.shift_id
+JOIN employees e ON e.id = es.employee_id
+WHERE es.employee_id = $1
+ORDER BY (sh.id = e.default_shift_id) DESC, sh.start_time, sh.name;
 
 -- name: IsHoliday :one
 SELECT EXISTS (SELECT 1 FROM holidays WHERE date = $1);
@@ -97,12 +102,16 @@ RETURNING *;
 
 -- name: ListAttendanceMonitor :many
 SELECT e.id, e.nip, e.full_name, s.name AS subdivision_name, d.id AS division_id, d.name AS division_name,
-       sh.name AS shift_name, sh.work_days, a.status, a.clock_in_at, a.clock_out_at, a.late_minutes, a.work_mode,
+       -- Shift hari itu: yang hari kerjanya cocok, bila tidak ada shift utama (D61).
+       COALESCE((SELECT sh.name FROM employee_shift_set es JOIN shifts sh ON sh.id = es.shift_id WHERE es.employee_id = e.id
+        ORDER BY (extract(isodow FROM @work_date::date)::smallint = ANY (sh.work_days)) DESC, (sh.id = e.default_shift_id) DESC, sh.start_time LIMIT 1), '')::text AS shift_name,
+       COALESCE((SELECT sh.work_days FROM employee_shift_set es JOIN shifts sh ON sh.id = es.shift_id WHERE es.employee_id = e.id
+        ORDER BY (extract(isodow FROM @work_date::date)::smallint = ANY (sh.work_days)) DESC, (sh.id = e.default_shift_id) DESC, sh.start_time LIMIT 1), ARRAY[]::smallint[])::smallint[] AS work_days,
+       a.status, a.clock_in_at, a.clock_out_at, a.late_minutes, a.work_mode,
        l.name AS location_name, a.in_latitude, a.in_longitude, a.out_latitude, a.out_longitude
 FROM employees e
 JOIN subdivisions s ON s.id = e.subdivision_id
 JOIN divisions d ON d.id = s.division_id
-LEFT JOIN shifts sh ON sh.id = e.default_shift_id
 LEFT JOIN attendances a ON a.employee_id = e.id AND a.work_date = @work_date
 LEFT JOIN office_locations l ON l.id = a.location_id
 WHERE e.deleted_at IS NULL AND e.status = 'active'
@@ -215,9 +224,13 @@ JOIN employees e ON e.deleted_at IS NULL AND e.status = 'active'
   AND (e.join_date IS NULL OR e.join_date <= d.day)
   AND (e.exit_date IS NULL OR e.exit_date >= d.day)
 JOIN users u ON u.employee_id = e.id AND u.is_active
-JOIN shifts sh ON sh.id = e.default_shift_id
-WHERE extract(isodow FROM d.day)::smallint = ANY (sh.work_days)
-  AND NOT EXISTS (SELECT 1 FROM holidays h WHERE h.date = d.day)
+-- Shift yang hari kerjanya mencakup hari itu (D61).
+JOIN LATERAL (
+  SELECT sh.id FROM employee_shift_set es JOIN shifts sh ON sh.id = es.shift_id
+  WHERE es.employee_id = e.id AND extract(isodow FROM d.day)::smallint = ANY (sh.work_days)
+  ORDER BY sh.start_time LIMIT 1
+) sh ON true
+WHERE NOT EXISTS (SELECT 1 FROM holidays h WHERE h.date = d.day)
   AND NOT EXISTS (SELECT 1 FROM attendances a WHERE a.employee_id = e.id AND a.work_date = d.day)
   AND NOT EXISTS (SELECT 1 FROM leave_requests lr WHERE lr.employee_id = e.id AND lr.status = 'approved'
     AND d.day BETWEEN lr.start_date AND lr.end_date)

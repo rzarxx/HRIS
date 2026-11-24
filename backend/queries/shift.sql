@@ -5,12 +5,12 @@ SELECT * FROM shifts ORDER BY start_time, name;
 SELECT * FROM shifts WHERE id = $1;
 
 -- name: InsertShift :one
-INSERT INTO shifts (name, start_time, end_time, late_tolerance_minutes, work_days)
-VALUES ($1, $2, $3, $4, $5)
+INSERT INTO shifts (name, start_time, end_time, late_tolerance_minutes, work_days, kind)
+VALUES ($1, $2, $3, $4, $5, $6)
 RETURNING *;
 
 -- name: UpdateShift :one
-UPDATE shifts SET name = $2, start_time = $3, end_time = $4, late_tolerance_minutes = $5, work_days = $6
+UPDATE shifts SET name = $2, start_time = $3, end_time = $4, late_tolerance_minutes = $5, work_days = $6, kind = $7
 WHERE id = $1
 RETURNING *;
 

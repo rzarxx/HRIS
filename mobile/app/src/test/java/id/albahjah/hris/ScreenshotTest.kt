@@ -66,6 +66,9 @@ import id.albahjah.hris.ui.HrisTheme
 import id.albahjah.hris.ui.ForgotPasswordContent
 import id.albahjah.hris.ui.LoginContent
 import id.albahjah.hris.ui.LoginForm
+import id.albahjah.hris.ui.LockContent
+import id.albahjah.hris.ui.UpdateRequiredContent
+import id.albahjah.hris.data.AppVersion
 import id.albahjah.hris.ui.PermissionContent
 import id.albahjah.hris.ui.ProgressContent
 import id.albahjah.hris.ui.ResultContent
@@ -218,6 +221,25 @@ class ScreenshotTest {
     }
 
     @Test
+    fun loginRemembered() = shot {
+        LoginContent(
+            form = LoginForm(identifier = "2024.07.0153", remember = true),
+            showServer = false,
+            version = "0.14.0",
+            crash = null,
+            onCopyCrash = {}, onDismissCrash = {}, onServer = {}, onIdentifier = {}, onPassword = {}, onMfa = {}, onSubmit = {}, footer = footer,
+        )
+    }
+
+    @Test
+    fun appLocked() = shot { LockContent(onUnlock = {}, onUsePassword = {}) }
+
+    @Test
+    fun updateRequired() = shot {
+        UpdateRequiredContent(AppVersion(latestCode = 1400, latestName = "0.14.0", minCode = 1400, notes = "Aplikasi tetap bisa dibuka saat offline."), onUpdate = {})
+    }
+
+    @Test
     fun forgotPassword() = shot {
         ForgotPasswordContent(identifier = "2024.07.0153", busy = false, error = null, sent = null, onIdentifier = {}, onBack = {}, onSubmit = {})
     }
@@ -247,6 +269,24 @@ class ScreenshotTest {
             me = me.copy(deviceStatus = "pending", faceEnrolled = false), today = null, now = now.withHour(19),
             refreshing = false, crash = null,
             onCopyCrash = {}, onDismissCrash = {}, onCapture = {}, onHistory = {}, onRefresh = {}, onLogout = {},
+        )
+    }
+
+    @Test
+    fun homeUpdateAvailable() = shot {
+        HomeContent(
+            me = me, today = today, now = now, refreshing = false, crash = null,
+            onCopyCrash = {}, onDismissCrash = {}, onCapture = {}, onHistory = {}, onRefresh = {}, onLogout = {},
+            update = AppVersion(latestCode = 1400, latestName = "0.14.0", notes = "Kunci aplikasi dengan sidik jari."),
+        )
+    }
+
+    @Test
+    fun homeOffline() = shot {
+        HomeContent(
+            me = me, today = today.copy(status = "late", lateMinutes = 75), now = now, refreshing = false, crash = null,
+            onCopyCrash = {}, onDismissCrash = {}, onCapture = {}, onHistory = {}, onRefresh = {}, onLogout = {},
+            offlineSince = now.minusMinutes(20).toInstant().toEpochMilli(),
         )
     }
 

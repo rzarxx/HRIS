@@ -38,6 +38,14 @@ import id.albahjah.hris.ui.nextPopup
 import id.albahjah.hris.ui.ANNOUNCEMENT_POLL_MS
 import id.albahjah.hris.ui.ANNOUNCEMENT_RETRY_MS
 import id.albahjah.hris.ui.sampleSizeFor
+import id.albahjah.hris.ui.Wib
+import id.albahjah.hris.ui.offlineSinceText
+import id.albahjah.hris.data.durationText
+import id.albahjah.hris.security.AppLock
+import id.albahjah.hris.data.AppVersion
+import id.albahjah.hris.data.UpdateLevel
+import id.albahjah.hris.data.appVersionHeader
+import id.albahjah.hris.data.updateLevel
 import id.albahjah.hris.ui.toPickerMillis
 import java.security.KeyPairGenerator
 import java.security.Signature
@@ -723,6 +731,44 @@ class RequestHashTest {
         val attChallenge = DeviceProof.attestationChallenge("pub-der-bytes".toByteArray(Charsets.UTF_8), reqHash)
         assertEquals(43, attChallenge.length)
         assertEquals("pLGtaxaQ7rwXnUDWCCdpdWegDdHT-XVaZktMnbXHywM", attChallenge)
+    }
+
+    @Test
+    fun lateDurationAndOfflineHelpers() {
+        assertEquals("45 menit", durationText(45))
+        assertEquals("1 jam", durationText(60))
+        assertEquals("1 jam 15 menit", durationText(75))
+        assertEquals("2 jam 1 menit", durationText(121))
+
+        val now = java.time.ZonedDateTime.of(2026, 11, 9, 9, 0, 0, 0, Wib)
+        assertEquals("pukul 07:45", offlineSinceText(now.withHour(7).withMinute(45).toInstant().toEpochMilli(), now))
+        assertEquals("8 Nov 2026, 20:10", offlineSinceText(now.minusDays(1).withHour(20).withMinute(10).toInstant().toEpochMilli(), now))
+    }
+
+    @Test
+    fun appUpdateLevelAndHeader() {
+        val v = AppVersion(latestCode = 1400, latestName = "0.14.0", minCode = 1300)
+        assertEquals(UpdateLevel.Required, updateLevel(1200, v))
+        assertEquals(UpdateLevel.Available, updateLevel(1300, v))
+        assertEquals(UpdateLevel.None, updateLevel(1400, v))
+        // Belum diatur super admin: tidak ada pemberitahuan.
+        assertEquals(UpdateLevel.None, updateLevel(1200, AppVersion()))
+        assertEquals("0.14.0+1400", appVersionHeader("0.14.0", 1400))
+        // Isi Dto sama dengan skema AppVersion di openapi.yaml.
+        val parsed = apiJson.decodeFromString(AppVersion.serializer(), "{\"latest_code\":1400,\"latest_name\":\"0.14.0\",\"min_code\":0,\"store_url\":\"https://x\",\"notes\":\"\",\"updated_at\":null}")
+        assertEquals(1400, parsed.latestCode)
+    }
+
+    @Test
+    fun appLockRelocksAfterFiveMinutesInBackground() {
+        val five = AppLock.RELOCK_AFTER_MS
+        // Baru dibuka: dikunci bila aktif dan sesi ada.
+        assertTrue(AppLock.shouldLock(enabled = true, loggedIn = true, backgroundSince = null, now = 1_000))
+        assertFalse(AppLock.shouldLock(enabled = false, loggedIn = true, backgroundSince = null, now = 1_000))
+        assertFalse(AppLock.shouldLock(enabled = true, loggedIn = false, backgroundSince = null, now = 1_000))
+        // Kembali dari latar: hanya setelah lima menit.
+        assertFalse(AppLock.shouldLock(enabled = true, loggedIn = true, backgroundSince = 10_000, now = 10_000 + five - 1))
+        assertTrue(AppLock.shouldLock(enabled = true, loggedIn = true, backgroundSince = 10_000, now = 10_000 + five))
     }
 
     @Test

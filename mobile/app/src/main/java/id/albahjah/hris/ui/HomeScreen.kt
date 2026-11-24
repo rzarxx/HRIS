@@ -19,6 +19,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -38,10 +40,12 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import id.albahjah.hris.BuildConfig
+import id.albahjah.hris.data.AppVersion
 import id.albahjah.hris.data.AttendanceRecord
 import id.albahjah.hris.data.Me
 import id.albahjah.hris.data.MyAnnouncement
 import id.albahjah.hris.data.PURPOSE_FACE_ENROLL
+import id.albahjah.hris.data.durationText
 import java.time.ZonedDateTime
 
 /**
@@ -69,6 +73,9 @@ fun HomeContent(
     onAnnouncements: () -> Unit = {},
     onPayslip: () -> Unit = {},
     footer: String? = null,
+    offlineSince: Long? = null,
+    update: AppVersion? = null,
+    onUpdate: () -> Unit = {},
 ) {
     StatusBarIcons(dark = true)
     val ready = me.deviceStatus == "approved" && !me.mustChangePassword
@@ -93,6 +100,27 @@ fun HomeContent(
         }
 
         if (crash != null) CrashNotice(crash, onCopyCrash, onDismissCrash)
+        if (update != null) {
+            // Versi baru tersedia (D63); aplikasi tetap bisa dipakai sampai diperbarui.
+            StatusBanner(
+                Tone.Info,
+                Icons.Filled.Refresh,
+                "Versi baru tersedia",
+                listOfNotNull(
+                    "Versi ${update.latestName} siap dipasang.",
+                    update.notes.lineSequence().firstOrNull { it.isNotBlank() },
+                ).joinToString(" "),
+            ) { BannerAction("Perbarui", enabled = true, onClick = onUpdate) }
+        }
+        if (offlineSince != null) {
+            // Sesi tetap tersimpan saat internet putus (D62); data yang tampil adalah salinan terakhir.
+            StatusBanner(
+                Tone.Warning,
+                Icons.Filled.Warning,
+                "Mode offline",
+                "Menampilkan data terakhir ${offlineSinceText(offlineSince, now)}. Presensi dan pengajuan memerlukan internet.",
+            ) { BannerAction("Coba lagi", enabled = !refreshing, onClick = onRefresh) }
+        }
         when (me.deviceStatus) {
             "approved" -> {}
             "pending" -> StatusBanner(Tone.Warning, HrisIcons.Smartphone, "HP menunggu persetujuan", "SDM perlu menyetujui HP ini sebelum Anda bisa presensi. Tarik layar ke bawah setelah disetujui.")
@@ -158,7 +186,10 @@ private fun TodayCard(me: Me, today: AttendanceRecord?, now: ZonedDateTime, onCa
             TimeTile("Pulang", wibTime(today?.clockOutAt), Modifier.weight(1f))
         }
         Text(
-            today?.locationName ?: today?.let { workModeLabel(it.workMode) } ?: "Belum ada presensi hari ini",
+            listOfNotNull(
+                today?.locationName ?: today?.let { workModeLabel(it.workMode) } ?: "Belum ada presensi hari ini",
+                today?.takeIf { it.lateMinutes > 0 }?.let { "Telat ${durationText(it.lateMinutes)}" },
+            ).joinToString(" · "),
             style = figmaText(13, color = Hc.InkSoft),
         )
         FigmaPrimaryButton(action.label, onClick = { action.purpose?.let(onCapture) }, enabled = action.purpose != null)

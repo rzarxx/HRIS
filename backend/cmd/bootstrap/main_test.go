@@ -63,6 +63,10 @@ func (f *fakeBootstrapRepo) CreateEmployee(_ context.Context, arg store.CreateEm
 	return uuid.New(), nil
 }
 
+func (f *fakeBootstrapRepo) AddEmployeeShift(context.Context, store.AddEmployeeShiftParams) error {
+	return nil
+}
+
 func (f *fakeBootstrapRepo) CreateUser(_ context.Context, arg store.CreateUserParams) (uuid.UUID, error) {
 	f.createdUser = &arg
 	return uuid.New(), nil

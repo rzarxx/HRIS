@@ -35,6 +35,7 @@ import id.albahjah.hris.data.Me
 import id.albahjah.hris.data.PURPOSE_CLOCK_IN
 import id.albahjah.hris.data.PURPOSE_CLOCK_OUT
 import id.albahjah.hris.data.PURPOSE_FACE_ENROLL
+import id.albahjah.hris.data.durationText
 import java.time.Duration
 import java.time.Instant
 import java.time.LocalDate
@@ -200,6 +201,7 @@ fun AttendanceHistoryCard(record: AttendanceRecord, now: ZonedDateTime, modifier
                 listOfNotNull(
                     date?.let { "${it.dayOfMonth} ${shortMonth(it)}" },
                     durationLabel(worked).takeIf { worked > 0 },
+                    "telat ${durationText(record.lateMinutes)}".takeIf { record.lateMinutes > 0 },
                     record.locationName ?: workModeLabel(record.workMode).takeIf { record.clockInAt != null },
                 ).joinToString(" · "),
                 style = figmaText(12, color = Hc.InkSoft),

@@ -40,7 +40,7 @@ WHERE id = @id;
 UPDATE sessions SET revoked_at = now(), revoke_reason = $2 WHERE id = $1 AND revoked_at IS NULL;
 
 -- name: GetMe :one
-SELECT u.id AS user_id, u.employee_id, u.role, u.email, u.must_change_password,
+SELECT u.id AS user_id, u.employee_id, u.role, u.email, u.must_change_password, u.mfa_required,
        e.full_name, e.nip, e.position, e.phone, e.photo_updated_at, (e.photo_key IS NOT NULL)::boolean AS has_photo,
        s.id AS subdivision_id, s.name AS subdivision_name,
        d.id AS division_id, d.name AS division_name
@@ -69,6 +69,7 @@ RETURNING id;
 -- Status sesi + syarat yang harus dipenuhi sebelum memakai fitur lain.
 SELECT (s.revoked_at IS NULL AND s.absolute_expires_at > now() AND u.is_active)::boolean AS is_active,
        u.must_change_password,
+       u.mfa_required,
        u.role,
        s.user_id, u.employee_id, s.client, s.device_id,
        (d.status IS NOT NULL AND d.status <> 'revoked')::boolean AS device_active,
@@ -157,7 +158,7 @@ LEFT JOIN user_mfa m ON m.user_id = u.id
 WHERE u.employee_id = $1;
 
 -- name: ListEmployeeAccounts :many
-SELECT u.employee_id, u.id AS user_id, u.role, u.is_active, u.locked_until,
+SELECT u.employee_id, u.id AS user_id, u.role, u.is_active, u.locked_until, u.mfa_required,
        (m.enabled_at IS NOT NULL)::boolean AS mfa_enabled
 FROM users u
 LEFT JOIN user_mfa m ON m.user_id = u.id
@@ -219,3 +220,7 @@ SELECT EXISTS (
 
 -- name: SetEmployeeEmail :execrows
 UPDATE employees SET email = sqlc.narg(email), updated_at = now() WHERE id = @id;
+
+-- A2F wajib per akun SDM (D60), diatur super admin.
+-- name: SetUserMFARequired :exec
+UPDATE users SET mfa_required = @mfa_required WHERE id = @id;

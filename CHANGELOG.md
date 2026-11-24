@@ -7,6 +7,43 @@ Perubahan penting yang terlihat oleh Pejuang, SDM, atau pengelola server. Keputu
 ## Belum dirilis
 
 ### Ditambahkan
+- **Pemberitahuan versi baru aplikasi (D63).** Super admin mengisi versi terbaru, versi minimum, tautan, dan catatan
+  rilis di Pengaturan → **Versi aplikasi Android**.
+  - Aplikasi yang lebih lama menampilkan banner **Versi baru tersedia** dengan tombol **Perbarui**. Bila terpasang dari
+    Play Store, pembaruan memakai layar bawaan Play; selain itu tautan pembaruan dibuka.
+  - Aplikasi di bawah versi minimum menampilkan layar **Perbarui aplikasi** dan server menolak permintaannya
+    (426 `APP_UPDATE_REQUIRED`). Web tidak terpengaruh.
+  - Profil → **Versi aplikasi** kini memeriksa pembaruan.
+  - Endpoint `GET /v1/app/version` dan `GET`/`PUT /v1/admin/settings/app-version`, audit `settings.changed`.
+- **Aplikasi tetap bisa dipakai saat internet putus (D62).** Aplikasi tidak lagi keluar sendiri saat sinyal hilang
+  atau server sedang sibuk; sesi hanya berakhir bila server menolaknya.
+  - Profil, riwayat presensi, pengumuman beserta lampiran yang pernah dibuka, pengajuan, dan persetujuan disimpan
+    terenkripsi di HP, langsung tampil saat aplikasi dibuka, lalu diperbarui dari server.
+  - Saat offline muncul banner **Mode offline** dengan waktu data terakhir dan tombol **Coba lagi**. Presensi dan
+    pengajuan tetap memerlukan internet.
+  - Data di HP dihapus saat keluar.
+- **Ingat NIPY/email dan kunci sidik jari (D62).** Layar masuk punya centang **Ingat NIPY/email**; kata sandi tidak
+  disimpan aplikasi. Setelah masuk, aplikasi menawarkan kunci dengan sidik jari, wajah, atau PIN HP (Android 10 ke
+  atas): aplikasi tetap masuk, hanya dibuka dengan sidik jari saat dibuka dan setelah 5 menit di latar. Bisa diatur di
+  Profil → **Kunci sidik jari / PIN**.
+- **Shift ganda dan setengah hari (D61).** Satu Pejuang bisa punya beberapa shift dengan hari kerja berbeda, misalnya
+  Senin–Jumat reguler dan Sabtu setengah hari.
+  - Presensi masuk, alpha otomatis, dan monitor memilih shift yang hari kerjanya cocok.
+  - Shift punya jenis **Reguler** atau **Setengah hari**; hari dari shift setengah hari dihitung 0,5 di kolom hari kerja
+    rekap. Potongan payroll tidak berubah.
+  - Form Pejuang memakai pilihan banyak shift dengan peringatan bila hari kerjanya bertabrakan; shift yang dipilih
+    pertama menjadi shift utama.
+  - Impor: kolom Shift menerima beberapa nama dipisah koma, dan sheet Shift mendapat kolom Jenis.
+  - API Pejuang menerima `shift_ids` dan memuat `shifts`; `default_shift_id` tetap berlaku sebagai shift utama. Migrasi 22.
+- **Super admin mengatur akun SDM dan A2F per akun (D60).** Di Master Data → Pejuang, super admin bisa:
+  - menjadikan Pejuang sebagai SDM atau mengembalikannya ke Pejuang; sesi orang itu dicabut agar peran baru langsung
+    berlaku;
+  - menjadikan A2F wajib atau opsional untuk akun SDM tertentu (bawaan tetap wajib). Super admin selalu wajib A2F, dan
+    A2F yang sudah aktif tetap diminta saat masuk.
+
+  Kepala unit tetap mengikuti Struktur Organisasi dan peran super admin tetap hanya lewat perintah server. Endpoint
+  `PUT /v1/admin/users/{user_id}/role` dan `/mfa-policy`, permission baru `account:manage`, audit
+  `user.mfa_policy_changed`; migrasi 21.
 - **Ganti email lebih aman (D59).** Bila SMTP aktif, email yang diganti Pejuang sendiri belum langsung berlaku.
   - Tautan konfirmasi dikirim ke email baru (berlaku 24 jam, sekali pakai) dan dibuka di halaman web
     `/konfirmasi-email`. Email lama diberi tahu dengan alamat baru disamarkan.
@@ -69,6 +106,9 @@ Perubahan penting yang terlihat oleh Pejuang, SDM, atau pengelola server. Keputu
   Endpoint `GET /v1/admin/employees/import-template` dan `POST /v1/admin/employees/import`, audit `employee.imported`.
 
 ### Diubah
+- **Lama telat lebih mudah dibaca (D62).** Telat 60 menit atau lebih ditampilkan "1 jam 15 menit" di monitor
+  presensi, Review Presensi, rekap (kolom **Lama telat**), serta Beranda, riwayat, dan hasil presensi di aplikasi.
+  Hitungan potongan payroll tidak berubah.
 - **Data anak hanya diubah SDM (D56).** Di aplikasi, Profil → Data anak kini hanya menampilkan data dan mengarahkan
   Pejuang ke SDM bila ada yang perlu diubah. Endpoint `PUT /v1/me/children` dihapus; SDM mengubah data anak lewat form
   Pejuang di web atau impor xlsx.

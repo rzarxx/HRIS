@@ -390,6 +390,47 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/app/version": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Versi aplikasi Android terbaru dan minimum
+         * @description Tanpa login dan tetap dilayani untuk aplikasi lama (D63). Kode versi sama dengan versionCode aplikasi (major·10000 + minor·100 + patch). Aplikasi menampilkan pemberitahuan bila `latest_code` lebih tinggi dari versinya, dan layar wajib perbarui bila di bawah `min_code`. Permintaan aplikasi dengan header `X-App-Version` di bawah `min_code` dijawab 426 `APP_UPDATE_REQUIRED` (kecuali endpoint ini, branding, login, refresh, dan logout aplikasi). Nol berarti belum diatur.
+         */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data: components["schemas"]["AppVersion"];
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/auth/password/change": {
         parameters: {
             query?: never;
@@ -1961,6 +2002,109 @@ export interface paths {
                 404: components["responses"]["Error"];
             };
         };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/users/{user_id}/role": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                user_id: string;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Jadikan SDM atau kembalikan ke Pejuang
+         * @description Permission `account:manage` (hanya super admin, D60). Hanya `pejuang` ↔ `sdm`: kepala unit mengikuti struktur organisasi dan super admin hanya lewat perintah server (`ACCOUNT_CHANGE_NOT_ALLOWED`). Akun sendiri ditolak (`CONFLICT_SELF_ACTION`). Semua sesi akun dicabut agar peran baru langsung berlaku; akun yang baru menjadi SDM wajib mengaktifkan A2F kecuali dijadikan opsional. Dicatat `user.role_changed` dengan sumber `panel`.
+         */
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    user_id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        /** @enum {string} */
+                        role: "sdm" | "pejuang";
+                    };
+                };
+            };
+            responses: {
+                /** @description Peran diubah */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                400: components["responses"]["ValidationFailed"];
+                403: components["responses"]["Error"];
+                404: components["responses"]["Error"];
+                409: components["responses"]["Error"];
+            };
+        };
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/users/{user_id}/mfa-policy": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                user_id: string;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Atur A2F wajib atau opsional untuk akun SDM
+         * @description Permission `account:manage` (hanya super admin, D60). Hanya untuk akun SDM; super admin selalu wajib A2F (`ACCOUNT_CHANGE_NOT_ALLOWED`). Opsional tidak mematikan A2F yang sudah aktif. Dicatat `user.mfa_policy_changed`.
+         */
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    user_id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        required: boolean;
+                    };
+                };
+            };
+            responses: {
+                /** @description Tersimpan */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                400: components["responses"]["ValidationFailed"];
+                403: components["responses"]["Error"];
+                404: components["responses"]["Error"];
+                409: components["responses"]["Error"];
+            };
+        };
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -4242,6 +4386,86 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/admin/settings/app-version": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Pengaturan versi aplikasi Android
+         * @description Permission `settings:manage` (hanya super admin).
+         */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data: components["schemas"]["AppVersion"];
+                        };
+                    };
+                };
+            };
+        };
+        /**
+         * Ubah versi aplikasi terbaru dan minimum
+         * @description Permission `settings:manage` (hanya super admin). `min_code` tidak boleh melebihi `latest_code`; menaikkan `min_code` membuat aplikasi lama dijawab 426 dan menampilkan layar wajib perbarui (berlaku dalam 1 menit). `store_url` kosong memakai halaman Play Store. Dicatat sebagai `settings.changed`.
+         */
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    /**
+                     * @example {
+                     *       "latest_code": 1400,
+                     *       "latest_name": "0.14.0",
+                     *       "min_code": 1300,
+                     *       "store_url": "",
+                     *       "notes": "Aplikasi tetap bisa dibuka saat offline dan bisa dikunci dengan sidik jari."
+                     *     }
+                     */
+                    "application/json": components["schemas"]["AppVersionInput"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data: components["schemas"]["AppVersion"];
+                        };
+                    };
+                };
+                400: components["responses"]["ValidationFailed"];
+            };
+        };
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/admin/settings/smtp": {
         parameters: {
             query?: never;
@@ -5338,12 +5562,12 @@ export interface components {
          * @description Registry MASTER.md §7.4
          * @enum {string}
          */
-        ErrorCode: "VALIDATION_FAILED" | "AUTH_INVALID_CREDENTIALS" | "AUTH_TOKEN_INVALID" | "AUTH_MFA_REQUIRED" | "AUTH_MFA_INVALID" | "FORBIDDEN_ROLE" | "CSRF_INVALID" | "PASSWORD_CHANGE_REQUIRED" | "MFA_SETUP_REQUIRED" | "DEVICE_NOT_REGISTERED" | "DEVICE_PENDING_APPROVAL" | "DEVICE_REVOKED" | "APPROVAL_NOT_YOUR_TURN" | "APPROVAL_SELF_FORBIDDEN" | "MAKER_CHECKER_VIOLATION" | "NOT_FOUND" | "METHOD_NOT_ALLOWED" | "ALREADY_CLOCKED_IN" | "ALREADY_CLOCKED_OUT" | "SHIFT_NOT_ASSIGNED" | "NOT_CLOCKED_IN" | "REQUEST_NOT_PENDING" | "PERIOD_LOCKED" | "DUPLICATE_REQUEST" | "CONFLICT_DUPLICATE" | "CONFLICT_HAS_DEPENDENTS" | "CONFLICT_SELF_ACTION" | "MFA_ALREADY_ENABLED" | "PAYLOAD_TOO_LARGE" | "UNSUPPORTED_MEDIA_TYPE" | "GEOFENCE_OUT" | "FACE_NOT_ENROLLED" | "FACE_MISMATCH" | "LIVENESS_FAILED" | "FACE_NOT_DETECTED" | "FACE_SERVICE_UNAVAILABLE" | "STORAGE_UNAVAILABLE" | "STORAGE_DESTINATION_LOCKED" | "STORAGE_TEST_FAILED" | "STORAGE_NOT_ACTIVE" | "STORAGE_SOURCE_MISSING" | "STORAGE_SYNC_BUSY" | "STORAGE_SYNC_FAILED" | "FILE_UNSAFE" | "FILE_SCAN_UNAVAILABLE" | "SMTP_TEST_FAILED" | "RESET_TOKEN_INVALID" | "EMAIL_CHANGE_INVALID" | "CHALLENGE_EXPIRED" | "ATTENDANCE_BLOCKED" | "LEAVE_ACTIVE" | "READ_TOO_SOON" | "AUTH_ACCOUNT_LOCKED" | "AUTH_INITIAL_PASSWORD_EXPIRED" | "APP_UPDATE_REQUIRED" | "RATE_LIMITED" | "API_ACCESS_DENIED" | "INTERNAL_ERROR";
+        ErrorCode: "VALIDATION_FAILED" | "AUTH_INVALID_CREDENTIALS" | "AUTH_TOKEN_INVALID" | "AUTH_MFA_REQUIRED" | "AUTH_MFA_INVALID" | "FORBIDDEN_ROLE" | "CSRF_INVALID" | "PASSWORD_CHANGE_REQUIRED" | "MFA_SETUP_REQUIRED" | "DEVICE_NOT_REGISTERED" | "DEVICE_PENDING_APPROVAL" | "DEVICE_REVOKED" | "APPROVAL_NOT_YOUR_TURN" | "APPROVAL_SELF_FORBIDDEN" | "MAKER_CHECKER_VIOLATION" | "NOT_FOUND" | "METHOD_NOT_ALLOWED" | "ALREADY_CLOCKED_IN" | "ALREADY_CLOCKED_OUT" | "SHIFT_NOT_ASSIGNED" | "NOT_CLOCKED_IN" | "REQUEST_NOT_PENDING" | "PERIOD_LOCKED" | "DUPLICATE_REQUEST" | "CONFLICT_DUPLICATE" | "CONFLICT_HAS_DEPENDENTS" | "CONFLICT_SELF_ACTION" | "MFA_ALREADY_ENABLED" | "PAYLOAD_TOO_LARGE" | "UNSUPPORTED_MEDIA_TYPE" | "GEOFENCE_OUT" | "FACE_NOT_ENROLLED" | "FACE_MISMATCH" | "LIVENESS_FAILED" | "FACE_NOT_DETECTED" | "FACE_SERVICE_UNAVAILABLE" | "STORAGE_UNAVAILABLE" | "STORAGE_DESTINATION_LOCKED" | "STORAGE_TEST_FAILED" | "STORAGE_NOT_ACTIVE" | "STORAGE_SOURCE_MISSING" | "STORAGE_SYNC_BUSY" | "STORAGE_SYNC_FAILED" | "FILE_UNSAFE" | "FILE_SCAN_UNAVAILABLE" | "SMTP_TEST_FAILED" | "RESET_TOKEN_INVALID" | "EMAIL_CHANGE_INVALID" | "ACCOUNT_CHANGE_NOT_ALLOWED" | "CHALLENGE_EXPIRED" | "ATTENDANCE_BLOCKED" | "LEAVE_ACTIVE" | "READ_TOO_SOON" | "AUTH_ACCOUNT_LOCKED" | "AUTH_INITIAL_PASSWORD_EXPIRED" | "APP_UPDATE_REQUIRED" | "RATE_LIMITED" | "API_ACCESS_DENIED" | "INTERNAL_ERROR";
         /**
          * @description Matriks MASTER.md §3.2
          * @enum {string}
          */
-        Permission: "profile:read" | "profile:update" | "org:read" | "org:write" | "employee:read" | "employee:write" | "user:manage" | "user:reset" | "device:register" | "device:review" | "face:enroll" | "face:reset" | "attendance:clock" | "attendance:read" | "attendance:review" | "attendance:report" | "location:manage" | "shift:manage" | "leave:create" | "cash_advance:create" | "transfer:create" | "leave:read" | "cash_advance:read" | "transfer:read" | "approval:act" | "payslip:read" | "payroll:manage" | "payroll:finalize" | "warning:read" | "warning:manage" | "announcement:read" | "announcement:manage" | "dashboard:read" | "approval_flow:manage" | "audit:read" | "settings:manage";
+        Permission: "profile:read" | "profile:update" | "org:read" | "org:write" | "employee:read" | "employee:write" | "user:manage" | "user:reset" | "device:register" | "device:review" | "face:enroll" | "face:reset" | "attendance:clock" | "attendance:read" | "attendance:review" | "attendance:report" | "location:manage" | "shift:manage" | "leave:create" | "cash_advance:create" | "transfer:create" | "leave:read" | "cash_advance:read" | "transfer:read" | "approval:act" | "payslip:read" | "payroll:manage" | "payroll:finalize" | "warning:read" | "warning:manage" | "announcement:read" | "announcement:manage" | "dashboard:read" | "approval_flow:manage" | "audit:read" | "settings:manage" | "account:manage";
         /** @enum {string} */
         EmployeeStatus: "active" | "inactive";
         /** @enum {string} */
@@ -5423,6 +5647,8 @@ export interface components {
             permissions: components["schemas"]["Permission"][];
             must_change_password: boolean;
             mfa_enabled: boolean;
+            /** @description A2F wajib untuk akun ini (D60): super admin selalu, SDM sesuai pengaturan super admin. */
+            mfa_required: boolean;
             /**
              * @description Status perangkat sesi aplikasi. Null untuk sesi web.
              * @enum {string|null}
@@ -5549,9 +5775,11 @@ export interface components {
             status?: components["schemas"]["EmployeeStatus"];
             /**
              * Format: uuid
-             * @description Shift Pejuang. null = belum ditentukan
+             * @description Shift utama. Bila `shift_ids` tidak dikirim, mengganti seluruh daftar shift dengan shift ini (klien lama). null = belum ditentukan
              */
             default_shift_id?: string | null;
+            /** @description Seluruh daftar shift (D61); shift pertama menjadi shift utama. Hari kerja antar-shift tidak boleh bertabrakan (`VALIDATION_FAILED` pada `shift_ids`). Tidak dikirim = daftar tetap. */
+            shift_ids?: string[];
         };
         Employee: {
             /** Format: uuid */
@@ -5582,9 +5810,14 @@ export interface components {
             /** Format: date */
             join_date: string | null;
             status: components["schemas"]["EmployeeStatus"];
-            /** Format: uuid */
+            /**
+             * Format: uuid
+             * @description Shift utama
+             */
             default_shift_id: string | null;
             default_shift_name: string | null;
+            /** @description Semua shift Pejuang, shift utama lebih dulu (D61) */
+            shifts: components["schemas"]["EmployeeShift"][];
             /** @description Pejuang punya template wajah aktif */
             face_enrolled: boolean;
             /** @description Pejuang punya foto profil (`GET /v1/employees/{id}/photo`) */
@@ -5604,6 +5837,8 @@ export interface components {
             is_active: boolean;
             is_locked: boolean;
             mfa_enabled: boolean;
+            /** @description A2F wajib untuk akun ini (D60) */
+            mfa_required: boolean;
         };
         EmployeeCreated: components["schemas"]["Employee"] & {
             /** @description Kata sandi awal @NamaDepan+tahun (D53). Hanya tampil sekali. */
@@ -5860,6 +6095,30 @@ export interface components {
             /** Format: date-time */
             updated_at: string | null;
         };
+        AppVersion: {
+            /** @description versionCode terbaru; 0 bila belum diatur */
+            latest_code: number;
+            /** @description Nama versi terbaru, mis. 0.14.0; kosong bila belum diatur */
+            latest_name: string;
+            /** @description versionCode minimum yang masih dilayani; 0 berarti semua versi */
+            min_code: number;
+            /** @description Tautan pembaruan; bawaan halaman Play Store */
+            store_url: string;
+            /** @description Catatan rilis singkat, teks murni, boleh beberapa baris */
+            notes: string;
+            /** Format: date-time */
+            updated_at: string | null;
+        };
+        AppVersionInput: {
+            latest_code: number;
+            /** @description Bentuk x.y.z; wajib bila latest_code lebih dari 0 */
+            latest_name: string;
+            /** @description Tidak boleh melebihi latest_code */
+            min_code: number;
+            /** @description https://; kosong memakai halaman Play Store */
+            store_url?: string;
+            notes?: string;
+        };
         FooterInput: {
             /** @description Null atau kosong mengembalikan teks bawaan */
             footer_template?: string | null;
@@ -5926,7 +6185,7 @@ export interface components {
             full_name: string;
             division: string;
             subdivision: string;
-            /** @description Hadir, menunggu review, cuti, dan alpha */
+            /** @description Hadir, menunggu review, cuti, dan alpha; hari dari shift setengah hari dihitung 0,5 (D61) */
             work_days: number;
             /** @description Hadir termasuk telat */
             present: number;
@@ -6523,6 +6782,18 @@ export interface components {
             late_tolerance_minutes?: number;
             /** @description 1=Senin sampai 7=Ahad */
             work_days?: number[];
+            kind?: components["schemas"]["ShiftKind"];
+        };
+        /**
+         * @description Reguler, atau setengah hari yang dihitung 0,5 hari kerja di rekap (D61). Bawaan regular.
+         * @enum {string}
+         */
+        ShiftKind: "regular" | "half_day";
+        EmployeeShift: {
+            /** Format: uuid */
+            id: string;
+            name: string;
+            kind: components["schemas"]["ShiftKind"];
         };
         ShiftInput: components["schemas"]["ShiftPatch"] & Record<string, never>;
         Shift: {
@@ -6533,6 +6804,7 @@ export interface components {
             end_time: string;
             late_tolerance_minutes: number;
             work_days: number[];
+            kind: components["schemas"]["ShiftKind"];
         };
         Holiday: {
             /** Format: date */

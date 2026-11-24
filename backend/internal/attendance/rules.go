@@ -58,6 +58,18 @@ func IsWorkDay(date time.Time, s Schedule) bool {
 	return slices.Contains(s.WorkDays, isoWeekday(date))
 }
 
+// PickShift memilih shift untuk presensi pada now dari shift-shift Pejuang (D61): shift pertama yang
+// tanggal kerjanya termasuk hari kerjanya. Bila tidak ada yang cocok (hari libur shift), shift pertama
+// (shift utama) dipakai agar presensi tetap tercatat sebagai di luar jadwal.
+func PickShift(now time.Time, schedules []Schedule) int {
+	for i, s := range schedules {
+		if IsWorkDay(WorkDate(now, s), s) {
+			return i
+		}
+	}
+	return 0
+}
+
 // Arrangement adalah aturan tanggal izin kerja. Weekdays kosong berarti setiap hari.
 type Arrangement struct {
 	StartsOn time.Time

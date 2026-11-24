@@ -429,24 +429,6 @@ func (q *Queries) GetAttendanceStatusOn(ctx context.Context, arg GetAttendanceSt
 	return i, err
 }
 
-const getEmployeeDefaultShift = `-- name: GetEmployeeDefaultShift :one
-SELECT sh.id, sh.name, sh.start_time, sh.end_time, sh.late_tolerance_minutes, sh.work_days FROM employees e JOIN shifts sh ON sh.id = e.default_shift_id WHERE e.id = $1
-`
-
-func (q *Queries) GetEmployeeDefaultShift(ctx context.Context, id uuid.UUID) (Shift, error) {
-	row := q.db.QueryRow(ctx, getEmployeeDefaultShift, id)
-	var i Shift
-	err := row.Scan(
-		&i.ID,
-		&i.Name,
-		&i.StartTime,
-		&i.EndTime,
-		&i.LateToleranceMinutes,
-		&i.WorkDays,
-	)
-	return i, err
-}
-
 const getLastAttendancePoint = `-- name: GetLastAttendancePoint :one
 SELECT clock_in_at, clock_out_at, in_latitude, in_longitude, out_latitude, out_longitude FROM attendances
 WHERE employee_id = $1 AND in_latitude IS NOT NULL
@@ -928,12 +910,16 @@ func (q *Queries) ListAttendanceAttempts(ctx context.Context, arg ListAttendance
 
 const listAttendanceMonitor = `-- name: ListAttendanceMonitor :many
 SELECT e.id, e.nip, e.full_name, s.name AS subdivision_name, d.id AS division_id, d.name AS division_name,
-       sh.name AS shift_name, sh.work_days, a.status, a.clock_in_at, a.clock_out_at, a.late_minutes, a.work_mode,
+       -- Shift hari itu: yang hari kerjanya cocok, bila tidak ada shift utama (D61).
+       COALESCE((SELECT sh.name FROM employee_shift_set es JOIN shifts sh ON sh.id = es.shift_id WHERE es.employee_id = e.id
+        ORDER BY (extract(isodow FROM $1::date)::smallint = ANY (sh.work_days)) DESC, (sh.id = e.default_shift_id) DESC, sh.start_time LIMIT 1), '')::text AS shift_name,
+       COALESCE((SELECT sh.work_days FROM employee_shift_set es JOIN shifts sh ON sh.id = es.shift_id WHERE es.employee_id = e.id
+        ORDER BY (extract(isodow FROM $1::date)::smallint = ANY (sh.work_days)) DESC, (sh.id = e.default_shift_id) DESC, sh.start_time LIMIT 1), ARRAY[]::smallint[])::smallint[] AS work_days,
+       a.status, a.clock_in_at, a.clock_out_at, a.late_minutes, a.work_mode,
        l.name AS location_name, a.in_latitude, a.in_longitude, a.out_latitude, a.out_longitude
 FROM employees e
 JOIN subdivisions s ON s.id = e.subdivision_id
 JOIN divisions d ON d.id = s.division_id
-LEFT JOIN shifts sh ON sh.id = e.default_shift_id
 LEFT JOIN attendances a ON a.employee_id = e.id AND a.work_date = $1
 LEFT JOIN office_locations l ON l.id = a.location_id
 WHERE e.deleted_at IS NULL AND e.status = 'active'
@@ -954,7 +940,7 @@ type ListAttendanceMonitorRow struct {
 	SubdivisionName string
 	DivisionID      uuid.UUID
 	DivisionName    string
-	ShiftName       pgtype.Text
+	ShiftName       string
 	WorkDays        []int16
 	Status          NullAttStatus
 	ClockInAt       pgtype.Timestamptz
@@ -1080,6 +1066,43 @@ func (q *Queries) ListAttendanceReview(ctx context.Context, arg ListAttendanceRe
 			&i.SubdivisionName,
 			&i.DivisionName,
 			&i.LocationName,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listEmployeeShifts = `-- name: ListEmployeeShifts :many
+SELECT sh.id, sh.name, sh.start_time, sh.end_time, sh.late_tolerance_minutes, sh.work_days, sh.kind FROM employee_shift_set es
+JOIN shifts sh ON sh.id = es.shift_id
+JOIN employees e ON e.id = es.employee_id
+WHERE es.employee_id = $1
+ORDER BY (sh.id = e.default_shift_id) DESC, sh.start_time, sh.name
+`
+
+// Semua shift Pejuang (D61); presensi memilih shift yang hari kerjanya cocok. Shift utama lebih dulu.
+func (q *Queries) ListEmployeeShifts(ctx context.Context, employeeID uuid.UUID) ([]Shift, error) {
+	rows, err := q.db.Query(ctx, listEmployeeShifts, employeeID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []Shift{}
+	for rows.Next() {
+		var i Shift
+		if err := rows.Scan(
+			&i.ID,
+			&i.Name,
+			&i.StartTime,
+			&i.EndTime,
+			&i.LateToleranceMinutes,
+			&i.WorkDays,
+			&i.Kind,
 		); err != nil {
 			return nil, err
 		}
@@ -1236,9 +1259,12 @@ JOIN employees e ON e.deleted_at IS NULL AND e.status = 'active'
   AND (e.join_date IS NULL OR e.join_date <= d.day)
   AND (e.exit_date IS NULL OR e.exit_date >= d.day)
 JOIN users u ON u.employee_id = e.id AND u.is_active
-JOIN shifts sh ON sh.id = e.default_shift_id
-WHERE extract(isodow FROM d.day)::smallint = ANY (sh.work_days)
-  AND NOT EXISTS (SELECT 1 FROM holidays h WHERE h.date = d.day)
+JOIN LATERAL (
+  SELECT sh.id FROM employee_shift_set es JOIN shifts sh ON sh.id = es.shift_id
+  WHERE es.employee_id = e.id AND extract(isodow FROM d.day)::smallint = ANY (sh.work_days)
+  ORDER BY sh.start_time LIMIT 1
+) sh ON true
+WHERE NOT EXISTS (SELECT 1 FROM holidays h WHERE h.date = d.day)
   AND NOT EXISTS (SELECT 1 FROM attendances a WHERE a.employee_id = e.id AND a.work_date = d.day)
   AND NOT EXISTS (SELECT 1 FROM leave_requests lr WHERE lr.employee_id = e.id AND lr.status = 'approved'
     AND d.day BETWEEN lr.start_date AND lr.end_date)
@@ -1253,6 +1279,7 @@ type MarkAbsentBetweenParams struct {
 // Job mark_absent (MASTER.md §11.3). Hari kerja shift yang tidak libur, tidak ada presensi atau cuti,
 // dan Pejuang aktif berakun sudah bergabung dan belum keluar, dicatat alpha. Izin WFA/hybrid tidak
 // membebaskan presensi (§5.4.2), jadi tidak dikecualikan. Aman diulang: baris yang sudah ada tidak diubah.
+// Shift yang hari kerjanya mencakup hari itu (D61).
 func (q *Queries) MarkAbsentBetween(ctx context.Context, arg MarkAbsentBetweenParams) (int64, error) {
 	result, err := q.db.Exec(ctx, markAbsentBetween, arg.FromDate, arg.ToDate)
 	if err != nil {

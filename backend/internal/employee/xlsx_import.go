@@ -222,8 +222,9 @@ type importPlan struct {
 	v        validated
 	fullName string
 	org      orgRef
-	// shiftKey menunjuk shift baru dari sheet Shift; shift lama langsung diisi ke v.DefaultShiftID.
-	shiftKey     string
+	// shiftPicks adalah shift dari kolom Shift (bisa beberapa, dipisah koma, D61): id shift lama, atau
+	// key shift baru dari sheet Shift yang baru punya id saat disimpan.
+	shiftPicks   []shiftPick
 	locations    []string
 	setLocations bool
 	role         string
@@ -421,8 +422,19 @@ func (s *Service) Import(ctx context.Context, p auth.Principal, ip audit.Entry, 
 			if plan.org.sub == uuid.Nil {
 				v.SubdivisionID = ref.subs[plan.org.subKey]
 			}
-			if plan.shiftKey != "" {
-				v.DefaultShiftID = uuid.NullUUID{UUID: ref.shiftID(plan.shiftKey), Valid: true}
+			if len(plan.shiftPicks) > 0 {
+				ids := make([]uuid.UUID, 0, len(plan.shiftPicks))
+				for _, pick := range plan.shiftPicks {
+					id := pick.id
+					if pick.key != "" {
+						id = ref.shiftID(pick.key)
+					}
+					if !slices.Contains(ids, id) {
+						ids = append(ids, id)
+					}
+				}
+				v.ShiftIDs, v.ShiftIDsExplicit = ids, true
+				v.DefaultShiftID = uuid.NullUUID{UUID: ids[0], Valid: true}
 			}
 			row := ImportRow{Row: plan.row, FullName: plan.fullName}
 			id := plan.id
@@ -731,18 +743,22 @@ func (s *Service) planImportRow(ctx context.Context, p auth.Principal, in import
 			plan.role = code
 		}
 	}
-	if v := get("shift"); v != "" {
-		key := nameKey(v)
+	// Beberapa shift ditulis dipisah koma, misalnya "Reguler, Sabtu setengah hari" (D61).
+	for _, name := range strings.Split(get("shift"), ",") {
+		name = strings.TrimSpace(name)
+		if name == "" {
+			continue
+		}
+		key := nameKey(name)
 		switch ids := ref.shifts[key]; {
 		case len(ids) > 1:
-			issue("shift", "Ada beberapa shift bernama \""+v+"\". Bedakan namanya di web lebih dulu.")
+			issue("shift", "Ada beberapa shift bernama \""+name+"\". Bedakan namanya di web lebih dulu.")
 		case len(ids) == 1:
-			id := ids[0].String()
-			input.DefaultShiftID = &id
+			plan.shiftPicks = append(plan.shiftPicks, shiftPick{id: ids[0]})
 		case ref.isNewShift(key):
-			plan.shiftKey = key
+			plan.shiftPicks = append(plan.shiftPicks, shiftPick{key: key})
 		default:
-			issue("shift", "Shift \""+v+"\" belum terdaftar. Tambahkan di sheet Shift atau pilih dari daftar.")
+			issue("shift", "Shift \""+name+"\" belum terdaftar. Tambahkan di sheet Shift atau pilih dari daftar.")
 		}
 	}
 	for k := 1; k <= importLocationMax; k++ {
@@ -1139,9 +1155,9 @@ func (s *Service) ImportTemplate(ctx context.Context) ([]byte, error) {
 	// Sheet Shift: shift terdaftar, lalu baris kosong untuk shift baru.
 	shiftRows := make([][]any, 0, len(shifts))
 	for _, sh := range shifts {
-		shiftRows = append(shiftRows, []any{sh.Name, clockString(sh.StartTime), clockString(sh.EndTime), strconv.Itoa(int(sh.LateToleranceMinutes)), workDaysString(sh.WorkDays)})
+		shiftRows = append(shiftRows, []any{sh.Name, clockString(sh.StartTime), clockString(sh.EndTime), strconv.Itoa(int(sh.LateToleranceMinutes)), workDaysString(sh.WorkDays), shiftKindLabel(sh.Kind)})
 	}
-	if err := refSheet(shiftSheet, []string{"Nama shift*", "Jam masuk*", "Jam pulang*", "Toleransi telat (menit)", "Hari kerja"}, []float64{24, 12, 12, 14, 18}, shiftRows, []string{"B", "C", "E"}); err != nil {
+	if err := refSheet(shiftSheet, []string{"Nama shift*", "Jam masuk*", "Jam pulang*", "Toleransi telat (menit)", "Hari kerja", "Jenis"}, []float64{24, 12, 12, 14, 18, 16}, shiftRows, []string{"B", "C", "E"}); err != nil {
 		return nil, err
 	}
 

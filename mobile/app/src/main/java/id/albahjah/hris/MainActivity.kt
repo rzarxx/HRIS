@@ -1,7 +1,20 @@
 package id.albahjah.hris
 
+import android.content.ActivityNotFoundException
+import android.content.Intent
+import android.net.Uri
 import android.os.Bundle
-import androidx.activity.ComponentActivity
+import android.os.SystemClock
+import android.widget.Toast
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.runtime.collectAsState
+import com.google.android.play.core.appupdate.AppUpdateManagerFactory
+import com.google.android.play.core.appupdate.AppUpdateOptions
+import com.google.android.play.core.install.model.AppUpdateType
+import com.google.android.play.core.install.model.UpdateAvailability
+import id.albahjah.hris.data.DEFAULT_STORE_URL
+import id.albahjah.hris.data.UpdateLevel
+import id.albahjah.hris.ui.UpdateRequiredContent
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.background
@@ -24,12 +37,20 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import androidx.compose.foundation.layout.Box
+import androidx.activity.compose.BackHandler
+import androidx.fragment.app.FragmentActivity
+import id.albahjah.hris.security.AppLock
+import id.albahjah.hris.ui.LockContent
 import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.lifecycleScope
+import kotlinx.coroutines.launch
 import androidx.navigation.NavBackStackEntry
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import id.albahjah.hris.data.ResumeState
 import id.albahjah.hris.ui.CaptureScreen
 import id.albahjah.hris.ui.HrisTheme
 import id.albahjah.hris.ui.LoginScreen
@@ -38,11 +59,76 @@ import id.albahjah.hris.ui.Hc
 import id.albahjah.hris.ui.MainScreen
 import id.albahjah.hris.ui.StatusBarIcons
 
-class MainActivity : ComponentActivity() {
+// FragmentActivity karena dialog sidik jari (BiometricPrompt) membutuhkannya.
+class MainActivity : FragmentActivity() {
+    private val app get() = application as HrisApp
+    private val appUpdateManager by lazy { AppUpdateManagerFactory.create(this) }
+    private val updateLauncher = registerForActivityResult(ActivityResultContracts.StartIntentSenderForResult()) {}
+
+    /**
+     * Pembaruan aplikasi (D63): bila terpasang dari Play Store dan pembaruan tersedia, layar pembaruan bawaan Play
+     * dibuka (unduh, pasang, dan aplikasi dimulai ulang). Selain itu tautan pembaruan dibuka di browser atau Play Store.
+     */
+    private fun startUpdate(storeUrl: String) {
+        val fallback = { openStore(storeUrl.ifBlank { DEFAULT_STORE_URL }) }
+        appUpdateManager.appUpdateInfo
+            .addOnSuccessListener { info ->
+                if (info.updateAvailability() == UpdateAvailability.UPDATE_AVAILABLE && info.isUpdateTypeAllowed(AppUpdateType.IMMEDIATE)) {
+                    appUpdateManager.startUpdateFlowForResult(info, updateLauncher, AppUpdateOptions.newBuilder(AppUpdateType.IMMEDIATE).build())
+                } else {
+                    fallback()
+                }
+            }
+            .addOnFailureListener { fallback() }
+    }
+
+    private fun openStore(url: String) {
+        try {
+            startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
+        } catch (e: ActivityNotFoundException) {
+            Toast.makeText(this, "Buka Play Store untuk memperbarui aplikasi.", Toast.LENGTH_LONG).show()
+        }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        // Pembaruan Play yang terhenti di tengah jalan (mis. aplikasi ditutup) dilanjutkan.
+        appUpdateManager.appUpdateInfo.addOnSuccessListener { info ->
+            if (info.updateAvailability() == UpdateAvailability.DEVELOPER_TRIGGERED_UPDATE_IN_PROGRESS) {
+                appUpdateManager.startUpdateFlowForResult(info, updateLauncher, AppUpdateOptions.newBuilder(AppUpdateType.IMMEDIATE).build())
+            }
+        }
+    }
+
+    override fun onStart() {
+        super.onStart()
+        val now = SystemClock.elapsedRealtime()
+        // Memutar layar tidak tercatat sebagai ke latar, jadi dianggap baru saja tampil.
+        val since = if (app.started) app.stoppedAt ?: now else null
+        if (AppLock.shouldLock(app.prefs.appLock, app.repository.loggedIn, since, now)) app.locked.value = true
+        app.started = true
+        app.stoppedAt = null
+        // Versi dicek saat dibuka dan saat kembali ke depan, paling sering sekali per jam (D63).
+        lifecycleScope.launch { app.repository.checkAppVersion() }
+    }
+
+    override fun onStop() {
+        super.onStop()
+        if (!isChangingConfigurations) app.stoppedAt = SystemClock.elapsedRealtime()
+    }
+
+    private fun unlock() = AppLock.prompt(this, "Buka HRIS Al Bahjah", "Gunakan sidik jari, wajah, atau PIN HP") { ok ->
+        if (ok) app.locked.value = false
+    }
+
+    private fun enableLock() = AppLock.prompt(this, "Aktifkan kunci aplikasi", "Konfirmasi dengan sidik jari, wajah, atau PIN HP") { ok ->
+        if (ok) app.prefs.updateAppLock(true)
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         enableEdgeToEdge()
         super.onCreate(savedInstanceState)
-        val app = application as HrisApp
+        val lockAvailable = AppLock.available(this)
         setContent {
             HrisTheme(fontScale = app.prefs.fontScale) {
                 var crash by remember { mutableStateOf(app.lastCrash) }
@@ -51,11 +137,13 @@ class MainActivity : ComponentActivity() {
                     app.lastCrash = null
                 }
                 val nav = rememberNavController()
+                Box(Modifier.fillMaxSize()) {
                 NavHost(navController = nav, startDestination = "start") {
                     composable("start") {
                         Splash()
                         LaunchedEffect(Unit) {
-                            nav.replaceWith(if (app.repository.resume()) "home" else "login")
+                            // Offline tetap ke beranda dengan data cache; hanya sesi yang ditolak server ke layar masuk (D62).
+                            nav.replaceWith(if (app.repository.resume() == ResumeState.LoggedOut) "login" else "home")
                         }
                     }
                     composable("login") {
@@ -68,6 +156,8 @@ class MainActivity : ComponentActivity() {
                             onDismissCrash = dismissCrash,
                             onCapture = { purpose -> if (entry.isActive()) nav.navigate("capture/$purpose") },
                             onLoggedOut = { nav.replaceWith("login") },
+                            onEnableAppLock = if (lockAvailable) ::enableLock else null,
+                            onStartUpdate = ::startUpdate,
                         )
                     }
                     composable("capture/{purpose}") { entry ->
@@ -78,6 +168,28 @@ class MainActivity : ComponentActivity() {
                             onClose = { if (entry.isActive()) nav.popBackStack() },
                         )
                     }
+                }
+                // Kunci menutupi isi; sesi dan data tetap dimuat di belakangnya (D62).
+                if (app.locked.value && app.repository.loggedIn) {
+                    BackHandler { moveTaskToBack(true) }
+                    LaunchedEffect(Unit) { unlock() }
+                    LockContent(
+                        onUnlock = ::unlock,
+                        onUsePassword = {
+                            app.locked.value = false
+                            lifecycleScope.launch {
+                                app.repository.logout()
+                                nav.replaceWith("login")
+                            }
+                        },
+                    )
+                }
+                // Di bawah versi minimum server menolak semua permintaan, jadi layar perbarui menutupi semuanya.
+                val update = app.repository.appUpdate.collectAsState().value
+                if (update?.level == UpdateLevel.Required) {
+                    BackHandler { moveTaskToBack(true) }
+                    UpdateRequiredContent(update.version, onUpdate = { startUpdate(update.version.storeUrl) })
+                }
                 }
             }
         }

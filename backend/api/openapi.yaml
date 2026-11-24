@@ -182,6 +182,27 @@ paths:
                 required: [data]
                 properties:
                   data: { $ref: "#/components/schemas/Branding" }
+  /v1/app/version:
+    get:
+      tags: [Sistem]
+      summary: Versi aplikasi Android terbaru dan minimum
+      description: >-
+        Tanpa login dan tetap dilayani untuk aplikasi lama (D63). Kode versi sama dengan versionCode aplikasi
+        (major·10000 + minor·100 + patch). Aplikasi menampilkan pemberitahuan bila `latest_code` lebih tinggi
+        dari versinya, dan layar wajib perbarui bila di bawah `min_code`. Permintaan aplikasi dengan header
+        `X-App-Version` di bawah `min_code` dijawab 426 `APP_UPDATE_REQUIRED` (kecuali endpoint ini, branding,
+        login, refresh, dan logout aplikasi). Nol berarti belum diatur.
+      security: []
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data: { $ref: "#/components/schemas/AppVersion" }
   /v1/auth/password/change:
     post:
       tags: [Auth]
@@ -912,6 +933,60 @@ paths:
         "204": { description: Sesi dicabut }
         "403": { $ref: "#/components/responses/Error" }
         "404": { $ref: "#/components/responses/Error" }
+
+  /v1/admin/users/{user_id}/role:
+    parameters:
+      - { name: user_id, in: path, required: true, schema: { type: string, format: uuid } }
+    put:
+      tags: [Akun]
+      summary: Jadikan SDM atau kembalikan ke Pejuang
+      description: >-
+        Permission `account:manage` (hanya super admin, D60). Hanya `pejuang` ↔ `sdm`: kepala unit mengikuti
+        struktur organisasi dan super admin hanya lewat perintah server (`ACCOUNT_CHANGE_NOT_ALLOWED`). Akun sendiri
+        ditolak (`CONFLICT_SELF_ACTION`). Semua sesi akun dicabut agar peran baru langsung berlaku; akun yang baru
+        menjadi SDM wajib mengaktifkan A2F kecuali dijadikan opsional. Dicatat `user.role_changed` dengan sumber
+        `panel`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [role]
+              properties:
+                role: { type: string, enum: [sdm, pejuang] }
+      responses:
+        "204": { description: Peran diubah }
+        "400": { $ref: "#/components/responses/ValidationFailed" }
+        "403": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+        "409": { $ref: "#/components/responses/Error" }
+
+  /v1/admin/users/{user_id}/mfa-policy:
+    parameters:
+      - { name: user_id, in: path, required: true, schema: { type: string, format: uuid } }
+    put:
+      tags: [Akun]
+      summary: Atur A2F wajib atau opsional untuk akun SDM
+      description: >-
+        Permission `account:manage` (hanya super admin, D60). Hanya untuk akun SDM; super admin selalu wajib A2F
+        (`ACCOUNT_CHANGE_NOT_ALLOWED`). Opsional tidak mematikan A2F yang sudah aktif. Dicatat
+        `user.mfa_policy_changed`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [required]
+              properties:
+                required: { type: boolean }
+      responses:
+        "204": { description: Tersimpan }
+        "400": { $ref: "#/components/responses/ValidationFailed" }
+        "403": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+        "409": { $ref: "#/components/responses/Error" }
 
   /v1/attendance/challenge:
     post:
@@ -2037,6 +2112,50 @@ paths:
                 properties:
                   data: { $ref: "#/components/schemas/Branding" }
         "400": { $ref: "#/components/responses/ValidationFailed" }
+  /v1/admin/settings/app-version:
+    get:
+      tags: [Sistem]
+      summary: Pengaturan versi aplikasi Android
+      description: Permission `settings:manage` (hanya super admin).
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data: { $ref: "#/components/schemas/AppVersion" }
+    put:
+      tags: [Sistem]
+      summary: Ubah versi aplikasi terbaru dan minimum
+      description: >-
+        Permission `settings:manage` (hanya super admin). `min_code` tidak boleh melebihi `latest_code`;
+        menaikkan `min_code` membuat aplikasi lama dijawab 426 dan menampilkan layar wajib perbarui (berlaku dalam
+        1 menit). `store_url` kosong memakai halaman Play Store. Dicatat sebagai `settings.changed`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/AppVersionInput" }
+            example:
+              latest_code: 1400
+              latest_name: "0.14.0"
+              min_code: 1300
+              store_url: ""
+              notes: "Aplikasi tetap bisa dibuka saat offline dan bisa dikunci dengan sidik jari."
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data: { $ref: "#/components/schemas/AppVersion" }
+        "400": { $ref: "#/components/responses/ValidationFailed" }
   /v1/admin/settings/smtp:
     get:
       tags: [Sistem]
@@ -2684,6 +2803,7 @@ components:
         - SMTP_TEST_FAILED
         - RESET_TOKEN_INVALID
         - EMAIL_CHANGE_INVALID
+        - ACCOUNT_CHANGE_NOT_ALLOWED
         - CHALLENGE_EXPIRED
         - ATTENDANCE_BLOCKED
         - LEAVE_ACTIVE
@@ -2734,6 +2854,7 @@ components:
         - "approval_flow:manage"
         - "audit:read"
         - "settings:manage"
+        - "account:manage"
     EmployeeStatus:
       type: string
       enum: [active, inactive]
@@ -2798,7 +2919,7 @@ components:
     Me:
       type: object
       required:
-        [user_id, employee_id, role, full_name, nip, email, phone, position, subdivision, division, permissions, must_change_password, mfa_enabled, face_enrolled, has_photo, photo_updated_at, pending_email]
+        [user_id, employee_id, role, full_name, nip, email, phone, position, subdivision, division, permissions, must_change_password, mfa_enabled, mfa_required, face_enrolled, has_photo, photo_updated_at, pending_email]
       properties:
         user_id: { type: string, format: uuid }
         employee_id: { type: string, format: uuid }
@@ -2814,6 +2935,7 @@ components:
           items: { $ref: "#/components/schemas/Permission" }
         must_change_password: { type: boolean }
         mfa_enabled: { type: boolean }
+        mfa_required: { type: boolean, description: "A2F wajib untuk akun ini (D60): super admin selalu, SDM sesuai pengaturan super admin." }
         device_status:
           type: string
           nullable: true
@@ -2951,11 +3073,20 @@ components:
         join_date: { type: string, format: date, nullable: true }
         base_salary: { $ref: "#/components/schemas/Money" }
         status: { $ref: "#/components/schemas/EmployeeStatus" }
-        default_shift_id: { type: string, format: uuid, nullable: true, description: "Shift Pejuang. null = belum ditentukan" }
+        default_shift_id:
+          type: string
+          format: uuid
+          nullable: true
+          description: "Shift utama. Bila `shift_ids` tidak dikirim, mengganti seluruh daftar shift dengan shift ini (klien lama). null = belum ditentukan"
+        shift_ids:
+          type: array
+          maxItems: 7
+          description: "Seluruh daftar shift (D61); shift pertama menjadi shift utama. Hari kerja antar-shift tidak boleh bertabrakan (`VALIDATION_FAILED` pada `shift_ids`). Tidak dikirim = daftar tetap."
+          items: { type: string, format: uuid }
     Employee:
       type: object
       required:
-        [id, nip, full_name, email, phone, gender, marital_status, subdivision_id, subdivision_name, division_id, division_name, branch_id, branch_name, position, join_date, status, default_shift_id, default_shift_name, face_enrolled, has_photo, photo_updated_at]
+        [id, nip, full_name, email, phone, gender, marital_status, subdivision_id, subdivision_name, division_id, division_name, branch_id, branch_name, position, join_date, status, default_shift_id, default_shift_name, shifts, face_enrolled, has_photo, photo_updated_at]
       properties:
         id: { type: string, format: uuid }
         nip: { type: string }
@@ -2985,8 +3116,12 @@ components:
         position: { type: string, nullable: true }
         join_date: { type: string, format: date, nullable: true }
         status: { $ref: "#/components/schemas/EmployeeStatus" }
-        default_shift_id: { type: string, format: uuid, nullable: true }
+        default_shift_id: { type: string, format: uuid, nullable: true, description: Shift utama }
         default_shift_name: { type: string, nullable: true }
+        shifts:
+          type: array
+          description: Semua shift Pejuang, shift utama lebih dulu (D61)
+          items: { $ref: "#/components/schemas/EmployeeShift" }
         face_enrolled: { type: boolean, description: Pejuang punya template wajah aktif }
         has_photo: { type: boolean, description: "Pejuang punya foto profil (`GET /v1/employees/{id}/photo`)" }
         photo_updated_at: { type: string, format: date-time, nullable: true }
@@ -2998,13 +3133,14 @@ components:
           description: Hanya untuk pemegang user:manage. Tidak ada bila Pejuang belum punya akun.
     EmployeeAccount:
       type: object
-      required: [user_id, role, is_active, is_locked, mfa_enabled]
+      required: [user_id, role, is_active, is_locked, mfa_enabled, mfa_required]
       properties:
         user_id: { type: string, format: uuid }
         role: { $ref: "#/components/schemas/Role" }
         is_active: { type: boolean, description: false = akun dinonaktifkan }
         is_locked: { type: boolean }
         mfa_enabled: { type: boolean }
+        mfa_required: { type: boolean, description: "A2F wajib untuk akun ini (D60)" }
     EmployeeCreated:
       allOf:
         - $ref: "#/components/schemas/Employee"
@@ -3260,6 +3396,25 @@ components:
         footer_template: { type: string, description: "Teks yang diatur; {tahun} diganti tahun berjalan (WIB)" }
         is_default: { type: boolean, description: True bila super admin belum mengubah footer }
         updated_at: { type: string, format: date-time, nullable: true }
+    AppVersion:
+      type: object
+      required: [latest_code, latest_name, min_code, store_url, notes, updated_at]
+      properties:
+        latest_code: { type: integer, description: "versionCode terbaru; 0 bila belum diatur" }
+        latest_name: { type: string, description: "Nama versi terbaru, mis. 0.14.0; kosong bila belum diatur" }
+        min_code: { type: integer, description: "versionCode minimum yang masih dilayani; 0 berarti semua versi" }
+        store_url: { type: string, description: "Tautan pembaruan; bawaan halaman Play Store" }
+        notes: { type: string, description: "Catatan rilis singkat, teks murni, boleh beberapa baris" }
+        updated_at: { type: string, format: date-time, nullable: true }
+    AppVersionInput:
+      type: object
+      required: [latest_code, latest_name, min_code]
+      properties:
+        latest_code: { type: integer, minimum: 0, maximum: 2100000000 }
+        latest_name: { type: string, description: "Bentuk x.y.z; wajib bila latest_code lebih dari 0" }
+        min_code: { type: integer, minimum: 0, description: "Tidak boleh melebihi latest_code" }
+        store_url: { type: string, description: "https://; kosong memakai halaman Play Store" }
+        notes: { type: string, maxLength: 500 }
     FooterInput:
       type: object
       properties:
@@ -3336,7 +3491,7 @@ components:
         full_name: { type: string }
         division: { type: string }
         subdivision: { type: string }
-        work_days: { type: integer, description: "Hadir, menunggu review, cuti, dan alpha" }
+        work_days: { type: number, description: "Hadir, menunggu review, cuti, dan alpha; hari dari shift setengah hari dihitung 0,5 (D61)" }
         present: { type: integer, description: Hadir termasuk telat }
         late: { type: integer }
         leave: { type: integer, description: "Hari berstatus cuti/izin; sama dengan leave_quota + leave_non_quota + leave_other" }
@@ -3905,6 +4060,18 @@ components:
           minItems: 1
           description: 1=Senin sampai 7=Ahad
           items: { type: integer, minimum: 1, maximum: 7 }
+        kind: { $ref: "#/components/schemas/ShiftKind" }
+    ShiftKind:
+      type: string
+      enum: [regular, half_day]
+      description: "Reguler, atau setengah hari yang dihitung 0,5 hari kerja di rekap (D61). Bawaan regular."
+    EmployeeShift:
+      type: object
+      required: [id, name, kind]
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        kind: { $ref: "#/components/schemas/ShiftKind" }
     ShiftInput:
       allOf:
         - $ref: "#/components/schemas/ShiftPatch"
@@ -3912,7 +4079,7 @@ components:
           required: [name, start_time, end_time, late_tolerance_minutes, work_days]
     Shift:
       type: object
-      required: [id, name, start_time, end_time, late_tolerance_minutes, work_days]
+      required: [id, name, start_time, end_time, late_tolerance_minutes, work_days, kind]
       properties:
         id: { type: string, format: uuid }
         name: { type: string }
@@ -3922,6 +4089,7 @@ components:
         work_days:
           type: array
           items: { type: integer }
+        kind: { $ref: "#/components/schemas/ShiftKind" }
     Holiday:
       type: object
       required: [date, name]

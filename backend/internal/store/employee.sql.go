@@ -13,6 +13,20 @@ import (
 	"github.com/shopspring/decimal"
 )
 
+const addEmployeeShift = `-- name: AddEmployeeShift :exec
+INSERT INTO employee_shifts (employee_id, shift_id) VALUES ($1, $2) ON CONFLICT DO NOTHING
+`
+
+type AddEmployeeShiftParams struct {
+	EmployeeID uuid.UUID
+	ShiftID    uuid.UUID
+}
+
+func (q *Queries) AddEmployeeShift(ctx context.Context, arg AddEmployeeShiftParams) error {
+	_, err := q.db.Exec(ctx, addEmployeeShift, arg.EmployeeID, arg.ShiftID)
+	return err
+}
+
 const countEmployees = `-- name: CountEmployees :one
 SELECT count(*)
 FROM employees e
@@ -129,6 +143,15 @@ DELETE FROM employee_children WHERE employee_id = $1
 
 func (q *Queries) DeleteEmployeeChildren(ctx context.Context, employeeID uuid.UUID) error {
 	_, err := q.db.Exec(ctx, deleteEmployeeChildren, employeeID)
+	return err
+}
+
+const deleteEmployeeShifts = `-- name: DeleteEmployeeShifts :exec
+DELETE FROM employee_shifts WHERE employee_id = $1
+`
+
+func (q *Queries) DeleteEmployeeShifts(ctx context.Context, employeeID uuid.UUID) error {
+	_, err := q.db.Exec(ctx, deleteEmployeeShifts, employeeID)
 	return err
 }
 
@@ -260,6 +283,38 @@ func (q *Queries) GetOwnFamily(ctx context.Context, id uuid.UUID) (GetOwnFamilyR
 	var i GetOwnFamilyRow
 	err := row.Scan(&i.HasChildren, &i.ChildrenCount)
 	return i, err
+}
+
+const getShiftsByIDs = `-- name: GetShiftsByIDs :many
+SELECT id, name, start_time, end_time, late_tolerance_minutes, work_days, kind FROM shifts WHERE id = ANY($1::uuid[])
+`
+
+func (q *Queries) GetShiftsByIDs(ctx context.Context, ids []uuid.UUID) ([]Shift, error) {
+	rows, err := q.db.Query(ctx, getShiftsByIDs, ids)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []Shift{}
+	for rows.Next() {
+		var i Shift
+		if err := rows.Scan(
+			&i.ID,
+			&i.Name,
+			&i.StartTime,
+			&i.EndTime,
+			&i.LateToleranceMinutes,
+			&i.WorkDays,
+			&i.Kind,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const insertEmployeeChild = `-- name: InsertEmployeeChild :exec
@@ -483,6 +538,52 @@ func (q *Queries) ListEmployeesByNips(ctx context.Context, nips []string) ([]Lis
 	for rows.Next() {
 		var i ListEmployeesByNipsRow
 		if err := rows.Scan(&i.ID, &i.Nip); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listShiftsForEmployees = `-- name: ListShiftsForEmployees :many
+SELECT es.employee_id, sh.id, sh.name, sh.kind, sh.work_days, (sh.id IS NOT DISTINCT FROM e.default_shift_id)::boolean AS is_primary
+FROM employee_shift_set es
+JOIN shifts sh ON sh.id = es.shift_id
+JOIN employees e ON e.id = es.employee_id
+WHERE es.employee_id = ANY($1::uuid[])
+ORDER BY es.employee_id, (sh.id IS NOT DISTINCT FROM e.default_shift_id) DESC, sh.start_time, sh.name
+`
+
+type ListShiftsForEmployeesRow struct {
+	EmployeeID uuid.UUID
+	ID         uuid.UUID
+	Name       string
+	Kind       string
+	WorkDays   []int16
+	IsPrimary  bool
+}
+
+// Shift ganda (D61): semua shift Pejuang, shift utama (default_shift_id) lebih dulu.
+func (q *Queries) ListShiftsForEmployees(ctx context.Context, employeeIds []uuid.UUID) ([]ListShiftsForEmployeesRow, error) {
+	rows, err := q.db.Query(ctx, listShiftsForEmployees, employeeIds)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListShiftsForEmployeesRow{}
+	for rows.Next() {
+		var i ListShiftsForEmployeesRow
+		if err := rows.Scan(
+			&i.EmployeeID,
+			&i.ID,
+			&i.Name,
+			&i.Kind,
+			&i.WorkDays,
+			&i.IsPrimary,
+		); err != nil {
 			return nil, err
 		}
 		items = append(items, i)

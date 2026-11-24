@@ -16,7 +16,11 @@ WHERE id = $1
 RETURNING *;
 
 -- name: GetLeaveProfile :one
-SELECT e.id, e.join_date, sh.start_time, sh.end_time, sh.late_tolerance_minutes, sh.work_days
+-- Hari kerja adalah gabungan hari kerja semua shift Pejuang (D61); jam dari shift utama.
+SELECT e.id, e.join_date, sh.start_time, sh.end_time, sh.late_tolerance_minutes,
+       COALESCE((SELECT array_agg(DISTINCT wd ORDER BY wd) FROM employee_shift_set es
+                 JOIN shifts s2 ON s2.id = es.shift_id, unnest(s2.work_days) AS wd
+                 WHERE es.employee_id = e.id), ARRAY[]::smallint[])::smallint[] AS work_days
 FROM employees e
 LEFT JOIN shifts sh ON sh.id = e.default_shift_id
 WHERE e.id = $1 AND e.deleted_at IS NULL;

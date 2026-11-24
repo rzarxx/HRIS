@@ -107,6 +107,9 @@ dependencies {
     implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.8.7")
     implementation("androidx.lifecycle:lifecycle-runtime-compose:2.8.7")
     implementation("androidx.navigation:navigation-compose:2.8.5")
+    // Kunci aplikasi dengan sidik jari, wajah, atau PIN HP (D62); BiometricPrompt butuh FragmentActivity.
+    implementation("androidx.biometric:biometric:1.1.0")
+    implementation("androidx.fragment:fragment-ktx:1.8.5")
     // Blur latar (glassmorphism) untuk bottom bar; Android 12+ memakai RenderEffect, versi lama memakai tint.
     implementation("dev.chrisbanes.haze:haze:1.2.2")
 
@@ -124,6 +127,8 @@ dependencies {
     implementation("com.google.mlkit:face-detection:16.1.7")
     implementation("com.google.android.gms:play-services-location:21.3.0")
     implementation("com.google.android.play:integrity:1.4.0")
+    // Pembaruan bawaan Play Store (D63).
+    implementation("com.google.android.play:app-update-ktx:2.1.0")
 
     testImplementation("junit:junit:4.13.2")
 }

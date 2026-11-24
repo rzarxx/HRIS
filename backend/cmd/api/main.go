@@ -200,12 +200,13 @@ func run() error {
 		return managedFiles.Check(checkCtx)
 	}
 
+	settingsHandler := settings.NewHandler(settings.NewService(pool))
 	handler := server.New(server.Deps{
 		Auth:         auth.NewHandler(authSvc, secure, cfg.CookieDomain, limiter),
 		Org:          org.NewHandler(org.NewService(pool)),
 		Employee:     employee.NewHandler(employeeSvc).WithMe(authSvc.Me),
 		Announcement: announcement.NewHandler(announcementSvc),
-		Settings:     settings.NewHandler(settings.NewService(pool)),
+		Settings:     settingsHandler,
 		Storage:      storageadmin.NewHandler(storageSvc),
 		Mail:         mail.NewHandler(mailSvc),
 		Dashboard:    dashboard.NewHandler(q),
@@ -220,6 +221,7 @@ func run() error {
 		SessionCheck: authSvc.SessionState,
 		Limiter:      limiter,
 		Ready:        ready,
+		MinAppCode:   settingsHandler.MinAppCode,
 		Options:      server.Options{AllowedOrigins: cfg.CORSAllowedOrigins, Secure: secure, TrustProxy: cfg.TrustProxy},
 	})
 

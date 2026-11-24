@@ -1,5 +1,6 @@
 package id.albahjah.hris.data
 
+import id.albahjah.hris.BuildConfig
 import kotlinx.serialization.json.Json
 import okhttp3.Authenticator
 import okhttp3.Interceptor
@@ -124,6 +125,9 @@ interface HrisApi {
     @GET("v1/branding")
     suspend fun branding(): DataResponse<Branding>
 
+    @GET("v1/app/version")
+    suspend fun appVersion(): DataResponse<AppVersion>
+
     @GET("v1/announcements/active")
     suspend fun announcements(): DataResponse<List<MyAnnouncement>>
 
@@ -195,6 +199,8 @@ private class AuthHeaders(private val session: Session) : Interceptor {
     override fun intercept(chain: Interceptor.Chain): Response {
         val builder = chain.request().newBuilder()
         session.accessToken?.let { builder.header("Authorization", "Bearer $it") }
+        // Server menolak versi di bawah minimum dengan 426 APP_UPDATE_REQUIRED (D63).
+        builder.header("X-App-Version", appVersionHeader(BuildConfig.VERSION_NAME, BuildConfig.VERSION_CODE))
         // Route presensi dan wajah memeriksa perangkat dari header ini (§7.5).
         session.deviceId?.let { builder.header("X-Device-Id", it) }
         return chain.proceed(builder.build())
@@ -207,7 +213,10 @@ private class AuthHeaders(private val session: Session) : Interceptor {
  */
 private class Refresher(private val session: Session, private val refreshApi: RefreshApi) : Authenticator {
     override fun authenticate(route: Route?, response: Response): Request? {
-        val sent = response.request.header("Authorization") ?: return null
+        // Tanpa header berarti aplikasi dibuka saat offline (access token belum ada); sesi tersimpan
+        // tetap diperpanjang begitu server terjangkau (D62).
+        val sent = response.request.header("Authorization")
+        if (sent == null && !session.loggedIn) return null
         if (response.priorResponse != null) return null
         synchronized(lock) {
             val current = session.accessToken

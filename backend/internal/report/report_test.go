@@ -40,7 +40,7 @@ func TestCalculate(t *testing.T) {
 }
 
 func TestAttendanceRowCountsReview(t *testing.T) {
-	got := attendanceRow(store.AttendanceReportRow{Present: 3, Late: 1, Leave: 2, Absent: 1, Review: 2, LateMinutes: 25}, nil)
+	got := attendanceRow(store.AttendanceReportRow{Present: 3, Late: 1, Leave: 2, Absent: 1, Review: 2, LateMinutes: 25, WorkDays: 8}, nil)
 	if got.WorkDays != 8 || got.Review != 2 || got.Present != 3 || got.Absent != 1 || got.Leave != 2 || got.LateMinutes != 25 {
 		t.Fatalf("baris rekap = %+v", got)
 	}

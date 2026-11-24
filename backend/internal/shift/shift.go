@@ -36,6 +36,8 @@ type Shift struct {
 	EndTime              string  `json:"end_time"`
 	LateToleranceMinutes int32   `json:"late_tolerance_minutes"`
 	WorkDays             []int16 `json:"work_days"`
+	// Kind: regular, atau half_day yang dihitung 0,5 hari kerja di rekap (D61).
+	Kind string `json:"kind"`
 }
 
 // Holiday adalah objek baku hari libur.
@@ -51,6 +53,7 @@ type Input struct {
 	EndTime              string  `json:"end_time"`
 	LateToleranceMinutes *int32  `json:"late_tolerance_minutes"`
 	WorkDays             []int16 `json:"work_days"`
+	Kind                 string  `json:"kind"`
 }
 
 type validated struct {
@@ -59,6 +62,7 @@ type validated struct {
 	EndTime   pgtype.Time
 	Tolerance int32
 	WorkDays  []int16
+	Kind      string
 }
 
 func parseClock(s string) pgtype.Time {
@@ -112,6 +116,14 @@ func (in Input) validate() (validated, error) {
 		}
 	}
 	v.WorkDays = days
+	switch in.Kind {
+	case "", "regular":
+		v.Kind = "regular"
+	case "half_day":
+		v.Kind = "half_day"
+	default:
+		fields["kind"] = "Pilih Reguler atau Setengah hari."
+	}
 	if len(fields) > 0 {
 		return v, httpx.Validation(fields)
 	}
@@ -129,7 +141,7 @@ func NewService(pool *pgxpool.Pool) *Service { return &Service{pool: pool, q: st
 func toResponse(s store.Shift) Shift {
 	return Shift{
 		ID: s.ID.String(), Name: s.Name, StartTime: formatClock(s.StartTime), EndTime: formatClock(s.EndTime),
-		LateToleranceMinutes: s.LateToleranceMinutes, WorkDays: s.WorkDays,
+		LateToleranceMinutes: s.LateToleranceMinutes, WorkDays: s.WorkDays, Kind: s.Kind,
 	}
 }
 
@@ -159,7 +171,7 @@ func (s *Service) Create(ctx context.Context, entry audit.Entry, in Input) (Shif
 	err = database.InTx(ctx, s.pool, func(q *store.Queries) error {
 		var err error
 		row, err = q.InsertShift(ctx, store.InsertShiftParams{
-			Name: v.Name, StartTime: v.StartTime, EndTime: v.EndTime, LateToleranceMinutes: v.Tolerance, WorkDays: v.WorkDays,
+			Name: v.Name, StartTime: v.StartTime, EndTime: v.EndTime, LateToleranceMinutes: v.Tolerance, WorkDays: v.WorkDays, Kind: v.Kind,
 		})
 		if err != nil {
 			return err
@@ -183,7 +195,7 @@ func (s *Service) Update(ctx context.Context, entry audit.Entry, id uuid.UUID, d
 	}
 	in := Input{
 		Name: current.Name, StartTime: formatClock(current.StartTime), EndTime: formatClock(current.EndTime),
-		LateToleranceMinutes: &current.LateToleranceMinutes, WorkDays: current.WorkDays,
+		LateToleranceMinutes: &current.LateToleranceMinutes, WorkDays: current.WorkDays, Kind: current.Kind,
 	}
 	if err := decode(&in); err != nil {
 		return Shift{}, err
@@ -196,7 +208,7 @@ func (s *Service) Update(ctx context.Context, entry audit.Entry, id uuid.UUID, d
 	err = database.InTx(ctx, s.pool, func(q *store.Queries) error {
 		var err error
 		row, err = q.UpdateShift(ctx, store.UpdateShiftParams{
-			ID: id, Name: v.Name, StartTime: v.StartTime, EndTime: v.EndTime, LateToleranceMinutes: v.Tolerance, WorkDays: v.WorkDays,
+			ID: id, Name: v.Name, StartTime: v.StartTime, EndTime: v.EndTime, LateToleranceMinutes: v.Tolerance, WorkDays: v.WorkDays, Kind: v.Kind,
 		})
 		if pgconv.IsNoRows(err) {
 			return httpx.ErrNotFound()

@@ -636,6 +636,16 @@ type EmployeeLocation struct {
 	LocationID uuid.UUID
 }
 
+type EmployeeShift struct {
+	EmployeeID uuid.UUID
+	ShiftID    uuid.UUID
+}
+
+type EmployeeShiftSet struct {
+	EmployeeID uuid.UUID
+	ShiftID    uuid.UUID
+}
+
 type EmployeeWorkArrangement struct {
 	ID            uuid.UUID
 	EmployeeID    uuid.UUID
@@ -759,6 +769,7 @@ type Shift struct {
 	EndTime              pgtype.Time
 	LateToleranceMinutes int32
 	WorkDays             []int16
+	Kind                 string
 }
 
 type Subdivision struct {

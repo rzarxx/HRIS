@@ -4,7 +4,7 @@ import { Pencil, Plus, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { Button, IconButton } from "@/components/ui/button";
 import { Field, Input, Select, Toggle } from "@/components/ui/form";
-import { Card, EmptyState, ErrorState, Loading, PageHeader } from "@/components/ui/layout";
+import { Badge, Card, EmptyState, ErrorState, Loading, PageHeader } from "@/components/ui/layout";
 import { ConfirmDialog, Modal } from "@/components/ui/modal";
 import { Table, Td, Th } from "@/components/ui/table";
 import { api } from "@/lib/api-client";
@@ -13,7 +13,10 @@ import { useHolidays, useSave, useShifts } from "@/lib/hooks";
 import { holidaySchema, shiftSchema, validate, type HolidayInput, type ShiftForm } from "@/lib/schemas";
 import type { Holiday, Shift } from "@/lib/types";
 
-const EMPTY_SHIFT: ShiftForm = { name: "", start_time: "08:00", end_time: "17:00", late_tolerance_minutes: "10", work_days: [1, 2, 3, 4, 5] };
+const EMPTY_SHIFT: ShiftForm = { name: "", start_time: "08:00", end_time: "17:00", late_tolerance_minutes: "10", work_days: [1, 2, 3, 4, 5], kind: "regular" };
+
+/** Jenis shift (D61): setengah hari dihitung 0,5 hari kerja di rekap. */
+const SHIFT_KINDS: Record<Shift["kind"], string> = { regular: "Reguler", half_day: "Setengah hari" };
 
 function workDaysLabel(days: number[]) {
   return days.map((d) => DAYS[d - 1]).join(", ");
@@ -43,7 +46,7 @@ function ShiftsCard() {
     setForm(
       s === "new"
         ? EMPTY_SHIFT
-        : { name: s.name, start_time: s.start_time, end_time: s.end_time, late_tolerance_minutes: String(s.late_tolerance_minutes), work_days: s.work_days },
+        : { name: s.name, start_time: s.start_time, end_time: s.end_time, late_tolerance_minutes: String(s.late_tolerance_minutes), work_days: s.work_days, kind: s.kind },
     );
     setEditing(s);
   }
@@ -82,6 +85,7 @@ function ShiftsCard() {
             <thead>
               <tr>
                 <Th>Nama shift</Th>
+                <Th>Jenis</Th>
                 <Th>Jam kerja (WIB)</Th>
                 <Th>Toleransi telat</Th>
                 <Th>Hari kerja</Th>
@@ -94,6 +98,7 @@ function ShiftsCard() {
               {list.data.map((s) => (
                 <tr key={s.id} className="hover:bg-slate-50">
                   <Td className="font-medium text-slate-900">{s.name}</Td>
+                  <Td>{s.kind === "half_day" ? <Badge tone="amber">{SHIFT_KINDS[s.kind]}</Badge> : SHIFT_KINDS[s.kind]}</Td>
                   <Td className="whitespace-nowrap">
                     {s.start_time} sampai {s.end_time}
                     {s.end_time < s.start_time && <span className="text-slate-500"> (hari berikutnya)</span>}
@@ -139,6 +144,12 @@ function ShiftsCard() {
           </Field>
           <Field label="Jam pulang" htmlFor="end" error={errors.end_time} required>
             <Input id="end" type="time" value={form.end_time} onChange={(e) => setForm({ ...form, end_time: e.target.value })} invalid={!!errors.end_time} />
+          </Field>
+          <Field label="Jenis" htmlFor="shift-kind" error={errors.kind} hint="Setengah hari dihitung 0,5 hari kerja di rekap." className="sm:col-span-3">
+            <Select id="shift-kind" value={form.kind} onChange={(e) => setForm({ ...form, kind: e.target.value as ShiftForm["kind"] })}>
+              <option value="regular">Reguler</option>
+              <option value="half_day">Setengah hari</option>
+            </Select>
           </Field>
           <Field label="Toleransi telat (menit)" htmlFor="tolerance" error={errors.late_tolerance_minutes} required>
             <Input id="tolerance" inputMode="numeric" value={form.late_tolerance_minutes} onChange={(e) => setForm({ ...form, late_tolerance_minutes: e.target.value })} invalid={!!errors.late_tolerance_minutes} />

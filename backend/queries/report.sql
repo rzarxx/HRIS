@@ -33,6 +33,9 @@ SELECT e.id AS employee_id, e.nip, e.full_name, d.name AS division, s.name AS su
        count(a.id) FILTER (WHERE a.status = 'leave') AS leave,
        count(a.id) FILTER (WHERE a.status = 'absent') AS absent,
        count(a.id) FILTER (WHERE a.status = 'review') AS review,
+       -- Hari kerja: shift setengah hari dihitung 0,5 (D61).
+       COALESCE(sum(CASE WHEN sh.kind = 'half_day' THEN 0.5 ELSE 1 END)
+         FILTER (WHERE a.status IN ('present','late','review','leave','absent')), 0)::float8 AS work_days,
        COALESCE(sum(a.late_minutes), 0)::bigint AS late_minutes,
        COALESCE(sum(a.worked_minutes), 0)::bigint AS worked_minutes,
        count(a.id) FILTER (WHERE a.clock_in_at IS NOT NULL AND a.clock_out_at IS NULL AND a.status <> 'absent'
@@ -93,17 +96,18 @@ SELECT employee_id, work_date FROM attendances WHERE work_date >= $1;
 -- name: AttendanceExportEmployees :many
 SELECT e.id AS employee_id, e.nip, e.full_name, d.id AS division_id, d.name AS division, s.name AS subdivision,
        e.join_date, e.exit_date,
-       COALESCE(sh.work_days, ARRAY[1,2,3,4,5,6]::smallint[])::smallint[] AS work_days
+       COALESCE((SELECT array_agg(DISTINCT wd ORDER BY wd) FROM employee_shift_set es
+                 JOIN shifts s2 ON s2.id = es.shift_id, unnest(s2.work_days) AS wd
+                 WHERE es.employee_id = e.id), ARRAY[1,2,3,4,5,6]::smallint[])::smallint[] AS work_days
 FROM employees e
 JOIN subdivisions s ON s.id = e.subdivision_id
 JOIN divisions d ON d.id = s.division_id
-LEFT JOIN shifts sh ON sh.id = e.default_shift_id
 LEFT JOIN attendances a ON a.employee_id = e.id AND a.work_date >= @from_date AND a.work_date < @to_date
   AND (sqlc.arg(work_mode)::text = '' OR (a.work_mode = sqlc.arg(work_mode)::text AND a.clock_in_at IS NOT NULL))
 WHERE e.deleted_at IS NULL
   AND (@scope_all::boolean OR s.id = ANY(@scope_subdivision_ids::uuid[]) OR d.id = ANY(@scope_division_ids::uuid[]))
   AND (sqlc.narg(division_id)::uuid IS NULL OR d.id = sqlc.narg(division_id))
-GROUP BY e.id, e.nip, e.full_name, d.id, d.name, s.name, e.join_date, e.exit_date, e.status, sh.work_days
+GROUP BY e.id, e.nip, e.full_name, d.id, d.name, s.name, e.join_date, e.exit_date, e.status
 HAVING count(a.id) > 0 OR (sqlc.arg(work_mode)::text = '' AND e.status = 'active' AND (e.join_date IS NULL OR e.join_date < @to_date))
 ORDER BY d.name, e.full_name, e.id;
 

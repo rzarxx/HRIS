@@ -71,10 +71,11 @@ type AttendanceRow struct {
 	FullName    string `json:"full_name"`
 	Division    string `json:"division"`
 	Subdivision string `json:"subdivision"`
-	WorkDays    int64  `json:"work_days"`
-	Present     int64  `json:"present"`
-	Late        int64  `json:"late"`
-	Leave       int64  `json:"leave"`
+	// WorkDays memakai pecahan karena shift setengah hari dihitung 0,5 (D61).
+	WorkDays float64 `json:"work_days"`
+	Present  int64   `json:"present"`
+	Late     int64   `json:"late"`
+	Leave    int64   `json:"leave"`
 	// LeaveQuota memotong saldo (jenis statutory/custom), LeaveNonQuota tidak (jenis none), dan
 	// LeaveOther adalah hari cuti tanpa pengajuan disetujui yang cocok. Ketiganya berjumlah Leave.
 	LeaveQuota     int64           `json:"leave_quota"`
@@ -190,7 +191,7 @@ func attendanceRow(r store.AttendanceReportRow, types []store.AttendanceReportLe
 	out := AttendanceRow{
 		EmployeeID: r.EmployeeID.String(), Nip: r.Nip, FullName: r.FullName,
 		Division: r.Division, Subdivision: r.Subdivision,
-		WorkDays: r.Present + r.Review + r.Leave + r.Absent,
+		WorkDays: r.WorkDays,
 		Present:  r.Present, Late: r.Late, Leave: r.Leave, Absent: r.Absent, Review: r.Review,
 		LateMinutes: r.LateMinutes, WorkedMinutes: r.WorkedMinutes, MissedClockOut: r.MissedClockOut,
 		LeaveByType: make([]LeaveTypeDays, 0, len(types)),

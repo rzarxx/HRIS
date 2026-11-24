@@ -241,7 +241,7 @@ function EmployeesView() {
                     </Td>
                     <Td>
                       <p>{e.position ?? "-"}</p>
-                      <p className="text-xs text-slate-500">{e.default_shift_name ?? "Shift belum ditentukan"}</p>
+                      <p className="text-xs text-slate-500">{e.shifts?.length ? e.shifts.map((sh) => sh.name).join(", ") : "Shift belum ditentukan"}</p>
                     </Td>
                     <Td>
                       <p>{e.subdivision_name}</p>

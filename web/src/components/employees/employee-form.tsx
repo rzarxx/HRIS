@@ -3,11 +3,11 @@
 import { Plus, Trash2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Button, IconButton } from "@/components/ui/button";
-import { Field, Input, Select } from "@/components/ui/form";
+import { Field, Input, Select, Toggle } from "@/components/ui/form";
 import { Loading } from "@/components/ui/layout";
 import { Modal } from "@/components/ui/modal";
 import { api } from "@/lib/api-client";
-import { todayWib } from "@/lib/format";
+import { DAYS, todayWib } from "@/lib/format";
 import { useBranches, useDivisions, useEmployee, useMe, useSave, useShifts, useSubdivisions } from "@/lib/hooks";
 import {
   CHILD_RELATIONS,
@@ -23,7 +23,8 @@ import type { EmployeeCreated, EmployeeListItem, ItemResponse } from "@/lib/type
 
 const MAX_CHILDREN = 10;
 
-type FormState = Omit<EmployeeInput, "base_salary" | "children_count" | "children"> & {
+type FormState = Omit<EmployeeInput, "base_salary" | "children_count" | "children" | "default_shift_id" | "shift_ids"> & {
+  shift_ids: string[];
   base_salary: string;
   branch_id: string;
   division_id: string;
@@ -48,7 +49,7 @@ function initial(e: EmployeeListItem | null): FormState {
       join_date: todayWib(),
       base_salary: "",
       status: "active",
-      default_shift_id: null,
+      shift_ids: [],
     };
   }
   return {
@@ -67,7 +68,7 @@ function initial(e: EmployeeListItem | null): FormState {
     join_date: e.join_date ?? "",
     base_salary: (e.base_salary ?? "0").split(".")[0],
     status: e.status,
-    default_shift_id: e.default_shift_id,
+    shift_ids: (e.shifts ?? []).map((s) => s.id),
   };
 }
 
@@ -157,6 +158,10 @@ export function EmployeeForm({
     e.preventDefault();
     // branch_id dan division_id hanya menyaring pilihan, tidak dikirim ke API
     const { branch_id: _branch, division_id, base_salary, children_count, ...rest } = form;
+    if (shiftClash) {
+      setErrors({ shift_ids: shiftClash });
+      return;
+    }
     const count = children_count.trim() === "" ? null : Number(children_count);
     const values: EmployeeInput = {
       ...rest,
@@ -184,6 +189,20 @@ export function EmployeeForm({
     setErrors(all);
     if (Object.keys(all).length === 0) save.mutate(values);
   }
+
+  // Satu hari hanya boleh satu shift (D61); server tetap memeriksa.
+  const chosenShifts = form.shift_ids.map((id) => shifts.data?.find((s) => s.id === id)).filter((s) => s !== undefined);
+  let shiftClash = "";
+  const dayOwner = new Map<number, string>();
+  for (const s of chosenShifts) {
+    for (const d of s.work_days) {
+      const other = dayOwner.get(d);
+      if (other && !shiftClash) shiftClash = `Hari ${DAYS[d - 1]} dipakai shift ${other} dan ${s.name}. Satu hari hanya boleh satu shift.`;
+      dayOwner.set(d, s.name);
+    }
+  }
+  const toggleShift = (id: string, on: boolean) =>
+    set("shift_ids", on ? [...form.shift_ids, id] : form.shift_ids.filter((x) => x !== id));
 
   const divOptions = (divisions.data ?? []).filter((d) => !form.branch_id || d.branch_id === form.branch_id);
   const subOptions = (subdivisions.data ?? []).filter((s) => s.division_id === form.division_id);
@@ -306,21 +325,27 @@ export function EmployeeForm({
           <Field label="Jabatan" htmlFor="position" error={errors.position}>
             <Input id="position" value={form.position ?? ""} onChange={(e) => set("position", e.target.value)} placeholder="Staf Lapangan" />
           </Field>
-          <Field label="Shift" htmlFor="default_shift_id" error={errors.default_shift_id}>
-            <Select
-              id="default_shift_id"
-              value={form.default_shift_id ?? ""}
-              onChange={(e) => set("default_shift_id", e.target.value || null)}
-              invalid={!!errors.default_shift_id}
-            >
-              <option value="">— Belum ditentukan —</option>
-              {shifts.data?.map((s) => (
-                <option key={s.id} value={s.id}>
-                  {s.name} ({s.start_time} sampai {s.end_time})
-                </option>
-              ))}
-            </Select>
-          </Field>
+          <fieldset className="col-span-full">
+            <legend className="mb-1 block text-sm font-medium text-slate-700">Shift</legend>
+            <p className="mb-2 text-xs text-slate-500">
+              Pilih satu atau beberapa shift dengan hari kerja berbeda, misalnya Senin–Jumat reguler dan Sabtu setengah hari. Shift yang dipilih pertama menjadi shift
+              utama.
+            </p>
+            <div className="flex flex-col gap-2">
+              {shifts.data?.length === 0 && <p className="text-sm text-slate-500">Belum ada shift. Tambahkan di Master Data → Shift.</p>}
+              {shifts.data?.map((s) => {
+                const index = form.shift_ids.indexOf(s.id);
+                return (
+                  <Toggle key={s.id} checked={index >= 0} onChange={(on) => toggleShift(s.id, on)}>
+                    {s.name} ({s.start_time} sampai {s.end_time}, {s.work_days.map((d) => DAYS[d - 1]).join(", ")})
+                    {s.kind === "half_day" && <span className="text-slate-500"> · setengah hari</span>}
+                    {index === 0 && form.shift_ids.length > 1 && <span className="ml-1 text-xs font-medium text-primary-700">utama</span>}
+                  </Toggle>
+                );
+              })}
+            </div>
+            {(errors.shift_ids || shiftClash) && <p className="mt-1 text-xs text-red-600">{errors.shift_ids || shiftClash}</p>}
+          </fieldset>
           <Field label="Tanggal bergabung" htmlFor="join_date" error={errors.join_date}>
             <Input id="join_date" type="date" value={form.join_date ?? ""} onChange={(e) => set("join_date", e.target.value)} invalid={!!errors.join_date} />
           </Field>

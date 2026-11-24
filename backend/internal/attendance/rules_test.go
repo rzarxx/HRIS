@@ -195,3 +195,20 @@ func TestSoftFlags(t *testing.T) {
 		t.Errorf("penanda catatan bernilai %d", score)
 	}
 }
+
+// D61: shift dipilih menurut hari; tanpa yang cocok, shift utama dipakai.
+func TestPickShift(t *testing.T) {
+	weekday := Schedule{Start: 8 * time.Hour, End: 16 * time.Hour, WorkDays: []int16{1, 2, 3, 4, 5}}
+	saturday := Schedule{Start: 8 * time.Hour, End: 12 * time.Hour, WorkDays: []int16{6}}
+	shifts := []Schedule{weekday, saturday}
+	// 2 November 2026 hari Senin, 7 November Sabtu, 8 November Ahad.
+	if got := PickShift(wib(2, 7, 50), shifts); got != 0 {
+		t.Errorf("Senin memilih shift %d", got)
+	}
+	if got := PickShift(wib(7, 7, 50), shifts); got != 1 {
+		t.Errorf("Sabtu memilih shift %d", got)
+	}
+	if got := PickShift(wib(8, 7, 50), shifts); got != 0 {
+		t.Errorf("Ahad (libur) memilih shift %d, ingin shift utama", got)
+	}
+}

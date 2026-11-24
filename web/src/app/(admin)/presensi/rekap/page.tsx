@@ -133,7 +133,7 @@ export default function AttendanceReportPage() {
                     {r.subdivision}
                     <span className="block text-xs text-slate-500">{r.division}</span>
                   </Td>
-                  {!period.work_mode && <Td align="right" className="tabular-nums">{r.work_days}</Td>}
+                  {!period.work_mode && <Td align="right" className="tabular-nums">{number(r.work_days)}</Td>}
                   <Td align="right" className="tabular-nums">{r.present}</Td>
                   <Td align="right" className={`tabular-nums ${r.late > 3 ? "font-medium text-amber-700" : ""}`}>{r.late}</Td>
                   <Td align="right" className={`tabular-nums ${r.review > 0 ? "font-medium text-amber-700" : ""}`}>{r.review}</Td>

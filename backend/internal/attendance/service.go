@@ -581,16 +581,21 @@ func (s *Service) ClockIn(ctx context.Context, p auth.Principal, ip *netip.Addr,
 		return ClockInResult{}, err
 	}
 
-	shift, err := s.q.GetEmployeeDefaultShift(ctx, p.EmployeeID)
-	if pgconv.IsNoRows(err) {
-		return ClockInResult{}, s.reject(ctx, a, "shift_not_assigned", httpx.NewError(http.StatusUnprocessableEntity, "SHIFT_NOT_ASSIGNED", "Shift Anda belum ditentukan. Silakan hubungi SDM."))
-	}
+	shifts, err := s.q.ListEmployeeShifts(ctx, p.EmployeeID)
 	if err != nil {
 		return ClockInResult{}, err
 	}
+	if len(shifts) == 0 {
+		return ClockInResult{}, s.reject(ctx, a, "shift_not_assigned", httpx.NewError(http.StatusUnprocessableEntity, "SHIFT_NOT_ASSIGNED", "Shift Anda belum ditentukan. Silakan hubungi SDM."))
+	}
 
 	now := s.opt.Now()
-	schedule := scheduleOf(shift)
+	schedules := make([]Schedule, len(shifts))
+	for i, sh := range shifts {
+		schedules[i] = scheduleOf(sh)
+	}
+	picked := PickShift(now, schedules)
+	shift, schedule := shifts[picked], schedules[picked]
 	workDate := WorkDate(now, schedule)
 	// Cuti/izin yang disetujui sudah mencatat hari ini (F13); beri alasan yang jelas, bukan
 	// "sudah presensi masuk".

@@ -5654,9 +5654,11 @@ export interface components {
             status?: components["schemas"]["EmployeeStatus"];
             /**
              * Format: uuid
-             * @description Shift Pejuang. null = belum ditentukan
+             * @description Shift utama. Bila `shift_ids` tidak dikirim, mengganti seluruh daftar shift dengan shift ini (klien lama). null = belum ditentukan
              */
             default_shift_id?: string | null;
+            /** @description Seluruh daftar shift (D61); shift pertama menjadi shift utama. Hari kerja antar-shift tidak boleh bertabrakan (`VALIDATION_FAILED` pada `shift_ids`). Tidak dikirim = daftar tetap. */
+            shift_ids?: string[];
         };
         Employee: {
             /** Format: uuid */
@@ -5687,9 +5689,14 @@ export interface components {
             /** Format: date */
             join_date: string | null;
             status: components["schemas"]["EmployeeStatus"];
-            /** Format: uuid */
+            /**
+             * Format: uuid
+             * @description Shift utama
+             */
             default_shift_id: string | null;
             default_shift_name: string | null;
+            /** @description Semua shift Pejuang, shift utama lebih dulu (D61) */
+            shifts: components["schemas"]["EmployeeShift"][];
             /** @description Pejuang punya template wajah aktif */
             face_enrolled: boolean;
             /** @description Pejuang punya foto profil (`GET /v1/employees/{id}/photo`) */
@@ -6033,7 +6040,7 @@ export interface components {
             full_name: string;
             division: string;
             subdivision: string;
-            /** @description Hadir, menunggu review, cuti, dan alpha */
+            /** @description Hadir, menunggu review, cuti, dan alpha; hari dari shift setengah hari dihitung 0,5 (D61) */
             work_days: number;
             /** @description Hadir termasuk telat */
             present: number;
@@ -6630,6 +6637,18 @@ export interface components {
             late_tolerance_minutes?: number;
             /** @description 1=Senin sampai 7=Ahad */
             work_days?: number[];
+            kind?: components["schemas"]["ShiftKind"];
+        };
+        /**
+         * @description Reguler, atau setengah hari yang dihitung 0,5 hari kerja di rekap (D61). Bawaan regular.
+         * @enum {string}
+         */
+        ShiftKind: "regular" | "half_day";
+        EmployeeShift: {
+            /** Format: uuid */
+            id: string;
+            name: string;
+            kind: components["schemas"]["ShiftKind"];
         };
         ShiftInput: components["schemas"]["ShiftPatch"] & Record<string, never>;
         Shift: {
@@ -6640,6 +6659,7 @@ export interface components {
             end_time: string;
             late_tolerance_minutes: number;
             work_days: number[];
+            kind: components["schemas"]["ShiftKind"];
         };
         Holiday: {
             /** Format: date */

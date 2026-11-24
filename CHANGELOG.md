@@ -7,6 +7,15 @@ Perubahan penting yang terlihat oleh Pejuang, SDM, atau pengelola server. Keputu
 ## Belum dirilis
 
 ### Ditambahkan
+- **Shift ganda dan setengah hari (D61).** Satu Pejuang bisa punya beberapa shift dengan hari kerja berbeda, misalnya
+  Senin–Jumat reguler dan Sabtu setengah hari.
+  - Presensi masuk, alpha otomatis, dan monitor memilih shift yang hari kerjanya cocok.
+  - Shift punya jenis **Reguler** atau **Setengah hari**; hari dari shift setengah hari dihitung 0,5 di kolom hari kerja
+    rekap. Potongan payroll tidak berubah.
+  - Form Pejuang memakai pilihan banyak shift dengan peringatan bila hari kerjanya bertabrakan; shift yang dipilih
+    pertama menjadi shift utama.
+  - Impor: kolom Shift menerima beberapa nama dipisah koma, dan sheet Shift mendapat kolom Jenis.
+  - API Pejuang menerima `shift_ids` dan memuat `shifts`; `default_shift_id` tetap berlaku sebagai shift utama. Migrasi 22.
 - **Super admin mengatur akun SDM dan A2F per akun (D60).** Di Master Data → Pejuang, super admin bisa:
   - menjadikan Pejuang sebagai SDM atau mengembalikannya ke Pejuang; sesi orang itu dicabut agar peran baru langsung
     berlaku;

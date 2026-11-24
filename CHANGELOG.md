@@ -7,6 +7,14 @@ Perubahan penting yang terlihat oleh Pejuang, SDM, atau pengelola server. Keputu
 ## Belum dirilis
 
 ### Ditambahkan
+- **Pemberitahuan versi baru aplikasi (D63).** Super admin mengisi versi terbaru, versi minimum, tautan, dan catatan
+  rilis di Pengaturan → **Versi aplikasi Android**.
+  - Aplikasi yang lebih lama menampilkan banner **Versi baru tersedia** dengan tombol **Perbarui**. Bila terpasang dari
+    Play Store, pembaruan memakai layar bawaan Play; selain itu tautan pembaruan dibuka.
+  - Aplikasi di bawah versi minimum menampilkan layar **Perbarui aplikasi** dan server menolak permintaannya
+    (426 `APP_UPDATE_REQUIRED`). Web tidak terpengaruh.
+  - Profil → **Versi aplikasi** kini memeriksa pembaruan.
+  - Endpoint `GET /v1/app/version` dan `GET`/`PUT /v1/admin/settings/app-version`, audit `settings.changed`.
 - **Aplikasi tetap bisa dipakai saat internet putus (D62).** Aplikasi tidak lagi keluar sendiri saat sinyal hilang
   atau server sedang sibuk; sesi hanya berakhir bila server menolaknya.
   - Profil, riwayat presensi, pengumuman beserta lampiran yang pernah dibuka, pengajuan, dan persetujuan disimpan

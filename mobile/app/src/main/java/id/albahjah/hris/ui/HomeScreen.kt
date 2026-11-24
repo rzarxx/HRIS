@@ -19,6 +19,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -39,6 +40,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import id.albahjah.hris.BuildConfig
+import id.albahjah.hris.data.AppVersion
 import id.albahjah.hris.data.AttendanceRecord
 import id.albahjah.hris.data.Me
 import id.albahjah.hris.data.MyAnnouncement
@@ -72,6 +74,8 @@ fun HomeContent(
     onPayslip: () -> Unit = {},
     footer: String? = null,
     offlineSince: Long? = null,
+    update: AppVersion? = null,
+    onUpdate: () -> Unit = {},
 ) {
     StatusBarIcons(dark = true)
     val ready = me.deviceStatus == "approved" && !me.mustChangePassword
@@ -96,6 +100,18 @@ fun HomeContent(
         }
 
         if (crash != null) CrashNotice(crash, onCopyCrash, onDismissCrash)
+        if (update != null) {
+            // Versi baru tersedia (D63); aplikasi tetap bisa dipakai sampai diperbarui.
+            StatusBanner(
+                Tone.Info,
+                Icons.Filled.Refresh,
+                "Versi baru tersedia",
+                listOfNotNull(
+                    "Versi ${update.latestName} siap dipasang.",
+                    update.notes.lineSequence().firstOrNull { it.isNotBlank() },
+                ).joinToString(" "),
+            ) { BannerAction("Perbarui", enabled = true, onClick = onUpdate) }
+        }
         if (offlineSince != null) {
             // Sesi tetap tersimpan saat internet putus (D62); data yang tampil adalah salinan terakhir.
             StatusBanner(

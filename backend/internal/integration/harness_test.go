@@ -294,6 +294,7 @@ func fresh(t *testing.T, opt options) *httptest.Server {
 		SessionCheck: authSvc.SessionState,
 		Limiter:      limiter,
 		Ready:        appPool.Ping,
+		MinAppCode:   settingsSvc.MinAppCode,
 		Options:      server.Options{},
 	}))
 	t.Cleanup(srv.Close)

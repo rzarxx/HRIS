@@ -7,6 +7,7 @@ import type {
   AdminDevice,
   AnnouncementListItem,
   AnnouncementReader,
+  AppVersion,
   Branding,
   SmtpSettings,
   StorageSettings,
@@ -182,6 +183,13 @@ export const useBranding = () =>
     queryFn: () => api.get<ItemResponse<Branding>>("/branding").then((r) => r.data),
     staleTime: 60 * 60 * 1000,
     retry: 1,
+  });
+
+/** Versi aplikasi Android terbaru dan minimum (D63), diatur super admin. */
+export const useAppVersion = () =>
+  useQuery({
+    queryKey: ["settings", "app-version"],
+    queryFn: () => api.get<ItemResponse<AppVersion>>("/admin/settings/app-version").then((r) => r.data),
   });
 
 /** Pengaturan SMTP (super admin); kata sandi tidak pernah dikirim balik. */

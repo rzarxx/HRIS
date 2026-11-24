@@ -39,6 +39,8 @@ import androidx.compose.ui.unit.dp
 import id.albahjah.hris.BuildConfig
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import id.albahjah.hris.data.AnnouncementAttachment
+import id.albahjah.hris.data.AppVersion
+import id.albahjah.hris.data.UpdateLevel
 import id.albahjah.hris.data.AttendanceRecord
 import id.albahjah.hris.data.FontSize
 import id.albahjah.hris.data.Me
@@ -65,6 +67,8 @@ fun MainScreen(
     onLoggedOut: () -> Unit,
     /** Null bila HP tidak punya sidik jari, wajah, atau PIN; selain itu meminta konfirmasi lalu mengaktifkan kunci. */
     onEnableAppLock: (() -> Unit)? = null,
+    /** Memulai pembaruan: Play in-app update bila terpasang dari Play Store, selain itu membuka tautan (D63). */
+    onStartUpdate: (String) -> Unit = {},
 ) {
     val scope = rememberCoroutineScope()
     val clipboard = LocalClipboardManager.current
@@ -104,6 +108,17 @@ fun MainScreen(
     }
 
     val offlineSince by repository.offlineSince.collectAsState()
+    val appUpdate by repository.appUpdate.collectAsState()
+    val checkUpdate: () -> Unit = {
+        scope.launch {
+            val state = repository.checkAppVersion(force = true)
+            when (state?.level) {
+                null -> notify("Belum bisa memeriksa pembaruan. Periksa koneksi internet.")
+                UpdateLevel.None -> notify("Aplikasi sudah versi terbaru.")
+                else -> onStartUpdate(state.version.storeUrl)
+            }
+        }
+    }
 
     LaunchedEffect(reload) {
         // Tampilkan salinan terakhir lebih dulu agar beranda tidak kosong saat server lambat atau offline (D62).
@@ -271,6 +286,9 @@ fun MainScreen(
             onLogout = { askLogout = true },
             footer = repository.prefs.footer,
             offlineSince = offlineSince,
+            update = appUpdate?.takeIf { it.level == UpdateLevel.Available }?.version,
+            onUpdate = { appUpdate?.let { onStartUpdate(it.version.storeUrl) } },
+            onCheckUpdate = checkUpdate,
             fontSize = repository.prefs.fontSize,
             onFontSize = { sub = SubPage.FontSize },
             requests = RequestsUi(
@@ -395,6 +413,9 @@ fun MainTabs(
     offlineSince: Long? = null,
     appLock: Boolean? = null,
     onAppLock: (Boolean) -> Unit = {},
+    update: AppVersion? = null,
+    onUpdate: () -> Unit = {},
+    onCheckUpdate: (() -> Unit)? = null,
 ) {
     // Isi tab menjadi sumber blur; bottom bar kaca mengambang di atasnya.
     val haze = remember { HazeState() }
@@ -426,6 +447,8 @@ fun MainTabs(
                         onPayslip = { onTab(MainTab.Payslip) },
                         footer = footer,
                         offlineSince = offlineSince,
+                        update = update,
+                        onUpdate = onUpdate,
                     )
                 }
                 MainTab.Attendance -> RefreshBox(refreshing && records != null, onRefresh, Modifier.fillMaxSize()) {
@@ -448,7 +471,7 @@ fun MainTabs(
                         onBack = { onTab(MainTab.Home) },
                         onPersonalData = onPersonalData,
                         onChangePassword = onChangePassword,
-                        onCheckUpdate = null,
+                        onCheckUpdate = onCheckUpdate,
                         onLogout = onLogout,
                         fontSize = fontSize,
                         onFontSize = onFontSize,

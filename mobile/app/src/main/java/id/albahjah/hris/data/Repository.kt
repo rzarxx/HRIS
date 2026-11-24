@@ -60,6 +60,11 @@ class Repository(
     private val cache: LocalCache? = null,
 ) {
     private val offline = MutableStateFlow<Long?>(null)
+    private val update = MutableStateFlow<AppUpdateState?>(null)
+    private var versionCheckedAt = 0L
+
+    /** Hasil pemeriksaan versi terakhir; Required juga terisi saat server menjawab 426 (D63). */
+    val appUpdate: StateFlow<AppUpdateState?> = update.asStateFlow()
 
     /** Waktu data cache yang sedang tampil karena server belum bisa dihubungi; null bila online (D62). */
     val offlineSince: StateFlow<Long?> = offline.asStateFlow()
@@ -127,7 +132,29 @@ class Repository(
         } catch (e: CancellationException) {
             throw e
         } catch (e: Throwable) {
-            throw e.toApiError()
+            val err = e.toApiError()
+            if (err.code == "APP_UPDATE_REQUIRED") {
+                update.value = AppUpdateState(UpdateLevel.Required, update.value?.version ?: AppVersion())
+            }
+            throw err
+        }
+    }
+
+    /**
+     * Membandingkan versi terpasang dengan versi di server (D63), paling sering sekali per jam kecuali [force].
+     * Gagal dimuat (mis. offline) mengembalikan hasil terakhir, atau null bila belum pernah berhasil.
+     */
+    suspend fun checkAppVersion(force: Boolean = false): AppUpdateState? {
+        val now = System.currentTimeMillis()
+        if (!force && versionCheckedAt != 0L && now - versionCheckedAt < APP_VERSION_CHECK_MS) return update.value
+        return try {
+            val version = call { appVersion().data }
+            versionCheckedAt = now
+            AppUpdateState(updateLevel(BuildConfig.VERSION_CODE, version), version).also { update.value = it }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            update.value
         }
     }
 

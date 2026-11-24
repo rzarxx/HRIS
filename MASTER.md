@@ -179,9 +179,10 @@ Role `superadmin` (D34) adalah role tertinggi dan tidak ditulis sebagai kolom di
 - Bisa mengelola semua akun, kecuali mereset kata sandi akun SDM (D33).
 - SDM tidak bisa mengunci, mereset, mengubah, menonaktifkan, mengatur lokasi absen, atau mencabut perangkat super admin. Bila lupa kata sandi: `hris-superadmin reset`.
 - SDM tetap bisa menyetujui perangkat baru super admin, karena perangkat sendiri harus disetujui peninjau lain. Bila HP super admin hilang, super admin sendiri yang mencabutnya; SDM tidak bisa menggantikan.
-- MFA wajib. Role diberikan lewat `hris-superadmin grant --email ...` di server, pada akun Pejuang biasa; `--email` juga menerima NIPY atau nomor WA (D53). Bila akun lama belum pernah aktif, kata sandi awal tampil di terminal dan wajib diganti saat login pertama.
+- MFA wajib, tidak bisa dijadikan opsional (D60). Role diberikan lewat `hris-superadmin grant --email ...` di server, pada akun Pejuang biasa; `--email` juga menerima NIPY atau nomor WA (D53). Bila akun lama belum pernah aktif, kata sandi awal tampil di terminal dan wajib diganti saat login pertama.
 - Penampil audit yang dibuat nanti wajib menyembunyikan nilai `employee.salary_changed` dari super admin.
 - `settings:manage` (pengaturan aplikasi: footer web dan aplikasi, SMTP, penyimpanan S3) **hanya milik super admin**, tidak dimiliki SDM.
+- `account:manage` (D60) **hanya milik super admin**: menjadikan Pejuang sebagai SDM atau sebaliknya, dan mengatur A2F wajib atau opsional per akun SDM. Super admin selalu wajib A2F.
 
 | Permission key | pejuang | subdiv | kadiv | sdm |
 |---|---|---|---|---|
@@ -191,6 +192,7 @@ Role `superadmin` (D34) adalah role tertinggi dan tidak ditulis sebagai kolom di
 | `employee:read` | | subdivision | division | all |
 | `employee:write` | | | | ✔ |
 | `user:manage` (kunci, buka kunci, cabut sesi) | | | | ✔ |
+| `account:manage` (peran SDM dan A2F wajib per akun, D60) | | | | hanya super admin |
 | `user:reset` (terbitkan tautan sandi baru) | | | | ✔ |
 | `device:register` | self | self | self | self |
 | `device:review` | | | | ✔ |
@@ -503,7 +505,7 @@ Data biometrik tergolong data pribadi bersifat spesifik dalam UU PDP (UU 27/2022
 - Monitoring: error rate, latensi clock-in, lonjakan login gagal, lonjakan `review`.
 
 ### 5.11 Registry Event Audit
-`auth.login_success`, `auth.login_failed`, `auth.logout`, `auth.mfa_enabled`, `auth.mfa_failed`, `auth.password_changed`, `auth.session_revoked`, `auth.refresh_reuse_detected`, `org.updated`, `user.created`, `user.locked`, `user.unlocked`, `user.role_changed`, `user.password_reset`, `user.email_changed`, `user.email_change_requested`, `auth.password_reset_requested`, `auth.password_reset_completed`, `email.delivery_failed`, `employee.created`, `employee.updated`, `employee.deactivated`, `employee.imported`, `employee.salary_changed`, `device.registered`, `device.approved`, `device.revoked`, `device.integrity_tier_changed`, `employee.work_arrangement_changed`, `face.enrolled`, `face.reset`, `attendance.clock_in`, `attendance.clock_out`, `attendance.rejected`, `attendance.review_resolved`, `attendance.adjusted`, `approval.approved`, `approval.rejected`, `leave.requested`, `leave.cancelled`, `leave_type.changed`, `payroll.rules_changed`, `payroll.generated`, `payroll.submitted`, `payroll.finalized`, `payroll.paid`, `warning.issued`, `announcement.created`, `announcement.updated`, `announcement.deleted`, `settings.changed`, `data.exported`.
+`auth.login_success`, `auth.login_failed`, `auth.logout`, `auth.mfa_enabled`, `auth.mfa_failed`, `auth.password_changed`, `auth.session_revoked`, `auth.refresh_reuse_detected`, `org.updated`, `user.created`, `user.locked`, `user.unlocked`, `user.role_changed`, `user.mfa_policy_changed`, `user.password_reset`, `user.email_changed`, `user.email_change_requested`, `auth.password_reset_requested`, `auth.password_reset_completed`, `email.delivery_failed`, `employee.created`, `employee.updated`, `employee.deactivated`, `employee.imported`, `employee.salary_changed`, `device.registered`, `device.approved`, `device.revoked`, `device.integrity_tier_changed`, `employee.work_arrangement_changed`, `face.enrolled`, `face.reset`, `attendance.clock_in`, `attendance.clock_out`, `attendance.rejected`, `attendance.review_resolved`, `attendance.adjusted`, `approval.approved`, `approval.rejected`, `leave.requested`, `leave.cancelled`, `leave_type.changed`, `payroll.rules_changed`, `payroll.generated`, `payroll.submitted`, `payroll.finalized`, `payroll.paid`, `warning.issued`, `announcement.created`, `announcement.updated`, `announcement.deleted`, `settings.changed`, `data.exported`.
 
 Tambahan event: `face.capture_viewed` untuk akses selfie peninjauan, `face.remote_permission_granted` dan `face.remote_permission_revoked` untuk pengelolaan izin jarak jauh. Pemakaian izin dicatat pada `face.enrolled`.
 
@@ -681,6 +683,7 @@ Daftar memakai `?page=&per_page=&q=&sort=` (contoh `sort=-created_at`) dan filte
 | 422 | `SMTP_TEST_FAILED` | Email uji pengaturan SMTP belum terkirim; `details.stage`: connect, tls, auth, atau send. Pengaturan lama tetap dipakai |
 | 400 | `RESET_TOKEN_INVALID` | Tautan reset kata sandi salah, kedaluwarsa, atau sudah dipakai |
 | 400 | `EMAIL_CHANGE_INVALID` | Tautan konfirmasi ganti email salah, kedaluwarsa, atau sudah dipakai |
+| 409 | `ACCOUNT_CHANGE_NOT_ALLOWED` | Peran atau A2F akun tidak bisa diubah dari panel (super admin, kepala unit, atau Pejuang nonaktif) |
 | 503 | `FILE_SCAN_UNAVAILABLE` | Pemindai malware tidak tersedia atau gagal memberi hasil; unggahan ditolak |
 
 Setiap `code` baru wajib ditambahkan di tabel ini.
@@ -757,6 +760,8 @@ Setiap `code` baru wajib ditambahkan di tabel ini.
 | POST | `/v1/admin/employees/{id}/deactivate` | `employee:write` |
 | PUT | `/v1/admin/employees/{id}/locations` | `employee:write` |
 | POST | `/v1/admin/users/{user_id}/reset-password`, `/lock`, `/unlock`, `/revoke-sessions` | `user:manage`. Reset menjawab `initial_password` (D53) |
+| PUT | `/v1/admin/users/{user_id}/role` | `account:manage`. Body `role` (`sdm`/`pejuang`); cabut semua sesi akun (D60) |
+| PUT | `/v1/admin/users/{user_id}/mfa-policy` | `account:manage`. Body `required`; hanya akun SDM (D60) |
 | GET | `/v1/admin/devices?status=` | `device:review` |
 | POST | `/v1/admin/devices/{id}/approve`, `/revoke`, `/tier` | `device:review` |
 | POST | `/v1/admin/employees/{id}/face/reset` | `face:reset` |
@@ -1701,6 +1706,7 @@ Estimasi untuk tim kecil; sesuaikan setelah kapasitas tim jelas.
 | D55 | Deteksi wajah dibuat lebih mudah untuk Pejuang lanjut usia. Di aplikasi: bingkai oval lebih longgar (jarak, posisi, kemiringan 20°), cukup tahan 5 frame, ambang mata terbuka, senyum, dan toleh (20°) diturunkan, serta pemeriksaan foto lebih toleran. Di server: lebar wajah minimal 15% foto, pusat di 70% bagian tengah, skor deteksi YuNet 0.6, kemiripan antarselfie pendaftaran 0.45, dan batas rasio toleh 0.26/0.13/0.07. Bila cahaya kurang (rata-rata luma kamera rendah), layar dibuat terang penuh dan sekeliling oval menjadi putih sebagai lampu wajah. Ambang pencocokan identitas presensi (0.50/0.46) **tidak** diubah | Banyak Pejuang berusia lanjut kesulitan menahan posisi, mata cenderung sipit, dan sering presensi di ruangan redup. Ambang identitas tetap karena pasangan orang berbeda paling mirip di uji banding 0.448; menurunkannya membuka peluang presensi diwakilkan. Konsekuensi: foto yang sedikit miring atau kecil lebih sering lolos ke pencocokan; ambang wajib dikalibrasi ulang dengan `hris-calibrate -from-db` setelah 1–2 minggu data lapangan |
 | D56 | Template impor Pejuang memuat Peran (Kepala Subdiv, Kepala Divisi, Pejuang), Shift, dan Lokasi 1–3, ditambah sheet Lokasi dan Shift. Cabang, divisi, dan subdiv yang belum ada dibuat otomatis dengan kode dari namanya; lokasi dan shift baru ditulis di baris kosong sheet-nya. Semua dibuat di transaksi impor yang sama dan tampil di pratinjau (`new_items`). Data lama di sheet Lokasi dan Shift hanya rujukan dan tidak diubah lewat impor. Peran memasang kepala unit lalu role akun kepala baru dan lama disesuaikan seperti D49. Data anak hanya diubah SDM; Pejuang hanya membacanya (`PUT /v1/me/children` dihapus) | Permintaan pemilik proyek agar satu berkas cukup untuk menyiapkan struktur, penempatan, jadwal, dan lokasi presensi sekaligus, dan agar data anak (dasar tunjangan) hanya dikelola SDM. Konsekuensi: salah ketik nama cabang/divisi/subdiv membuat unit baru, sehingga pratinjau wajib diperiksa; nama lokasi dan shift yang kembar di database harus dibedakan lebih dulu di web |
 | D59 | Ganti email oleh Pejuang sendiri menunggu konfirmasi lewat tautan di email baru bila SMTP aktif; email lama diberi tahu. Ganti email oleh SDM (form atau impor) langsung berlaku, mencabut semua sesi Pejuang itu, dan memberi tahu email lama dan baru. Tanpa SMTP, perilaku lama tetap (langsung setelah cek kata sandi) | Lupa kata sandi lewat email (D30) membuat email menjadi kunci akun: tanpa konfirmasi, orang yang sempat memegang kata sandi bisa memindahkan akun ke email miliknya tanpa ketahuan. SDM tetap bisa mengganti langsung karena sudah berwenang mereset kata sandi, dan Pejuang yang kehilangan email lama butuh jalan keluar. Konsekuensi: email baru tidak aktif sampai dikonfirmasi; tautan 24 jam, maks 3 permintaan per jam |
+| D60 | Super admin bisa menjadikan Pejuang sebagai SDM atau mengembalikan SDM menjadi Pejuang dari panel (`PUT /v1/admin/users/{user_id}/role`), dan mengatur A2F wajib atau opsional per akun SDM (`PUT /v1/admin/users/{user_id}/mfa-policy`). Permission baru `account:manage` hanya milik super admin. Super admin selalu wajib A2F dan perannya tetap hanya lewat perintah server; kepala unit mengikuti struktur organisasi. Memperbarui D25 (tidak ada endpoint ubah role) | Permintaan pemilik proyek: super admin perlu menambah akun SDM tanpa akses server, dan sebagian SDM belum punya HP yang memadai untuk authenticator. Konsekuensi: akun SDM dengan A2F opsional lebih mudah diambil alih bila kata sandinya bocor, sehingga pilihan ini dicatat di audit (`user.mfa_policy_changed`) dan bawaannya tetap wajib; ubah peran mencabut semua sesi akun itu |
 | D15 | `/v1/admin/reports/payroll-preview` mewajibkan `attendance:report` dan `payroll:manage` | Respons memuat gaji, sedangkan §7.6 membatasi `base_salary` untuk `sdm` dan pemilik data |
 
 ### 14.2 Pertanyaan yang Harus Dijawab (blokir pekerjaan terkait)

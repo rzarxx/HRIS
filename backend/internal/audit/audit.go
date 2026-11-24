@@ -43,6 +43,7 @@ const (
 	AnnouncementDeleted            = "announcement.deleted"
 	SettingsChanged                = "settings.changed"
 	UserRoleChanged                = "user.role_changed"
+	UserMFAPolicyChanged           = "user.mfa_policy_changed"
 	DeviceRegistered               = "device.registered"
 	DeviceApproved                 = "device.approved"
 	DeviceRevoked                  = "device.revoked"

@@ -1967,6 +1967,109 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/admin/users/{user_id}/role": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                user_id: string;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Jadikan SDM atau kembalikan ke Pejuang
+         * @description Permission `account:manage` (hanya super admin, D60). Hanya `pejuang` ↔ `sdm`: kepala unit mengikuti struktur organisasi dan super admin hanya lewat perintah server (`ACCOUNT_CHANGE_NOT_ALLOWED`). Akun sendiri ditolak (`CONFLICT_SELF_ACTION`). Semua sesi akun dicabut agar peran baru langsung berlaku; akun yang baru menjadi SDM wajib mengaktifkan A2F kecuali dijadikan opsional. Dicatat `user.role_changed` dengan sumber `panel`.
+         */
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    user_id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        /** @enum {string} */
+                        role: "sdm" | "pejuang";
+                    };
+                };
+            };
+            responses: {
+                /** @description Peran diubah */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                400: components["responses"]["ValidationFailed"];
+                403: components["responses"]["Error"];
+                404: components["responses"]["Error"];
+                409: components["responses"]["Error"];
+            };
+        };
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/users/{user_id}/mfa-policy": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                user_id: string;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Atur A2F wajib atau opsional untuk akun SDM
+         * @description Permission `account:manage` (hanya super admin, D60). Hanya untuk akun SDM; super admin selalu wajib A2F (`ACCOUNT_CHANGE_NOT_ALLOWED`). Opsional tidak mematikan A2F yang sudah aktif. Dicatat `user.mfa_policy_changed`.
+         */
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    user_id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        required: boolean;
+                    };
+                };
+            };
+            responses: {
+                /** @description Tersimpan */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                400: components["responses"]["ValidationFailed"];
+                403: components["responses"]["Error"];
+                404: components["responses"]["Error"];
+                409: components["responses"]["Error"];
+            };
+        };
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/attendance/challenge": {
         parameters: {
             query?: never;
@@ -5338,12 +5441,12 @@ export interface components {
          * @description Registry MASTER.md §7.4
          * @enum {string}
          */
-        ErrorCode: "VALIDATION_FAILED" | "AUTH_INVALID_CREDENTIALS" | "AUTH_TOKEN_INVALID" | "AUTH_MFA_REQUIRED" | "AUTH_MFA_INVALID" | "FORBIDDEN_ROLE" | "CSRF_INVALID" | "PASSWORD_CHANGE_REQUIRED" | "MFA_SETUP_REQUIRED" | "DEVICE_NOT_REGISTERED" | "DEVICE_PENDING_APPROVAL" | "DEVICE_REVOKED" | "APPROVAL_NOT_YOUR_TURN" | "APPROVAL_SELF_FORBIDDEN" | "MAKER_CHECKER_VIOLATION" | "NOT_FOUND" | "METHOD_NOT_ALLOWED" | "ALREADY_CLOCKED_IN" | "ALREADY_CLOCKED_OUT" | "SHIFT_NOT_ASSIGNED" | "NOT_CLOCKED_IN" | "REQUEST_NOT_PENDING" | "PERIOD_LOCKED" | "DUPLICATE_REQUEST" | "CONFLICT_DUPLICATE" | "CONFLICT_HAS_DEPENDENTS" | "CONFLICT_SELF_ACTION" | "MFA_ALREADY_ENABLED" | "PAYLOAD_TOO_LARGE" | "UNSUPPORTED_MEDIA_TYPE" | "GEOFENCE_OUT" | "FACE_NOT_ENROLLED" | "FACE_MISMATCH" | "LIVENESS_FAILED" | "FACE_NOT_DETECTED" | "FACE_SERVICE_UNAVAILABLE" | "STORAGE_UNAVAILABLE" | "STORAGE_DESTINATION_LOCKED" | "STORAGE_TEST_FAILED" | "STORAGE_NOT_ACTIVE" | "STORAGE_SOURCE_MISSING" | "STORAGE_SYNC_BUSY" | "STORAGE_SYNC_FAILED" | "FILE_UNSAFE" | "FILE_SCAN_UNAVAILABLE" | "SMTP_TEST_FAILED" | "RESET_TOKEN_INVALID" | "EMAIL_CHANGE_INVALID" | "CHALLENGE_EXPIRED" | "ATTENDANCE_BLOCKED" | "LEAVE_ACTIVE" | "READ_TOO_SOON" | "AUTH_ACCOUNT_LOCKED" | "AUTH_INITIAL_PASSWORD_EXPIRED" | "APP_UPDATE_REQUIRED" | "RATE_LIMITED" | "API_ACCESS_DENIED" | "INTERNAL_ERROR";
+        ErrorCode: "VALIDATION_FAILED" | "AUTH_INVALID_CREDENTIALS" | "AUTH_TOKEN_INVALID" | "AUTH_MFA_REQUIRED" | "AUTH_MFA_INVALID" | "FORBIDDEN_ROLE" | "CSRF_INVALID" | "PASSWORD_CHANGE_REQUIRED" | "MFA_SETUP_REQUIRED" | "DEVICE_NOT_REGISTERED" | "DEVICE_PENDING_APPROVAL" | "DEVICE_REVOKED" | "APPROVAL_NOT_YOUR_TURN" | "APPROVAL_SELF_FORBIDDEN" | "MAKER_CHECKER_VIOLATION" | "NOT_FOUND" | "METHOD_NOT_ALLOWED" | "ALREADY_CLOCKED_IN" | "ALREADY_CLOCKED_OUT" | "SHIFT_NOT_ASSIGNED" | "NOT_CLOCKED_IN" | "REQUEST_NOT_PENDING" | "PERIOD_LOCKED" | "DUPLICATE_REQUEST" | "CONFLICT_DUPLICATE" | "CONFLICT_HAS_DEPENDENTS" | "CONFLICT_SELF_ACTION" | "MFA_ALREADY_ENABLED" | "PAYLOAD_TOO_LARGE" | "UNSUPPORTED_MEDIA_TYPE" | "GEOFENCE_OUT" | "FACE_NOT_ENROLLED" | "FACE_MISMATCH" | "LIVENESS_FAILED" | "FACE_NOT_DETECTED" | "FACE_SERVICE_UNAVAILABLE" | "STORAGE_UNAVAILABLE" | "STORAGE_DESTINATION_LOCKED" | "STORAGE_TEST_FAILED" | "STORAGE_NOT_ACTIVE" | "STORAGE_SOURCE_MISSING" | "STORAGE_SYNC_BUSY" | "STORAGE_SYNC_FAILED" | "FILE_UNSAFE" | "FILE_SCAN_UNAVAILABLE" | "SMTP_TEST_FAILED" | "RESET_TOKEN_INVALID" | "EMAIL_CHANGE_INVALID" | "ACCOUNT_CHANGE_NOT_ALLOWED" | "CHALLENGE_EXPIRED" | "ATTENDANCE_BLOCKED" | "LEAVE_ACTIVE" | "READ_TOO_SOON" | "AUTH_ACCOUNT_LOCKED" | "AUTH_INITIAL_PASSWORD_EXPIRED" | "APP_UPDATE_REQUIRED" | "RATE_LIMITED" | "API_ACCESS_DENIED" | "INTERNAL_ERROR";
         /**
          * @description Matriks MASTER.md §3.2
          * @enum {string}
          */
-        Permission: "profile:read" | "profile:update" | "org:read" | "org:write" | "employee:read" | "employee:write" | "user:manage" | "user:reset" | "device:register" | "device:review" | "face:enroll" | "face:reset" | "attendance:clock" | "attendance:read" | "attendance:review" | "attendance:report" | "location:manage" | "shift:manage" | "leave:create" | "cash_advance:create" | "transfer:create" | "leave:read" | "cash_advance:read" | "transfer:read" | "approval:act" | "payslip:read" | "payroll:manage" | "payroll:finalize" | "warning:read" | "warning:manage" | "announcement:read" | "announcement:manage" | "dashboard:read" | "approval_flow:manage" | "audit:read" | "settings:manage";
+        Permission: "profile:read" | "profile:update" | "org:read" | "org:write" | "employee:read" | "employee:write" | "user:manage" | "user:reset" | "device:register" | "device:review" | "face:enroll" | "face:reset" | "attendance:clock" | "attendance:read" | "attendance:review" | "attendance:report" | "location:manage" | "shift:manage" | "leave:create" | "cash_advance:create" | "transfer:create" | "leave:read" | "cash_advance:read" | "transfer:read" | "approval:act" | "payslip:read" | "payroll:manage" | "payroll:finalize" | "warning:read" | "warning:manage" | "announcement:read" | "announcement:manage" | "dashboard:read" | "approval_flow:manage" | "audit:read" | "settings:manage" | "account:manage";
         /** @enum {string} */
         EmployeeStatus: "active" | "inactive";
         /** @enum {string} */
@@ -5423,6 +5526,8 @@ export interface components {
             permissions: components["schemas"]["Permission"][];
             must_change_password: boolean;
             mfa_enabled: boolean;
+            /** @description A2F wajib untuk akun ini (D60): super admin selalu, SDM sesuai pengaturan super admin. */
+            mfa_required: boolean;
             /**
              * @description Status perangkat sesi aplikasi. Null untuk sesi web.
              * @enum {string|null}
@@ -5604,6 +5709,8 @@ export interface components {
             is_active: boolean;
             is_locked: boolean;
             mfa_enabled: boolean;
+            /** @description A2F wajib untuk akun ini (D60) */
+            mfa_required: boolean;
         };
         EmployeeCreated: components["schemas"]["Employee"] & {
             /** @description Kata sandi awal @NamaDepan+tahun (D53). Hanya tampil sekali. */

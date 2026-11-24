@@ -7,6 +7,15 @@ Perubahan penting yang terlihat oleh Pejuang, SDM, atau pengelola server. Keputu
 ## Belum dirilis
 
 ### Ditambahkan
+- **Super admin mengatur akun SDM dan A2F per akun (D60).** Di Master Data → Pejuang, super admin bisa:
+  - menjadikan Pejuang sebagai SDM atau mengembalikannya ke Pejuang; sesi orang itu dicabut agar peran baru langsung
+    berlaku;
+  - menjadikan A2F wajib atau opsional untuk akun SDM tertentu (bawaan tetap wajib). Super admin selalu wajib A2F, dan
+    A2F yang sudah aktif tetap diminta saat masuk.
+
+  Kepala unit tetap mengikuti Struktur Organisasi dan peran super admin tetap hanya lewat perintah server. Endpoint
+  `PUT /v1/admin/users/{user_id}/role` dan `/mfa-policy`, permission baru `account:manage`, audit
+  `user.mfa_policy_changed`; migrasi 21.
 - **Ganti email lebih aman (D59).** Bila SMTP aktif, email yang diganti Pejuang sendiri belum langsung berlaku.
   - Tautan konfirmasi dikirim ke email baru (berlaku 24 jam, sekali pakai) dan dibuka di halaman web
     `/konfirmasi-email`. Email lama diberi tahu dengan alamat baru disamarkan.

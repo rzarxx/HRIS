@@ -105,6 +105,9 @@ func routes(d Deps) []Route {
 		guarded(http.MethodPost, "/v1/admin/users/{user_id}/lock", d.Auth.AdminLock, permission.UserManage),
 		guarded(http.MethodPost, "/v1/admin/users/{user_id}/unlock", d.Auth.AdminUnlock, permission.UserManage),
 		guarded(http.MethodPost, "/v1/admin/users/{user_id}/revoke-sessions", d.Auth.AdminRevokeSessions, permission.UserManage),
+		// Peran SDM dan A2F wajib per akun, hanya super admin (D60).
+		guarded(http.MethodPut, "/v1/admin/users/{user_id}/role", d.Auth.AdminSetRole, permission.AccountManage),
+		guarded(http.MethodPut, "/v1/admin/users/{user_id}/mfa-policy", d.Auth.AdminSetMFAPolicy, permission.AccountManage),
 
 		guarded(http.MethodGet, "/v1/admin/branches", d.Org.ListBranches, permission.OrgWrite),
 		guarded(http.MethodPost, "/v1/admin/branches", d.Org.CreateBranch, permission.OrgWrite),

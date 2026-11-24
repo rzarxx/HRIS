@@ -913,6 +913,60 @@ paths:
         "403": { $ref: "#/components/responses/Error" }
         "404": { $ref: "#/components/responses/Error" }
 
+  /v1/admin/users/{user_id}/role:
+    parameters:
+      - { name: user_id, in: path, required: true, schema: { type: string, format: uuid } }
+    put:
+      tags: [Akun]
+      summary: Jadikan SDM atau kembalikan ke Pejuang
+      description: >-
+        Permission `account:manage` (hanya super admin, D60). Hanya `pejuang` ↔ `sdm`: kepala unit mengikuti
+        struktur organisasi dan super admin hanya lewat perintah server (`ACCOUNT_CHANGE_NOT_ALLOWED`). Akun sendiri
+        ditolak (`CONFLICT_SELF_ACTION`). Semua sesi akun dicabut agar peran baru langsung berlaku; akun yang baru
+        menjadi SDM wajib mengaktifkan A2F kecuali dijadikan opsional. Dicatat `user.role_changed` dengan sumber
+        `panel`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [role]
+              properties:
+                role: { type: string, enum: [sdm, pejuang] }
+      responses:
+        "204": { description: Peran diubah }
+        "400": { $ref: "#/components/responses/ValidationFailed" }
+        "403": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+        "409": { $ref: "#/components/responses/Error" }
+
+  /v1/admin/users/{user_id}/mfa-policy:
+    parameters:
+      - { name: user_id, in: path, required: true, schema: { type: string, format: uuid } }
+    put:
+      tags: [Akun]
+      summary: Atur A2F wajib atau opsional untuk akun SDM
+      description: >-
+        Permission `account:manage` (hanya super admin, D60). Hanya untuk akun SDM; super admin selalu wajib A2F
+        (`ACCOUNT_CHANGE_NOT_ALLOWED`). Opsional tidak mematikan A2F yang sudah aktif. Dicatat
+        `user.mfa_policy_changed`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [required]
+              properties:
+                required: { type: boolean }
+      responses:
+        "204": { description: Tersimpan }
+        "400": { $ref: "#/components/responses/ValidationFailed" }
+        "403": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+        "409": { $ref: "#/components/responses/Error" }
+
   /v1/attendance/challenge:
     post:
       tags: [Presensi]
@@ -2684,6 +2738,7 @@ components:
         - SMTP_TEST_FAILED
         - RESET_TOKEN_INVALID
         - EMAIL_CHANGE_INVALID
+        - ACCOUNT_CHANGE_NOT_ALLOWED
         - CHALLENGE_EXPIRED
         - ATTENDANCE_BLOCKED
         - LEAVE_ACTIVE
@@ -2734,6 +2789,7 @@ components:
         - "approval_flow:manage"
         - "audit:read"
         - "settings:manage"
+        - "account:manage"
     EmployeeStatus:
       type: string
       enum: [active, inactive]
@@ -2798,7 +2854,7 @@ components:
     Me:
       type: object
       required:
-        [user_id, employee_id, role, full_name, nip, email, phone, position, subdivision, division, permissions, must_change_password, mfa_enabled, face_enrolled, has_photo, photo_updated_at, pending_email]
+        [user_id, employee_id, role, full_name, nip, email, phone, position, subdivision, division, permissions, must_change_password, mfa_enabled, mfa_required, face_enrolled, has_photo, photo_updated_at, pending_email]
       properties:
         user_id: { type: string, format: uuid }
         employee_id: { type: string, format: uuid }
@@ -2814,6 +2870,7 @@ components:
           items: { $ref: "#/components/schemas/Permission" }
         must_change_password: { type: boolean }
         mfa_enabled: { type: boolean }
+        mfa_required: { type: boolean, description: "A2F wajib untuk akun ini (D60): super admin selalu, SDM sesuai pengaturan super admin." }
         device_status:
           type: string
           nullable: true
@@ -2998,13 +3055,14 @@ components:
           description: Hanya untuk pemegang user:manage. Tidak ada bila Pejuang belum punya akun.
     EmployeeAccount:
       type: object
-      required: [user_id, role, is_active, is_locked, mfa_enabled]
+      required: [user_id, role, is_active, is_locked, mfa_enabled, mfa_required]
       properties:
         user_id: { type: string, format: uuid }
         role: { $ref: "#/components/schemas/Role" }
         is_active: { type: boolean, description: false = akun dinonaktifkan }
         is_locked: { type: boolean }
         mfa_enabled: { type: boolean }
+        mfa_required: { type: boolean, description: "A2F wajib untuk akun ini (D60)" }
     EmployeeCreated:
       allOf:
         - $ref: "#/components/schemas/Employee"

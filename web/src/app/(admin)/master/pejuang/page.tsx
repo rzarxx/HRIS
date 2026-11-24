@@ -1,6 +1,6 @@
 "use client";
 
-import { CalendarClock, CalendarRange, FileSpreadsheet, KeyRound, Lock, LockOpen, MapPin, Pencil, Plus, ScanFace, Search, UserX, Video } from "lucide-react";
+import { CalendarClock, CalendarRange, FileSpreadsheet, KeyRound, Lock, LockOpen, MapPin, Pencil, Plus, ScanFace, Search, ShieldCheck, ShieldOff, UserCog, UserX, Video } from "lucide-react";
 import { useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useState } from "react";
 import { BulkArrangementModal } from "@/components/employees/bulk-arrangement-modal";
@@ -44,6 +44,8 @@ function EmployeesView() {
   const canFilterOrg = permissions.includes("org:write");
   const canResetFace = permissions.includes("face:reset");
   const isSuperadmin = me.data?.role === "superadmin";
+  // Peran SDM dan A2F wajib per akun hanya diatur super admin (D60).
+  const canManageAccounts = permissions.includes("account:manage");
   // Akun super admin tidak bisa diubah SDM; server tetap menegakkan aturan ini (D34).
   const isProtected = (e: EmployeeListItem) => !isSuperadmin && e.account?.role === "superadmin";
   // Server menolak aksi ini untuk akun sendiri, jadi tombolnya tidak perlu tampil.
@@ -102,6 +104,16 @@ function EmployeesView() {
   const setLock = useSave(
     ({ userId, lock }: { userId: string; lock: boolean }) => api.post(`/admin/users/${userId}/${lock ? "lock" : "unlock"}`),
     { success: "Status akun diperbarui." },
+  );
+  const [roleChange, setRoleChange] = useState<{ employee: EmployeeListItem; role: "sdm" | "pejuang" } | null>(null);
+  const setRole = useSave(
+    ({ userId, role }: { userId: string; role: "sdm" | "pejuang" }) => api.put(`/admin/users/${userId}/role`, { role }),
+    { success: "Peran diperbarui. Sesi orang itu dicabut agar peran baru langsung berlaku.", onDone: () => setRoleChange(null) },
+  );
+  const [mfaChange, setMfaChange] = useState<{ employee: EmployeeListItem; required: boolean } | null>(null);
+  const setMfaPolicy = useSave(
+    ({ userId, required }: { userId: string; required: boolean }) => api.put(`/admin/users/${userId}/mfa-policy`, { required }),
+    { success: "Pengaturan A2F diperbarui.", onDone: () => setMfaChange(null) },
   );
 
   const divOptions = (divisions.data ?? []).filter((d) => !branchId || d.branch_id === branchId);
@@ -247,6 +259,9 @@ function EmployeesView() {
                       <div className="flex flex-col items-start gap-1">
                         {e.status === "active" ? <Badge tone="green">Aktif</Badge> : <Badge>Nonaktif</Badge>}
                         {e.account?.is_locked && <Badge tone="red">Terkunci</Badge>}
+                        {e.account?.role === "sdm" && <Badge tone="accent">SDM</Badge>}
+                        {e.account?.role === "superadmin" && <Badge tone="accent">Super admin</Badge>}
+                        {e.account?.role === "sdm" && !e.account.mfa_required && <Badge tone="amber">A2F opsional</Badge>}
                         {e.status === "active" && e.account?.is_active && !e.face_enrolled && <Badge tone="amber">Wajah belum terdaftar</Badge>}
                       </div>
                     </Td>
@@ -294,6 +309,22 @@ function EmployeesView() {
                           )}
                         </>
                       )}
+                      {canManageAccounts && e.account && !isSelf(e) && e.status === "active" && (e.account.role === "pejuang" || e.account.role === "sdm") && (
+                        <IconButton
+                          label={e.account.role === "sdm" ? `Kembalikan ${e.full_name} ke Pejuang` : `Jadikan ${e.full_name} SDM`}
+                          onClick={() => setRoleChange({ employee: e, role: e.account!.role === "sdm" ? "pejuang" : "sdm" })}
+                        >
+                          <UserCog className="size-4" />
+                        </IconButton>
+                      )}
+                      {canManageAccounts && e.account?.role === "sdm" && !isSelf(e) && e.status === "active" && (
+                        <IconButton
+                          label={e.account.mfa_required ? `Jadikan A2F opsional untuk ${e.full_name}` : `Wajibkan A2F untuk ${e.full_name}`}
+                          onClick={() => setMfaChange({ employee: e, required: !e.account!.mfa_required })}
+                        >
+                          {e.account.mfa_required ? <ShieldOff className="size-4" /> : <ShieldCheck className="size-4" />}
+                        </IconButton>
+                      )}
                       {canWrite && !isProtected(e) && !isSelf(e) && e.status === "active" && (
                         <IconButton label={`Nonaktifkan ${e.full_name}`} onClick={() => setDeleting(e)} className="hover:text-red-600">
                           <UserX className="size-4" />
@@ -326,6 +357,52 @@ function EmployeesView() {
 
       {bulkOpen && <BulkArrangementModal onClose={() => setBulkOpen(false)} />}
       {importOpen && <ImportModal onClose={() => setImportOpen(false)} />}
+
+      {roleChange && (
+        <ConfirmDialog
+          open
+          title={roleChange.role === "sdm" ? "Jadikan SDM?" : "Kembalikan ke Pejuang?"}
+          message={
+            roleChange.role === "sdm" ? (
+              <>
+                <span className="font-medium">{roleChange.employee.full_name}</span> mendapat akses SDM: data seluruh Pejuang, ubar, payroll, dan
+                persetujuan. Sesinya dicabut, dan saat masuk lagi wajib mengaktifkan A2F kecuali Anda menjadikannya opsional.
+              </>
+            ) : (
+              <>
+                Akses SDM <span className="font-medium">{roleChange.employee.full_name}</span> dicabut dan sesinya dikeluarkan.
+              </>
+            )
+          }
+          confirmLabel={roleChange.role === "sdm" ? "Jadikan SDM" : "Kembalikan"}
+          loading={setRole.isPending}
+          onConfirm={() => setRole.mutate({ userId: roleChange.employee.account!.user_id, role: roleChange.role })}
+          onClose={() => setRoleChange(null)}
+        />
+      )}
+
+      {mfaChange && (
+        <ConfirmDialog
+          open
+          title={mfaChange.required ? "Wajibkan A2F?" : "Jadikan A2F opsional?"}
+          message={
+            mfaChange.required ? (
+              <>
+                <span className="font-medium">{mfaChange.employee.full_name}</span> wajib mengaktifkan A2F sebelum memakai fitur lain.
+              </>
+            ) : (
+              <>
+                <span className="font-medium">{mfaChange.employee.full_name}</span> bisa masuk tanpa A2F. Akun SDM tanpa A2F lebih mudah diambil alih bila
+                kata sandinya bocor. A2F yang sudah aktif tetap diminta saat masuk.
+              </>
+            )
+          }
+          confirmLabel={mfaChange.required ? "Wajibkan" : "Jadikan opsional"}
+          loading={setMfaPolicy.isPending}
+          onConfirm={() => setMfaPolicy.mutate({ userId: mfaChange.employee.account!.user_id, required: mfaChange.required })}
+          onClose={() => setMfaChange(null)}
+        />
+      )}
 
       {credential && <InitialPasswordModal name={credential.name} nip={credential.nip} password={credential.password} expiresAt={credential.expiresAt} onClose={() => setCredential(null)} />}
 

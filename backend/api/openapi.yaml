@@ -182,6 +182,27 @@ paths:
                 required: [data]
                 properties:
                   data: { $ref: "#/components/schemas/Branding" }
+  /v1/app/version:
+    get:
+      tags: [Sistem]
+      summary: Versi aplikasi Android terbaru dan minimum
+      description: >-
+        Tanpa login dan tetap dilayani untuk aplikasi lama (D63). Kode versi sama dengan versionCode aplikasi
+        (major·10000 + minor·100 + patch). Aplikasi menampilkan pemberitahuan bila `latest_code` lebih tinggi
+        dari versinya, dan layar wajib perbarui bila di bawah `min_code`. Permintaan aplikasi dengan header
+        `X-App-Version` di bawah `min_code` dijawab 426 `APP_UPDATE_REQUIRED` (kecuali endpoint ini, branding,
+        login, refresh, dan logout aplikasi). Nol berarti belum diatur.
+      security: []
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data: { $ref: "#/components/schemas/AppVersion" }
   /v1/auth/password/change:
     post:
       tags: [Auth]
@@ -2091,6 +2112,50 @@ paths:
                 properties:
                   data: { $ref: "#/components/schemas/Branding" }
         "400": { $ref: "#/components/responses/ValidationFailed" }
+  /v1/admin/settings/app-version:
+    get:
+      tags: [Sistem]
+      summary: Pengaturan versi aplikasi Android
+      description: Permission `settings:manage` (hanya super admin).
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data: { $ref: "#/components/schemas/AppVersion" }
+    put:
+      tags: [Sistem]
+      summary: Ubah versi aplikasi terbaru dan minimum
+      description: >-
+        Permission `settings:manage` (hanya super admin). `min_code` tidak boleh melebihi `latest_code`;
+        menaikkan `min_code` membuat aplikasi lama dijawab 426 dan menampilkan layar wajib perbarui (berlaku dalam
+        1 menit). `store_url` kosong memakai halaman Play Store. Dicatat sebagai `settings.changed`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/AppVersionInput" }
+            example:
+              latest_code: 1400
+              latest_name: "0.14.0"
+              min_code: 1300
+              store_url: ""
+              notes: "Aplikasi tetap bisa dibuka saat offline dan bisa dikunci dengan sidik jari."
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data: { $ref: "#/components/schemas/AppVersion" }
+        "400": { $ref: "#/components/responses/ValidationFailed" }
   /v1/admin/settings/smtp:
     get:
       tags: [Sistem]
@@ -3331,6 +3396,25 @@ components:
         footer_template: { type: string, description: "Teks yang diatur; {tahun} diganti tahun berjalan (WIB)" }
         is_default: { type: boolean, description: True bila super admin belum mengubah footer }
         updated_at: { type: string, format: date-time, nullable: true }
+    AppVersion:
+      type: object
+      required: [latest_code, latest_name, min_code, store_url, notes, updated_at]
+      properties:
+        latest_code: { type: integer, description: "versionCode terbaru; 0 bila belum diatur" }
+        latest_name: { type: string, description: "Nama versi terbaru, mis. 0.14.0; kosong bila belum diatur" }
+        min_code: { type: integer, description: "versionCode minimum yang masih dilayani; 0 berarti semua versi" }
+        store_url: { type: string, description: "Tautan pembaruan; bawaan halaman Play Store" }
+        notes: { type: string, description: "Catatan rilis singkat, teks murni, boleh beberapa baris" }
+        updated_at: { type: string, format: date-time, nullable: true }
+    AppVersionInput:
+      type: object
+      required: [latest_code, latest_name, min_code]
+      properties:
+        latest_code: { type: integer, minimum: 0, maximum: 2100000000 }
+        latest_name: { type: string, description: "Bentuk x.y.z; wajib bila latest_code lebih dari 0" }
+        min_code: { type: integer, minimum: 0, description: "Tidak boleh melebihi latest_code" }
+        store_url: { type: string, description: "https://; kosong memakai halaman Play Store" }
+        notes: { type: string, maxLength: 500 }
     FooterInput:
       type: object
       properties:

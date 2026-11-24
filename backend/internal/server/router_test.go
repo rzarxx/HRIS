@@ -177,6 +177,7 @@ var publicPaths = map[string]bool{
 	"/v1/auth/password/reset":  true,
 	"/v1/auth/email/confirm":   true,
 	"/v1/branding":             true,
+	"/v1/app/version":          true,
 }
 
 // Saat sandi atau MFA belum dipenuhi, hanya route akun sendiri yang terbuka.

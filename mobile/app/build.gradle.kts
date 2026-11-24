@@ -127,6 +127,8 @@ dependencies {
     implementation("com.google.mlkit:face-detection:16.1.7")
     implementation("com.google.android.gms:play-services-location:21.3.0")
     implementation("com.google.android.play:integrity:1.4.0")
+    // Pembaruan bawaan Play Store (D63).
+    implementation("com.google.android.play:app-update-ktx:2.1.0")
 
     testImplementation("junit:junit:4.13.2")
 }

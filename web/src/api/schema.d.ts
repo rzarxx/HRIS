@@ -390,6 +390,47 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/app/version": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Versi aplikasi Android terbaru dan minimum
+         * @description Tanpa login dan tetap dilayani untuk aplikasi lama (D63). Kode versi sama dengan versionCode aplikasi (major·10000 + minor·100 + patch). Aplikasi menampilkan pemberitahuan bila `latest_code` lebih tinggi dari versinya, dan layar wajib perbarui bila di bawah `min_code`. Permintaan aplikasi dengan header `X-App-Version` di bawah `min_code` dijawab 426 `APP_UPDATE_REQUIRED` (kecuali endpoint ini, branding, login, refresh, dan logout aplikasi). Nol berarti belum diatur.
+         */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data: components["schemas"]["AppVersion"];
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/auth/password/change": {
         parameters: {
             query?: never;
@@ -4345,6 +4386,86 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/admin/settings/app-version": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Pengaturan versi aplikasi Android
+         * @description Permission `settings:manage` (hanya super admin).
+         */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data: components["schemas"]["AppVersion"];
+                        };
+                    };
+                };
+            };
+        };
+        /**
+         * Ubah versi aplikasi terbaru dan minimum
+         * @description Permission `settings:manage` (hanya super admin). `min_code` tidak boleh melebihi `latest_code`; menaikkan `min_code` membuat aplikasi lama dijawab 426 dan menampilkan layar wajib perbarui (berlaku dalam 1 menit). `store_url` kosong memakai halaman Play Store. Dicatat sebagai `settings.changed`.
+         */
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    /**
+                     * @example {
+                     *       "latest_code": 1400,
+                     *       "latest_name": "0.14.0",
+                     *       "min_code": 1300,
+                     *       "store_url": "",
+                     *       "notes": "Aplikasi tetap bisa dibuka saat offline dan bisa dikunci dengan sidik jari."
+                     *     }
+                     */
+                    "application/json": components["schemas"]["AppVersionInput"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data: components["schemas"]["AppVersion"];
+                        };
+                    };
+                };
+                400: components["responses"]["ValidationFailed"];
+            };
+        };
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/admin/settings/smtp": {
         parameters: {
             query?: never;
@@ -5973,6 +6094,30 @@ export interface components {
             is_default: boolean;
             /** Format: date-time */
             updated_at: string | null;
+        };
+        AppVersion: {
+            /** @description versionCode terbaru; 0 bila belum diatur */
+            latest_code: number;
+            /** @description Nama versi terbaru, mis. 0.14.0; kosong bila belum diatur */
+            latest_name: string;
+            /** @description versionCode minimum yang masih dilayani; 0 berarti semua versi */
+            min_code: number;
+            /** @description Tautan pembaruan; bawaan halaman Play Store */
+            store_url: string;
+            /** @description Catatan rilis singkat, teks murni, boleh beberapa baris */
+            notes: string;
+            /** Format: date-time */
+            updated_at: string | null;
+        };
+        AppVersionInput: {
+            latest_code: number;
+            /** @description Bentuk x.y.z; wajib bila latest_code lebih dari 0 */
+            latest_name: string;
+            /** @description Tidak boleh melebihi latest_code */
+            min_code: number;
+            /** @description https://; kosong memakai halaman Play Store */
+            store_url?: string;
+            notes?: string;
         };
         FooterInput: {
             /** @description Null atau kosong mengembalikan teks bawaan */

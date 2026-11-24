@@ -34,6 +34,7 @@ type Service struct {
 	pool *pgxpool.Pool
 	q    *store.Queries
 	now  func() time.Time
+	min  minCache
 }
 
 func NewService(pool *pgxpool.Pool) *Service {

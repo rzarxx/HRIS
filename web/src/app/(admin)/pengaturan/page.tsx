@@ -3,6 +3,7 @@
 import { TriangleAlert } from "lucide-react";
 import { useSearchParams } from "next/navigation";
 import { Suspense } from "react";
+import { AppVersionCard } from "@/components/settings/app-version-card";
 import { FooterCard } from "@/components/settings/footer-card";
 import { MfaCard } from "@/components/settings/mfa-card";
 import { PasswordCard } from "@/components/settings/password-card";
@@ -42,6 +43,7 @@ function SettingsView() {
           {me?.permissions.includes("settings:manage") && <SmtpCard />}
           {me?.permissions.includes("settings:manage") && <StorageCard />}
           {me?.permissions.includes("settings:manage") && <FooterCard />}
+          {me?.permissions.includes("settings:manage") && <AppVersionCard />}
         </div>
       </div>
     </>

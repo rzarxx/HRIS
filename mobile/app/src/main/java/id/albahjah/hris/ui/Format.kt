@@ -103,6 +103,16 @@ fun wibDateTime(iso: String?): String = iso?.let {
     runCatching { Instant.parse(it).atZone(Wib).format(dateTimeShort).replace(".", "") }.getOrNull()
 } ?: "-"
 
+/**
+ * Keterangan banner mode offline (D62): kapan data yang tampil terakhir diperbarui, mis. "pukul 07:45"
+ * untuk hari ini atau "9 Nov 2026, 07:45" untuk hari lain.
+ */
+fun offlineSinceText(savedAt: Long, now: ZonedDateTime = ZonedDateTime.now(Wib)): String {
+    val then = Instant.ofEpochMilli(savedAt).atZone(Wib)
+    return if (then.toLocalDate() == now.toLocalDate()) "pukul ${then.format(timeFormat)}"
+    else then.format(dateTimeShort).replace(".", "")
+}
+
 /** Waktu relatif dari [now]: "baru saja", "5 menit lalu", "3 jam lalu", "2 hari lalu", lalu tanggal. */
 fun timeAgo(iso: String, now: ZonedDateTime): String {
     val then = runCatching { Instant.parse(iso) }.getOrNull() ?: return iso

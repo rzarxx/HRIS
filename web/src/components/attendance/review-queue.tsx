@@ -9,7 +9,7 @@ import { Badge, Card, EmptyState, ErrorState, Loading, PageHeader } from "@/comp
 import { Modal } from "@/components/ui/modal";
 import { Pagination, Table, Td, Th } from "@/components/ui/table";
 import { api } from "@/lib/api-client";
-import { dateLong, dateTime } from "@/lib/format";
+import { dateLong, dateTime, duration } from "@/lib/format";
 import { useAttendanceReview, useMe, useSave } from "@/lib/hooks";
 import type { AttendanceResolveInput, AttendanceReviewItem } from "@/lib/types";
 
@@ -131,7 +131,7 @@ function ReviewModal({ item, onClose }: { item: AttendanceReviewItem; onClose: (
         <dt className="text-slate-500">Masuk</dt>
         <dd className="col-span-2 text-slate-800">
           {dateTime(item.clock_in_at)}
-          {isLate && <span className="ml-1 text-amber-800">(telat {item.late_minutes} menit)</span>}
+          {isLate && <span className="ml-1 text-amber-800">(telat {duration(item.late_minutes)})</span>}
         </dd>
         <dt className="text-slate-500">Pulang</dt>
         <dd className="col-span-2 text-slate-800">{item.clock_out_at ? dateTime(item.clock_out_at) : "Belum presensi pulang"}</dd>
@@ -171,7 +171,7 @@ function ReviewModal({ item, onClose }: { item: AttendanceReviewItem; onClose: (
         <form id="review-form" onSubmit={submit} noValidate className="mt-4 grid grid-cols-1 gap-4 border-t border-slate-100 pt-4">
           <Field label="Keputusan" htmlFor="review_decision" error={errors.decision} required>
             <Select id="review_decision" value={decision} onChange={(e) => setDecision(e.target.value as AttendanceResolveInput["decision"])} invalid={!!errors.decision}>
-              {isLate && <option value="late">Valid, tetap telat {item.late_minutes} menit</option>}
+              {isLate && <option value="late">Valid, tetap telat {duration(item.late_minutes)}</option>}
               <option value="present">{isLate ? "Valid, hapus keterlambatan" : "Valid, hadir"}</option>
               <option value="absent">Tidak disahkan, dicatat tidak hadir</option>
             </Select>

@@ -207,7 +207,10 @@ private class AuthHeaders(private val session: Session) : Interceptor {
  */
 private class Refresher(private val session: Session, private val refreshApi: RefreshApi) : Authenticator {
     override fun authenticate(route: Route?, response: Response): Request? {
-        val sent = response.request.header("Authorization") ?: return null
+        // Tanpa header berarti aplikasi dibuka saat offline (access token belum ada); sesi tersimpan
+        // tetap diperpanjang begitu server terjangkau (D62).
+        val sent = response.request.header("Authorization")
+        if (sent == null && !session.loggedIn) return null
         if (response.priorResponse != null) return null
         synchronized(lock) {
             val current = session.accessToken

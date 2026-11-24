@@ -7,6 +7,17 @@ Perubahan penting yang terlihat oleh Pejuang, SDM, atau pengelola server. Keputu
 ## Belum dirilis
 
 ### Ditambahkan
+- **Aplikasi tetap bisa dipakai saat internet putus (D62).** Aplikasi tidak lagi keluar sendiri saat sinyal hilang
+  atau server sedang sibuk; sesi hanya berakhir bila server menolaknya.
+  - Profil, riwayat presensi, pengumuman beserta lampiran yang pernah dibuka, pengajuan, dan persetujuan disimpan
+    terenkripsi di HP, langsung tampil saat aplikasi dibuka, lalu diperbarui dari server.
+  - Saat offline muncul banner **Mode offline** dengan waktu data terakhir dan tombol **Coba lagi**. Presensi dan
+    pengajuan tetap memerlukan internet.
+  - Data di HP dihapus saat keluar.
+- **Ingat NIPY/email dan kunci sidik jari (D62).** Layar masuk punya centang **Ingat NIPY/email**; kata sandi tidak
+  disimpan aplikasi. Setelah masuk, aplikasi menawarkan kunci dengan sidik jari, wajah, atau PIN HP (Android 10 ke
+  atas): aplikasi tetap masuk, hanya dibuka dengan sidik jari saat dibuka dan setelah 5 menit di latar. Bisa diatur di
+  Profil → **Kunci sidik jari / PIN**.
 - **Shift ganda dan setengah hari (D61).** Satu Pejuang bisa punya beberapa shift dengan hari kerja berbeda, misalnya
   Senin–Jumat reguler dan Sabtu setengah hari.
   - Presensi masuk, alpha otomatis, dan monitor memilih shift yang hari kerjanya cocok.
@@ -87,6 +98,9 @@ Perubahan penting yang terlihat oleh Pejuang, SDM, atau pengelola server. Keputu
   Endpoint `GET /v1/admin/employees/import-template` dan `POST /v1/admin/employees/import`, audit `employee.imported`.
 
 ### Diubah
+- **Lama telat lebih mudah dibaca (D62).** Telat 60 menit atau lebih ditampilkan "1 jam 15 menit" di monitor
+  presensi, Review Presensi, rekap (kolom **Lama telat**), serta Beranda, riwayat, dan hasil presensi di aplikasi.
+  Hitungan potongan payroll tidak berubah.
 - **Data anak hanya diubah SDM (D56).** Di aplikasi, Profil → Data anak kini hanya menampilkan data dan mengarahkan
   Pejuang ke SDM bila ada yang perlu diubah. Endpoint `PUT /v1/me/children` dihapus; SDM mengubah data anak lewat form
   Pejuang di web atau impor xlsx.

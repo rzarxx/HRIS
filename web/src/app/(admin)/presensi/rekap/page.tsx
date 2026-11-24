@@ -9,7 +9,7 @@ import { Card, EmptyState, ErrorState, Loading, PageHeader } from "@/components/
 import { Table, Td, Th } from "@/components/ui/table";
 import { useToast } from "@/components/ui/toast";
 import { api, ApiError } from "@/lib/api-client";
-import { MONTHS, number, percent } from "@/lib/format";
+import { duration, MONTHS, number, percent } from "@/lib/format";
 import { useAttendanceReport, type AttendanceReportFilter } from "@/lib/hooks";
 
 function Summary({ label, value }: { label: string; value: string }) {
@@ -120,7 +120,7 @@ export default function AttendanceReportPage() {
                 {!period.work_mode && <Th align="right">Alpha</Th>}
                 <Th align="right">Lupa pulang</Th>
                 <Th align="right">Jam kerja</Th>
-                <Th align="right">Menit telat</Th>
+                <Th align="right">Lama telat</Th>
                 {!period.work_mode && <Th align="right">Kehadiran</Th>}
               </tr>
             </thead>
@@ -150,7 +150,7 @@ export default function AttendanceReportPage() {
                   {!period.work_mode && <Td align="right" className={`tabular-nums ${r.absent > 0 ? "font-medium text-red-700" : ""}`}>{r.absent}</Td>}
                   <Td align="right" className={`tabular-nums ${r.missed_clock_out > 0 ? "font-medium text-amber-700" : ""}`}>{r.missed_clock_out}</Td>
                   <Td align="right" className="tabular-nums whitespace-nowrap">{hours(r.worked_minutes)}</Td>
-                  <Td align="right" className="tabular-nums">{number(r.late_minutes)}</Td>
+                  <Td align="right" className="tabular-nums whitespace-nowrap">{r.late_minutes > 0 ? duration(r.late_minutes) : "-"}</Td>
                   {!period.work_mode && <Td align="right" className="tabular-nums">{r.work_days ? percent(r.present / r.work_days) : "-"}</Td>}
                 </tr>
               ))}

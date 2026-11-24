@@ -76,6 +76,9 @@ fun ProfileContent(
     onFontSize: () -> Unit = {},
     footer: String? = null,
     onChildren: () -> Unit = {},
+    /** Null bila HP tidak bisa memakai kunci (tanpa sidik jari, wajah, atau PIN). */
+    appLock: Boolean? = null,
+    onAppLock: (Boolean) -> Unit = {},
 ) {
     StatusBarIcons(dark = true)
     val verified = me.deviceStatus == "approved" && me.faceEnrolled
@@ -129,6 +132,10 @@ fun ProfileContent(
                 RowDivider()
                 ProfileRow(FigmaIcons.Setting, "Ganti kata sandi", onClick = onChangePassword, trailing = if (me.mustChangePassword) "Wajib" else null)
                 RowDivider()
+                if (appLock != null) {
+                    ProfileRow(HrisIcons.Shield, "Kunci sidik jari / PIN", onClick = { onAppLock(!appLock) }, trailing = if (appLock) "Aktif" else "Mati")
+                    RowDivider()
+                }
                 ProfileRow(FigmaIcons.Scroll, "Versi aplikasi", onClick = onCheckUpdate, trailing = "v$version")
                 RowDivider()
                 ProfileRow(FigmaIcons.Logout, "Keluar", onClick = onLogout, danger = true)

@@ -135,6 +135,13 @@ Perubahan penting yang terlihat oleh Pejuang, SDM, atau pengelola server. Keputu
   (sekitar 4 detik untuk 1.000 baris). Kata sandi pilihan sendiri tetap memakai parameter penuh.
 
 ### Diperbaiki
+- **Kode versi di kartu Versi aplikasi Android mengikuti rumus rilis.** 0.14.0 kini dihitung 14000
+  (major·1.000.000 + minor·1.000 + patch), sama dengan versionCode aplikasi. Sebelumnya dihitung 1400 sehingga
+  pemberitahuan versi baru dan versi minimum tidak akan berfungsi. Server kini menolak kode yang tidak cocok dengan
+  nama versi.
+- **Aplikasi sebelum login tidak lagi ditolak `API_ACCESS_DENIED`.** Lupa kata sandi, footer layar masuk, dan cek
+  versi dari aplikasi kini diteruskan karena aplikasi selalu mengirim `X-App-Version`.
+- Fitur layar tegak ditandai opsional di manifest agar Play Console tidak membatasi tablet dan perangkat lain.
 - **Pengumuman lebih andal muncul di aplikasi.** Pop-up yang ditunda dengan **Nanti saja** muncul lagi saat aplikasi
   dibuka kembali, tidak lagi tertahan sampai aplikasi ditutup penuh. Selama aplikasi terbuka, pengumuman dimuat ulang
   tiap 2 menit, dan bila gagal memuat (misalnya sinyal sesaat hilang) dicoba lagi setelah 15 detik.

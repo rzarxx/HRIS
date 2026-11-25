@@ -9,7 +9,7 @@ import (
 	"github.com/rzarxx/HRIS/backend/internal/platform/httpx"
 )
 
-// HeaderAppVersion dikirim aplikasi Android: "versionName+versionCode", mis. "0.14.0+1400" (MASTER.md §7.2).
+// HeaderAppVersion dikirim aplikasi Android: "versionName+versionCode", mis. "0.14.0+14000" (MASTER.md §7.2).
 const HeaderAppVersion = "X-App-Version"
 
 // appVersionOpen tetap dilayani untuk aplikasi lama, agar aplikasi bisa mengetahui versi terbaru, menampilkan

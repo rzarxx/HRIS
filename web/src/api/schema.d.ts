@@ -399,7 +399,7 @@ export interface paths {
         };
         /**
          * Versi aplikasi Android terbaru dan minimum
-         * @description Tanpa login dan tetap dilayani untuk aplikasi lama (D63). Kode versi sama dengan versionCode aplikasi (major·10000 + minor·100 + patch). Aplikasi menampilkan pemberitahuan bila `latest_code` lebih tinggi dari versinya, dan layar wajib perbarui bila di bawah `min_code`. Permintaan aplikasi dengan header `X-App-Version` di bawah `min_code` dijawab 426 `APP_UPDATE_REQUIRED` (kecuali endpoint ini, branding, login, refresh, dan logout aplikasi). Nol berarti belum diatur.
+         * @description Tanpa login dan tetap dilayani untuk aplikasi lama (D63). Kode versi sama dengan versionCode aplikasi (major·1.000.000 + minor·1.000 + patch, mis. 0.14.0 = 14000). Aplikasi menampilkan pemberitahuan bila `latest_code` lebih tinggi dari versinya, dan layar wajib perbarui bila di bawah `min_code`. Permintaan aplikasi dengan header `X-App-Version` di bawah `min_code` dijawab 426 `APP_UPDATE_REQUIRED` (kecuali endpoint ini, branding, login, refresh, dan logout aplikasi). Nol berarti belum diatur.
          */
         get: {
             parameters: {
@@ -4434,9 +4434,9 @@ export interface paths {
                 content: {
                     /**
                      * @example {
-                     *       "latest_code": 1400,
+                     *       "latest_code": 14000,
                      *       "latest_name": "0.14.0",
-                     *       "min_code": 1300,
+                     *       "min_code": 13000,
                      *       "store_url": "",
                      *       "notes": "Aplikasi tetap bisa dibuka saat offline dan bisa dikunci dengan sidik jari."
                      *     }
@@ -6110,6 +6110,7 @@ export interface components {
             updated_at: string | null;
         };
         AppVersionInput: {
+            /** @description Harus sama dengan versionCode dari latest_name */
             latest_code: number;
             /** @description Bentuk x.y.z; wajib bila latest_code lebih dari 0 */
             latest_name: string;

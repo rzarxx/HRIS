@@ -309,7 +309,7 @@ fun MainScreen(
             quickLogin = if (onEnableQuickLogin != null && saved != null) saved.quickLogin && saved.hasPassword else null,
             onQuickLogin = { on ->
                 when {
-                    !on -> saved?.setQuickLogin(false)
+                    !on -> saved?.updateQuickLogin(false)
                     saved?.hasPassword != true -> notify("Keluar, lalu masuk dengan centang Ingat NIPY dan kata sandi untuk memakai masuk cepat.")
                     else -> onEnableQuickLogin?.invoke()
                 }

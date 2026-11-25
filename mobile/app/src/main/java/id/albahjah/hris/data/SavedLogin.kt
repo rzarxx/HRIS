@@ -54,10 +54,10 @@ class SavedLogin(context: Context, private val secure: SecureStore) {
     fun forgetPassword() {
         secure.put(KEY_PASSWORD, null)
         hasPassword = false
-        setQuickLogin(false)
+        updateQuickLogin(false)
     }
 
-    fun setQuickLogin(on: Boolean) {
+    fun updateQuickLogin(on: Boolean) {
         quickLogin = on
         prefs.edit().putBoolean(KEY_QUICK, on).putBoolean(KEY_QUICK_OFFERED, true).apply()
     }

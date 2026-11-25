@@ -112,7 +112,7 @@ class MainActivity : FragmentActivity() {
 
     private fun enableQuickLogin() =
         Biometric.prompt(this, "Aktifkan masuk cepat", "Konfirmasi dengan sidik jari, wajah, atau PIN HP") { ok ->
-            if (ok) app.repository.savedLogin?.setQuickLogin(true)
+            if (ok) app.repository.savedLogin?.updateQuickLogin(true)
         }
 
     override fun onCreate(savedInstanceState: Bundle?) {

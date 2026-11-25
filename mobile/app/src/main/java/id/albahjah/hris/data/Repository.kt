@@ -58,6 +58,8 @@ class Repository(
     val prefs: AppPrefs,
     private val identity: DeviceIdentity? = null,
     private val cache: LocalCache? = null,
+    /** Ingat NIPY dan kata sandi serta masuk cepat (D64); null di tes. */
+    val savedLogin: SavedLogin? = null,
 ) {
     private val offline = MutableStateFlow<Long?>(null)
     private val update = MutableStateFlow<AppUpdateState?>(null)
@@ -208,7 +210,7 @@ class Repository(
         session.clear()
         withContext(Dispatchers.IO) { cache?.clear() }
         offline.value = null
-        prefs.resetAppLock()
+        // NIPY, kata sandi yang diingat, dan masuk cepat sengaja tetap ada agar bisa masuk lagi dengan cepat (D64).
         photoCache = null
     }
 
@@ -414,6 +416,8 @@ class Repository(
             val response = changePassword(PasswordChangeRequest(current, next))
             if (!response.isSuccessful) throw retrofit2.HttpException(response)
         }
+        // Kata sandi yang diingat ikut diganti agar masuk cepat tetap jalan.
+        savedLogin?.updatePassword(next)
     }
 
     /** Mengubah nomor WA dan email sendiri. String kosong mengosongkan; ganti email wajib kata sandi. */

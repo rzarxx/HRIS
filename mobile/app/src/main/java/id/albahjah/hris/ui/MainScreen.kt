@@ -66,7 +66,7 @@ fun MainScreen(
     onCapture: (String) -> Unit,
     onLoggedOut: () -> Unit,
     /** Null bila HP tidak punya sidik jari, wajah, atau PIN; selain itu meminta konfirmasi lalu mengaktifkan kunci. */
-    onEnableAppLock: (() -> Unit)? = null,
+    onEnableQuickLogin: (() -> Unit)? = null,
     /** Memulai pembaruan: Play in-app update bila terpasang dari Play Store, selain itu membuka tautan (D63). */
     onStartUpdate: (String) -> Unit = {},
 ) {
@@ -75,9 +75,10 @@ fun MainScreen(
     var tab by rememberSaveable { mutableStateOf(MainTab.Home) }
     var sub by rememberSaveable { mutableStateOf<SubPage?>(null) }
     var askLogout by rememberSaveable { mutableStateOf(false) }
-    // Tawaran kunci sidik jari muncul sekali setelah masuk (D62).
+    val saved = repository.savedLogin
+    // Tawaran masuk cepat muncul sekali setelah masuk dengan centang Ingat (D64).
     var offerLock by rememberSaveable {
-        mutableStateOf(onEnableAppLock != null && !repository.prefs.appLock && !repository.prefs.appLockOffered)
+        mutableStateOf(onEnableQuickLogin != null && saved != null && saved.hasPassword && !saved.quickLogin && !saved.quickLoginOffered)
     }
     var me by remember { mutableStateOf<Me?>(null) }
     var records by remember { mutableStateOf<List<AttendanceRecord>?>(null) }
@@ -305,8 +306,14 @@ fun MainScreen(
             onAnnouncement = { openAnnouncementId = it.id },
             onAnnouncements = { announcementList = true },
             onChildren = { sub = SubPage.Children },
-            appLock = if (onEnableAppLock != null) repository.prefs.appLock else null,
-            onAppLock = { on -> if (on) onEnableAppLock?.invoke() else repository.prefs.updateAppLock(false) },
+            quickLogin = if (onEnableQuickLogin != null && saved != null) saved.quickLogin && saved.hasPassword else null,
+            onQuickLogin = { on ->
+                when {
+                    !on -> saved?.updateQuickLogin(false)
+                    saved?.hasPassword != true -> notify("Keluar, lalu masuk dengan centang Ingat NIPY dan kata sandi untuk memakai masuk cepat.")
+                    else -> onEnableQuickLogin?.invoke()
+                }
+            },
         ) }
         if (popup != null) {
             val repeat = popup.readAt != null
@@ -350,19 +357,19 @@ fun MainScreen(
             ),
         )
         if (offerLock && !onSubPage && !askLogout) {
-            val close = {
+            val close: () -> Unit = {
                 offerLock = false
-                repository.prefs.markAppLockOffered()
+                saved?.markQuickLoginOffered()
             }
             BackHandler(onBack = close)
             FigmaPopup(
                 icon = HrisIcons.Shield,
-                title = "Kunci dengan sidik jari?",
-                body = "Aplikasi tetap masuk seperti biasa, lalu dikunci dengan sidik jari, wajah, atau PIN HP setiap dibuka. Kata sandi tidak disimpan di HP.",
+                title = "Masuk cepat dengan sidik jari?",
+                body = "Lain kali cukup sentuh sidik jari, wajah, atau PIN HP untuk masuk, termasuk setelah keluar. Kata sandi tersimpan terenkripsi di HP ini.",
                 primary = "Aktifkan",
                 onPrimary = {
                     close()
-                    onEnableAppLock?.invoke()
+                    onEnableQuickLogin?.invoke()
                 },
                 secondary = "Nanti saja",
                 onSecondary = close,
@@ -411,8 +418,8 @@ fun MainTabs(
     onFontSize: () -> Unit = {},
     onChildren: () -> Unit = {},
     offlineSince: Long? = null,
-    appLock: Boolean? = null,
-    onAppLock: (Boolean) -> Unit = {},
+    quickLogin: Boolean? = null,
+    onQuickLogin: (Boolean) -> Unit = {},
     update: AppVersion? = null,
     onUpdate: () -> Unit = {},
     onCheckUpdate: (() -> Unit)? = null,
@@ -477,8 +484,8 @@ fun MainTabs(
                         onFontSize = onFontSize,
                         footer = footer,
                         onChildren = onChildren,
-                        appLock = appLock,
-                        onAppLock = onAppLock,
+                        quickLogin = quickLogin,
+                        onQuickLogin = onQuickLogin,
                     )
                 }
             }

@@ -4,7 +4,6 @@ import android.content.ActivityNotFoundException
 import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
-import android.os.SystemClock
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.collectAsState
@@ -40,8 +39,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.layout.Box
 import androidx.activity.compose.BackHandler
 import androidx.fragment.app.FragmentActivity
-import id.albahjah.hris.security.AppLock
-import id.albahjah.hris.ui.LockContent
+import id.albahjah.hris.security.Biometric
+import androidx.navigation.NavType
+import androidx.navigation.navArgument
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import kotlinx.coroutines.launch
@@ -102,33 +102,23 @@ class MainActivity : FragmentActivity() {
 
     override fun onStart() {
         super.onStart()
-        val now = SystemClock.elapsedRealtime()
-        // Memutar layar tidak tercatat sebagai ke latar, jadi dianggap baru saja tampil.
-        val since = if (app.started) app.stoppedAt ?: now else null
-        if (AppLock.shouldLock(app.prefs.appLock, app.repository.loggedIn, since, now)) app.locked.value = true
-        app.started = true
-        app.stoppedAt = null
         // Versi dicek saat dibuka dan saat kembali ke depan, paling sering sekali per jam (D63).
         lifecycleScope.launch { app.repository.checkAppVersion() }
     }
 
-    override fun onStop() {
-        super.onStop()
-        if (!isChangingConfigurations) app.stoppedAt = SystemClock.elapsedRealtime()
-    }
+    /** Masuk cepat (D64): sidik jari, wajah, atau PIN HP membuka NIPY dan kata sandi yang diingat. */
+    private fun quickLoginPrompt(onResult: (Boolean) -> Unit) =
+        Biometric.prompt(this, "Masuk ke HRIS Al Bahjah", "Gunakan sidik jari, wajah, atau PIN HP", onResult)
 
-    private fun unlock() = AppLock.prompt(this, "Buka HRIS Al Bahjah", "Gunakan sidik jari, wajah, atau PIN HP") { ok ->
-        if (ok) app.locked.value = false
-    }
-
-    private fun enableLock() = AppLock.prompt(this, "Aktifkan kunci aplikasi", "Konfirmasi dengan sidik jari, wajah, atau PIN HP") { ok ->
-        if (ok) app.prefs.updateAppLock(true)
-    }
+    private fun enableQuickLogin() =
+        Biometric.prompt(this, "Aktifkan masuk cepat", "Konfirmasi dengan sidik jari, wajah, atau PIN HP") { ok ->
+            if (ok) app.repository.savedLogin?.updateQuickLogin(true)
+        }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         enableEdgeToEdge()
         super.onCreate(savedInstanceState)
-        val lockAvailable = AppLock.available(this)
+        val biometric = Biometric.available(this)
         setContent {
             HrisTheme(fontScale = app.prefs.fontScale) {
                 var crash by remember { mutableStateOf(app.lastCrash) }
@@ -143,11 +133,21 @@ class MainActivity : FragmentActivity() {
                         Splash()
                         LaunchedEffect(Unit) {
                             // Offline tetap ke beranda dengan data cache; hanya sesi yang ditolak server ke layar masuk (D62).
-                            nav.replaceWith(if (app.repository.resume() == ResumeState.LoggedOut) "login" else "home")
+                            // Dari sini (aplikasi baru dibuka atau sesi berakhir) dialog masuk cepat langsung muncul (D64).
+                            nav.replaceWith(if (app.repository.resume() == ResumeState.LoggedOut) "login?auto=true" else "home")
                         }
                     }
-                    composable("login") {
-                        LoginScreen(app.repository, crash, dismissCrash) { nav.replaceWith("home") }
+                    composable(
+                        "login?auto={auto}",
+                        arguments = listOf(navArgument("auto") { type = NavType.BoolType; defaultValue = false }),
+                    ) { entry ->
+                        LoginScreen(
+                            repository = app.repository,
+                            crash = crash,
+                            onDismissCrash = dismissCrash,
+                            onBiometric = if (biometric) ::quickLoginPrompt else null,
+                            autoQuickLogin = entry.arguments?.getBoolean("auto") == true,
+                        ) { nav.replaceWith("home") }
                     }
                     composable("home") { entry ->
                         MainScreen(
@@ -156,7 +156,7 @@ class MainActivity : FragmentActivity() {
                             onDismissCrash = dismissCrash,
                             onCapture = { purpose -> if (entry.isActive()) nav.navigate("capture/$purpose") },
                             onLoggedOut = { nav.replaceWith("login") },
-                            onEnableAppLock = if (lockAvailable) ::enableLock else null,
+                            onEnableQuickLogin = if (biometric) ::enableQuickLogin else null,
                             onStartUpdate = ::startUpdate,
                         )
                     }
@@ -168,21 +168,6 @@ class MainActivity : FragmentActivity() {
                             onClose = { if (entry.isActive()) nav.popBackStack() },
                         )
                     }
-                }
-                // Kunci menutupi isi; sesi dan data tetap dimuat di belakangnya (D62).
-                if (app.locked.value && app.repository.loggedIn) {
-                    BackHandler { moveTaskToBack(true) }
-                    LaunchedEffect(Unit) { unlock() }
-                    LockContent(
-                        onUnlock = ::unlock,
-                        onUsePassword = {
-                            app.locked.value = false
-                            lifecycleScope.launch {
-                                app.repository.logout()
-                                nav.replaceWith("login")
-                            }
-                        },
-                    )
                 }
                 // Di bawah versi minimum server menolak semua permintaan, jadi layar perbarui menutupi semuanya.
                 val update = app.repository.appUpdate.collectAsState().value

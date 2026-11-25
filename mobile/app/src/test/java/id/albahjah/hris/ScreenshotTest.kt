@@ -66,7 +66,6 @@ import id.albahjah.hris.ui.HrisTheme
 import id.albahjah.hris.ui.ForgotPasswordContent
 import id.albahjah.hris.ui.LoginContent
 import id.albahjah.hris.ui.LoginForm
-import id.albahjah.hris.ui.LockContent
 import id.albahjah.hris.ui.UpdateRequiredContent
 import id.albahjah.hris.data.AppVersion
 import id.albahjah.hris.ui.PermissionContent
@@ -223,7 +222,7 @@ class ScreenshotTest {
     @Test
     fun loginRemembered() = shot {
         LoginContent(
-            form = LoginForm(identifier = "2024.07.0153", remember = true),
+            form = LoginForm(identifier = "2024.07.0153", password = "rahasia1234", remember = true, passwordSaved = true, savedAccount = true),
             showServer = false,
             version = "0.14.0",
             crash = null,
@@ -232,7 +231,15 @@ class ScreenshotTest {
     }
 
     @Test
-    fun appLocked() = shot { LockContent(onUnlock = {}, onUsePassword = {}) }
+    fun loginQuick() = shot {
+        LoginContent(
+            form = LoginForm(identifier = "2024.07.0153", remember = true, quickLogin = true, savedAccount = true),
+            showServer = false,
+            version = "0.14.1",
+            crash = null,
+            onCopyCrash = {}, onDismissCrash = {}, onServer = {}, onIdentifier = {}, onPassword = {}, onMfa = {}, onSubmit = {}, footer = footer,
+        )
+    }
 
     @Test
     fun updateRequired() = shot {

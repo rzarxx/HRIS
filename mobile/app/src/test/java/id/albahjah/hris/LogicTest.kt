@@ -41,7 +41,7 @@ import id.albahjah.hris.ui.sampleSizeFor
 import id.albahjah.hris.ui.Wib
 import id.albahjah.hris.ui.offlineSinceText
 import id.albahjah.hris.data.durationText
-import id.albahjah.hris.security.AppLock
+import id.albahjah.hris.data.editSavedPassword
 import id.albahjah.hris.data.AppVersion
 import id.albahjah.hris.data.UpdateLevel
 import id.albahjah.hris.data.appVersionHeader
@@ -760,15 +760,12 @@ class RequestHashTest {
     }
 
     @Test
-    fun appLockRelocksAfterFiveMinutesInBackground() {
-        val five = AppLock.RELOCK_AFTER_MS
-        // Baru dibuka: dikunci bila aktif dan sesi ada.
-        assertTrue(AppLock.shouldLock(enabled = true, loggedIn = true, backgroundSince = null, now = 1_000))
-        assertFalse(AppLock.shouldLock(enabled = false, loggedIn = true, backgroundSince = null, now = 1_000))
-        assertFalse(AppLock.shouldLock(enabled = true, loggedIn = false, backgroundSince = null, now = 1_000))
-        // Kembali dari latar: hanya setelah lima menit.
-        assertFalse(AppLock.shouldLock(enabled = true, loggedIn = true, backgroundSince = 10_000, now = 10_000 + five - 1))
-        assertTrue(AppLock.shouldLock(enabled = true, loggedIn = true, backgroundSince = 10_000, now = 10_000 + five))
+    fun savedPasswordIsReplacedNotExtended() {
+        // Mengetik di atas kata sandi tersimpan yang tidak terlihat memulai kata sandi baru dari huruf yang diketik.
+        assertEquals("x", editSavedPassword("rahasia123", "rahasia123x"))
+        // Menghapus (atau mengganti seluruh isi) mengosongkan kolom, tidak menyisakan sebagian kata sandi lama.
+        assertEquals("", editSavedPassword("rahasia123", "rahasia12"))
+        assertEquals("", editSavedPassword("rahasia123", "abc"))
     }
 
     @Test

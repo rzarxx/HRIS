@@ -1,10 +1,10 @@
 package id.albahjah.hris
 
 import android.app.Application
-import androidx.compose.runtime.mutableStateOf
 import id.albahjah.hris.data.AppPrefs
 import id.albahjah.hris.data.LocalCache
 import id.albahjah.hris.data.Repository
+import id.albahjah.hris.data.SavedLogin
 import id.albahjah.hris.data.SecureStore
 import id.albahjah.hris.data.Session
 import id.albahjah.hris.location.LocationReader
@@ -24,21 +24,14 @@ class HrisApp : Application() {
     /** Ringkasan crash dari pemakaian sebelumnya; ditampilkan sekali lalu dibuang. */
     var lastCrash: String? = null
 
-    /**
-     * Status kunci aplikasi (D62) disimpan di sini, bukan di Activity, agar memutar layar tidak mengunci
-     * ulang. [started] false berarti proses baru dibuka; [stoppedAt] waktu terakhir masuk latar (elapsedRealtime).
-     */
-    val locked = mutableStateOf(false)
-    var started = false
-    var stoppedAt: Long? = null
-
     override fun onCreate() {
         super.onCreate()
         lastCrash = CrashLog.take(this)
         CrashLog.install(this)
-        session = Session(this, SecureStore(this))
+        val secure = SecureStore(this)
+        session = Session(this, secure)
         prefs = AppPrefs(this)
-        repository = Repository(session, prefs, DeviceIdentity(this), LocalCache(this))
+        repository = Repository(session, prefs, DeviceIdentity(this), LocalCache(this), SavedLogin(this, secure))
         location = LocationReader(this)
     }
 }

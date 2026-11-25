@@ -36,38 +36,6 @@ class AppPrefs(context: Context) {
     var footer by mutableStateOf(prefs.getString(KEY_FOOTER, null))
         private set
 
-    /** NIPY, email, atau nomor WA yang diingat di layar masuk (D62). Kata sandi tidak pernah disimpan. */
-    var rememberedIdentifier by mutableStateOf(prefs.getString(KEY_IDENTIFIER, null))
-        private set
-
-    /** Kunci aplikasi dengan sidik jari, wajah, atau PIN HP (D62). */
-    var appLock by mutableStateOf(prefs.getBoolean(KEY_APP_LOCK, false))
-        private set
-
-    /** Tawaran mengaktifkan kunci sudah ditampilkan setelah masuk, agar tidak muncul berulang. */
-    val appLockOffered: Boolean get() = prefs.getBoolean(KEY_APP_LOCK_OFFERED, false)
-
-    fun rememberIdentifier(value: String?) {
-        val clean = value?.trim()?.takeIf { it.isNotEmpty() }
-        rememberedIdentifier = clean
-        prefs.edit().apply { if (clean == null) remove(KEY_IDENTIFIER) else putString(KEY_IDENTIFIER, clean) }.apply()
-    }
-
-    fun updateAppLock(on: Boolean) {
-        appLock = on
-        prefs.edit().putBoolean(KEY_APP_LOCK, on).putBoolean(KEY_APP_LOCK_OFFERED, true).apply()
-    }
-
-    fun markAppLockOffered() {
-        prefs.edit().putBoolean(KEY_APP_LOCK_OFFERED, true).apply()
-    }
-
-    /** Saat keluar kunci dimatikan dan tawarannya diulang untuk akun yang masuk berikutnya. */
-    fun resetAppLock() {
-        appLock = false
-        prefs.edit().remove(KEY_APP_LOCK).remove(KEY_APP_LOCK_OFFERED).apply()
-    }
-
     fun updateFontSize(size: FontSize) {
         fontSize = size
         fontScale = size.scale
@@ -91,8 +59,5 @@ class AppPrefs(context: Context) {
         const val KEY_FONT = "font_scale"
         const val KEY_FOOTER = "footer"
         const val KEY_POPUP = "popup_closed_"
-        const val KEY_IDENTIFIER = "remembered_identifier"
-        const val KEY_APP_LOCK = "app_lock"
-        const val KEY_APP_LOCK_OFFERED = "app_lock_offered"
     }
 }

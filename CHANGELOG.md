@@ -7,6 +7,13 @@ Perubahan penting yang terlihat oleh Pejuang, SDM, atau pengelola server. Keputu
 ## Belum dirilis
 
 ### Ditambahkan
+- **Ingat NIPY dan kata sandi, dan masuk cepat dengan sidik jari (D64).** Menggantikan kunci aplikasi dari 0.14.0.
+  - Layar masuk mengingat NIPY dan kata sandi (centang **Ingat NIPY dan kata sandi**, bawaan aktif). Kata sandi
+    disimpan terenkripsi di HP dan tidak bisa ditampilkan.
+  - **Masuk cepat:** sentuh sidik jari, wajah, atau PIN HP untuk masuk, termasuk setelah keluar. Dialognya muncul
+    otomatis saat aplikasi dibuka, ditawarkan sekali setelah masuk, dan bisa diatur di Profil.
+  - **Gunakan akun lain** menghapus data masuk yang diingat. Bila kata sandi diganti dari web, aplikasi meminta kata
+    sandi terbaru; ganti kata sandi dari aplikasi ikut memperbarui simpanan.
 - **Pemberitahuan versi baru aplikasi (D63).** Super admin mengisi versi terbaru, versi minimum, tautan, dan catatan
   rilis di Pengaturan → **Versi aplikasi Android**.
   - Aplikasi yang lebih lama menampilkan banner **Versi baru tersedia** dengan tombol **Perbarui**. Bila terpasang dari

@@ -57,6 +57,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import id.albahjah.hris.BuildConfig
 import id.albahjah.hris.data.Repository
+import id.albahjah.hris.data.editSavedPassword
 import id.albahjah.hris.data.toApiError
 import kotlinx.coroutines.launch
 
@@ -69,18 +70,41 @@ data class LoginForm(
     val askMfa: Boolean = false,
     val busy: Boolean = false,
     val error: String? = null,
-    /** Ingat NIPY/email/WA di HP ini (D62). */
+    /** Ingat NIPY dan kata sandi di HP ini (D64). */
     val remember: Boolean = false,
+    /** Kata sandi di kolom berasal dari simpanan: tidak bisa ditampilkan. */
+    val passwordSaved: Boolean = false,
+    /** Masuk cepat dengan sidik jari, wajah, atau PIN HP tersedia. */
+    val quickLogin: Boolean = false,
+    /** Ada akun yang diingat di HP ini, jadi tampilkan "Gunakan akun lain". */
+    val savedAccount: Boolean = false,
 )
 
+/**
+ * Layar masuk. [onBiometric] null bila HP tidak punya sidik jari, wajah, atau PIN; [autoQuickLogin] membuka dialog
+ * sidik jari langsung saat aplikasi dibuka (bukan setelah keluar sendiri), bila masuk cepat aktif (D64).
+ */
 @Composable
-fun LoginScreen(repository: Repository, crash: String?, onDismissCrash: () -> Unit, onLoggedIn: () -> Unit) {
+fun LoginScreen(
+    repository: Repository,
+    crash: String?,
+    onDismissCrash: () -> Unit,
+    onBiometric: (((Boolean) -> Unit) -> Unit)? = null,
+    autoQuickLogin: Boolean = false,
+    onLoggedIn: () -> Unit,
+) {
     val scope = rememberCoroutineScope()
     val clipboard = LocalClipboardManager.current
+    val saved = repository.savedLogin
     var server by rememberSaveable { mutableStateOf(repository.serverUrl) }
-    var identifier by rememberSaveable { mutableStateOf(repository.prefs.rememberedIdentifier.orEmpty()) }
-    var rememberMe by rememberSaveable { mutableStateOf(repository.prefs.rememberedIdentifier != null) }
-    var password by rememberSaveable { mutableStateOf("") }
+    var identifier by rememberSaveable { mutableStateOf(saved?.identifier.orEmpty()) }
+    // Bawaan dicentang: HP presensi milik pribadi dan terdaftar per Pejuang (D64).
+    var rememberMe by rememberSaveable { mutableStateOf(true) }
+    val quickReady = onBiometric != null && saved != null && saved.quickLogin && saved.hasPassword
+    // Tanpa masuk cepat, kata sandi yang diingat langsung terisi. Dengan masuk cepat, kata sandi baru dibuka
+    // setelah sidik jari, wajah, atau PIN HP cocok.
+    var password by rememberSaveable { mutableStateOf(if (!quickReady) saved?.password().orEmpty() else "") }
+    var passwordSaved by rememberSaveable { mutableStateOf(password.isNotEmpty()) }
     var mfa by rememberSaveable { mutableStateOf("") }
     var askMfa by rememberSaveable { mutableStateOf(false) }
     var busy by rememberSaveable { mutableStateOf(false) }
@@ -94,40 +118,97 @@ fun LoginScreen(repository: Repository, crash: String?, onDismissCrash: () -> Un
         ForgotPasswordScreen(repository, server, identifier, onBack = { forgot = false })
         return
     }
+
+    fun submit(fromSaved: Boolean) {
+        if (busy) return
+        busy = true
+        error = null
+        scope.launch {
+            try {
+                repository.login(server, identifier, password, if (askMfa) mfa else null)
+                if (rememberMe) saved?.save(identifier, password) else saved?.clear()
+                onLoggedIn()
+            } catch (e: Exception) {
+                val err = e.toApiError()
+                if (err.code == "AUTH_MFA_REQUIRED" || err.code == "AUTH_MFA_INVALID") askMfa = true
+                if (fromSaved && err.code == "AUTH_INVALID_CREDENTIALS") {
+                    // Kata sandi diganti di tempat lain (mis. reset lewat email): simpanan lama dibuang.
+                    saved?.forgetPassword()
+                    password = ""
+                    passwordSaved = false
+                    error = "Kata sandi tersimpan sudah tidak berlaku. Masukkan kata sandi terbaru."
+                } else {
+                    error = err.message
+                }
+            } finally {
+                busy = false
+            }
+        }
+    }
+
+    val quickLogin: () -> Unit = {
+        if (!busy && onBiometric != null && saved != null) {
+            onBiometric { ok ->
+                val stored = saved.password()
+                if (ok && stored != null) {
+                    identifier = saved.identifier.orEmpty()
+                    password = stored
+                    passwordSaved = true
+                    rememberMe = true
+                    submit(fromSaved = true)
+                }
+            }
+        }
+    }
+    LaunchedEffect(Unit) { if (autoQuickLogin && quickReady) quickLogin() }
+
     LoginContent(
         footer = repository.prefs.footer,
-        form = LoginForm(server, identifier, password, mfa, askMfa, busy, error, rememberMe),
+        form = LoginForm(
+            server, identifier, password, mfa, askMfa, busy, error, rememberMe,
+            passwordSaved = passwordSaved,
+            quickLogin = quickReady,
+            savedAccount = saved?.identifier != null,
+        ),
         showServer = BuildConfig.SERVER_EDITABLE,
         version = BuildConfig.VERSION_NAME,
         crash = crash,
         onCopyCrash = { crash?.let { clipboard.setText(AnnotatedString(it)) } },
         onDismissCrash = onDismissCrash,
         onServer = { server = it },
-        onIdentifier = { identifier = it },
-        onPassword = { password = it },
+        onIdentifier = {
+            identifier = it
+            // Kata sandi tersimpan milik akun yang diingat; akun lain harus mengetik kata sandinya sendiri.
+            if (passwordSaved && it != saved?.identifier) {
+                password = ""
+                passwordSaved = false
+            }
+        },
+        onPassword = {
+            if (passwordSaved) {
+                passwordSaved = false
+                password = editSavedPassword(password, it)
+            } else {
+                password = it
+            }
+        },
         onMfa = { mfa = it.filter(Char::isDigit).take(6) },
         onRemember = { rememberMe = it },
         onForgot = {
             error = null
             forgot = true
         },
-        onSubmit = {
-            if (busy) return@LoginContent
-            busy = true
+        onSubmit = { submit(fromSaved = passwordSaved) },
+        onQuickLogin = quickLogin,
+        onOtherAccount = {
+            saved?.clear()
+            identifier = ""
+            password = ""
+            passwordSaved = false
+            rememberMe = true
+            askMfa = false
+            mfa = ""
             error = null
-            scope.launch {
-                try {
-                    repository.login(server, identifier, password, if (askMfa) mfa else null)
-                    repository.prefs.rememberIdentifier(if (rememberMe) identifier else null)
-                    onLoggedIn()
-                } catch (e: Exception) {
-                    val err = e.toApiError()
-                    if (err.code == "AUTH_MFA_REQUIRED" || err.code == "AUTH_MFA_INVALID") askMfa = true
-                    error = err.message
-                } finally {
-                    busy = false
-                }
-            }
         },
     )
 }
@@ -148,6 +229,8 @@ fun LoginContent(
     footer: String? = null,
     onForgot: () -> Unit = {},
     onRemember: (Boolean) -> Unit = {},
+    onQuickLogin: () -> Unit = {},
+    onOtherAccount: () -> Unit = {},
 ) {
     StatusBarIcons(dark = true)
     var showPassword by rememberSaveable { mutableStateOf(false) }
@@ -195,9 +278,10 @@ fun LoginContent(
                             keyboardType = KeyboardType.Password,
                             imeAction = if (form.askMfa) ImeAction.Next else ImeAction.Done,
                         ),
-                        hidden = !showPassword,
+                        hidden = form.passwordSaved || !showPassword,
                         onDone = { if (canSubmit) onSubmit() },
-                        trailing = { PasswordEye(showPassword) { showPassword = !showPassword } },
+                        // Kata sandi tersimpan tidak bisa ditampilkan, agar tidak terbaca orang lain yang memegang HP.
+                        trailing = { if (!form.passwordSaved) PasswordEye(showPassword) { showPassword = !showPassword } },
                     )
                     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                         Row(
@@ -212,7 +296,7 @@ fun LoginContent(
                                 colors = CheckboxDefaults.colors(checkedColor = Hc.Brand),
                                 modifier = Modifier.padding(12.dp),
                             )
-                            Text("Ingat NIPY/email", style = MaterialTheme.typography.bodyMedium, color = Hc.Ink)
+                            Text("Ingat NIPY dan kata sandi", style = MaterialTheme.typography.bodyMedium, color = Hc.Ink)
                         }
                         if (!form.askMfa) {
                             TextButton(onClick = onForgot) {
@@ -240,6 +324,14 @@ fun LoginContent(
                         loading = form.busy,
                         modifier = Modifier.padding(top = 8.dp),
                     )
+                    if (form.quickLogin) {
+                        SecondaryButton("Masuk dengan sidik jari / PIN HP", onClick = onQuickLogin)
+                    }
+                    if (form.savedAccount) {
+                        TextButton(onClick = onOtherAccount, modifier = Modifier.align(Alignment.CenterHorizontally)) {
+                            Text("Gunakan akun lain", style = MaterialTheme.typography.labelLarge, color = Hc.BrandDark)
+                        }
+                    }
                 }
             }
 

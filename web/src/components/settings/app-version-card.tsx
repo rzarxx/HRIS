@@ -12,16 +12,16 @@ import type { AppVersion, AppVersionInput } from "@/lib/types";
 const VERSION = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/;
 const MAX_NOTES = 500;
 
-/** Kode versi sama dengan rilis aplikasi: major·10000 + minor·100 + patch (mis. 0.14.0 → 1400). */
+/** Kode versi sama dengan workflow rilis aplikasi: major·1.000.000 + minor·1.000 + patch (mis. 0.14.0 → 14000). */
 export function versionCode(name: string): number | null {
   const m = VERSION.exec(name.trim());
   if (!m) return null;
   const [major, minor, patch] = m.slice(1).map(Number);
-  if (minor > 99 || patch > 99) return null;
-  return major * 10000 + minor * 100 + patch;
+  if (minor > 999 || patch > 999 || major > 2099) return null;
+  return major * 1_000_000 + minor * 1_000 + patch;
 }
 
-const versionName = (code: number) => (code > 0 ? `${Math.floor(code / 10000)}.${Math.floor(code / 100) % 100}.${code % 100}` : "");
+const versionName = (code: number) => (code > 0 ? `${Math.floor(code / 1_000_000)}.${Math.floor(code / 1_000) % 1_000}.${code % 1_000}` : "");
 
 type Form = { latest: string; min: string; store_url: string; notes: string };
 

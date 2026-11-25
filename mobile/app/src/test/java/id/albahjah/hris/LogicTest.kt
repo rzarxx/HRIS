@@ -747,16 +747,16 @@ class RequestHashTest {
 
     @Test
     fun appUpdateLevelAndHeader() {
-        val v = AppVersion(latestCode = 1400, latestName = "0.14.0", minCode = 1300)
-        assertEquals(UpdateLevel.Required, updateLevel(1200, v))
-        assertEquals(UpdateLevel.Available, updateLevel(1300, v))
-        assertEquals(UpdateLevel.None, updateLevel(1400, v))
+        val v = AppVersion(latestCode = 14000, latestName = "0.14.0", minCode = 13000)
+        assertEquals(UpdateLevel.Required, updateLevel(12000, v))
+        assertEquals(UpdateLevel.Available, updateLevel(13000, v))
+        assertEquals(UpdateLevel.None, updateLevel(14000, v))
         // Belum diatur super admin: tidak ada pemberitahuan.
-        assertEquals(UpdateLevel.None, updateLevel(1200, AppVersion()))
-        assertEquals("0.14.0+1400", appVersionHeader("0.14.0", 1400))
+        assertEquals(UpdateLevel.None, updateLevel(12000, AppVersion()))
+        assertEquals("0.14.0+14000", appVersionHeader("0.14.0", 14000))
         // Isi Dto sama dengan skema AppVersion di openapi.yaml.
-        val parsed = apiJson.decodeFromString(AppVersion.serializer(), "{\"latest_code\":1400,\"latest_name\":\"0.14.0\",\"min_code\":0,\"store_url\":\"https://x\",\"notes\":\"\",\"updated_at\":null}")
-        assertEquals(1400, parsed.latestCode)
+        val parsed = apiJson.decodeFromString(AppVersion.serializer(), "{\"latest_code\":14000,\"latest_name\":\"0.14.0\",\"min_code\":0,\"store_url\":\"https://x\",\"notes\":\"\",\"updated_at\":null}")
+        assertEquals(14000, parsed.latestCode)
     }
 
     @Test

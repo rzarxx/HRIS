@@ -73,22 +73,22 @@ func TestAppVersionSetting(t *testing.T) {
 		t.Fatalf("bawaan = %+v", def)
 	}
 
-	body := map[string]any{"latest_code": 1400, "latest_name": "0.14.0", "min_code": 1300, "notes": "Tahan offline."}
+	body := map[string]any{"latest_code": 14000, "latest_name": "0.14.0", "min_code": 13000, "notes": "Tahan offline."}
 	sdm.do(http.MethodPut, "/v1/admin/settings/app-version", body).wantError(t, http.StatusForbidden, "FORBIDDEN_ROLE")
-	super.do(http.MethodPut, "/v1/admin/settings/app-version", map[string]any{"latest_code": 1400, "latest_name": "0.14.0", "min_code": 1500}).
+	super.do(http.MethodPut, "/v1/admin/settings/app-version", map[string]any{"latest_code": 14000, "latest_name": "0.14.0", "min_code": 15000}).
 		wantError(t, http.StatusBadRequest, "VALIDATION_FAILED")
 
 	set := data[appVersionRow](t, super.do(http.MethodPut, "/v1/admin/settings/app-version", body).want(t, http.StatusOK))
-	if set.LatestCode != 1400 || set.LatestName != "0.14.0" || set.MinCode != 1300 || set.Notes != "Tahan offline." || set.UpdatedAt == nil {
+	if set.LatestCode != 14000 || set.LatestName != "0.14.0" || set.MinCode != 13000 || set.Notes != "Tahan offline." || set.UpdatedAt == nil {
 		t.Fatalf("setelah diubah = %+v", set)
 	}
 
-	old := newClient(t, srv).withHeaders(map[string]string{"X-App-Version": "0.12.0+1200"})
+	old := newClient(t, srv).withHeaders(map[string]string{"X-App-Version": "0.12.0+12000"})
 	old.do(http.MethodGet, "/v1/me", nil).wantError(t, http.StatusUpgradeRequired, "APP_UPDATE_REQUIRED")
-	if got := data[appVersionRow](t, old.do(http.MethodGet, "/v1/app/version", nil).want(t, http.StatusOK)); got.LatestCode != 1400 {
+	if got := data[appVersionRow](t, old.do(http.MethodGet, "/v1/app/version", nil).want(t, http.StatusOK)); got.LatestCode != 14000 {
 		t.Errorf("versi lama tetap bisa membaca versi terbaru: %+v", got)
 	}
-	current := newClient(t, srv).withHeaders(map[string]string{"X-App-Version": "0.13.0+1300"})
+	current := newClient(t, srv).withHeaders(map[string]string{"X-App-Version": "0.13.0+13000"})
 	current.do(http.MethodGet, "/v1/me", nil).wantError(t, http.StatusUnauthorized, "AUTH_TOKEN_INVALID")
 	// Web tanpa header tidak terpengaruh.
 	anon.do(http.MethodGet, "/v1/me", nil).wantError(t, http.StatusUnauthorized, "AUTH_TOKEN_INVALID")

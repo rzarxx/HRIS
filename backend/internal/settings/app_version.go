@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/url"
 	"regexp"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -32,8 +33,25 @@ const (
 
 var versionName = regexp.MustCompile(`^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$`)
 
+// VersionCode menghitung versionCode dari nama versi x.y.z dengan rumus yang sama seperti
+// .github/workflows/release.yml. False bila bentuknya salah atau minor/patch lebih dari 999.
+func VersionCode(name string) (int, bool) {
+	m := versionName.FindStringSubmatch(name)
+	if m == nil {
+		return 0, false
+	}
+	major, err1 := strconv.Atoi(m[1])
+	minor, err2 := strconv.Atoi(m[2])
+	patch, err3 := strconv.Atoi(m[3])
+	if err1 != nil || err2 != nil || err3 != nil || minor > 999 || patch > 999 || major > 2099 {
+		return 0, false
+	}
+	return major*1_000_000 + minor*1_000 + patch, true
+}
+
 // AppVersion adalah versi aplikasi Android yang diumumkan ke Pejuang (D63). Kode versi sama dengan
-// versionCode aplikasi (major·10000 + minor·100 + patch). Nol berarti belum diatur.
+// versionCode aplikasi dari workflow rilis (major·1.000.000 + minor·1.000 + patch, mis. 0.14.0 = 14000).
+// Nol berarti belum diatur.
 type AppVersion struct {
 	LatestCode int     `json:"latest_code"`
 	LatestName string  `json:"latest_name"`
@@ -123,8 +141,13 @@ func normalizeAppVersion(in AppVersionInput) (storedAppVersion, error) {
 	if out.LatestCode < 0 || out.LatestCode > maxVersionCode {
 		fields["latest_code"] = "Kode versi tidak valid."
 	}
-	if out.LatestCode > 0 && !versionName.MatchString(out.LatestName) {
-		fields["latest_name"] = "Nama versi harus berbentuk x.y.z, mis. 0.14.0."
+	if out.LatestCode > 0 {
+		// Kode harus cocok dengan nama versi; salah hitung membuat pemberitahuan versi tidak pernah muncul.
+		if code, ok := VersionCode(out.LatestName); !ok {
+			fields["latest_name"] = "Nama versi harus berbentuk x.y.z, mis. 0.14.0."
+		} else if code != out.LatestCode {
+			fields["latest_code"] = "Kode versi tidak sesuai nama versi (0.14.0 = 14000)."
+		}
 	}
 	if out.LatestCode == 0 && out.LatestName != "" {
 		fields["latest_code"] = "Isi kode versi untuk nama versi ini."

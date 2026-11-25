@@ -357,7 +357,7 @@ fun MainScreen(
             ),
         )
         if (offerLock && !onSubPage && !askLogout) {
-            val close = {
+            val close: () -> Unit = {
                 offerLock = false
                 saved?.markQuickLoginOffered()
             }

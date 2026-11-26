@@ -7,9 +7,14 @@ Perubahan penting yang terlihat oleh Pejuang, SDM, atau pengelola server. Keputu
 ## Belum dirilis
 
 ### Ditambahkan
+- **Tab Slip di aplikasi (D68).** Tab Slip kini berisi slip ubar per periode, terbaru di atas.
+  - Rincian slip: ubar bersih, ringkasan presensi, pendapatan, dan potongan. Tetap bisa dibaca saat offline.
+  - **Lihat PDF** di dalam aplikasi, **Unduh** ke folder Unduhan (Android 8 dan 9 memilih lokasi simpan), dan
+    **Bagikan** ke aplikasi lain. Layar slip tidak bisa di-screenshot.
+  - Slip baru memunculkan banner "Slip ubar … sudah terbit" di Beranda dan lencana di tab Slip sampai dibuka.
 - **Slip ubar terbit untuk Pejuang (D68).** Saat periode difinalkan:
   - Slip tersedia lewat `/v1/payslips` dan bisa diunduh sebagai PDF (kop yayasan, ringkasan presensi, pendapatan,
-    potongan, ubar bersih dan terbilang, nomor dokumen). Tab Slip di aplikasi menyusul.
+    potongan, ubar bersih dan terbilang, nomor dokumen).
   - Pejuang mendapat notifikasi di aplikasi (`/v1/notifications`) dan email pemberitahuan tanpa angka ubar bila SMTP
     aktif.
   - SDM bisa mengunduh PDF tiap Pejuang dari rincian periode; sebelum final bertanda DRAF.

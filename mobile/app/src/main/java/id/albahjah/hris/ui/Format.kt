@@ -158,3 +158,23 @@ fun defaultFooter(year: Int = ZonedDateTime.now(Wib).year): String = "© $year P
 fun LocalDate.toPickerMillis(): Long = atStartOfDay(java.time.ZoneOffset.UTC).toInstant().toEpochMilli()
 
 fun pickerMillisToDate(millis: Long): LocalDate = Instant.ofEpochMilli(millis).atZone(java.time.ZoneOffset.UTC).toLocalDate()
+
+private val monthNames = listOf(
+    "Januari", "Februari", "Maret", "April", "Mei", "Juni",
+    "Juli", "Agustus", "September", "Oktober", "November", "Desember",
+)
+
+/** Nama periode slip, mis. "November 2026". */
+fun periodName(year: Int, month: Int): String = "${monthNames.getOrElse(month - 1) { "" }} $year".trim()
+
+/**
+ * Rupiah tanpa sen dengan titik ribuan dari angka desimal server ("4973250.00" menjadi "Rp 4.973.250").
+ * Angka yang tidak terbaca ditampilkan apa adanya.
+ */
+fun rupiah(raw: String): String {
+    val value = raw.trim().toBigDecimalOrNull() ?: return raw
+    val whole = value.setScale(0, java.math.RoundingMode.HALF_UP)
+    val digits = whole.abs().toPlainString()
+    val grouped = digits.reversed().chunked(3).joinToString(".").reversed()
+    return (if (whole.signum() < 0) "-Rp " else "Rp ") + grouped
+}

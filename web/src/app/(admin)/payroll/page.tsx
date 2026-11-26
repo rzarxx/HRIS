@@ -1,122 +1,152 @@
 "use client";
 
-import { Download, Info } from "lucide-react";
-import { useMemo, useState } from "react";
-import { currentPeriod, PeriodFilterBar } from "@/components/reports/period-filter";
+import { ChevronRight, Plus } from "lucide-react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { useState } from "react";
+import { PeriodStatusBadge, periodLabel } from "@/components/payroll/status";
 import { Button } from "@/components/ui/button";
+import { Field, Select } from "@/components/ui/form";
 import { Card, EmptyState, ErrorState, Loading, PageHeader } from "@/components/ui/layout";
+import { Modal } from "@/components/ui/modal";
 import { Table, Td, Th } from "@/components/ui/table";
-import { downloadCsv } from "@/lib/csv";
-import { MONTHS, rupiah, sumMoney } from "@/lib/format";
-import { usePayrollReport, type PeriodFilter } from "@/lib/hooks";
+import { api } from "@/lib/api-client";
+import { dateLong, MONTHS, rupiah, todayWib } from "@/lib/format";
+import { usePayrollPeriods, useSave } from "@/lib/hooks";
+import type { PayrollPeriod } from "@/lib/types";
 
-export default function PayrollReportPage() {
-  // Laporan ubar lazimnya untuk bulan yang sudah selesai
-  const [period, setPeriod] = useState<PeriodFilter>(() => currentPeriod(-1));
-  const report = usePayrollReport(period);
-  const rows = useMemo(() => report.data?.data ?? [], [report.data]);
-  const rules = report.data?.meta.rules;
+export default function PayrollPeriodsPage() {
+  const list = usePayrollPeriods();
+  const router = useRouter();
+  const [creating, setCreating] = useState(false);
+  const thisYear = Number(todayWib().slice(0, 4));
+  const thisMonth = Number(todayWib().slice(5, 7));
+  const [form, setForm] = useState({ year: thisYear, month: thisMonth });
+  const [errors, setErrors] = useState<Record<string, string>>({});
 
-  const totals = useMemo(
-    () => ({
-      base: sumMoney(rows.map((r) => r.base_salary)),
-      absent: sumMoney(rows.map((r) => r.absent_deduction)),
-      late: sumMoney(rows.map((r) => r.late_deduction)),
-      net: sumMoney(rows.map((r) => r.net)),
-    }),
-    [rows],
-  );
+  const create = useSave((v: { year: number; month: number }) => api.post<{ data: PayrollPeriod }>("/admin/payroll/periods", v), {
+    success: "Periode ubar dibuat.",
+    onDone: (res) => {
+      setCreating(false);
+      router.push(`/payroll/periode?id=${res.data.id}`);
+    },
+    onFieldErrors: setErrors,
+  });
 
-  const label = `${MONTHS[period.month - 1]} ${period.year}`;
-
-  function exportCsv() {
-    downloadCsv(
-      `laporan-ubar-${period.year}-${String(period.month).padStart(2, "0")}.csv`,
-      ["NIPY", "Nama", "Divisi", "Subdiv", "Ubar pokok", "Alpha (hari)", "Telat (kali)", "Potongan alpha", "Potongan telat", "Ubar bersih"],
-      rows.map((r) => [r.nip, r.full_name, r.division, r.subdivision, r.base_salary, r.absent, r.late, r.absent_deduction, r.late_deduction, r.net]),
-    );
+  function open() {
+    setErrors({});
+    setForm({ year: thisYear, month: thisMonth });
+    setCreating(true);
   }
 
   return (
     <>
       <PageHeader
-        title="Laporan ubar"
-        description={`Perhitungan ubar berdasarkan presensi periode ${label}.`}
+        title="Periode ubar"
+        description="Hitung ubar per periode dari presensi dan komponen ubar, lalu ajukan untuk disetujui SDM lain sebelum slip terbit."
         actions={
-          <Button variant="secondary" onClick={exportCsv} disabled={!rows.length}>
-            <Download className="size-4" /> Ekspor Excel (CSV)
+          <Button onClick={open}>
+            <Plus className="size-4" /> Buat periode
           </Button>
         }
       />
-      {rules && (
-        <div className="mb-4 flex items-start gap-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
-          <Info className="mt-0.5 size-3.5 shrink-0" aria-hidden />
-          {rules.note}
-        </div>
-      )}
       <Card bodyClassName="">
-        <div className="space-y-4 border-b border-slate-100 p-4">
-          <PeriodFilterBar value={period} onChange={setPeriod} />
-          <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-            {[
-              ["Total ubar pokok", totals.base],
-              ["Potongan alpha", totals.absent],
-              ["Potongan telat", totals.late],
-              ["Total ubar bersih", totals.net],
-            ].map(([k, v]) => (
-              <div key={k} className="rounded-md bg-slate-50 px-4 py-3">
-                <p className="text-xs text-slate-500">{k}</p>
-                <p className="mt-0.5 text-lg font-semibold text-slate-900 tabular-nums">{rupiah(v)}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-        {report.isPending ? (
+        {list.isPending ? (
           <Loading />
-        ) : report.isError ? (
-          <ErrorState message={report.error.message} onRetry={() => report.refetch()} />
-        ) : rows.length === 0 ? (
-          <EmptyState title="Tidak ada data" description="Pilih periode atau divisi lain." />
+        ) : list.isError ? (
+          <ErrorState message={list.error.message} onRetry={() => list.refetch()} />
+        ) : list.data.length === 0 ? (
+          <EmptyState title="Belum ada periode" description="Atur komponen ubar dulu, lalu buat periode bulan ini." />
         ) : (
-          <Table>
+          <Table actions="always">
             <thead>
               <tr>
-                <Th>NIPY</Th>
-                <Th>Nama</Th>
-                <Th>Subdiv</Th>
-                <Th align="right">Ubar pokok</Th>
-                <Th align="right">Alpha</Th>
-                <Th align="right">Telat</Th>
-                <Th align="right">Pot. alpha</Th>
-                <Th align="right">Pot. telat</Th>
-                <Th align="right">Ubar bersih</Th>
+                <Th>Periode</Th>
+                <Th>Rentang presensi</Th>
+                <Th>Status</Th>
+                <Th align="right">Pejuang</Th>
+                <Th align="right">Total ubar bersih</Th>
+                <Th align="right">
+                  <span className="sr-only">Buka</span>
+                </Th>
               </tr>
             </thead>
-            <tbody className={report.isPlaceholderData ? "opacity-60" : ""}>
-              {rows.map((r) => (
-                <tr key={r.employee_id} className="hover:bg-slate-50">
-                  <Td className="font-mono text-xs">{r.nip}</Td>
-                  <Td className="font-medium whitespace-nowrap text-slate-900">{r.full_name}</Td>
+            <tbody>
+              {list.data.map((p) => (
+                <tr key={p.id} className="hover:bg-slate-50">
+                  <Td className="font-medium whitespace-nowrap text-slate-900">
+                    <Link href={`/payroll/periode?id=${p.id}`} className="hover:underline">
+                      {periodLabel(p)}
+                    </Link>
+                  </Td>
                   <Td className="whitespace-nowrap">
-                    {r.subdivision}
-                    <span className="block text-xs text-slate-500">{r.division}</span>
+                    {dateLong(p.start_date)} sampai {dateLong(p.end_date)}
                   </Td>
-                  <Td align="right" className="tabular-nums whitespace-nowrap">{rupiah(r.base_salary)}</Td>
-                  <Td align="right" className="tabular-nums">{r.absent}</Td>
-                  <Td align="right" className="tabular-nums">{r.late}</Td>
-                  <Td align="right" className={`tabular-nums whitespace-nowrap ${Number(r.absent_deduction) > 0 ? "text-red-700" : "text-slate-400"}`}>
-                    {Number(r.absent_deduction) > 0 ? `−${rupiah(r.absent_deduction)}` : "-"}
+                  <Td>
+                    <PeriodStatusBadge status={p.status} />
                   </Td>
-                  <Td align="right" className={`tabular-nums whitespace-nowrap ${Number(r.late_deduction) > 0 ? "text-red-700" : "text-slate-400"}`}>
-                    {Number(r.late_deduction) > 0 ? `−${rupiah(r.late_deduction)}` : "-"}
+                  <Td align="right" className="tabular-nums">
+                    {p.generated_at ? p.employee_count : "-"}
                   </Td>
-                  <Td align="right" className="font-semibold tabular-nums whitespace-nowrap text-slate-900">{rupiah(r.net)}</Td>
+                  <Td align="right" className="tabular-nums whitespace-nowrap">
+                    {p.generated_at ? rupiah(p.total_net) : "Belum dihitung"}
+                  </Td>
+                  <Td align="right">
+                    <Link
+                      href={`/payroll/periode?id=${p.id}`}
+                      aria-label={`Buka periode ${periodLabel(p)}`}
+                      className="inline-flex size-8 items-center justify-center rounded-md text-slate-500 hover:bg-slate-100"
+                    >
+                      <ChevronRight className="size-4" />
+                    </Link>
+                  </Td>
                 </tr>
               ))}
             </tbody>
           </Table>
         )}
       </Card>
+
+      <Modal
+        open={creating}
+        title="Buat periode ubar"
+        size="sm"
+        onClose={() => setCreating(false)}
+        footer={
+          <>
+            <Button variant="secondary" onClick={() => setCreating(false)}>
+              Batal
+            </Button>
+            <Button onClick={() => create.mutate(form)} loading={create.isPending}>
+              Buat
+            </Button>
+          </>
+        }
+      >
+        <div className="grid grid-cols-2 gap-4">
+          <Field label="Bulan" htmlFor="period-month" error={errors.month}>
+            <Select id="period-month" value={form.month} onChange={(e) => setForm({ ...form, month: Number(e.target.value) })}>
+              {MONTHS.map((m, i) => (
+                <option key={m} value={i + 1}>
+                  {m}
+                </option>
+              ))}
+            </Select>
+          </Field>
+          <Field label="Tahun" htmlFor="period-year" error={errors.year}>
+            <Select id="period-year" value={form.year} onChange={(e) => setForm({ ...form, year: Number(e.target.value) })}>
+              {[thisYear - 1, thisYear, thisYear + 1].map((y) => (
+                <option key={y} value={y}>
+                  {y}
+                </option>
+              ))}
+            </Select>
+          </Field>
+          <p className="col-span-2 text-xs text-slate-600">
+            Rentang presensi mengikuti tanggal cutoff di Komponen Ubar → Setelan periode, dan bersambung dengan periode sebelumnya.
+          </p>
+        </div>
+      </Modal>
     </>
   );
 }

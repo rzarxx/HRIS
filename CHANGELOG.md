@@ -7,6 +7,15 @@ Perubahan penting yang terlihat oleh Pejuang, SDM, atau pengelola server. Keputu
 ## Belum dirilis
 
 ### Ditambahkan
+- **Periode ubar dengan persetujuan dua SDM (D67).** Menu Payroll → **Periode Ubar** menggantikan Pratinjau.
+  - SDM membuat periode per bulan (rentang dari tanggal cutoff), menekan **Hitung ubar**, mengisi lembur atau isian
+    manual per Pejuang, lalu **Ajukan**.
+  - Pengajuan ditolak bila masih ada presensi menunggu review atau lupa absen pulang.
+  - SDM lain menyetujui (**Finalkan**) atau **Tolak** dengan alasan; yang menghitung atau mengajukan tidak bisa
+    menyetujui sendiri. Setelah transfer, tandai **Sudah dibayar**.
+  - Sejak diajukan, presensi dan persetujuan cuti di dalam periode itu terkunci.
+  - Rekap presensi dan ekspor Excel mengikuti tanggal cutoff dari setelan periode.
+  - Pratinjau ubar dengan rumus sementara dan endpoint `/v1/admin/reports/payroll-preview` dihapus.
 - **Komponen ubar diatur SDM di panel (D66).** Menu Payroll kini berisi **Komponen Ubar** dan **Pratinjau**.
   - SDM menambah tunjangan dan potongan dengan salah satu cara hitung: nominal tetap, nominal per Pejuang, per hari
     hadir, per kali atau per menit telat, per hari alpha, per hari cuti tidak dibayar, persen dari ubar pokok, persen

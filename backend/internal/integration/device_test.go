@@ -299,7 +299,7 @@ func TestSuperadminAllExceptFinance(t *testing.T) {
 	admin.do(http.MethodPost, "/v1/admin/devices/"+second.ID+"/approve", nil).want(t, http.StatusOK)
 
 	// Keuangan tertutup, dan ubar orang lain tidak pernah tampil.
-	admin.do(http.MethodGet, "/v1/admin/reports/payroll-preview?year=2026&month=1", nil).wantError(t, http.StatusForbidden, "FORBIDDEN_ROLE")
+	admin.do(http.MethodGet, "/v1/admin/payroll/periods", nil).wantError(t, http.StatusForbidden, "FORBIDDEN_ROLE")
 	res := admin.do(http.MethodGet, "/v1/admin/employees/"+target.employeeID, nil).want(t, http.StatusOK)
 	if strings.Contains(string(res.body), "base_salary") {
 		t.Errorf("ubar orang lain terlihat: %s", res.body)

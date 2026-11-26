@@ -229,13 +229,23 @@ func routes(d Deps) []Route {
 
 		guarded(http.MethodGet, "/v1/admin/reports/attendance", d.Report.Attendance, permission.AttendanceReport),
 		guarded(http.MethodGet, "/v1/admin/reports/attendance/export", d.Report.AttendanceExport, permission.AttendanceReport),
-		// Memuat ubar: base_salary hanya untuk sdm (§7.6), jadi perlu payroll:manage juga.
-		guarded(http.MethodGet, "/v1/admin/reports/payroll-preview", d.Report.PayrollPreview, permission.AttendanceReport, permission.PayrollManage),
 
 		// Komponen ubar dan setelan payroll (D66): khusus SDM, diaudit payroll.rules_changed.
 		guarded(http.MethodGet, "/v1/admin/payroll/components", d.Payroll.ListComponents, permission.PayrollManage),
 		guarded(http.MethodPost, "/v1/admin/payroll/components", d.Payroll.CreateComponent, permission.PayrollManage),
 		guarded(http.MethodPatch, "/v1/admin/payroll/components/{id}", d.Payroll.UpdateComponent, permission.PayrollManage),
+		guarded(http.MethodGet, "/v1/admin/payroll/periods", d.Payroll.ListPeriods, permission.PayrollManage),
+		guarded(http.MethodPost, "/v1/admin/payroll/periods", d.Payroll.CreatePeriod, permission.PayrollManage),
+		guarded(http.MethodGet, "/v1/admin/payroll/periods/{id}", d.Payroll.Period, permission.PayrollManage),
+		guarded(http.MethodDelete, "/v1/admin/payroll/periods/{id}", d.Payroll.DeletePeriod, permission.PayrollManage),
+		// Periode ubar maker-checker (D67): menghitung dan mengajukan payroll:manage, menyetujui payroll:finalize oleh SDM lain.
+		guarded(http.MethodPost, "/v1/admin/payroll/periods/{id}/generate", d.Payroll.Generate, permission.PayrollManage),
+		guarded(http.MethodPost, "/v1/admin/payroll/periods/{id}/submit", d.Payroll.Submit, permission.PayrollManage),
+		guarded(http.MethodPost, "/v1/admin/payroll/periods/{id}/reject", d.Payroll.Reject, permission.PayrollFinalize),
+		guarded(http.MethodPost, "/v1/admin/payroll/periods/{id}/finalize", d.Payroll.Finalize, permission.PayrollFinalize),
+		guarded(http.MethodPost, "/v1/admin/payroll/periods/{id}/mark-paid", d.Payroll.MarkPaid, permission.PayrollFinalize),
+		guarded(http.MethodGet, "/v1/admin/payroll/periods/{id}/employees/{employee_id}", d.Payroll.EmployeePayroll, permission.PayrollManage),
+		guarded(http.MethodPut, "/v1/admin/payroll/periods/{id}/employees/{employee_id}", d.Payroll.SetInputs, permission.PayrollManage),
 		guarded(http.MethodGet, "/v1/admin/payroll/settings", d.Payroll.Settings, permission.PayrollManage),
 		guarded(http.MethodPut, "/v1/admin/payroll/settings", d.Payroll.SetSettings, permission.PayrollManage),
 		guarded(http.MethodGet, "/v1/admin/employees/{id}/payroll-components", d.Payroll.EmployeeComponents, permission.PayrollManage),

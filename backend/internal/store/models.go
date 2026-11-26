@@ -369,6 +369,50 @@ func (ns NullPayrollComponentKind) Value() (driver.Value, error) {
 	return string(ns.PayrollComponentKind), nil
 }
 
+type PayrollStatus string
+
+const (
+	PayrollStatusDraft           PayrollStatus = "draft"
+	PayrollStatusPendingApproval PayrollStatus = "pending_approval"
+	PayrollStatusFinal           PayrollStatus = "final"
+	PayrollStatusPaid            PayrollStatus = "paid"
+)
+
+func (e *PayrollStatus) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = PayrollStatus(s)
+	case string:
+		*e = PayrollStatus(s)
+	default:
+		return fmt.Errorf("unsupported scan type for PayrollStatus: %T", src)
+	}
+	return nil
+}
+
+type NullPayrollStatus struct {
+	PayrollStatus PayrollStatus
+	Valid         bool // Valid is true if PayrollStatus is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullPayrollStatus) Scan(value interface{}) error {
+	if value == nil {
+		ns.PayrollStatus, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.PayrollStatus.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullPayrollStatus) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.PayrollStatus), nil
+}
+
 type RequestKind string
 
 const (
@@ -846,6 +890,27 @@ type PasswordResetToken struct {
 	CreatedAt pgtype.Timestamptz
 }
 
+type Payroll struct {
+	ID             uuid.UUID
+	PeriodID       uuid.UUID
+	EmployeeID     uuid.UUID
+	Nip            string
+	FullName       string
+	Division       string
+	Subdivision    string
+	Position       string
+	BaseSalary     decimal.Decimal
+	Gross          decimal.Decimal
+	Deductions     decimal.Decimal
+	Net            decimal.Decimal
+	NetClamped     bool
+	Attendance     []byte
+	EmployeeValues []byte
+	PublishedAt    pgtype.Timestamptz
+	CreatedAt      pgtype.Timestamptz
+	UpdatedAt      pgtype.Timestamptz
+}
+
 type PayrollComponent struct {
 	ID         uuid.UUID
 	Code       string
@@ -862,6 +927,55 @@ type PayrollComponent struct {
 	UpdatedBy  uuid.NullUUID
 	CreatedAt  pgtype.Timestamptz
 	UpdatedAt  pgtype.Timestamptz
+}
+
+type PayrollInput struct {
+	PeriodID    uuid.UUID
+	EmployeeID  uuid.UUID
+	ComponentID uuid.UUID
+	Quantity    decimal.NullDecimal
+	Amount      decimal.NullDecimal
+	Note        string
+	UpdatedBy   uuid.NullUUID
+	UpdatedAt   pgtype.Timestamptz
+}
+
+type PayrollItem struct {
+	ID            uuid.UUID
+	PayrollID     uuid.UUID
+	Position      int16
+	ComponentCode string
+	Name          string
+	Kind          PayrollComponentKind
+	Quantity      decimal.NullDecimal
+	Rate          decimal.NullDecimal
+	Amount        decimal.Decimal
+	ShowOnSlip    bool
+	Manual        bool
+}
+
+type PayrollPeriod struct {
+	ID            uuid.UUID
+	Year          int16
+	Month         int16
+	StartDate     pgtype.Date
+	EndDate       pgtype.Date
+	Status        PayrollStatus
+	RulesSnapshot []byte
+	CreatedBy     uuid.UUID
+	GeneratedBy   uuid.NullUUID
+	GeneratedAt   pgtype.Timestamptz
+	SubmittedBy   uuid.NullUUID
+	SubmittedAt   pgtype.Timestamptz
+	FinalizedBy   uuid.NullUUID
+	FinalizedAt   pgtype.Timestamptz
+	PaidBy        uuid.NullUUID
+	PaidAt        pgtype.Timestamptz
+	RejectNote    pgtype.Text
+	RejectedBy    uuid.NullUUID
+	RejectedAt    pgtype.Timestamptz
+	CreatedAt     pgtype.Timestamptz
+	UpdatedAt     pgtype.Timestamptz
 }
 
 type Session struct {

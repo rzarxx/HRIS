@@ -29,8 +29,9 @@ import type {
   OfficeLocation,
   OrgChartData,
   Paginated,
-  PayrollReportRow,
-  PayrollRules,
+  PayrollPeriod,
+  PayrollPeriodDetail,
+  EmployeePayroll,
   PayrollComponent,
   PayrollSettings,
   EmployeePayrollComponent,
@@ -290,11 +291,24 @@ export const useAttendanceReport = (f: AttendanceReportFilter) =>
     placeholderData: keepPreviousData,
   });
 
-export const usePayrollReport = (f: PeriodFilter) =>
+export const usePayrollPeriods = () =>
   useQuery({
-    queryKey: ["report-payroll", f],
-    queryFn: () => api.get<ListResponse<PayrollReportRow> & { meta: { rules: PayrollRules } }>("/admin/reports/payroll-preview", { ...f }),
-    placeholderData: keepPreviousData,
+    queryKey: ["payroll-periods"],
+    queryFn: () => api.get<ListResponse<PayrollPeriod>>("/admin/payroll/periods").then((r) => r.data),
+  });
+
+export const usePayrollPeriod = (id: string | null) =>
+  useQuery({
+    queryKey: ["payroll-period", id],
+    queryFn: () => api.get<ItemResponse<PayrollPeriodDetail>>(`/admin/payroll/periods/${id}`).then((r) => r.data),
+    enabled: !!id,
+  });
+
+export const useEmployeePayroll = (periodId: string, employeeId: string | null) =>
+  useQuery({
+    queryKey: ["employee-payroll", periodId, employeeId],
+    queryFn: () => api.get<ItemResponse<EmployeePayroll>>(`/admin/payroll/periods/${periodId}/employees/${employeeId}`).then((r) => r.data),
+    enabled: !!employeeId,
   });
 
 /**

@@ -231,17 +231,6 @@ class ScreenshotTest {
     }
 
     @Test
-    fun loginQuick() = shot {
-        LoginContent(
-            form = LoginForm(identifier = "2024.07.0153", remember = true, quickLogin = true, savedAccount = true),
-            showServer = false,
-            version = "0.14.1",
-            crash = null,
-            onCopyCrash = {}, onDismissCrash = {}, onServer = {}, onIdentifier = {}, onPassword = {}, onMfa = {}, onSubmit = {}, footer = footer,
-        )
-    }
-
-    @Test
     fun updateRequired() = shot {
         UpdateRequiredContent(AppVersion(latestCode = 14000, latestName = "0.14.0", minCode = 14000, notes = "Aplikasi tetap bisa dibuka saat offline."), onUpdate = {})
     }

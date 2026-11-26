@@ -17,7 +17,7 @@ import (
 var logoPNG []byte
 
 // OrgName tampil di kop slip.
-const OrgName = "Lembaga Pengembangan Dakwah Al-Bahjah"
+const OrgName = "Yayasan Al Bahjah"
 
 var monthNames = [...]string{"", "Januari", "Februari", "Maret", "April", "Mei", "Juni", "Juli", "Agustus", "September", "Oktober", "November", "Desember"}
 

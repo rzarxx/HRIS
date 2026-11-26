@@ -14,6 +14,7 @@ import (
 
 	"github.com/rzarxx/HRIS/backend/internal/audit"
 	"github.com/rzarxx/HRIS/backend/internal/auth"
+	"github.com/rzarxx/HRIS/backend/internal/payroll"
 	"github.com/rzarxx/HRIS/backend/internal/platform/database"
 	"github.com/rzarxx/HRIS/backend/internal/platform/httpx"
 	"github.com/rzarxx/HRIS/backend/internal/platform/pgconv"
@@ -146,6 +147,14 @@ func (s *Service) Resolve(ctx context.Context, p auth.Principal, ip *netip.Addr,
 		}
 		if current.Status != store.AttStatusReview {
 			return httpx.NewError(http.StatusConflict, "REQUEST_NOT_PENDING", "Presensi ini sudah ditinjau.")
+		}
+		// Presensi di periode ubar yang sudah diajukan atau final terkunci (D67).
+		locked, err := payroll.DateLocked(ctx, q, current.WorkDate.Time, current.WorkDate.Time)
+		if err != nil {
+			return err
+		}
+		if locked {
+			return payroll.ErrPeriodLocked()
 		}
 		late := int32(0)
 		if status == store.AttStatusLate {

@@ -7,6 +7,7 @@ import (
 	"regexp"
 	"slices"
 	"strings"
+	"time"
 	"unicode"
 	"unicode/utf8"
 
@@ -33,9 +34,15 @@ var codePattern = regexp.MustCompile(`^[A-Z][A-Z0-9_]{1,19}$`)
 type Service struct {
 	pool *pgxpool.Pool
 	q    *store.Queries
+	now  func() time.Time
 }
 
-func NewService(pool *pgxpool.Pool) *Service { return &Service{pool: pool, q: store.New(pool)} }
+func NewService(pool *pgxpool.Pool) *Service {
+	return &Service{pool: pool, q: store.New(pool), now: time.Now}
+}
+
+// SetClock mengganti jam untuk tes.
+func (s *Service) SetClock(now func() time.Time) { s.now = now }
 
 // ComponentView adalah respons API komponen ubar.
 type ComponentView struct {

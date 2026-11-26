@@ -60,9 +60,8 @@ export const NAV: NavItem[] = [
     icon: Wallet,
     permission: "payroll:manage",
     children: [
-      { label: "Periode Ubar", href: "/payroll/periode", soon: true },
+      { label: "Periode Ubar", href: "/payroll", permission: "payroll:manage" },
       { label: "Komponen Ubar", href: "/payroll/komponen", permission: "payroll:manage" },
-      { label: "Pratinjau", href: "/payroll", permission: "payroll:manage" },
     ],
   },
   {

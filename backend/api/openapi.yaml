@@ -2658,33 +2658,6 @@ paths:
                 type: string
                 format: binary
         "400": { $ref: "#/components/responses/ValidationFailed" }
-  /v1/admin/reports/payroll-preview:
-    get:
-      tags: [Laporan]
-      summary: Pratinjau ubar berdasarkan presensi
-      description: "Permission `attendance:report` dan `payroll:manage`. Rumus sementara, ada di `meta.rules`."
-      parameters:
-        - $ref: "#/components/parameters/Year"
-        - $ref: "#/components/parameters/Month"
-        - { name: division_id, in: query, schema: { type: string, format: uuid } }
-      responses:
-        "200":
-          description: OK
-          content:
-            application/json:
-              schema:
-                type: object
-                required: [data, meta]
-                properties:
-                  data:
-                    type: array
-                    items: { $ref: "#/components/schemas/PayrollPreviewRow" }
-                  meta:
-                    type: object
-                    required: [rules]
-                    properties:
-                      rules: { $ref: "#/components/schemas/PayrollRules" }
-        "400": { $ref: "#/components/responses/ValidationFailed" }
   /v1/admin/payroll/components:
     get:
       tags: [Payroll]
@@ -2746,6 +2719,172 @@ paths:
                   data: { $ref: "#/components/schemas/PayrollComponent" }
         "400": { $ref: "#/components/responses/ValidationFailed" }
         "404": { $ref: "#/components/responses/Error" }
+  /v1/admin/payroll/periods:
+    get:
+      tags: [Payroll]
+      summary: Daftar periode ubar
+      description: "Permission `payroll:manage` (D67)."
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: "#/components/schemas/PayrollPeriod" }
+    post:
+      tags: [Payroll]
+      summary: Buat periode ubar
+      description: "Permission `payroll:manage`. Rentang dari tanggal cutoff; bila ada periode sebelumnya, mulai sehari setelah periode itu berakhir. Diaudit `payroll.period_created`."
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [year, month]
+              properties:
+                year: { type: integer, minimum: 2000, maximum: 2100 }
+                month: { type: integer, minimum: 1, maximum: 12 }
+      responses:
+        "201":
+          description: Dibuat
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data: { $ref: "#/components/schemas/PayrollPeriod" }
+        "400": { $ref: "#/components/responses/ValidationFailed" }
+  /v1/admin/payroll/periods/{id}:
+    parameters:
+      - $ref: "#/components/parameters/Id"
+    get:
+      tags: [Payroll]
+      summary: Detail periode ubar
+      description: "Permission `payroll:manage`. Memuat slip semua Pejuang, total, komponen yang dipakai, dan (saat draft) presensi yang belum beres."
+      responses:
+        "200": { $ref: "#/components/responses/PayrollPeriodDetail" }
+        "404": { $ref: "#/components/responses/Error" }
+    delete:
+      tags: [Payroll]
+      summary: Hapus periode draft
+      description: "Permission `payroll:manage`. Hanya periode draft; selain itu 409 `PERIOD_LOCKED`."
+      responses:
+        "204": { description: Dihapus }
+        "404": { $ref: "#/components/responses/Error" }
+        "409": { $ref: "#/components/responses/Error" }
+  /v1/admin/payroll/periods/{id}/generate:
+    parameters:
+      - $ref: "#/components/parameters/Id"
+    post:
+      tags: [Payroll]
+      summary: Hitung ubar periode
+      description: "Permission `payroll:manage`. Hanya saat draft; aman diulang dan isian SDM tidak hilang. Menyimpan salinan komponen dan setelan. Diaudit `payroll.generated`."
+      responses:
+        "200": { $ref: "#/components/responses/PayrollPeriodDetail" }
+        "404": { $ref: "#/components/responses/Error" }
+        "409": { $ref: "#/components/responses/Error" }
+  /v1/admin/payroll/periods/{id}/submit:
+    parameters:
+      - $ref: "#/components/parameters/Id"
+    post:
+      tags: [Payroll]
+      summary: Ajukan periode untuk disetujui
+      description: "Permission `payroll:manage`. Ditolak 422 `PAYROLL_NOT_READY` bila belum dihitung atau masih ada presensi review/lupa pulang (`details.review`, `details.missed_clock_out`). Setelah diajukan, presensi dalam rentang terkunci. Diaudit `payroll.submitted`."
+      responses:
+        "200": { $ref: "#/components/responses/PayrollPeriodDetail" }
+        "404": { $ref: "#/components/responses/Error" }
+        "409": { $ref: "#/components/responses/Error" }
+        "422": { $ref: "#/components/responses/Error" }
+  /v1/admin/payroll/periods/{id}/reject:
+    parameters:
+      - $ref: "#/components/parameters/Id"
+    post:
+      tags: [Payroll]
+      summary: Kembalikan periode ke draft
+      description: "Permission `payroll:finalize`. Alasan wajib. Diaudit `payroll.rejected`."
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [note]
+              properties:
+                note: { type: string, minLength: 3, maxLength: 500 }
+      responses:
+        "200": { $ref: "#/components/responses/PayrollPeriodDetail" }
+        "400": { $ref: "#/components/responses/ValidationFailed" }
+        "404": { $ref: "#/components/responses/Error" }
+        "409": { $ref: "#/components/responses/Error" }
+  /v1/admin/payroll/periods/{id}/finalize:
+    parameters:
+      - $ref: "#/components/parameters/Id"
+    post:
+      tags: [Payroll]
+      summary: Setujui dan finalkan periode
+      description: "Permission `payroll:finalize`. Harus SDM lain dari yang menghitung atau mengajukan (403 `MAKER_CHECKER_VIOLATION`). Slip terbit. Diaudit `payroll.finalized`."
+      responses:
+        "200": { $ref: "#/components/responses/PayrollPeriodDetail" }
+        "403": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+        "409": { $ref: "#/components/responses/Error" }
+  /v1/admin/payroll/periods/{id}/mark-paid:
+    parameters:
+      - $ref: "#/components/parameters/Id"
+    post:
+      tags: [Payroll]
+      summary: Tandai ubar sudah dibayar
+      description: "Permission `payroll:finalize`. Hanya periode final. Diaudit `payroll.paid`."
+      responses:
+        "200": { $ref: "#/components/responses/PayrollPeriodDetail" }
+        "404": { $ref: "#/components/responses/Error" }
+        "409": { $ref: "#/components/responses/Error" }
+  /v1/admin/payroll/periods/{id}/employees/{employee_id}:
+    parameters:
+      - $ref: "#/components/parameters/Id"
+      - { name: employee_id, in: path, required: true, schema: { type: string, format: uuid } }
+    get:
+      tags: [Payroll]
+      summary: Rincian ubar satu Pejuang
+      description: "Permission `payroll:manage`. Item slip dan isian per periode (komponen `per_unit` dan `manual`)."
+      responses:
+        "200": { $ref: "#/components/responses/EmployeePayroll" }
+        "404": { $ref: "#/components/responses/Error" }
+    put:
+      tags: [Payroll]
+      summary: Simpan isian per periode
+      description: "Permission `payroll:manage`. Hanya saat draft. Menggantikan seluruh isian Pejuang ini lalu menghitung ulang slipnya. Diaudit `payroll.adjusted`."
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [inputs]
+              properties:
+                inputs:
+                  type: array
+                  maxItems: 100
+                  items:
+                    type: object
+                    required: [component_id]
+                    properties:
+                      component_id: { type: string, format: uuid }
+                      quantity: { type: string, nullable: true, description: Untuk per_unit }
+                      amount: { type: string, nullable: true, description: Rupiah untuk manual }
+                      note: { type: string, maxLength: 300 }
+      responses:
+        "200": { $ref: "#/components/responses/EmployeePayroll" }
+        "400": { $ref: "#/components/responses/ValidationFailed" }
+        "404": { $ref: "#/components/responses/Error" }
+        "409": { $ref: "#/components/responses/Error" }
   /v1/admin/payroll/settings:
     get:
       tags: [Payroll]
@@ -2883,6 +3022,24 @@ components:
       content:
         application/json:
           schema: { $ref: "#/components/schemas/ErrorResponse" }
+    PayrollPeriodDetail:
+      description: Detail periode
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [data]
+            properties:
+              data: { $ref: "#/components/schemas/PayrollPeriodDetail" }
+    EmployeePayroll:
+      description: Rincian ubar satu Pejuang
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [data]
+            properties:
+              data: { $ref: "#/components/schemas/EmployeePayroll" }
     ValidationFailed:
       description: Input tidak valid, rincian per field ada di `details.fields`
       content:
@@ -2930,6 +3087,7 @@ components:
         - NOT_CLOCKED_IN
         - REQUEST_NOT_PENDING
         - PERIOD_LOCKED
+        - PAYROLL_NOT_READY
         - DUPLICATE_REQUEST
         - CONFLICT_DUPLICATE
         - CONFLICT_HAS_DEPENDENTS
@@ -3672,22 +3830,6 @@ components:
         quota_kind: { type: string, enum: [statutory, custom, none] }
         paid: { type: boolean }
         days: { type: integer }
-    PayrollPreviewRow:
-      type: object
-      required:
-        [employee_id, nip, full_name, division, subdivision, base_salary, absent, late, absent_deduction, late_deduction, net]
-      properties:
-        employee_id: { type: string, format: uuid }
-        nip: { type: string }
-        full_name: { type: string }
-        division: { type: string }
-        subdivision: { type: string }
-        base_salary: { $ref: "#/components/schemas/Money" }
-        absent: { type: integer }
-        late: { type: integer }
-        absent_deduction: { $ref: "#/components/schemas/Money" }
-        late_deduction: { $ref: "#/components/schemas/Money" }
-        net: { $ref: "#/components/schemas/Money" }
     AttendanceChallengeInput:
       type: object
       required: [purpose]
@@ -4248,6 +4390,147 @@ components:
       properties:
         date: { type: string, format: date }
         name: { type: string, maxLength: 120 }
+    PayrollStatus:
+      type: string
+      enum: [draft, pending_approval, final, paid]
+    PayrollPeriod:
+      type: object
+      required: [id, year, month, start_date, end_date, status, employee_count, total_net, generated_at, submitted_at, finalized_at, paid_at, reject_note, can_finalize]
+      properties:
+        id: { type: string, format: uuid }
+        year: { type: integer }
+        month: { type: integer }
+        start_date: { type: string, format: date }
+        end_date: { type: string, format: date, description: Inklusif }
+        status: { $ref: "#/components/schemas/PayrollStatus" }
+        employee_count: { type: integer }
+        total_net: { type: string }
+        generated_at: { type: string, format: date-time, nullable: true }
+        submitted_at: { type: string, format: date-time, nullable: true }
+        finalized_at: { type: string, format: date-time, nullable: true }
+        paid_at: { type: string, format: date-time, nullable: true }
+        reject_note: { type: string, nullable: true }
+        can_finalize: { type: boolean, description: "false bila pemanggil yang menghitung atau mengajukan periode ini" }
+    PayrollAttendance:
+      type: object
+      required: [work_days, present_days, late_count, late_minutes, absent_days, leave_days, unpaid_leave_days, review, missed_clock_out]
+      properties:
+        work_days: { type: string }
+        present_days: { type: integer }
+        late_count: { type: integer }
+        late_minutes: { type: integer }
+        absent_days: { type: integer }
+        leave_days: { type: integer }
+        unpaid_leave_days: { type: integer }
+        review: { type: integer }
+        missed_clock_out: { type: integer }
+    PayrollRow:
+      type: object
+      required: [employee_id, nip, full_name, division, subdivision, base_salary, gross, deductions, net, net_clamped, attendance, has_inputs]
+      properties:
+        employee_id: { type: string, format: uuid }
+        nip: { type: string }
+        full_name: { type: string }
+        division: { type: string }
+        subdivision: { type: string }
+        base_salary: { type: string }
+        gross: { type: string }
+        deductions: { type: string }
+        net: { type: string }
+        net_clamped: { type: boolean, description: "Potongan melebihi pendapatan sehingga bersih dibulatkan ke 0" }
+        attendance: { $ref: "#/components/schemas/PayrollAttendance" }
+        has_inputs: { type: boolean }
+    PayrollSnapshotComponent:
+      type: object
+      required: [id, code, name, kind, method, rate, percent, divisor, show_on_slip, sort_order]
+      properties:
+        id: { type: string, format: uuid }
+        code: { type: string }
+        name: { type: string }
+        kind: { $ref: "#/components/schemas/PayrollComponentKind" }
+        method: { $ref: "#/components/schemas/PayrollCalcMethod" }
+        rate: { type: string, nullable: true }
+        percent: { type: string, nullable: true }
+        divisor: { type: string, nullable: true }
+        show_on_slip: { type: boolean }
+        sort_order: { type: integer }
+    PayrollItem:
+      type: object
+      required: [code, name, kind, quantity, rate, amount, show_on_slip, manual]
+      properties:
+        code: { type: string }
+        name: { type: string }
+        kind: { $ref: "#/components/schemas/PayrollComponentKind" }
+        quantity: { type: string, nullable: true }
+        rate: { type: string, nullable: true }
+        amount: { type: string }
+        show_on_slip: { type: boolean }
+        manual: { type: boolean }
+    PayrollInputView:
+      type: object
+      required: [component_id, code, name, kind, method, rate, quantity, amount, note]
+      properties:
+        component_id: { type: string, format: uuid }
+        code: { type: string }
+        name: { type: string }
+        kind: { $ref: "#/components/schemas/PayrollComponentKind" }
+        method: { $ref: "#/components/schemas/PayrollCalcMethod" }
+        rate: { type: string, nullable: true }
+        quantity: { type: string, nullable: true }
+        amount: { type: string, nullable: true }
+        note: { type: string }
+    PayrollPeriodDetail:
+      type: object
+      required: [period, rows, totals, readiness, components, item_totals]
+      properties:
+        period: { $ref: "#/components/schemas/PayrollPeriod" }
+        rows:
+          type: array
+          items: { $ref: "#/components/schemas/PayrollRow" }
+        totals:
+          type: object
+          required: [base_salary, gross, deductions, net]
+          properties:
+            base_salary: { type: string }
+            gross: { type: string }
+            deductions: { type: string }
+            net: { type: string }
+        readiness:
+          type: object
+          nullable: true
+          description: Hanya saat draft
+          required: [review, missed_clock_out]
+          properties:
+            review: { type: integer }
+            missed_clock_out: { type: integer }
+        components:
+          type: array
+          items: { $ref: "#/components/schemas/PayrollSnapshotComponent" }
+        item_totals:
+          type: array
+          items:
+            type: object
+            required: [code, name, kind, total, by_employee]
+            properties:
+              code: { type: string }
+              name: { type: string }
+              kind: { $ref: "#/components/schemas/PayrollComponentKind" }
+              total: { type: string }
+              by_employee:
+                type: object
+                additionalProperties: { type: string }
+    EmployeePayroll:
+      type: object
+      required: [period, row, items, inputs]
+      properties:
+        period: { $ref: "#/components/schemas/PayrollPeriod" }
+        row: { $ref: "#/components/schemas/PayrollRow" }
+        items:
+          type: array
+          items: { $ref: "#/components/schemas/PayrollItem" }
+        inputs:
+          type: array
+          items: { $ref: "#/components/schemas/PayrollInputView" }
     PayrollComponentKind:
       type: string
       enum: [earning, deduction]
@@ -4322,11 +4605,3 @@ components:
         kind: { $ref: "#/components/schemas/PayrollComponentKind" }
         active: { type: boolean }
         amount: { type: string, nullable: true, example: "300000.00" }
-    PayrollRules:
-      type: object
-      required: [version, work_days_divisor, late_penalty, note]
-      properties:
-        version: { type: string, example: preview-v0 }
-        work_days_divisor: { type: integer }
-        late_penalty: { $ref: "#/components/schemas/Money" }
-        note: { type: string }

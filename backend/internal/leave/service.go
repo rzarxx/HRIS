@@ -16,6 +16,7 @@ import (
 	"github.com/rzarxx/HRIS/backend/internal/audit"
 	"github.com/rzarxx/HRIS/backend/internal/auth"
 	"github.com/rzarxx/HRIS/backend/internal/permission"
+	"github.com/rzarxx/HRIS/backend/internal/payroll"
 	"github.com/rzarxx/HRIS/backend/internal/platform/database"
 	"github.com/rzarxx/HRIS/backend/internal/platform/httpx"
 	"github.com/rzarxx/HRIS/backend/internal/platform/pgconv"
@@ -461,6 +462,14 @@ func (s *Service) Decided(ctx context.Context, q *store.Queries, id uuid.UUID, s
 	holidays, err := s.holidays(ctx, q, row.StartDate.Time, row.EndDate.Time)
 	if err != nil {
 		return err
+	}
+	// Cuti tidak bisa disetujui bila tanggalnya masuk periode ubar yang sudah diajukan atau final (D67).
+	locked, err := payroll.DateLocked(ctx, q, row.StartDate.Time, row.EndDate.Time)
+	if err != nil {
+		return err
+	}
+	if locked {
+		return payroll.ErrPeriodLocked()
 	}
 	for _, d := range WorkDays(row.StartDate.Time, row.EndDate.Time, profile.WorkDays, holidays) {
 		if err := q.MarkLeaveAttendance(ctx, store.MarkLeaveAttendanceParams{EmployeeID: row.EmployeeID, WorkDate: pgconv.Date(d)}); err != nil {

@@ -9,8 +9,29 @@ import (
 	"context"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/shopspring/decimal"
 )
+
+const attendanceDateLocked = `-- name: AttendanceDateLocked :one
+SELECT EXISTS (
+  SELECT 1 FROM payroll_periods
+  WHERE status <> 'draft' AND start_date <= $1::date AND end_date >= $2::date
+)
+`
+
+type AttendanceDateLockedParams struct {
+	LastDate  pgtype.Date
+	FirstDate pgtype.Date
+}
+
+// Presensi di periode yang sudah diajukan, final, atau dibayar tidak boleh diubah (PERIOD_LOCKED).
+func (q *Queries) AttendanceDateLocked(ctx context.Context, arg AttendanceDateLockedParams) (bool, error) {
+	row := q.db.QueryRow(ctx, attendanceDateLocked, arg.LastDate, arg.FirstDate)
+	var exists bool
+	err := row.Scan(&exists)
+	return exists, err
+}
 
 const deleteEmployeePayrollComponents = `-- name: DeleteEmployeePayrollComponents :exec
 DELETE FROM employee_payroll_components WHERE employee_id = $1
@@ -18,6 +39,52 @@ DELETE FROM employee_payroll_components WHERE employee_id = $1
 
 func (q *Queries) DeleteEmployeePayrollComponents(ctx context.Context, employeeID uuid.UUID) error {
 	_, err := q.db.Exec(ctx, deleteEmployeePayrollComponents, employeeID)
+	return err
+}
+
+const deletePayroll = `-- name: DeletePayroll :exec
+DELETE FROM payrolls WHERE period_id = $1 AND employee_id = $2
+`
+
+type DeletePayrollParams struct {
+	PeriodID   uuid.UUID
+	EmployeeID uuid.UUID
+}
+
+func (q *Queries) DeletePayroll(ctx context.Context, arg DeletePayrollParams) error {
+	_, err := q.db.Exec(ctx, deletePayroll, arg.PeriodID, arg.EmployeeID)
+	return err
+}
+
+const deletePayrollInputsOfEmployee = `-- name: DeletePayrollInputsOfEmployee :exec
+DELETE FROM payroll_inputs WHERE period_id = $1 AND employee_id = $2
+`
+
+type DeletePayrollInputsOfEmployeeParams struct {
+	PeriodID   uuid.UUID
+	EmployeeID uuid.UUID
+}
+
+func (q *Queries) DeletePayrollInputsOfEmployee(ctx context.Context, arg DeletePayrollInputsOfEmployeeParams) error {
+	_, err := q.db.Exec(ctx, deletePayrollInputsOfEmployee, arg.PeriodID, arg.EmployeeID)
+	return err
+}
+
+const deletePayrollPeriod = `-- name: DeletePayrollPeriod :exec
+DELETE FROM payroll_periods WHERE id = $1 AND status = 'draft'
+`
+
+func (q *Queries) DeletePayrollPeriod(ctx context.Context, id uuid.UUID) error {
+	_, err := q.db.Exec(ctx, deletePayrollPeriod, id)
+	return err
+}
+
+const deletePayrollsOfPeriod = `-- name: DeletePayrollsOfPeriod :exec
+DELETE FROM payrolls WHERE period_id = $1
+`
+
+func (q *Queries) DeletePayrollsOfPeriod(ctx context.Context, periodID uuid.UUID) error {
+	_, err := q.db.Exec(ctx, deletePayrollsOfPeriod, periodID)
 	return err
 }
 
@@ -48,6 +115,74 @@ func (q *Queries) GetPayrollComponent(ctx context.Context, id uuid.UUID) (Payrol
 	return i, err
 }
 
+const getPayrollOfEmployee = `-- name: GetPayrollOfEmployee :one
+SELECT id, period_id, employee_id, nip, full_name, division, subdivision, position, base_salary, gross, deductions, net, net_clamped, attendance, employee_values, published_at, created_at, updated_at FROM payrolls WHERE period_id = $1 AND employee_id = $2
+`
+
+type GetPayrollOfEmployeeParams struct {
+	PeriodID   uuid.UUID
+	EmployeeID uuid.UUID
+}
+
+func (q *Queries) GetPayrollOfEmployee(ctx context.Context, arg GetPayrollOfEmployeeParams) (Payroll, error) {
+	row := q.db.QueryRow(ctx, getPayrollOfEmployee, arg.PeriodID, arg.EmployeeID)
+	var i Payroll
+	err := row.Scan(
+		&i.ID,
+		&i.PeriodID,
+		&i.EmployeeID,
+		&i.Nip,
+		&i.FullName,
+		&i.Division,
+		&i.Subdivision,
+		&i.Position,
+		&i.BaseSalary,
+		&i.Gross,
+		&i.Deductions,
+		&i.Net,
+		&i.NetClamped,
+		&i.Attendance,
+		&i.EmployeeValues,
+		&i.PublishedAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const getPayrollPeriod = `-- name: GetPayrollPeriod :one
+SELECT id, year, month, start_date, end_date, status, rules_snapshot, created_by, generated_by, generated_at, submitted_by, submitted_at, finalized_by, finalized_at, paid_by, paid_at, reject_note, rejected_by, rejected_at, created_at, updated_at FROM payroll_periods WHERE id = $1
+`
+
+func (q *Queries) GetPayrollPeriod(ctx context.Context, id uuid.UUID) (PayrollPeriod, error) {
+	row := q.db.QueryRow(ctx, getPayrollPeriod, id)
+	var i PayrollPeriod
+	err := row.Scan(
+		&i.ID,
+		&i.Year,
+		&i.Month,
+		&i.StartDate,
+		&i.EndDate,
+		&i.Status,
+		&i.RulesSnapshot,
+		&i.CreatedBy,
+		&i.GeneratedBy,
+		&i.GeneratedAt,
+		&i.SubmittedBy,
+		&i.SubmittedAt,
+		&i.FinalizedBy,
+		&i.FinalizedAt,
+		&i.PaidBy,
+		&i.PaidAt,
+		&i.RejectNote,
+		&i.RejectedBy,
+		&i.RejectedAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
 const insertEmployeePayrollComponent = `-- name: InsertEmployeePayrollComponent :exec
 INSERT INTO employee_payroll_components (employee_id, component_id, amount, updated_by)
 VALUES ($1, $2, $3, $4)
@@ -68,6 +203,52 @@ func (q *Queries) InsertEmployeePayrollComponent(ctx context.Context, arg Insert
 		arg.UpdatedBy,
 	)
 	return err
+}
+
+const insertPayroll = `-- name: InsertPayroll :one
+INSERT INTO payrolls (period_id, employee_id, nip, full_name, division, subdivision, position, base_salary, gross, deductions,
+                      net, net_clamped, attendance, employee_values)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+RETURNING id
+`
+
+type InsertPayrollParams struct {
+	PeriodID       uuid.UUID
+	EmployeeID     uuid.UUID
+	Nip            string
+	FullName       string
+	Division       string
+	Subdivision    string
+	Position       string
+	BaseSalary     decimal.Decimal
+	Gross          decimal.Decimal
+	Deductions     decimal.Decimal
+	Net            decimal.Decimal
+	NetClamped     bool
+	Attendance     []byte
+	EmployeeValues []byte
+}
+
+func (q *Queries) InsertPayroll(ctx context.Context, arg InsertPayrollParams) (uuid.UUID, error) {
+	row := q.db.QueryRow(ctx, insertPayroll,
+		arg.PeriodID,
+		arg.EmployeeID,
+		arg.Nip,
+		arg.FullName,
+		arg.Division,
+		arg.Subdivision,
+		arg.Position,
+		arg.BaseSalary,
+		arg.Gross,
+		arg.Deductions,
+		arg.Net,
+		arg.NetClamped,
+		arg.Attendance,
+		arg.EmployeeValues,
+	)
+	var id uuid.UUID
+	err := row.Scan(&id)
+	return id, err
 }
 
 const insertPayrollComponent = `-- name: InsertPayrollComponent :one
@@ -121,6 +302,150 @@ func (q *Queries) InsertPayrollComponent(ctx context.Context, arg InsertPayrollC
 		&i.SortOrder,
 		&i.Note,
 		&i.UpdatedBy,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const insertPayrollInput = `-- name: InsertPayrollInput :exec
+INSERT INTO payroll_inputs (period_id, employee_id, component_id, quantity, amount, note, updated_by)
+VALUES ($1, $2, $3, $4, $5, $6, $7)
+`
+
+type InsertPayrollInputParams struct {
+	PeriodID    uuid.UUID
+	EmployeeID  uuid.UUID
+	ComponentID uuid.UUID
+	Quantity    decimal.NullDecimal
+	Amount      decimal.NullDecimal
+	Note        string
+	UpdatedBy   uuid.NullUUID
+}
+
+func (q *Queries) InsertPayrollInput(ctx context.Context, arg InsertPayrollInputParams) error {
+	_, err := q.db.Exec(ctx, insertPayrollInput,
+		arg.PeriodID,
+		arg.EmployeeID,
+		arg.ComponentID,
+		arg.Quantity,
+		arg.Amount,
+		arg.Note,
+		arg.UpdatedBy,
+	)
+	return err
+}
+
+const insertPayrollItem = `-- name: InsertPayrollItem :exec
+INSERT INTO payroll_items (payroll_id, position, component_code, name, kind, quantity, rate, amount, show_on_slip, manual)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+`
+
+type InsertPayrollItemParams struct {
+	PayrollID     uuid.UUID
+	Position      int16
+	ComponentCode string
+	Name          string
+	Kind          PayrollComponentKind
+	Quantity      decimal.NullDecimal
+	Rate          decimal.NullDecimal
+	Amount        decimal.Decimal
+	ShowOnSlip    bool
+	Manual        bool
+}
+
+func (q *Queries) InsertPayrollItem(ctx context.Context, arg InsertPayrollItemParams) error {
+	_, err := q.db.Exec(ctx, insertPayrollItem,
+		arg.PayrollID,
+		arg.Position,
+		arg.ComponentCode,
+		arg.Name,
+		arg.Kind,
+		arg.Quantity,
+		arg.Rate,
+		arg.Amount,
+		arg.ShowOnSlip,
+		arg.Manual,
+	)
+	return err
+}
+
+const insertPayrollPeriod = `-- name: InsertPayrollPeriod :one
+INSERT INTO payroll_periods (year, month, start_date, end_date, created_by)
+VALUES ($1, $2, $3, $4, $5)
+RETURNING id, year, month, start_date, end_date, status, rules_snapshot, created_by, generated_by, generated_at, submitted_by, submitted_at, finalized_by, finalized_at, paid_by, paid_at, reject_note, rejected_by, rejected_at, created_at, updated_at
+`
+
+type InsertPayrollPeriodParams struct {
+	Year      int16
+	Month     int16
+	StartDate pgtype.Date
+	EndDate   pgtype.Date
+	CreatedBy uuid.UUID
+}
+
+func (q *Queries) InsertPayrollPeriod(ctx context.Context, arg InsertPayrollPeriodParams) (PayrollPeriod, error) {
+	row := q.db.QueryRow(ctx, insertPayrollPeriod,
+		arg.Year,
+		arg.Month,
+		arg.StartDate,
+		arg.EndDate,
+		arg.CreatedBy,
+	)
+	var i PayrollPeriod
+	err := row.Scan(
+		&i.ID,
+		&i.Year,
+		&i.Month,
+		&i.StartDate,
+		&i.EndDate,
+		&i.Status,
+		&i.RulesSnapshot,
+		&i.CreatedBy,
+		&i.GeneratedBy,
+		&i.GeneratedAt,
+		&i.SubmittedBy,
+		&i.SubmittedAt,
+		&i.FinalizedBy,
+		&i.FinalizedAt,
+		&i.PaidBy,
+		&i.PaidAt,
+		&i.RejectNote,
+		&i.RejectedBy,
+		&i.RejectedAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const latestPayrollPeriod = `-- name: LatestPayrollPeriod :one
+SELECT id, year, month, start_date, end_date, status, rules_snapshot, created_by, generated_by, generated_at, submitted_by, submitted_at, finalized_by, finalized_at, paid_by, paid_at, reject_note, rejected_by, rejected_at, created_at, updated_at FROM payroll_periods ORDER BY end_date DESC LIMIT 1
+`
+
+func (q *Queries) LatestPayrollPeriod(ctx context.Context) (PayrollPeriod, error) {
+	row := q.db.QueryRow(ctx, latestPayrollPeriod)
+	var i PayrollPeriod
+	err := row.Scan(
+		&i.ID,
+		&i.Year,
+		&i.Month,
+		&i.StartDate,
+		&i.EndDate,
+		&i.Status,
+		&i.RulesSnapshot,
+		&i.CreatedBy,
+		&i.GeneratedBy,
+		&i.GeneratedAt,
+		&i.SubmittedBy,
+		&i.SubmittedAt,
+		&i.FinalizedBy,
+		&i.FinalizedAt,
+		&i.PaidBy,
+		&i.PaidAt,
+		&i.RejectNote,
+		&i.RejectedBy,
+		&i.RejectedAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)
@@ -269,6 +594,473 @@ func (q *Queries) ListPayrollComponents(ctx context.Context) ([]PayrollComponent
 		return nil, err
 	}
 	return items, nil
+}
+
+const listPayrollInputsOfEmployee = `-- name: ListPayrollInputsOfEmployee :many
+SELECT period_id, employee_id, component_id, quantity, amount, note, updated_by, updated_at FROM payroll_inputs WHERE period_id = $1 AND employee_id = $2
+`
+
+type ListPayrollInputsOfEmployeeParams struct {
+	PeriodID   uuid.UUID
+	EmployeeID uuid.UUID
+}
+
+func (q *Queries) ListPayrollInputsOfEmployee(ctx context.Context, arg ListPayrollInputsOfEmployeeParams) ([]PayrollInput, error) {
+	rows, err := q.db.Query(ctx, listPayrollInputsOfEmployee, arg.PeriodID, arg.EmployeeID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []PayrollInput{}
+	for rows.Next() {
+		var i PayrollInput
+		if err := rows.Scan(
+			&i.PeriodID,
+			&i.EmployeeID,
+			&i.ComponentID,
+			&i.Quantity,
+			&i.Amount,
+			&i.Note,
+			&i.UpdatedBy,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listPayrollInputsOfPeriod = `-- name: ListPayrollInputsOfPeriod :many
+SELECT period_id, employee_id, component_id, quantity, amount, note, updated_by, updated_at FROM payroll_inputs WHERE period_id = $1
+`
+
+func (q *Queries) ListPayrollInputsOfPeriod(ctx context.Context, periodID uuid.UUID) ([]PayrollInput, error) {
+	rows, err := q.db.Query(ctx, listPayrollInputsOfPeriod, periodID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []PayrollInput{}
+	for rows.Next() {
+		var i PayrollInput
+		if err := rows.Scan(
+			&i.PeriodID,
+			&i.EmployeeID,
+			&i.ComponentID,
+			&i.Quantity,
+			&i.Amount,
+			&i.Note,
+			&i.UpdatedBy,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listPayrollItems = `-- name: ListPayrollItems :many
+SELECT id, payroll_id, position, component_code, name, kind, quantity, rate, amount, show_on_slip, manual FROM payroll_items WHERE payroll_id = $1 ORDER BY position
+`
+
+func (q *Queries) ListPayrollItems(ctx context.Context, payrollID uuid.UUID) ([]PayrollItem, error) {
+	rows, err := q.db.Query(ctx, listPayrollItems, payrollID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []PayrollItem{}
+	for rows.Next() {
+		var i PayrollItem
+		if err := rows.Scan(
+			&i.ID,
+			&i.PayrollID,
+			&i.Position,
+			&i.ComponentCode,
+			&i.Name,
+			&i.Kind,
+			&i.Quantity,
+			&i.Rate,
+			&i.Amount,
+			&i.ShowOnSlip,
+			&i.Manual,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listPayrollItemsOfPeriod = `-- name: ListPayrollItemsOfPeriod :many
+SELECT i.id, i.payroll_id, i.position, i.component_code, i.name, i.kind, i.quantity, i.rate, i.amount, i.show_on_slip, i.manual FROM payroll_items i JOIN payrolls r ON r.id = i.payroll_id WHERE r.period_id = $1 ORDER BY i.payroll_id, i.position
+`
+
+func (q *Queries) ListPayrollItemsOfPeriod(ctx context.Context, periodID uuid.UUID) ([]PayrollItem, error) {
+	rows, err := q.db.Query(ctx, listPayrollItemsOfPeriod, periodID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []PayrollItem{}
+	for rows.Next() {
+		var i PayrollItem
+		if err := rows.Scan(
+			&i.ID,
+			&i.PayrollID,
+			&i.Position,
+			&i.ComponentCode,
+			&i.Name,
+			&i.Kind,
+			&i.Quantity,
+			&i.Rate,
+			&i.Amount,
+			&i.ShowOnSlip,
+			&i.Manual,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listPayrollPeriods = `-- name: ListPayrollPeriods :many
+
+SELECT p.id, p.year, p.month, p.start_date, p.end_date, p.status, p.rules_snapshot, p.created_by, p.generated_by, p.generated_at, p.submitted_by, p.submitted_at, p.finalized_by, p.finalized_at, p.paid_by, p.paid_at, p.reject_note, p.rejected_by, p.rejected_at, p.created_at, p.updated_at,
+       (SELECT count(*) FROM payrolls r WHERE r.period_id = p.id) AS employee_count,
+       (SELECT COALESCE(sum(r.net), 0) FROM payrolls r WHERE r.period_id = p.id)::numeric(16,2) AS total_net
+FROM payroll_periods p
+ORDER BY p.year DESC, p.month DESC
+`
+
+type ListPayrollPeriodsRow struct {
+	ID            uuid.UUID
+	Year          int16
+	Month         int16
+	StartDate     pgtype.Date
+	EndDate       pgtype.Date
+	Status        PayrollStatus
+	RulesSnapshot []byte
+	CreatedBy     uuid.UUID
+	GeneratedBy   uuid.NullUUID
+	GeneratedAt   pgtype.Timestamptz
+	SubmittedBy   uuid.NullUUID
+	SubmittedAt   pgtype.Timestamptz
+	FinalizedBy   uuid.NullUUID
+	FinalizedAt   pgtype.Timestamptz
+	PaidBy        uuid.NullUUID
+	PaidAt        pgtype.Timestamptz
+	RejectNote    pgtype.Text
+	RejectedBy    uuid.NullUUID
+	RejectedAt    pgtype.Timestamptz
+	CreatedAt     pgtype.Timestamptz
+	UpdatedAt     pgtype.Timestamptz
+	EmployeeCount int64
+	TotalNet      decimal.Decimal
+}
+
+// Periode ubar (D67) ---------------------------------------------------------------------------------
+func (q *Queries) ListPayrollPeriods(ctx context.Context) ([]ListPayrollPeriodsRow, error) {
+	rows, err := q.db.Query(ctx, listPayrollPeriods)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListPayrollPeriodsRow{}
+	for rows.Next() {
+		var i ListPayrollPeriodsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Year,
+			&i.Month,
+			&i.StartDate,
+			&i.EndDate,
+			&i.Status,
+			&i.RulesSnapshot,
+			&i.CreatedBy,
+			&i.GeneratedBy,
+			&i.GeneratedAt,
+			&i.SubmittedBy,
+			&i.SubmittedAt,
+			&i.FinalizedBy,
+			&i.FinalizedAt,
+			&i.PaidBy,
+			&i.PaidAt,
+			&i.RejectNote,
+			&i.RejectedBy,
+			&i.RejectedAt,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.EmployeeCount,
+			&i.TotalNet,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listPayrollsOfPeriod = `-- name: ListPayrollsOfPeriod :many
+SELECT id, period_id, employee_id, nip, full_name, division, subdivision, position, base_salary, gross, deductions, net, net_clamped, attendance, employee_values, published_at, created_at, updated_at FROM payrolls WHERE period_id = $1 ORDER BY full_name, employee_id
+`
+
+func (q *Queries) ListPayrollsOfPeriod(ctx context.Context, periodID uuid.UUID) ([]Payroll, error) {
+	rows, err := q.db.Query(ctx, listPayrollsOfPeriod, periodID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []Payroll{}
+	for rows.Next() {
+		var i Payroll
+		if err := rows.Scan(
+			&i.ID,
+			&i.PeriodID,
+			&i.EmployeeID,
+			&i.Nip,
+			&i.FullName,
+			&i.Division,
+			&i.Subdivision,
+			&i.Position,
+			&i.BaseSalary,
+			&i.Gross,
+			&i.Deductions,
+			&i.Net,
+			&i.NetClamped,
+			&i.Attendance,
+			&i.EmployeeValues,
+			&i.PublishedAt,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const lockPayrollPeriod = `-- name: LockPayrollPeriod :one
+SELECT id, year, month, start_date, end_date, status, rules_snapshot, created_by, generated_by, generated_at, submitted_by, submitted_at, finalized_by, finalized_at, paid_by, paid_at, reject_note, rejected_by, rejected_at, created_at, updated_at FROM payroll_periods WHERE id = $1 FOR UPDATE
+`
+
+func (q *Queries) LockPayrollPeriod(ctx context.Context, id uuid.UUID) (PayrollPeriod, error) {
+	row := q.db.QueryRow(ctx, lockPayrollPeriod, id)
+	var i PayrollPeriod
+	err := row.Scan(
+		&i.ID,
+		&i.Year,
+		&i.Month,
+		&i.StartDate,
+		&i.EndDate,
+		&i.Status,
+		&i.RulesSnapshot,
+		&i.CreatedBy,
+		&i.GeneratedBy,
+		&i.GeneratedAt,
+		&i.SubmittedBy,
+		&i.SubmittedAt,
+		&i.FinalizedBy,
+		&i.FinalizedAt,
+		&i.PaidBy,
+		&i.PaidAt,
+		&i.RejectNote,
+		&i.RejectedBy,
+		&i.RejectedAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const payrollEmployeeInfo = `-- name: PayrollEmployeeInfo :many
+SELECT e.id, e.nip, e.full_name, COALESCE(e.position, '') AS position, e.base_salary, d.name AS division, s.name AS subdivision
+FROM employees e
+JOIN subdivisions s ON s.id = e.subdivision_id
+JOIN divisions d ON d.id = s.division_id
+WHERE e.id = ANY($1::uuid[])
+`
+
+type PayrollEmployeeInfoRow struct {
+	ID          uuid.UUID
+	Nip         string
+	FullName    string
+	Position    string
+	BaseSalary  decimal.Decimal
+	Division    string
+	Subdivision string
+}
+
+// Identitas dan ubar pokok Pejuang untuk salinan slip.
+func (q *Queries) PayrollEmployeeInfo(ctx context.Context, ids []uuid.UUID) ([]PayrollEmployeeInfoRow, error) {
+	rows, err := q.db.Query(ctx, payrollEmployeeInfo, ids)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []PayrollEmployeeInfoRow{}
+	for rows.Next() {
+		var i PayrollEmployeeInfoRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Nip,
+			&i.FullName,
+			&i.Position,
+			&i.BaseSalary,
+			&i.Division,
+			&i.Subdivision,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const payrollPeriodOverlaps = `-- name: PayrollPeriodOverlaps :one
+SELECT EXISTS (SELECT 1 FROM payroll_periods WHERE start_date <= $1 AND end_date >= $2)
+`
+
+type PayrollPeriodOverlapsParams struct {
+	EndDate   pgtype.Date
+	StartDate pgtype.Date
+}
+
+func (q *Queries) PayrollPeriodOverlaps(ctx context.Context, arg PayrollPeriodOverlapsParams) (bool, error) {
+	row := q.db.QueryRow(ctx, payrollPeriodOverlaps, arg.EndDate, arg.StartDate)
+	var exists bool
+	err := row.Scan(&exists)
+	return exists, err
+}
+
+const publishPayrolls = `-- name: PublishPayrolls :exec
+UPDATE payrolls SET published_at = $2 WHERE period_id = $1
+`
+
+type PublishPayrollsParams struct {
+	PeriodID    uuid.UUID
+	PublishedAt pgtype.Timestamptz
+}
+
+func (q *Queries) PublishPayrolls(ctx context.Context, arg PublishPayrollsParams) error {
+	_, err := q.db.Exec(ctx, publishPayrolls, arg.PeriodID, arg.PublishedAt)
+	return err
+}
+
+const setPayrollPeriodFinalized = `-- name: SetPayrollPeriodFinalized :exec
+UPDATE payroll_periods SET status = 'final', finalized_by = $2, finalized_at = $3, updated_at = now() WHERE id = $1
+`
+
+type SetPayrollPeriodFinalizedParams struct {
+	ID          uuid.UUID
+	FinalizedBy uuid.NullUUID
+	FinalizedAt pgtype.Timestamptz
+}
+
+func (q *Queries) SetPayrollPeriodFinalized(ctx context.Context, arg SetPayrollPeriodFinalizedParams) error {
+	_, err := q.db.Exec(ctx, setPayrollPeriodFinalized, arg.ID, arg.FinalizedBy, arg.FinalizedAt)
+	return err
+}
+
+const setPayrollPeriodGenerated = `-- name: SetPayrollPeriodGenerated :exec
+UPDATE payroll_periods
+SET rules_snapshot = $2, generated_by = $3, generated_at = $4, reject_note = NULL, updated_at = now()
+WHERE id = $1
+`
+
+type SetPayrollPeriodGeneratedParams struct {
+	ID            uuid.UUID
+	RulesSnapshot []byte
+	GeneratedBy   uuid.NullUUID
+	GeneratedAt   pgtype.Timestamptz
+}
+
+func (q *Queries) SetPayrollPeriodGenerated(ctx context.Context, arg SetPayrollPeriodGeneratedParams) error {
+	_, err := q.db.Exec(ctx, setPayrollPeriodGenerated,
+		arg.ID,
+		arg.RulesSnapshot,
+		arg.GeneratedBy,
+		arg.GeneratedAt,
+	)
+	return err
+}
+
+const setPayrollPeriodPaid = `-- name: SetPayrollPeriodPaid :exec
+UPDATE payroll_periods SET status = 'paid', paid_by = $2, paid_at = $3, updated_at = now() WHERE id = $1
+`
+
+type SetPayrollPeriodPaidParams struct {
+	ID     uuid.UUID
+	PaidBy uuid.NullUUID
+	PaidAt pgtype.Timestamptz
+}
+
+func (q *Queries) SetPayrollPeriodPaid(ctx context.Context, arg SetPayrollPeriodPaidParams) error {
+	_, err := q.db.Exec(ctx, setPayrollPeriodPaid, arg.ID, arg.PaidBy, arg.PaidAt)
+	return err
+}
+
+const setPayrollPeriodRejected = `-- name: SetPayrollPeriodRejected :exec
+UPDATE payroll_periods
+SET status = 'draft', reject_note = $2, rejected_by = $3, rejected_at = $4, submitted_by = NULL, submitted_at = NULL, updated_at = now()
+WHERE id = $1
+`
+
+type SetPayrollPeriodRejectedParams struct {
+	ID         uuid.UUID
+	RejectNote pgtype.Text
+	RejectedBy uuid.NullUUID
+	RejectedAt pgtype.Timestamptz
+}
+
+func (q *Queries) SetPayrollPeriodRejected(ctx context.Context, arg SetPayrollPeriodRejectedParams) error {
+	_, err := q.db.Exec(ctx, setPayrollPeriodRejected,
+		arg.ID,
+		arg.RejectNote,
+		arg.RejectedBy,
+		arg.RejectedAt,
+	)
+	return err
+}
+
+const setPayrollPeriodSubmitted = `-- name: SetPayrollPeriodSubmitted :exec
+UPDATE payroll_periods SET status = 'pending_approval', submitted_by = $2, submitted_at = $3, updated_at = now() WHERE id = $1
+`
+
+type SetPayrollPeriodSubmittedParams struct {
+	ID          uuid.UUID
+	SubmittedBy uuid.NullUUID
+	SubmittedAt pgtype.Timestamptz
+}
+
+func (q *Queries) SetPayrollPeriodSubmitted(ctx context.Context, arg SetPayrollPeriodSubmittedParams) error {
+	_, err := q.db.Exec(ctx, setPayrollPeriodSubmitted, arg.ID, arg.SubmittedBy, arg.SubmittedAt)
+	return err
 }
 
 const updatePayrollComponent = `-- name: UpdatePayrollComponent :one

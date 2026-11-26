@@ -269,7 +269,9 @@ func fresh(t *testing.T, opt options) *httptest.Server {
 		announcementSvc.WithFiles(announcementFiles)
 	}
 	settingsSvc := settings.NewService(appPool)
+	payrollSvc := payroll.NewService(appPool)
 	if opt.clock != nil {
+		payrollSvc.SetClock(opt.clock)
 		approvalSvc.SetClock(opt.clock)
 		leaveSvc.SetClock(opt.clock)
 		announcementSvc.SetClock(opt.clock)
@@ -284,12 +286,12 @@ func fresh(t *testing.T, opt options) *httptest.Server {
 		Settings:     settings.NewHandler(settingsSvc),
 		Mail:         mail.NewHandler(mailSvc),
 		Dashboard:    dashboard.NewHandler(q),
-		Report:       report.NewHandler(report.NewService(q, authSvc.ResolveScope)),
+		Report:       report.NewHandler(report.NewService(q, authSvc.ResolveScope).WithPeriodRange(payrollSvc.RangeFor)),
 		Location:     location.NewHandler(location.NewService(appPool)),
 		Device:       device.NewHandler(device.NewService(appPool)),
 		Attendance:   attendance.NewHandler(attendance.NewService(appPool, attendanceOpt)),
 		Shift:        shift.NewHandler(shift.NewService(appPool)),
-		Payroll:      payroll.NewHandler(payroll.NewService(appPool)),
+		Payroll:      payroll.NewHandler(payrollSvc),
 		Approval:     approval.NewHandler(approvalSvc),
 		Leave:        leave.NewHandler(leaveSvc),
 		Signer:       signer,

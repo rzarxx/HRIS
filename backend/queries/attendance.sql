@@ -234,4 +234,6 @@ WHERE NOT EXISTS (SELECT 1 FROM holidays h WHERE h.date = d.day)
   AND NOT EXISTS (SELECT 1 FROM attendances a WHERE a.employee_id = e.id AND a.work_date = d.day)
   AND NOT EXISTS (SELECT 1 FROM leave_requests lr WHERE lr.employee_id = e.id AND lr.status = 'approved'
     AND d.day BETWEEN lr.start_date AND lr.end_date)
+  -- Periode ubar yang sudah diajukan atau final tidak diubah (D67).
+  AND NOT EXISTS (SELECT 1 FROM payroll_periods pp WHERE pp.status <> 'draft' AND d.day BETWEEN pp.start_date AND pp.end_date)
 ON CONFLICT (employee_id, work_date) DO NOTHING;

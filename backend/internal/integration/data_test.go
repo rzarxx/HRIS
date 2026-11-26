@@ -292,11 +292,11 @@ func TestAnnouncementCRUD(t *testing.T) {
 	}
 }
 
-func TestPayrollPreviewUsesAttendance(t *testing.T) {
+// Rekap presensi memakai rentang periode ubar (cutoff bawaan 25, D67): Januari 2020 = 26 Des 2019 sampai 25 Jan 2020.
+func TestAttendanceReportCounts(t *testing.T) {
 	srv := fresh(t, options{})
 	sdm := loginSDM(t, srv)
 	employeeID := employeeInSubdivision(t, "OPS-GDG")
-	exec(t, `UPDATE employees SET base_salary = 5200000 WHERE id = $1`, employeeID)
 	// Periode lama yang tidak tersentuh simulasi presensi.
 	for _, row := range []struct {
 		date, status string
@@ -336,34 +336,14 @@ func TestPayrollPreviewUsesAttendance(t *testing.T) {
 		t.Fatal("Pejuang tidak ada di rekap")
 	}
 
-	res := sdm.do(http.MethodGet, "/v1/admin/reports/payroll-preview?year=2020&month=1", nil).want(t, http.StatusOK)
-	var parsed struct {
-		Data []struct {
-			EmployeeID      string `json:"employee_id"`
-			BaseSalary      string `json:"base_salary"`
-			AbsentDeduction string `json:"absent_deduction"`
-			LateDeduction   string `json:"late_deduction"`
-			Net             string `json:"net"`
-		} `json:"data"`
-		Meta struct {
-			Rules struct {
-				Version string `json:"version"`
-				Note    string `json:"note"`
-			} `json:"rules"`
-		} `json:"meta"`
-	}
-	if err := json.Unmarshal(res.body, &parsed); err != nil {
-		t.Fatal(err)
-	}
-	if parsed.Meta.Rules.Note == "" || parsed.Meta.Rules.Version == "" {
-		t.Error("rumus sementara harus ikut dikirim")
-	}
-	for _, r := range parsed.Data {
-		if r.EmployeeID != employeeID {
-			continue
-		}
-		if r.BaseSalary != "5200000.00" || r.AbsentDeduction != "200000.00" || r.LateDeduction != "10000.00" || r.Net != "4990000.00" {
-			t.Errorf("ubar: %+v", r)
+	// Presensi tanggal 26 Januari sudah masuk periode Februari.
+	exec(t, `INSERT INTO attendances (employee_id, work_date, status) VALUES ($1, '2020-01-27', 'absent')`, employeeID)
+	for _, r := range data[[]struct {
+		EmployeeID string `json:"employee_id"`
+		Absent     int    `json:"absent"`
+	}](t, sdm.do(http.MethodGet, "/v1/admin/reports/attendance?year=2020&month=1", nil).want(t, http.StatusOK)) {
+		if r.EmployeeID == employeeID && r.Absent != 1 {
+			t.Errorf("alpha 27 Januari ikut periode Januari: %+v", r)
 		}
 	}
 
@@ -429,7 +409,7 @@ func TestReportMembership(t *testing.T) {
 	rows := func(year, month string) map[string]bool {
 		list := data[[]struct {
 			EmployeeID string `json:"employee_id"`
-		}](t, sdm.do(http.MethodGet, "/v1/admin/reports/payroll-preview?year="+year+"&month="+month, nil).want(t, http.StatusOK))
+		}](t, sdm.do(http.MethodGet, "/v1/admin/reports/attendance?year="+year+"&month="+month, nil).want(t, http.StatusOK))
 		out := map[string]bool{}
 		for _, r := range list {
 			out[r.EmployeeID] = true

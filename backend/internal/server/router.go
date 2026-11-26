@@ -19,11 +19,11 @@ import (
 	"github.com/rzarxx/HRIS/backend/internal/location"
 	"github.com/rzarxx/HRIS/backend/internal/mail"
 	"github.com/rzarxx/HRIS/backend/internal/org"
+	"github.com/rzarxx/HRIS/backend/internal/payroll"
 	"github.com/rzarxx/HRIS/backend/internal/permission"
 	"github.com/rzarxx/HRIS/backend/internal/platform/httpx"
 	"github.com/rzarxx/HRIS/backend/internal/report"
 	"github.com/rzarxx/HRIS/backend/internal/settings"
-	"github.com/rzarxx/HRIS/backend/internal/payroll"
 	"github.com/rzarxx/HRIS/backend/internal/shift"
 	"github.com/rzarxx/HRIS/backend/internal/storageadmin"
 )

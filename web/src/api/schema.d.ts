@@ -795,6 +795,223 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/notifications": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Notifikasi saya
+         * @description Login saja, milik sendiri (D68). 50 terbaru; `meta.unread` jumlah yang belum dibaca. Membuka slip menandai notifikasi slip itu sudah dibaca.
+         */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data: components["schemas"]["Notification"][];
+                            meta: {
+                                unread: number;
+                            };
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/notifications/{id}/read": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Tandai notifikasi sudah dibaca
+         * @description Login saja, milik sendiri. Aman diulang.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: components["parameters"]["Id"];
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Ditandai */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                404: components["responses"]["Error"];
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/payslips": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Slip ubar saya
+         * @description Permission `payslip:read` (self, D68). Hanya periode final atau dibayar.
+         */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data: components["schemas"]["PayslipSummary"][];
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/payslips/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        /**
+         * Rincian slip ubar saya
+         * @description Permission `payslip:read` (self). Slip orang lain atau yang belum terbit dijawab 404. Item yang tidak tampil di slip tidak dikirim. Menandai notifikasi slip ini sudah dibaca.
+         */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: components["parameters"]["Id"];
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data: components["schemas"]["Payslip"];
+                        };
+                    };
+                };
+                404: components["responses"]["Error"];
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/payslips/{id}/pdf": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        /**
+         * Unduh PDF slip ubar saya
+         * @description Permission `payslip:read` (self). PDF dibuat dari salinan slip yang tidak berubah setelah final; `Cache-Control: private, no-store`.
+         */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: components["parameters"]["Id"];
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description PDF slip */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/pdf": string;
+                    };
+                };
+                404: components["responses"]["Error"];
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/me": {
         parameters: {
             query?: never;
@@ -6022,6 +6239,52 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/admin/payroll/periods/{id}/employees/{employee_id}/pdf": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+                employee_id: string;
+            };
+            cookie?: never;
+        };
+        /**
+         * Unduh PDF slip satu Pejuang
+         * @description Permission `payroll:manage`. Periode yang belum final diberi tanda DRAF.
+         */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: components["parameters"]["Id"];
+                    employee_id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description PDF slip */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/pdf": string;
+                    };
+                };
+                404: components["responses"]["Error"];
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/admin/payroll/settings": {
         parameters: {
             query?: never;
@@ -7429,6 +7692,64 @@ export interface components {
             /** Format: date */
             date: string;
             name: string;
+        };
+        Notification: {
+            /** Format: uuid */
+            id: string;
+            /** @enum {string} */
+            type: "payslip_ready";
+            /**
+             * Format: uuid
+             * @description Untuk payslip_ready: ID slip
+             */
+            ref_id: string | null;
+            title: string;
+            body: string;
+            /** Format: date-time */
+            read_at: string | null;
+            /** Format: date-time */
+            created_at: string;
+        };
+        PayslipSummary: {
+            /** Format: uuid */
+            id: string;
+            year: number;
+            month: number;
+            /** Format: date */
+            start_date: string;
+            /** Format: date */
+            end_date: string;
+            status: components["schemas"]["PayrollStatus"];
+            net: string;
+            /** Format: date-time */
+            published_at: string | null;
+            unread: boolean;
+        };
+        Payslip: {
+            /** Format: uuid */
+            id: string;
+            /** @example SU/2026/11/8F0C2A1E */
+            document_number: string;
+            year: number;
+            month: number;
+            /** Format: date */
+            start_date: string;
+            /** Format: date */
+            end_date: string;
+            status: components["schemas"]["PayrollStatus"];
+            /** Format: date-time */
+            published_at: string | null;
+            nip: string;
+            full_name: string;
+            position: string;
+            division: string;
+            subdivision: string;
+            attendance: components["schemas"]["PayrollAttendance"];
+            items: components["schemas"]["PayrollItem"][];
+            gross: string;
+            deductions: string;
+            net: string;
+            net_clamped: boolean;
         };
         /** @enum {string} */
         PayrollStatus: "draft" | "pending_approval" | "final" | "paid";

@@ -30,6 +30,8 @@ tags:
   - name: Dashboard
   - name: Laporan
   - name: Payroll
+  - name: Slip
+    description: Slip ubar dan notifikasi milik sendiri (D68)
   - name: Pengajuan
   - name: Sistem
 security:
@@ -366,6 +368,87 @@ paths:
         "400": { $ref: "#/components/responses/ValidationFailed" }
         "401": { $ref: "#/components/responses/Error" }
 
+  /v1/notifications:
+    get:
+      tags: [Slip]
+      summary: Notifikasi saya
+      description: "Login saja, milik sendiri (D68). 50 terbaru; `meta.unread` jumlah yang belum dibaca. Membuka slip menandai notifikasi slip itu sudah dibaca."
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data, meta]
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: "#/components/schemas/Notification" }
+                  meta:
+                    type: object
+                    required: [unread]
+                    properties:
+                      unread: { type: integer }
+  /v1/notifications/{id}/read:
+    parameters:
+      - $ref: "#/components/parameters/Id"
+    post:
+      tags: [Slip]
+      summary: Tandai notifikasi sudah dibaca
+      description: "Login saja, milik sendiri. Aman diulang."
+      responses:
+        "204": { description: Ditandai }
+        "404": { $ref: "#/components/responses/Error" }
+  /v1/payslips:
+    get:
+      tags: [Slip]
+      summary: Slip ubar saya
+      description: "Permission `payslip:read` (self, D68). Hanya periode final atau dibayar."
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: "#/components/schemas/PayslipSummary" }
+  /v1/payslips/{id}:
+    parameters:
+      - $ref: "#/components/parameters/Id"
+    get:
+      tags: [Slip]
+      summary: Rincian slip ubar saya
+      description: "Permission `payslip:read` (self). Slip orang lain atau yang belum terbit dijawab 404. Item yang tidak tampil di slip tidak dikirim. Menandai notifikasi slip ini sudah dibaca."
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data: { $ref: "#/components/schemas/Payslip" }
+        "404": { $ref: "#/components/responses/Error" }
+  /v1/payslips/{id}/pdf:
+    parameters:
+      - $ref: "#/components/parameters/Id"
+    get:
+      tags: [Slip]
+      summary: Unduh PDF slip ubar saya
+      description: "Permission `payslip:read` (self). PDF dibuat dari salinan slip yang tidak berubah setelah final; `Cache-Control: private, no-store`."
+      responses:
+        "200":
+          description: PDF slip
+          content:
+            application/pdf:
+              schema: { type: string, format: binary }
+        "404": { $ref: "#/components/responses/Error" }
   /v1/me:
     get:
       tags: [Profil]
@@ -2885,6 +2968,21 @@ paths:
         "400": { $ref: "#/components/responses/ValidationFailed" }
         "404": { $ref: "#/components/responses/Error" }
         "409": { $ref: "#/components/responses/Error" }
+  /v1/admin/payroll/periods/{id}/employees/{employee_id}/pdf:
+    parameters:
+      - $ref: "#/components/parameters/Id"
+      - { name: employee_id, in: path, required: true, schema: { type: string, format: uuid } }
+    get:
+      tags: [Payroll]
+      summary: Unduh PDF slip satu Pejuang
+      description: "Permission `payroll:manage`. Periode yang belum final diberi tanda DRAF."
+      responses:
+        "200":
+          description: PDF slip
+          content:
+            application/pdf:
+              schema: { type: string, format: binary }
+        "404": { $ref: "#/components/responses/Error" }
   /v1/admin/payroll/settings:
     get:
       tags: [Payroll]
@@ -4390,6 +4488,55 @@ components:
       properties:
         date: { type: string, format: date }
         name: { type: string, maxLength: 120 }
+    Notification:
+      type: object
+      required: [id, type, ref_id, title, body, read_at, created_at]
+      properties:
+        id: { type: string, format: uuid }
+        type: { type: string, enum: [payslip_ready] }
+        ref_id: { type: string, format: uuid, nullable: true, description: "Untuk payslip_ready: ID slip" }
+        title: { type: string }
+        body: { type: string }
+        read_at: { type: string, format: date-time, nullable: true }
+        created_at: { type: string, format: date-time }
+    PayslipSummary:
+      type: object
+      required: [id, year, month, start_date, end_date, status, net, published_at, unread]
+      properties:
+        id: { type: string, format: uuid }
+        year: { type: integer }
+        month: { type: integer }
+        start_date: { type: string, format: date }
+        end_date: { type: string, format: date }
+        status: { $ref: "#/components/schemas/PayrollStatus" }
+        net: { type: string }
+        published_at: { type: string, format: date-time, nullable: true }
+        unread: { type: boolean }
+    Payslip:
+      type: object
+      required: [id, document_number, year, month, start_date, end_date, status, published_at, nip, full_name, position, division, subdivision, attendance, items, gross, deductions, net, net_clamped]
+      properties:
+        id: { type: string, format: uuid }
+        document_number: { type: string, example: SU/2026/11/8F0C2A1E }
+        year: { type: integer }
+        month: { type: integer }
+        start_date: { type: string, format: date }
+        end_date: { type: string, format: date }
+        status: { $ref: "#/components/schemas/PayrollStatus" }
+        published_at: { type: string, format: date-time, nullable: true }
+        nip: { type: string }
+        full_name: { type: string }
+        position: { type: string }
+        division: { type: string }
+        subdivision: { type: string }
+        attendance: { $ref: "#/components/schemas/PayrollAttendance" }
+        items:
+          type: array
+          items: { $ref: "#/components/schemas/PayrollItem" }
+        gross: { type: string }
+        deductions: { type: string }
+        net: { type: string }
+        net_clamped: { type: boolean }
     PayrollStatus:
       type: string
       enum: [draft, pending_approval, final, paid]

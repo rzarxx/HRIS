@@ -1,11 +1,13 @@
 "use client";
 
+import { Download } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/form";
 import { ErrorState, Loading } from "@/components/ui/layout";
 import { Modal } from "@/components/ui/modal";
 import { api } from "@/lib/api-client";
+import { downloadBlob } from "@/lib/download";
 import { rupiah } from "@/lib/format";
 import { useEmployeePayroll, useSave } from "@/lib/hooks";
 
@@ -28,6 +30,20 @@ export function EmployeePayrollModal({
   const detail = useEmployeePayroll(periodId, employeeId);
   const [draft, setDraft] = useState<Draft | null>(null);
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [downloading, setDownloading] = useState(false);
+
+  // PDF draf diberi tanda DRAF oleh server sampai periode final.
+  async function downloadPdf() {
+    if (!detail.data) return;
+    setDownloading(true);
+    try {
+      const p = detail.data.period;
+      const blob = await api.blob(`/admin/payroll/periods/${periodId}/employees/${employeeId}/pdf`);
+      downloadBlob(blob, `Slip-Ubar-${p.year}-${String(p.month).padStart(2, "0")}-${detail.data.row.nip}.pdf`);
+    } finally {
+      setDownloading(false);
+    }
+  }
 
   useEffect(() => {
     if (detail.data && draft === null) {
@@ -66,6 +82,11 @@ export function EmployeePayrollModal({
           <Button variant="secondary" onClick={onClose}>
             Tutup
           </Button>
+          {data && (
+            <Button variant="secondary" onClick={downloadPdf} loading={downloading}>
+              <Download className="size-4" /> {data.period.status === "final" || data.period.status === "paid" ? "Unduh slip PDF" : "Pratinjau PDF (draf)"}
+            </Button>
+          )}
           {editable && !!data?.inputs.length && (
             <Button onClick={() => draft && save.mutate(draft)} loading={save.isPending} disabled={!draft}>
               Simpan isian

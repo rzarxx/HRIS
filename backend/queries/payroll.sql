@@ -144,3 +144,54 @@ SELECT EXISTS (
   SELECT 1 FROM payroll_periods
   WHERE status <> 'draft' AND start_date <= @last_date::date AND end_date >= @first_date::date
 );
+
+-- Slip ubar Pejuang dan notifikasi (D68) -------------------------------------------------------------
+
+-- name: ListMyPayslips :many
+SELECT r.id, r.net, r.published_at, p.year, p.month, p.start_date, p.end_date, p.status,
+       EXISTS (SELECT 1 FROM notifications n WHERE n.employee_id = r.employee_id AND n.type = 'payslip_ready'
+               AND n.ref_id = r.id AND n.read_at IS NULL) AS unread
+FROM payrolls r
+JOIN payroll_periods p ON p.id = r.period_id
+WHERE r.employee_id = $1 AND r.published_at IS NOT NULL AND p.status IN ('final', 'paid')
+ORDER BY p.year DESC, p.month DESC;
+
+-- name: GetMyPayslip :one
+SELECT r.*, p.year, p.month, p.start_date, p.end_date, p.status AS period_status, p.finalized_at
+FROM payrolls r
+JOIN payroll_periods p ON p.id = r.period_id
+WHERE r.id = $1 AND r.employee_id = $2 AND r.published_at IS NOT NULL AND p.status IN ('final', 'paid');
+
+-- name: GetPayrollForPDF :one
+SELECT r.*, p.year, p.month, p.start_date, p.end_date, p.status AS period_status, p.finalized_at
+FROM payrolls r
+JOIN payroll_periods p ON p.id = r.period_id
+WHERE r.period_id = $1 AND r.employee_id = $2;
+
+-- name: InsertPayslipNotifications :many
+-- Satu notifikasi per slip periode; aman diulang.
+INSERT INTO notifications (employee_id, type, ref_id, title, body)
+SELECT r.employee_id, 'payslip_ready', r.id, @title::text, @body::text
+FROM payrolls r WHERE r.period_id = @period_id
+ON CONFLICT (employee_id, type, ref_id) DO NOTHING
+RETURNING employee_id;
+
+-- name: PayslipRecipients :many
+-- Alamat email akun aktif Pejuang yang slipnya terbit di periode ini.
+SELECT u.id AS user_id, u.email
+FROM payrolls r
+JOIN users u ON u.employee_id = r.employee_id AND u.is_active
+WHERE r.period_id = $1;
+
+-- name: ListNotifications :many
+SELECT * FROM notifications WHERE employee_id = $1 ORDER BY created_at DESC, id LIMIT 50;
+
+-- name: CountUnreadNotifications :one
+SELECT count(*) FROM notifications WHERE employee_id = $1 AND read_at IS NULL;
+
+-- name: MarkNotificationRead :execrows
+UPDATE notifications SET read_at = COALESCE(read_at, now()) WHERE id = $1 AND employee_id = $2;
+
+-- name: MarkPayslipNotificationRead :exec
+UPDATE notifications SET read_at = now()
+WHERE employee_id = $1 AND type = 'payslip_ready' AND ref_id = $2 AND read_at IS NULL;

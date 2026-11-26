@@ -7,6 +7,13 @@ Perubahan penting yang terlihat oleh Pejuang, SDM, atau pengelola server. Keputu
 ## Belum dirilis
 
 ### Ditambahkan
+- **Slip ubar terbit untuk Pejuang (D68).** Saat periode difinalkan:
+  - Slip tersedia lewat `/v1/payslips` dan bisa diunduh sebagai PDF (kop yayasan, ringkasan presensi, pendapatan,
+    potongan, ubar bersih dan terbilang, nomor dokumen). Tab Slip di aplikasi menyusul.
+  - Pejuang mendapat notifikasi di aplikasi (`/v1/notifications`) dan email pemberitahuan tanpa angka ubar bila SMTP
+    aktif.
+  - SDM bisa mengunduh PDF tiap Pejuang dari rincian periode; sebelum final bertanda DRAF.
+  - Komponen yang tidak tampil di slip tetap dihitung tetapi tidak dikirim ke Pejuang.
 - **Periode ubar dengan persetujuan dua SDM (D67).** Menu Payroll → **Periode Ubar** menggantikan Pratinjau.
   - SDM membuat periode per bulan (rentang dari tanggal cutoff), menekan **Hitung ubar**, mengisi lembur atau isian
     manual per Pejuang, lalu **Ajukan**.

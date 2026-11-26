@@ -270,6 +270,7 @@ func fresh(t *testing.T, opt options) *httptest.Server {
 	}
 	settingsSvc := settings.NewService(appPool)
 	payrollSvc := payroll.NewService(appPool)
+	payrollSvc.SetMailer(mailSvc)
 	if opt.clock != nil {
 		payrollSvc.SetClock(opt.clock)
 		approvalSvc.SetClock(opt.clock)

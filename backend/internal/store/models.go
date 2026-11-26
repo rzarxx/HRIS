@@ -276,6 +276,99 @@ func (ns NullLeaveQuotaKind) Value() (driver.Value, error) {
 	return string(ns.LeaveQuotaKind), nil
 }
 
+type PayrollCalcMethod string
+
+const (
+	PayrollCalcMethodFixed             PayrollCalcMethod = "fixed"
+	PayrollCalcMethodPerEmployee       PayrollCalcMethod = "per_employee"
+	PayrollCalcMethodPerPresentDay     PayrollCalcMethod = "per_present_day"
+	PayrollCalcMethodPerLate           PayrollCalcMethod = "per_late"
+	PayrollCalcMethodPerLateMinute     PayrollCalcMethod = "per_late_minute"
+	PayrollCalcMethodPerAbsentDay      PayrollCalcMethod = "per_absent_day"
+	PayrollCalcMethodPerUnpaidLeaveDay PayrollCalcMethod = "per_unpaid_leave_day"
+	PayrollCalcMethodPercentOfBase     PayrollCalcMethod = "percent_of_base"
+	PayrollCalcMethodPercentOfGross    PayrollCalcMethod = "percent_of_gross"
+	PayrollCalcMethodPerUnit           PayrollCalcMethod = "per_unit"
+	PayrollCalcMethodManual            PayrollCalcMethod = "manual"
+)
+
+func (e *PayrollCalcMethod) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = PayrollCalcMethod(s)
+	case string:
+		*e = PayrollCalcMethod(s)
+	default:
+		return fmt.Errorf("unsupported scan type for PayrollCalcMethod: %T", src)
+	}
+	return nil
+}
+
+type NullPayrollCalcMethod struct {
+	PayrollCalcMethod PayrollCalcMethod
+	Valid             bool // Valid is true if PayrollCalcMethod is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullPayrollCalcMethod) Scan(value interface{}) error {
+	if value == nil {
+		ns.PayrollCalcMethod, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.PayrollCalcMethod.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullPayrollCalcMethod) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.PayrollCalcMethod), nil
+}
+
+type PayrollComponentKind string
+
+const (
+	PayrollComponentKindEarning   PayrollComponentKind = "earning"
+	PayrollComponentKindDeduction PayrollComponentKind = "deduction"
+)
+
+func (e *PayrollComponentKind) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = PayrollComponentKind(s)
+	case string:
+		*e = PayrollComponentKind(s)
+	default:
+		return fmt.Errorf("unsupported scan type for PayrollComponentKind: %T", src)
+	}
+	return nil
+}
+
+type NullPayrollComponentKind struct {
+	PayrollComponentKind PayrollComponentKind
+	Valid                bool // Valid is true if PayrollComponentKind is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullPayrollComponentKind) Scan(value interface{}) error {
+	if value == nil {
+		ns.PayrollComponentKind, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.PayrollComponentKind.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullPayrollComponentKind) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.PayrollComponentKind), nil
+}
+
 type RequestKind string
 
 const (
@@ -636,6 +729,14 @@ type EmployeeLocation struct {
 	LocationID uuid.UUID
 }
 
+type EmployeePayrollComponent struct {
+	EmployeeID  uuid.UUID
+	ComponentID uuid.UUID
+	Amount      decimal.Decimal
+	UpdatedBy   uuid.NullUUID
+	UpdatedAt   pgtype.Timestamptz
+}
+
 type EmployeeShift struct {
 	EmployeeID uuid.UUID
 	ShiftID    uuid.UUID
@@ -743,6 +844,24 @@ type PasswordResetToken struct {
 	ExpiresAt pgtype.Timestamptz
 	UsedAt    pgtype.Timestamptz
 	CreatedAt pgtype.Timestamptz
+}
+
+type PayrollComponent struct {
+	ID         uuid.UUID
+	Code       string
+	Name       string
+	Kind       PayrollComponentKind
+	Method     PayrollCalcMethod
+	Rate       decimal.NullDecimal
+	Percent    decimal.NullDecimal
+	Divisor    decimal.NullDecimal
+	Active     bool
+	ShowOnSlip bool
+	SortOrder  int32
+	Note       string
+	UpdatedBy  uuid.NullUUID
+	CreatedAt  pgtype.Timestamptz
+	UpdatedAt  pgtype.Timestamptz
 }
 
 type Session struct {

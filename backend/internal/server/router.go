@@ -23,6 +23,7 @@ import (
 	"github.com/rzarxx/HRIS/backend/internal/platform/httpx"
 	"github.com/rzarxx/HRIS/backend/internal/report"
 	"github.com/rzarxx/HRIS/backend/internal/settings"
+	"github.com/rzarxx/HRIS/backend/internal/payroll"
 	"github.com/rzarxx/HRIS/backend/internal/shift"
 	"github.com/rzarxx/HRIS/backend/internal/storageadmin"
 )
@@ -44,6 +45,7 @@ type Deps struct {
 	Shift        *shift.Handler
 	Approval     *approval.Handler
 	Leave        *leave.Handler
+	Payroll      *payroll.Handler
 	Signer       *auth.TokenSigner
 	SessionCheck auth.SessionChecker
 	Limiter      auth.Limiter
@@ -229,6 +231,15 @@ func routes(d Deps) []Route {
 		guarded(http.MethodGet, "/v1/admin/reports/attendance/export", d.Report.AttendanceExport, permission.AttendanceReport),
 		// Memuat ubar: base_salary hanya untuk sdm (§7.6), jadi perlu payroll:manage juga.
 		guarded(http.MethodGet, "/v1/admin/reports/payroll-preview", d.Report.PayrollPreview, permission.AttendanceReport, permission.PayrollManage),
+
+		// Komponen ubar dan setelan payroll (D66): khusus SDM, diaudit payroll.rules_changed.
+		guarded(http.MethodGet, "/v1/admin/payroll/components", d.Payroll.ListComponents, permission.PayrollManage),
+		guarded(http.MethodPost, "/v1/admin/payroll/components", d.Payroll.CreateComponent, permission.PayrollManage),
+		guarded(http.MethodPatch, "/v1/admin/payroll/components/{id}", d.Payroll.UpdateComponent, permission.PayrollManage),
+		guarded(http.MethodGet, "/v1/admin/payroll/settings", d.Payroll.Settings, permission.PayrollManage),
+		guarded(http.MethodPut, "/v1/admin/payroll/settings", d.Payroll.SetSettings, permission.PayrollManage),
+		guarded(http.MethodGet, "/v1/admin/employees/{id}/payroll-components", d.Payroll.EmployeeComponents, permission.PayrollManage),
+		guarded(http.MethodPut, "/v1/admin/employees/{id}/payroll-components", d.Payroll.SetEmployeeComponents, permission.PayrollManage),
 	}
 }
 

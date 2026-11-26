@@ -34,6 +34,7 @@ import (
 	"github.com/rzarxx/HRIS/backend/internal/report"
 	"github.com/rzarxx/HRIS/backend/internal/server"
 	"github.com/rzarxx/HRIS/backend/internal/settings"
+	"github.com/rzarxx/HRIS/backend/internal/payroll"
 	"github.com/rzarxx/HRIS/backend/internal/shift"
 	"github.com/rzarxx/HRIS/backend/internal/storageadmin"
 	"github.com/rzarxx/HRIS/backend/internal/store"
@@ -215,6 +216,7 @@ func run() error {
 		Device:       device.NewHandler(device.NewService(pool)),
 		Attendance:   attendance.NewHandler(attendance.NewService(pool, attendanceOpt)),
 		Shift:        shift.NewHandler(shift.NewService(pool)),
+		Payroll:      payroll.NewHandler(payroll.NewService(pool)),
 		Approval:     approval.NewHandler(approvalSvc),
 		Leave:        leave.NewHandler(leaveSvc),
 		Signer:       signer,

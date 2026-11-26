@@ -43,6 +43,7 @@ import (
 	"github.com/rzarxx/HRIS/backend/internal/report"
 	"github.com/rzarxx/HRIS/backend/internal/server"
 	"github.com/rzarxx/HRIS/backend/internal/settings"
+	"github.com/rzarxx/HRIS/backend/internal/payroll"
 	"github.com/rzarxx/HRIS/backend/internal/shift"
 	"github.com/rzarxx/HRIS/backend/internal/store"
 )
@@ -288,6 +289,7 @@ func fresh(t *testing.T, opt options) *httptest.Server {
 		Device:       device.NewHandler(device.NewService(appPool)),
 		Attendance:   attendance.NewHandler(attendance.NewService(appPool, attendanceOpt)),
 		Shift:        shift.NewHandler(shift.NewService(appPool)),
+		Payroll:      payroll.NewHandler(payroll.NewService(appPool)),
 		Approval:     approval.NewHandler(approvalSvc),
 		Leave:        leave.NewHandler(leaveSvc),
 		Signer:       signer,

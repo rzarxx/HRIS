@@ -1,12 +1,13 @@
 "use client";
 
-import { CalendarClock, CalendarRange, FileSpreadsheet, KeyRound, Lock, LockOpen, MapPin, Pencil, Plus, ScanFace, Search, ShieldCheck, ShieldOff, UserCog, UserX, Video } from "lucide-react";
+import { CalendarClock, CalendarRange, FileSpreadsheet, KeyRound, Lock, LockOpen, MapPin, Pencil, Plus, ScanFace, Search, ShieldCheck, ShieldOff, UserCog, UserX, Video, Wallet } from "lucide-react";
 import { useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useState } from "react";
 import { BulkArrangementModal } from "@/components/employees/bulk-arrangement-modal";
 import { EmployeeArrangementsModal } from "@/components/employees/employee-arrangements-modal";
 import { EmployeeForm } from "@/components/employees/employee-form";
 import { EmployeeLocationsModal } from "@/components/employees/employee-locations-modal";
+import { EmployeePayrollModal } from "@/components/employees/employee-payroll-modal";
 import { FaceResetModal } from "@/components/employees/face-reset-modal";
 import { ImportModal } from "@/components/employees/import-modal";
 import { InitialPasswordModal } from "@/components/employees/initial-password-modal";
@@ -43,6 +44,8 @@ function EmployeesView() {
   const canReset = permissions.includes("user:reset");
   const canFilterOrg = permissions.includes("org:write");
   const canResetFace = permissions.includes("face:reset");
+  // Komponen ubar per Pejuang khusus SDM (D66).
+  const canPayroll = permissions.includes("payroll:manage");
   const isSuperadmin = me.data?.role === "superadmin";
   // Peran SDM dan A2F wajib per akun hanya diatur super admin (D60).
   const canManageAccounts = permissions.includes("account:manage");
@@ -52,6 +55,7 @@ function EmployeesView() {
   const isSelf = (e: EmployeeListItem) => e.id === me.data?.employee_id;
   const [assigning, setAssigning] = useState<EmployeeListItem | null>(null);
   const [arranging, setArranging] = useState<EmployeeListItem | null>(null);
+  const [payrollOf, setPayrollOf] = useState<EmployeeListItem | null>(null);
   const [resettingFace, setResettingFace] = useState<EmployeeListItem | null>(null);
   const [remoteFace, setRemoteFace] = useState<EmployeeListItem | null>(null);
 
@@ -281,6 +285,11 @@ function EmployeesView() {
                           <CalendarClock className="size-4" />
                         </IconButton>
                       )}
+                      {canPayroll && e.status === "active" && (
+                        <IconButton label={`Komponen ubar ${e.full_name}`} onClick={() => setPayrollOf(e)}>
+                          <Wallet className="size-4" />
+                        </IconButton>
+                      )}
                       {canResetFace && e.face_enrolled && !isProtected(e) && !isSelf(e) && (
                         <IconButton label={`Reset wajah ${e.full_name}`} onClick={() => setResettingFace(e)}>
                           <ScanFace className="size-4" />
@@ -349,6 +358,8 @@ function EmployeesView() {
       )}
 
       {assigning && <EmployeeLocationsModal employee={assigning} onClose={() => setAssigning(null)} />}
+
+      {payrollOf && <EmployeePayrollModal employee={payrollOf} onClose={() => setPayrollOf(null)} />}
 
       {arranging && <EmployeeArrangementsModal employee={arranging} onClose={() => setArranging(null)} />}
 

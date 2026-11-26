@@ -74,23 +74,16 @@ data class LoginForm(
     val remember: Boolean = false,
     /** Kata sandi di kolom berasal dari simpanan: tidak bisa ditampilkan. */
     val passwordSaved: Boolean = false,
-    /** Masuk cepat dengan sidik jari, wajah, atau PIN HP tersedia. */
-    val quickLogin: Boolean = false,
     /** Ada akun yang diingat di HP ini, jadi tampilkan "Gunakan akun lain". */
     val savedAccount: Boolean = false,
 )
 
-/**
- * Layar masuk. [onBiometric] null bila HP tidak punya sidik jari, wajah, atau PIN; [autoQuickLogin] membuka dialog
- * sidik jari langsung saat aplikasi dibuka (bukan setelah keluar sendiri), bila masuk cepat aktif (D64).
- */
+/** Layar masuk. NIPY dan kata sandi yang diingat langsung terisi (D64). */
 @Composable
 fun LoginScreen(
     repository: Repository,
     crash: String?,
     onDismissCrash: () -> Unit,
-    onBiometric: (((Boolean) -> Unit) -> Unit)? = null,
-    autoQuickLogin: Boolean = false,
     onLoggedIn: () -> Unit,
 ) {
     val scope = rememberCoroutineScope()
@@ -100,10 +93,7 @@ fun LoginScreen(
     var identifier by rememberSaveable { mutableStateOf(saved?.identifier.orEmpty()) }
     // Bawaan dicentang: HP presensi milik pribadi dan terdaftar per Pejuang (D64).
     var rememberMe by rememberSaveable { mutableStateOf(true) }
-    val quickReady = onBiometric != null && saved != null && saved.quickLogin && saved.hasPassword
-    // Tanpa masuk cepat, kata sandi yang diingat langsung terisi. Dengan masuk cepat, kata sandi baru dibuka
-    // setelah sidik jari, wajah, atau PIN HP cocok.
-    var password by rememberSaveable { mutableStateOf(if (!quickReady) saved?.password().orEmpty() else "") }
+    var password by rememberSaveable { mutableStateOf(saved?.password().orEmpty()) }
     var passwordSaved by rememberSaveable { mutableStateOf(password.isNotEmpty()) }
     var mfa by rememberSaveable { mutableStateOf("") }
     var askMfa by rememberSaveable { mutableStateOf(false) }
@@ -146,28 +136,11 @@ fun LoginScreen(
         }
     }
 
-    val quickLogin: () -> Unit = {
-        if (!busy && onBiometric != null && saved != null) {
-            onBiometric { ok ->
-                val stored = saved.password()
-                if (ok && stored != null) {
-                    identifier = saved.identifier.orEmpty()
-                    password = stored
-                    passwordSaved = true
-                    rememberMe = true
-                    submit(fromSaved = true)
-                }
-            }
-        }
-    }
-    LaunchedEffect(Unit) { if (autoQuickLogin && quickReady) quickLogin() }
-
     LoginContent(
         footer = repository.prefs.footer,
         form = LoginForm(
             server, identifier, password, mfa, askMfa, busy, error, rememberMe,
             passwordSaved = passwordSaved,
-            quickLogin = quickReady,
             savedAccount = saved?.identifier != null,
         ),
         showServer = BuildConfig.SERVER_EDITABLE,
@@ -199,7 +172,6 @@ fun LoginScreen(
             forgot = true
         },
         onSubmit = { submit(fromSaved = passwordSaved) },
-        onQuickLogin = quickLogin,
         onOtherAccount = {
             saved?.clear()
             identifier = ""
@@ -229,7 +201,6 @@ fun LoginContent(
     footer: String? = null,
     onForgot: () -> Unit = {},
     onRemember: (Boolean) -> Unit = {},
-    onQuickLogin: () -> Unit = {},
     onOtherAccount: () -> Unit = {},
 ) {
     StatusBarIcons(dark = true)
@@ -324,9 +295,6 @@ fun LoginContent(
                         loading = form.busy,
                         modifier = Modifier.padding(top = 8.dp),
                     )
-                    if (form.quickLogin) {
-                        SecondaryButton("Masuk dengan sidik jari / PIN HP", onClick = onQuickLogin)
-                    }
                     if (form.savedAccount) {
                         TextButton(onClick = onOtherAccount, modifier = Modifier.align(Alignment.CenterHorizontally)) {
                             Text("Gunakan akun lain", style = MaterialTheme.typography.labelLarge, color = Hc.BrandDark)

@@ -6,7 +6,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 
 /**
- * "Ingat NIPY dan kata sandi" serta masuk cepat dengan sidik jari, wajah, atau PIN HP (D64).
+ * "Ingat NIPY dan kata sandi" di layar masuk (D64). Masuk cepat dengan sidik jari dihapus di D65.
  *
  * NIPY/email/WA disimpan biasa; kata sandi dienkripsi AES-GCM dengan kunci Android Keystore ([SecureStore]) dan
  * tidak pernah ditampilkan kembali. Data ini sengaja tetap ada setelah keluar agar bisa masuk lagi dengan cepat, dan
@@ -22,16 +22,9 @@ class SavedLogin(context: Context, private val secure: SecureStore) {
     var hasPassword by mutableStateOf(secure.get(KEY_PASSWORD) != null)
         private set
 
-    /** Masuk cepat aktif; hanya berarti bila kata sandi tersimpan. */
-    var quickLogin by mutableStateOf(prefs.getBoolean(KEY_QUICK, false))
-        private set
-
-    /** Tawaran masuk cepat sudah muncul setelah masuk, agar tidak berulang. */
-    val quickLoginOffered: Boolean get() = prefs.getBoolean(KEY_QUICK_OFFERED, false)
-
     init {
-        // Kunci aplikasi dari 0.14.0 diganti masuk cepat; pengaturannya tidak dipakai lagi.
-        prefs.edit().remove(LEGACY_APP_LOCK).remove(LEGACY_APP_LOCK_OFFERED).apply()
+        // Kunci aplikasi (0.14.0) dan masuk cepat (0.14.1) sudah dihapus; buang pengaturannya.
+        prefs.edit().remove(LEGACY_APP_LOCK).remove(LEGACY_APP_LOCK_OFFERED).remove(LEGACY_QUICK).remove(LEGACY_QUICK_OFFERED).apply()
     }
 
     fun password(): String? = secure.get(KEY_PASSWORD)
@@ -54,32 +47,21 @@ class SavedLogin(context: Context, private val secure: SecureStore) {
     fun forgetPassword() {
         secure.put(KEY_PASSWORD, null)
         hasPassword = false
-        updateQuickLogin(false)
-    }
-
-    fun updateQuickLogin(on: Boolean) {
-        quickLogin = on
-        prefs.edit().putBoolean(KEY_QUICK, on).putBoolean(KEY_QUICK_OFFERED, true).apply()
-    }
-
-    fun markQuickLoginOffered() {
-        prefs.edit().putBoolean(KEY_QUICK_OFFERED, true).apply()
     }
 
     /** Lupakan semuanya: dipakai "Gunakan akun lain" dan saat centang Ingat dilepas. */
     fun clear() {
-        prefs.edit().remove(KEY_IDENTIFIER).remove(KEY_QUICK).remove(KEY_QUICK_OFFERED).apply()
+        prefs.edit().remove(KEY_IDENTIFIER).apply()
         secure.put(KEY_PASSWORD, null)
         identifier = null
         hasPassword = false
-        quickLogin = false
     }
 
     private companion object {
         const val KEY_IDENTIFIER = "remembered_identifier"
         const val KEY_PASSWORD = "saved_password"
-        const val KEY_QUICK = "quick_login"
-        const val KEY_QUICK_OFFERED = "quick_login_offered"
+        const val LEGACY_QUICK = "quick_login"
+        const val LEGACY_QUICK_OFFERED = "quick_login_offered"
         const val LEGACY_APP_LOCK = "app_lock"
         const val LEGACY_APP_LOCK_OFFERED = "app_lock_offered"
     }

@@ -65,8 +65,6 @@ fun MainScreen(
     onDismissCrash: () -> Unit,
     onCapture: (String) -> Unit,
     onLoggedOut: () -> Unit,
-    /** Null bila HP tidak punya sidik jari, wajah, atau PIN; selain itu meminta konfirmasi lalu mengaktifkan kunci. */
-    onEnableQuickLogin: (() -> Unit)? = null,
     /** Memulai pembaruan: Play in-app update bila terpasang dari Play Store, selain itu membuka tautan (D63). */
     onStartUpdate: (String) -> Unit = {},
 ) {
@@ -75,11 +73,6 @@ fun MainScreen(
     var tab by rememberSaveable { mutableStateOf(MainTab.Home) }
     var sub by rememberSaveable { mutableStateOf<SubPage?>(null) }
     var askLogout by rememberSaveable { mutableStateOf(false) }
-    val saved = repository.savedLogin
-    // Tawaran masuk cepat muncul sekali setelah masuk dengan centang Ingat (D64).
-    var offerLock by rememberSaveable {
-        mutableStateOf(onEnableQuickLogin != null && saved != null && saved.hasPassword && !saved.quickLogin && !saved.quickLoginOffered)
-    }
     var me by remember { mutableStateOf<Me?>(null) }
     var records by remember { mutableStateOf<List<AttendanceRecord>?>(null) }
     var historyError by remember { mutableStateOf<String?>(null) }
@@ -242,7 +235,7 @@ fun MainScreen(
     // meminta "Sudah baca"; yang sudah dibaca dan punya tanggal berakhir muncul lagi sekali sehari dengan
     // tombol Tutup saja sampai berakhir (D54).
     val today = now.toLocalDate().toString()
-    val popup = if (onSubPage || leaveForm || deciding != null || askLogout || offerLock) null
+    val popup = if (onSubPage || leaveForm || deciding != null || askLogout) null
     else nextPopup(announcements.items, postponed, today, repository.prefs::popupClosedOn)
     Box(Modifier.fillMaxSize()) {
         val shownFile = viewing
@@ -306,14 +299,6 @@ fun MainScreen(
             onAnnouncement = { openAnnouncementId = it.id },
             onAnnouncements = { announcementList = true },
             onChildren = { sub = SubPage.Children },
-            quickLogin = if (onEnableQuickLogin != null && saved != null) saved.quickLogin && saved.hasPassword else null,
-            onQuickLogin = { on ->
-                when {
-                    !on -> saved?.updateQuickLogin(false)
-                    saved?.hasPassword != true -> notify("Keluar, lalu masuk dengan centang Ingat NIPY dan kata sandi untuk memakai masuk cepat.")
-                    else -> onEnableQuickLogin?.invoke()
-                }
-            },
         ) }
         if (popup != null) {
             val repeat = popup.readAt != null
@@ -356,25 +341,6 @@ fun MainScreen(
                 if (!onSubPage) Modifier.padding(bottom = glassBarSpace()) else Modifier.navigationBarsPadding().padding(bottom = 16.dp),
             ),
         )
-        if (offerLock && !onSubPage && !askLogout) {
-            val close: () -> Unit = {
-                offerLock = false
-                saved?.markQuickLoginOffered()
-            }
-            BackHandler(onBack = close)
-            FigmaPopup(
-                icon = HrisIcons.Shield,
-                title = "Masuk cepat dengan sidik jari?",
-                body = "Lain kali cukup sentuh sidik jari, wajah, atau PIN HP untuk masuk, termasuk setelah keluar. Kata sandi tersimpan terenkripsi di HP ini.",
-                primary = "Aktifkan",
-                onPrimary = {
-                    close()
-                    onEnableQuickLogin?.invoke()
-                },
-                secondary = "Nanti saja",
-                onSecondary = close,
-            )
-        }
         if (askLogout) {
             BackHandler { askLogout = false }
             FigmaPopup(
@@ -418,8 +384,6 @@ fun MainTabs(
     onFontSize: () -> Unit = {},
     onChildren: () -> Unit = {},
     offlineSince: Long? = null,
-    quickLogin: Boolean? = null,
-    onQuickLogin: (Boolean) -> Unit = {},
     update: AppVersion? = null,
     onUpdate: () -> Unit = {},
     onCheckUpdate: (() -> Unit)? = null,
@@ -484,8 +448,6 @@ fun MainTabs(
                         onFontSize = onFontSize,
                         footer = footer,
                         onChildren = onChildren,
-                        quickLogin = quickLogin,
-                        onQuickLogin = onQuickLogin,
                     )
                 }
             }

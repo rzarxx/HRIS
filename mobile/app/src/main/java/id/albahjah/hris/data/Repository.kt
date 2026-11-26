@@ -387,6 +387,24 @@ class Repository(
         return bytes
     }
 
+    /** Slip ubar yang sudah terbit, terbaru dulu (D68). Disimpan agar tetap terbaca saat offline. */
+    suspend fun payslips(): List<PayslipSummary> = cached("payslips", ListSerializer(PayslipSummary.serializer())) { payslips().data }
+
+    /** Rincian satu slip; membukanya menandai notifikasi slip itu sudah dibaca di server. */
+    suspend fun payslip(id: String): Payslip = cached("payslip:$id", Payslip.serializer()) { payslip(id).data }
+
+    /**
+     * PDF slip. Slip final tidak berubah dan PDF-nya identik setiap diunduh, jadi salinan lokal dipakai
+     * lebih dulu dan bisa dibuka saat offline (D68).
+     */
+    suspend fun payslipPdf(id: String): ByteArray {
+        val key = "payslip-pdf:$id"
+        withContext(Dispatchers.IO) { cache?.getBlob(key) }?.let { return it }
+        val bytes = call { payslipPdf(id).use { it.bytes() } }
+        withContext(Dispatchers.IO) { cache?.putBlob(key, bytes) }
+        return bytes
+    }
+
     /**
      * Memuat footer dari server dan menyimpannya untuk tampilan luring. Gagal dimuat tidak masalah:
      * footer terakhir atau teks bawaan tetap tampil.

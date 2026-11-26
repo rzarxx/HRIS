@@ -1,5 +1,12 @@
 package id.albahjah.hris
 
+import id.albahjah.hris.data.Payslip
+import id.albahjah.hris.data.PayslipItem
+import id.albahjah.hris.ui.dateRangeLabel
+import id.albahjah.hris.ui.payslipFileName
+import id.albahjah.hris.ui.payslipItemLabel
+import id.albahjah.hris.ui.periodName
+import id.albahjah.hris.ui.rupiah
 import id.albahjah.hris.data.AttendanceSignals
 import id.albahjah.hris.data.ClockInput
 import id.albahjah.hris.data.DeviceRegisterInput
@@ -827,5 +834,41 @@ class RequestHashTest {
         assertEquals(120f, luma, 0.01f)
         assertTrue(meanLuma(java.nio.ByteBuffer.wrap(ByteArray(stride * height) { 30 }), width, height, stride, 1) < LightRules.LOW_LUMA)
         assertEquals(255f, meanLuma(java.nio.ByteBuffer.allocate(0), 0, 0, 0, 1))
+    }
+
+    @Test
+    fun rupiahFormatsServerDecimals() {
+        assertEquals("Rp 0", rupiah("0.00"))
+        assertEquals("Rp 999", rupiah("999.00"))
+        assertEquals("Rp 4.973.250", rupiah("4973250.00"))
+        assertEquals("Rp 1.000.000.000", rupiah("1000000000"))
+        assertEquals("Rp 15.001", rupiah("15000.50"))
+        assertEquals("-Rp 1.500", rupiah("-1500"))
+        assertEquals("abc", rupiah("abc"))
+    }
+
+    @Test
+    fun payslipLabels() {
+        assertEquals("November 2026", periodName(2026, 11))
+        assertEquals("Slip-Ubar-2026-03-PJ2019.pdf", payslipFileName(2026, 3, "PJ/2019"))
+        assertEquals("Lembur (4 x Rp 20.000)", payslipItemLabel(PayslipItem("LEMBUR", "Lembur", "earning", "4.00", "20000.00", "80000.00")))
+        assertEquals("Lembur (2.5 x Rp 20.000)", payslipItemLabel(PayslipItem("LEMBUR", "Lembur", "earning", "2.50", "20000.00", "50000.00")))
+        assertEquals("PPh 21", payslipItemLabel(PayslipItem("PPH21", "PPh 21", "deduction", amount = "1.00")))
+        assertTrue(dateRangeLabel("2026-10-26", "2026-11-25").startsWith("26 Okt 2026"))
+    }
+
+    @Test
+    fun payslipDecodesServerJson() {
+        val slip = apiJson.decodeFromString(
+            Payslip.serializer(),
+            """{"id":"s1","document_number":"SU/2026/11/AB","year":2026,"month":11,"start_date":"2026-10-26","end_date":"2026-11-25",
+               "status":"final","published_at":"2026-11-26T03:00:00Z","nip":"PJ1","full_name":"Agus","position":"","division":"Ops",
+               "subdivision":"Gudang","attendance":{"work_days":"23","present_days":22,"late_count":2,"late_minutes":35,"absent_days":1,
+               "leave_days":0,"unpaid_leave_days":0,"review":0,"missed_clock_out":0},
+               "items":[{"code":"UBAR_POKOK","name":"Ubar pokok","kind":"earning","quantity":null,"rate":null,"amount":"4600000.00","show_on_slip":true,"manual":false}],
+               "gross":"4600000.00","deductions":"0.00","net":"4600000.00","net_clamped":false}""",
+        )
+        assertEquals(22, slip.attendance.presentDays)
+        assertEquals("4600000.00", slip.items.single().amount)
     }
 }

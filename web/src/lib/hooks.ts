@@ -31,6 +31,9 @@ import type {
   Paginated,
   PayrollReportRow,
   PayrollRules,
+  PayrollComponent,
+  PayrollSettings,
+  EmployeePayrollComponent,
   Shift,
   WorkArrangement,
   SubdivisionWithStats,
@@ -120,6 +123,25 @@ export const useShifts = () =>
   useQuery({
     queryKey: ["shifts"],
     queryFn: () => api.get<ListResponse<Shift>>("/admin/shifts").then((r) => r.data),
+  });
+
+export const usePayrollComponents = () =>
+  useQuery({
+    queryKey: ["payroll-components"],
+    queryFn: () => api.get<ListResponse<PayrollComponent>>("/admin/payroll/components").then((r) => r.data),
+  });
+
+export const usePayrollSettings = () =>
+  useQuery({
+    queryKey: ["payroll-settings"],
+    queryFn: () => api.get<{ data: PayrollSettings }>("/admin/payroll/settings").then((r) => r.data),
+  });
+
+export const useEmployeePayrollComponents = (employeeId: string | undefined) =>
+  useQuery({
+    queryKey: ["employee-payroll-components", employeeId],
+    queryFn: () => api.get<ListResponse<EmployeePayrollComponent>>(`/admin/employees/${employeeId}/payroll-components`).then((r) => r.data),
+    enabled: !!employeeId,
   });
 
 export const useHolidays = (year: number) =>

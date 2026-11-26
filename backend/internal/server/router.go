@@ -100,6 +100,13 @@ func routes(d Deps) []Route {
 		{http.MethodPost, "/v1/auth/mfa/enable", AnyUser, nil, d.Auth.MFAEnable},
 		// Tetap terbuka saat sandi/MFA belum dipenuhi agar web tahu apa yang harus dilakukan.
 		{http.MethodGet, "/v1/me", AnyUser, nil, d.Auth.GetMe},
+		// Notifikasi di aplikasi milik sendiri (D68).
+		{http.MethodGet, "/v1/notifications", AnyUser, nil, d.Payroll.Notifications},
+		{http.MethodPost, "/v1/notifications/{id}/read", AnyUser, nil, d.Payroll.ReadNotification},
+		// Slip ubar sendiri, hanya periode final atau dibayar (D68).
+		guarded(http.MethodGet, "/v1/payslips", d.Payroll.MyPayslips, permission.PayslipRead),
+		guarded(http.MethodGet, "/v1/payslips/{id}", d.Payroll.MyPayslip, permission.PayslipRead),
+		guarded(http.MethodGet, "/v1/payslips/{id}/pdf", d.Payroll.MyPayslipPDF, permission.PayslipRead),
 		guarded(http.MethodPatch, "/v1/me", d.Employee.UpdateMe, permission.ProfileUpdate),
 		guarded(http.MethodDelete, "/v1/me/email-change", d.Auth.CancelEmailChange, permission.ProfileUpdate),
 		guarded(http.MethodGet, "/v1/me/children", d.Employee.MyChildren, permission.ProfileRead),
@@ -246,6 +253,7 @@ func routes(d Deps) []Route {
 		guarded(http.MethodPost, "/v1/admin/payroll/periods/{id}/mark-paid", d.Payroll.MarkPaid, permission.PayrollFinalize),
 		guarded(http.MethodGet, "/v1/admin/payroll/periods/{id}/employees/{employee_id}", d.Payroll.EmployeePayroll, permission.PayrollManage),
 		guarded(http.MethodPut, "/v1/admin/payroll/periods/{id}/employees/{employee_id}", d.Payroll.SetInputs, permission.PayrollManage),
+		guarded(http.MethodGet, "/v1/admin/payroll/periods/{id}/employees/{employee_id}/pdf", d.Payroll.AdminPayslipPDF, permission.PayrollManage),
 		guarded(http.MethodGet, "/v1/admin/payroll/settings", d.Payroll.Settings, permission.PayrollManage),
 		guarded(http.MethodPut, "/v1/admin/payroll/settings", d.Payroll.SetSettings, permission.PayrollManage),
 		guarded(http.MethodGet, "/v1/admin/employees/{id}/payroll-components", d.Payroll.EmployeeComponents, permission.PayrollManage),

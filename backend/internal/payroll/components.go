@@ -35,6 +35,8 @@ type Service struct {
 	pool *pgxpool.Pool
 	q    *store.Queries
 	now  func() time.Time
+	// mailer mengirim email pemberitahuan slip; nil bila tidak dipasang.
+	mailer Mailer
 }
 
 func NewService(pool *pgxpool.Pool) *Service {

@@ -276,6 +276,47 @@ func (ns NullLeaveQuotaKind) Value() (driver.Value, error) {
 	return string(ns.LeaveQuotaKind), nil
 }
 
+type NotificationType string
+
+const (
+	NotificationTypePayslipReady NotificationType = "payslip_ready"
+)
+
+func (e *NotificationType) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = NotificationType(s)
+	case string:
+		*e = NotificationType(s)
+	default:
+		return fmt.Errorf("unsupported scan type for NotificationType: %T", src)
+	}
+	return nil
+}
+
+type NullNotificationType struct {
+	NotificationType NotificationType
+	Valid            bool // Valid is true if NotificationType is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullNotificationType) Scan(value interface{}) error {
+	if value == nil {
+		ns.NotificationType, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.NotificationType.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullNotificationType) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.NotificationType), nil
+}
+
 type PayrollCalcMethod string
 
 const (
@@ -867,6 +908,17 @@ type LeaveType struct {
 	AnnualQuotaDays pgtype.Int2
 	IsActive        bool
 	CreatedAt       pgtype.Timestamptz
+}
+
+type Notification struct {
+	ID         uuid.UUID
+	EmployeeID uuid.UUID
+	Type       NotificationType
+	RefID      uuid.NullUUID
+	Title      string
+	Body       string
+	ReadAt     pgtype.Timestamptz
+	CreatedAt  pgtype.Timestamptz
 }
 
 type OfficeLocation struct {

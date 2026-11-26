@@ -203,6 +203,7 @@ func run() error {
 
 	settingsHandler := settings.NewHandler(settings.NewService(pool))
 	payrollSvc := payroll.NewService(pool)
+	payrollSvc.SetMailer(mailSvc)
 	handler := server.New(server.Deps{
 		Auth:         auth.NewHandler(authSvc, secure, cfg.CookieDomain, limiter),
 		Org:          org.NewHandler(org.NewService(pool)),

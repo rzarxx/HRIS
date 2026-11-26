@@ -33,6 +33,17 @@ func (q *Queries) AttendanceDateLocked(ctx context.Context, arg AttendanceDateLo
 	return exists, err
 }
 
+const countUnreadNotifications = `-- name: CountUnreadNotifications :one
+SELECT count(*) FROM notifications WHERE employee_id = $1 AND read_at IS NULL
+`
+
+func (q *Queries) CountUnreadNotifications(ctx context.Context, employeeID uuid.UUID) (int64, error) {
+	row := q.db.QueryRow(ctx, countUnreadNotifications, employeeID)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const deleteEmployeePayrollComponents = `-- name: DeleteEmployeePayrollComponents :exec
 DELETE FROM employee_payroll_components WHERE employee_id = $1
 `
@@ -88,6 +99,77 @@ func (q *Queries) DeletePayrollsOfPeriod(ctx context.Context, periodID uuid.UUID
 	return err
 }
 
+const getMyPayslip = `-- name: GetMyPayslip :one
+SELECT r.id, r.period_id, r.employee_id, r.nip, r.full_name, r.division, r.subdivision, r.position, r.base_salary, r.gross, r.deductions, r.net, r.net_clamped, r.attendance, r.employee_values, r.published_at, r.created_at, r.updated_at, p.year, p.month, p.start_date, p.end_date, p.status AS period_status, p.finalized_at
+FROM payrolls r
+JOIN payroll_periods p ON p.id = r.period_id
+WHERE r.id = $1 AND r.employee_id = $2 AND r.published_at IS NOT NULL AND p.status IN ('final', 'paid')
+`
+
+type GetMyPayslipParams struct {
+	ID         uuid.UUID
+	EmployeeID uuid.UUID
+}
+
+type GetMyPayslipRow struct {
+	ID             uuid.UUID
+	PeriodID       uuid.UUID
+	EmployeeID     uuid.UUID
+	Nip            string
+	FullName       string
+	Division       string
+	Subdivision    string
+	Position       string
+	BaseSalary     decimal.Decimal
+	Gross          decimal.Decimal
+	Deductions     decimal.Decimal
+	Net            decimal.Decimal
+	NetClamped     bool
+	Attendance     []byte
+	EmployeeValues []byte
+	PublishedAt    pgtype.Timestamptz
+	CreatedAt      pgtype.Timestamptz
+	UpdatedAt      pgtype.Timestamptz
+	Year           int16
+	Month          int16
+	StartDate      pgtype.Date
+	EndDate        pgtype.Date
+	PeriodStatus   PayrollStatus
+	FinalizedAt    pgtype.Timestamptz
+}
+
+func (q *Queries) GetMyPayslip(ctx context.Context, arg GetMyPayslipParams) (GetMyPayslipRow, error) {
+	row := q.db.QueryRow(ctx, getMyPayslip, arg.ID, arg.EmployeeID)
+	var i GetMyPayslipRow
+	err := row.Scan(
+		&i.ID,
+		&i.PeriodID,
+		&i.EmployeeID,
+		&i.Nip,
+		&i.FullName,
+		&i.Division,
+		&i.Subdivision,
+		&i.Position,
+		&i.BaseSalary,
+		&i.Gross,
+		&i.Deductions,
+		&i.Net,
+		&i.NetClamped,
+		&i.Attendance,
+		&i.EmployeeValues,
+		&i.PublishedAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.Year,
+		&i.Month,
+		&i.StartDate,
+		&i.EndDate,
+		&i.PeriodStatus,
+		&i.FinalizedAt,
+	)
+	return i, err
+}
+
 const getPayrollComponent = `-- name: GetPayrollComponent :one
 SELECT id, code, name, kind, method, rate, percent, divisor, active, show_on_slip, sort_order, note, updated_by, created_at, updated_at FROM payroll_components WHERE id = $1
 `
@@ -111,6 +193,77 @@ func (q *Queries) GetPayrollComponent(ctx context.Context, id uuid.UUID) (Payrol
 		&i.UpdatedBy,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const getPayrollForPDF = `-- name: GetPayrollForPDF :one
+SELECT r.id, r.period_id, r.employee_id, r.nip, r.full_name, r.division, r.subdivision, r.position, r.base_salary, r.gross, r.deductions, r.net, r.net_clamped, r.attendance, r.employee_values, r.published_at, r.created_at, r.updated_at, p.year, p.month, p.start_date, p.end_date, p.status AS period_status, p.finalized_at
+FROM payrolls r
+JOIN payroll_periods p ON p.id = r.period_id
+WHERE r.period_id = $1 AND r.employee_id = $2
+`
+
+type GetPayrollForPDFParams struct {
+	PeriodID   uuid.UUID
+	EmployeeID uuid.UUID
+}
+
+type GetPayrollForPDFRow struct {
+	ID             uuid.UUID
+	PeriodID       uuid.UUID
+	EmployeeID     uuid.UUID
+	Nip            string
+	FullName       string
+	Division       string
+	Subdivision    string
+	Position       string
+	BaseSalary     decimal.Decimal
+	Gross          decimal.Decimal
+	Deductions     decimal.Decimal
+	Net            decimal.Decimal
+	NetClamped     bool
+	Attendance     []byte
+	EmployeeValues []byte
+	PublishedAt    pgtype.Timestamptz
+	CreatedAt      pgtype.Timestamptz
+	UpdatedAt      pgtype.Timestamptz
+	Year           int16
+	Month          int16
+	StartDate      pgtype.Date
+	EndDate        pgtype.Date
+	PeriodStatus   PayrollStatus
+	FinalizedAt    pgtype.Timestamptz
+}
+
+func (q *Queries) GetPayrollForPDF(ctx context.Context, arg GetPayrollForPDFParams) (GetPayrollForPDFRow, error) {
+	row := q.db.QueryRow(ctx, getPayrollForPDF, arg.PeriodID, arg.EmployeeID)
+	var i GetPayrollForPDFRow
+	err := row.Scan(
+		&i.ID,
+		&i.PeriodID,
+		&i.EmployeeID,
+		&i.Nip,
+		&i.FullName,
+		&i.Division,
+		&i.Subdivision,
+		&i.Position,
+		&i.BaseSalary,
+		&i.Gross,
+		&i.Deductions,
+		&i.Net,
+		&i.NetClamped,
+		&i.Attendance,
+		&i.EmployeeValues,
+		&i.PublishedAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.Year,
+		&i.Month,
+		&i.StartDate,
+		&i.EndDate,
+		&i.PeriodStatus,
+		&i.FinalizedAt,
 	)
 	return i, err
 }
@@ -419,6 +572,41 @@ func (q *Queries) InsertPayrollPeriod(ctx context.Context, arg InsertPayrollPeri
 	return i, err
 }
 
+const insertPayslipNotifications = `-- name: InsertPayslipNotifications :many
+INSERT INTO notifications (employee_id, type, ref_id, title, body)
+SELECT r.employee_id, 'payslip_ready', r.id, $1::text, $2::text
+FROM payrolls r WHERE r.period_id = $3
+ON CONFLICT (employee_id, type, ref_id) DO NOTHING
+RETURNING employee_id
+`
+
+type InsertPayslipNotificationsParams struct {
+	Title    string
+	Body     string
+	PeriodID uuid.UUID
+}
+
+// Satu notifikasi per slip periode; aman diulang.
+func (q *Queries) InsertPayslipNotifications(ctx context.Context, arg InsertPayslipNotificationsParams) ([]uuid.UUID, error) {
+	rows, err := q.db.Query(ctx, insertPayslipNotifications, arg.Title, arg.Body, arg.PeriodID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []uuid.UUID{}
+	for rows.Next() {
+		var employee_id uuid.UUID
+		if err := rows.Scan(&employee_id); err != nil {
+			return nil, err
+		}
+		items = append(items, employee_id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const latestPayrollPeriod = `-- name: LatestPayrollPeriod :one
 SELECT id, year, month, start_date, end_date, status, rules_snapshot, created_by, generated_by, generated_at, submitted_by, submitted_at, finalized_by, finalized_at, paid_by, paid_at, reject_note, rejected_by, rejected_at, created_at, updated_at FROM payroll_periods ORDER BY end_date DESC LIMIT 1
 `
@@ -546,6 +734,93 @@ func (q *Queries) ListEmployeePayrollComponents(ctx context.Context, employeeID 
 	for rows.Next() {
 		var i ListEmployeePayrollComponentsRow
 		if err := rows.Scan(&i.ComponentID, &i.Amount); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listMyPayslips = `-- name: ListMyPayslips :many
+
+SELECT r.id, r.net, r.published_at, p.year, p.month, p.start_date, p.end_date, p.status,
+       EXISTS (SELECT 1 FROM notifications n WHERE n.employee_id = r.employee_id AND n.type = 'payslip_ready'
+               AND n.ref_id = r.id AND n.read_at IS NULL) AS unread
+FROM payrolls r
+JOIN payroll_periods p ON p.id = r.period_id
+WHERE r.employee_id = $1 AND r.published_at IS NOT NULL AND p.status IN ('final', 'paid')
+ORDER BY p.year DESC, p.month DESC
+`
+
+type ListMyPayslipsRow struct {
+	ID          uuid.UUID
+	Net         decimal.Decimal
+	PublishedAt pgtype.Timestamptz
+	Year        int16
+	Month       int16
+	StartDate   pgtype.Date
+	EndDate     pgtype.Date
+	Status      PayrollStatus
+	Unread      bool
+}
+
+// Slip ubar Pejuang dan notifikasi (D68) -------------------------------------------------------------
+func (q *Queries) ListMyPayslips(ctx context.Context, employeeID uuid.UUID) ([]ListMyPayslipsRow, error) {
+	rows, err := q.db.Query(ctx, listMyPayslips, employeeID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListMyPayslipsRow{}
+	for rows.Next() {
+		var i ListMyPayslipsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Net,
+			&i.PublishedAt,
+			&i.Year,
+			&i.Month,
+			&i.StartDate,
+			&i.EndDate,
+			&i.Status,
+			&i.Unread,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listNotifications = `-- name: ListNotifications :many
+SELECT id, employee_id, type, ref_id, title, body, read_at, created_at FROM notifications WHERE employee_id = $1 ORDER BY created_at DESC, id LIMIT 50
+`
+
+func (q *Queries) ListNotifications(ctx context.Context, employeeID uuid.UUID) ([]Notification, error) {
+	rows, err := q.db.Query(ctx, listNotifications, employeeID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []Notification{}
+	for rows.Next() {
+		var i Notification
+		if err := rows.Scan(
+			&i.ID,
+			&i.EmployeeID,
+			&i.Type,
+			&i.RefID,
+			&i.Title,
+			&i.Body,
+			&i.ReadAt,
+			&i.CreatedAt,
+		); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
@@ -895,6 +1170,38 @@ func (q *Queries) LockPayrollPeriod(ctx context.Context, id uuid.UUID) (PayrollP
 	return i, err
 }
 
+const markNotificationRead = `-- name: MarkNotificationRead :execrows
+UPDATE notifications SET read_at = COALESCE(read_at, now()) WHERE id = $1 AND employee_id = $2
+`
+
+type MarkNotificationReadParams struct {
+	ID         uuid.UUID
+	EmployeeID uuid.UUID
+}
+
+func (q *Queries) MarkNotificationRead(ctx context.Context, arg MarkNotificationReadParams) (int64, error) {
+	result, err := q.db.Exec(ctx, markNotificationRead, arg.ID, arg.EmployeeID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const markPayslipNotificationRead = `-- name: MarkPayslipNotificationRead :exec
+UPDATE notifications SET read_at = now()
+WHERE employee_id = $1 AND type = 'payslip_ready' AND ref_id = $2 AND read_at IS NULL
+`
+
+type MarkPayslipNotificationReadParams struct {
+	EmployeeID uuid.UUID
+	RefID      uuid.NullUUID
+}
+
+func (q *Queries) MarkPayslipNotificationRead(ctx context.Context, arg MarkPayslipNotificationReadParams) error {
+	_, err := q.db.Exec(ctx, markPayslipNotificationRead, arg.EmployeeID, arg.RefID)
+	return err
+}
+
 const payrollEmployeeInfo = `-- name: PayrollEmployeeInfo :many
 SELECT e.id, e.nip, e.full_name, COALESCE(e.position, '') AS position, e.base_salary, d.name AS division, s.name AS subdivision
 FROM employees e
@@ -956,6 +1263,39 @@ func (q *Queries) PayrollPeriodOverlaps(ctx context.Context, arg PayrollPeriodOv
 	var exists bool
 	err := row.Scan(&exists)
 	return exists, err
+}
+
+const payslipRecipients = `-- name: PayslipRecipients :many
+SELECT u.id AS user_id, u.email
+FROM payrolls r
+JOIN users u ON u.employee_id = r.employee_id AND u.is_active
+WHERE r.period_id = $1
+`
+
+type PayslipRecipientsRow struct {
+	UserID uuid.UUID
+	Email  pgtype.Text
+}
+
+// Alamat email akun aktif Pejuang yang slipnya terbit di periode ini.
+func (q *Queries) PayslipRecipients(ctx context.Context, periodID uuid.UUID) ([]PayslipRecipientsRow, error) {
+	rows, err := q.db.Query(ctx, payslipRecipients, periodID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []PayslipRecipientsRow{}
+	for rows.Next() {
+		var i PayslipRecipientsRow
+		if err := rows.Scan(&i.UserID, &i.Email); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const publishPayrolls = `-- name: PublishPayrolls :exec

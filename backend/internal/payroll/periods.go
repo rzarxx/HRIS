@@ -472,7 +472,8 @@ func (s *Service) Reject(ctx context.Context, entry audit.Entry, id uuid.UUID, i
 
 // Finalize menyetujui periode. Pemeriksa wajib orang lain dari yang menghitung atau mengajukan (maker-checker).
 func (s *Service) Finalize(ctx context.Context, entry audit.Entry, id uuid.UUID) error {
-	return database.InTx(ctx, s.pool, func(q *store.Queries) error {
+	var period store.PayrollPeriod
+	err := database.InTx(ctx, s.pool, func(q *store.Queries) error {
 		p, err := lockPeriod(ctx, q, id)
 		if err != nil {
 			return err
@@ -490,9 +491,20 @@ func (s *Service) Finalize(ctx context.Context, entry audit.Entry, id uuid.UUID)
 		if err := q.PublishPayrolls(ctx, store.PublishPayrollsParams{PeriodID: id, PublishedAt: now}); err != nil {
 			return err
 		}
+		// Slip terbit: notifikasi di aplikasi dalam transaksi yang sama (D68).
+		if err := publish(ctx, q, p); err != nil {
+			return err
+		}
+		period = p
 		entry.Action, entry.Entity, entry.EntityID = audit.PayrollFinalized, "payroll_period", id
 		return audit.Write(ctx, q, entry)
 	})
+	if err != nil {
+		return err
+	}
+	// Email hanya pemberitahuan tanpa angka, dikirim setelah transaksi berhasil.
+	s.emailPayslips(id, int(period.Year), int(period.Month))
+	return nil
 }
 
 // MarkPaid mencatat ubar periode final sudah ditransfer.

@@ -557,7 +557,7 @@ DDL dasar ada di `QUERY.sql`; perubahan di **Lampiran A** (yang berlaku). Beriku
 | `warnings` | `level`, `reason`, `issued_by`, `issued_at`, `acknowledged_at` | |
 | `announcements`, `announcement_reads` | `title`, `body`, `type`, `division_id`, `starts_at`, `ends_at`, `is_active`, `min_read_seconds`; `opened_at`, `read_at` | Timer baca, D27 |
 | `announcement_attachments` | `announcement_id`, `file_name`, `content_type`, `size_bytes`, `storage_key`, `created_by` | Lampiran PDF/JPEG/PNG, maks 5 per pengumuman; berkas terenkripsi pada kunci `announcements/` di penyimpanan privat (D54) |
-| `notifications` | `employee_id`, `type`, `title`, `body`, `is_read`, `opened_at` | Timer baca, D27 |
+| `notifications` | `employee_id`, `type`, `ref_id`, `title`, `body`, `read_at`, `created_at` | Unik `(employee_id, type, ref_id)`; baru tipe `payslip_ready` (D68) |
 | `uploads` | `id`, `owner_employee_id`, `purpose`, `storage_key`, `mime`, `size_bytes`, `sha256` | |
 | `audit_logs` | `id`, `user_id`, `action`, `entity`, `entity_id`, `detail`, `ip`, `created_at` | Append-only |
 
@@ -739,11 +739,11 @@ Setiap `code` baru wajib ditambahkan di tabel ini.
 | POST | `/v1/leaves/{id}/cancel` | `leave:create` |
 | POST / GET | `/v1/cash-advances`, `/v1/cash-advances/{id}`, `POST .../cancel` | `cash_advance:*` |
 | POST / GET | `/v1/transfers`, `/v1/transfers/{id}`, `POST .../cancel` | `transfer:*` |
-| GET | `/v1/payslips`, `/v1/payslips/{id}`, `/v1/payslips/{id}/pdf` | `payslip:read` |
+| GET | `/v1/payslips`, `/v1/payslips/{id}`, `/v1/payslips/{id}/pdf` | `payslip:read`. Milik sendiri, hanya periode final atau dibayar (D68) |
 | GET | `/v1/warnings`, `POST /v1/warnings/{id}/acknowledge` | `warning:read` |
 | GET | `/v1/announcements/active`, `POST /v1/announcements/{id}/open`, `POST /v1/announcements/{id}/read` | `announcement:read` |
 | GET | `/v1/announcements/{id}/attachments/{attachment_id}` | `announcement:read`; hanya pengumuman yang sedang tayang bagi pemanggil (D54) |
-| GET | `/v1/notifications`, `POST /v1/notifications/{id}/open`, `POST /v1/notifications/{id}/read` | self |
+| GET | `/v1/notifications`, `POST /v1/notifications/{id}/read` | self. `meta.unread` jumlah belum dibaca (D68); `/open` dengan timer baca menyusul |
 | POST | `/v1/uploads` | self (multipart, `purpose`) |
 
 **Approver (Subdiv, Kadiv, SDM)**
@@ -799,6 +799,7 @@ Setiap `code` baru wajib ditambahkan di tabel ini.
 | POST | `/v1/admin/payroll/periods/{id}/generate`, `/submit` | `payroll:manage` |
 | POST | `/v1/admin/payroll/periods/{id}/finalize`, `/reject`, `/mark-paid` | `payroll:finalize`; finalize oleh SDM lain dari pembuat |
 | GET, PUT | `/v1/admin/payroll/periods/{id}/employees/{employee_id}` | `payroll:manage`. Rincian slip dan isian per periode |
+| GET | `/v1/admin/payroll/periods/{id}/employees/{employee_id}/pdf` | `payroll:manage`. PDF slip; bertanda DRAF sebelum final (D68) |
 | GET, POST | `/v1/admin/warnings` | `warning:manage` |
 | CRUD | `/v1/admin/announcements` | `announcement:manage`. Daftar dan detail memuat `audience_count`, `opened_count`, `read_count` |
 | GET | `/v1/admin/announcements/{id}/reads` | `announcement:manage`. Status baca tiap Pejuang sasaran |
@@ -1232,8 +1233,8 @@ flowchart TD
     E --> F{"Keputusan"}
     F -- reject --> C
     F -- finalize --> G["Status final, periode terkunci"]
-    G --> H["Buat slip PDF asinkron, simpan hash dokumen"]
-    H --> I["Notifikasi payslip_ready ke Pejuang"]
+    G --> H["Slip terbit; PDF disusun saat diunduh dari salinan slip (D68)"]
+    H --> I["Notifikasi payslip_ready di aplikasi dan email pemberitahuan tanpa angka"]
     I --> J["mark-paid setelah transfer dilakukan: status paid"]
     E -.-> M["Pembuat mencoba finalize: 403 MAKER_CHECKER_VIOLATION"]
 ```
@@ -1728,6 +1729,7 @@ Estimasi untuk tim kecil; sesuaikan setelah kapasitas tim jelas.
 | D64 | Login cepat menggantikan kunci aplikasi D62. Layar masuk mengingat NIPY dan kata sandi (centang bawaan aktif); kata sandi disimpan terenkripsi dengan kunci Android Keystore dan tidak bisa ditampilkan. Masuk cepat dengan sidik jari, wajah, atau PIN HP (BIOMETRIC_WEAK atau DEVICE_CREDENTIAL, Android 10+) membuka data tersimpan lalu masuk seperti biasa, termasuk setelah keluar dan saat sesi berakhir; akun ber-A2F tetap diminta kode. Data tersimpan bertahan setelah keluar dan dihapus lewat Gunakan akun lain, centang yang dilepas, atau kata sandi yang ditolak server | Permintaan pemilik proyek: Pejuang ingin masuk lagi tanpa mengetik kata sandi, termasuk setelah keluar. Konsekuensi: kata sandi tersimpan di HP (terenkripsi, tidak terlihat), sehingga siapa pun yang membuka HP tanpa masuk cepat aktif bisa masuk dengan menekan Masuk; HP presensi terdaftar per Pejuang, dan masuk cepat yang aktif menahan kata sandi di balik sidik jari atau PIN. Dialog sidik jari belum memakai CryptoObject karena PIN sebagai cadangan baru didukung bersama kunci kriptografis mulai Android 11 |
 | D65 | Masuk cepat dengan sidik jari, wajah, atau PIN HP dari D64 dihapus sebelum dirilis. Layar masuk tetap mengingat NIPY dan kata sandi (D64) dan langsung mengisinya; aplikasi tidak lagi memakai `androidx.biometric` dan kembali ke `ComponentActivity`. Pengaturan `quick_login` yang sempat tersimpan dibersihkan saat aplikasi dibuka | Keputusan pemilik proyek. Konsekuensi: siapa pun yang membuka HP dengan kata sandi tersimpan bisa langsung menekan Masuk; HP presensi terdaftar per Pejuang, dan Pejuang yang meminjamkan HP dapat melepas centang Ingat atau memakai Gunakan akun lain |
 | D66 | Komponen ubar diatur SDM di panel (Payroll → Komponen Ubar), menggantikan rancangan `payroll_rule_versions` di D29. Tiap komponen punya kode tetap, jenis (pendapatan/potongan), satu dari 11 cara hitung (`fixed`, `per_employee`, `per_present_day`, `per_late`, `per_late_minute`, `per_absent_day`, `per_unpaid_leave_day`, `percent_of_base`, `percent_of_gross`, `per_unit`, `manual`), nominal/persen/pembagi, status aktif, tampil di slip, dan urutan. Komponen tidak dihapus, hanya dinonaktifkan. Nilai `per_employee` disimpan per Pejuang di `employee_payroll_components`. Setelan `app_settings` kunci `payroll`: `period_cutoff_day` (bawaan 25, 0 = akhir bulan) dan `min_net_zero` (bawaan aktif). Mesin hitung murni di `internal/payroll`: semua nominal dibulatkan ke rupiah, `percent_of_gross` dihitung setelah semua pendapatan. Semua endpoint khusus `payroll:manage`, diaudit `payroll.rules_changed` | Permintaan pemilik proyek: komponen yang salah atau tidak dibutuhkan harus bisa diubah tanpa merombak kode. Konsekuensi: jenis perhitungan di luar 11 cara hitung tetap perlu perubahan kode (§11.5); periode yang sudah di-generate menyimpan salinan komponen (D67) sehingga perubahan komponen tidak mengubah periode lama |
+| D68 | Slip ubar terbit saat periode final. Pejuang membuka slipnya lewat `/v1/payslips` (hanya periode final/dibayar, hanya milik sendiri; lainnya 404) dan mengunduh PDF A4 berisi kop, identitas, ringkasan presensi, pendapatan, potongan, ubar bersih beserta terbilang, nomor dokumen `SU/tahun/bulan/<ID>`, dan tanggal terbit. Komponen yang tidak tampil di slip tetap dihitung tetapi tidak dikirim. PDF dibuat saat diunduh dari salinan slip yang tidak berubah setelah final, bukan disimpan sebagai berkas; hasilnya identik setiap kali diunduh. SDM dapat mengunduh PDF per Pejuang, bertanda DRAF sebelum final. Finalisasi membuat notifikasi `payslip_ready` di aplikasi (tabel `notifications`, `GET /v1/notifications`, `POST /v1/notifications/{id}/read`; membuka slip menandai notifikasinya dibaca) dan mengirim email pemberitahuan tanpa angka ubar ke akun aktif di latar setelah transaksi bila SMTP aktif; kegagalan dicatat `email.delivery_failed`. Tanpa FCM | Keputusan pemilik proyek: slip di tab Slip, PDF unduhan, email hanya pemberitahuan, notifikasi di aplikasi. PDF tidak disimpan agar tidak ada status gagal-buat dan tidak bergantung pada penyimpanan berkas; konsekuensinya setiap unduhan menyusun ulang PDF (sekitar 170 KB, sebagian besar logo). Timer baca notifikasi (D27, `/open`) belum dipakai untuk notifikasi slip |
 | D67 | Periode ubar memakai maker-checker. SDM membuat periode (rentang dari `period_cutoff_day`, bersambung tanpa celah dengan periode sebelumnya), menghitung (`generate`, bisa diulang selama draft), mengisi isian per periode (`per_unit` dan `manual`), lalu mengajukan. Pengajuan ditolak 422 `PAYROLL_NOT_READY` bila belum dihitung atau masih ada presensi review atau lupa absen pulang. Pemeriksa (`payroll:finalize`) wajib SDM lain dari yang menghitung atau mengajukan (`MAKER_CHECKER_VIOLATION`); ia bisa menolak dengan alasan (kembali ke draft) atau memfinalkan, lalu menandai dibayar. Sejak diajukan, presensi dalam rentang periode terkunci: Review Presensi dan persetujuan cuti dijawab 409 `PERIOD_LOCKED`, dan job alpha melewati tanggal itu. Periode menyimpan salinan komponen dan setelan (`rules_snapshot`); slip menyimpan salinan identitas, ringkasan presensi, nilai per Pejuang, dan item. Rekap presensi dan ekspor XLSX mengikuti rentang periode dari setelan cutoff. Pratinjau ubar dengan rumus sementara (`/v1/admin/reports/payroll-preview`, D15) dihapus | Alur F17 dan §11.5. Konsekuensi: koreksi presensi setelah diajukan harus lewat penolakan periode dulu; periode final tidak bisa dibuka lagi, sehingga salah hitung setelah final diselesaikan lewat isian manual di periode berikutnya |
 | D15 | (Diganti D67, endpoint dihapus.) `/v1/admin/reports/payroll-preview` mewajibkan `attendance:report` dan `payroll:manage` | Respons memuat gaji, sedangkan §7.6 membatasi `base_salary` untuk `sdm` dan pemilik data |
 

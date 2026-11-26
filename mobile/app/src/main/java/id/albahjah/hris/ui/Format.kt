@@ -178,10 +178,3 @@ fun rupiah(raw: String): String {
     val grouped = digits.reversed().chunked(3).joinToString(".").reversed()
     return (if (whole.signum() < 0) "-Rp " else "Rp ") + grouped
 }
-
-/** Rentang tanggal periode, mis. "26 Okt 2026 - 25 Nov 2026". */
-fun dateRangeLabel(start: String, end: String): String {
-    val from = runCatching { LocalDate.parse(start).format(dayMonthShortYear).replace(".", "") }.getOrDefault(start)
-    val to = runCatching { LocalDate.parse(end).format(dayMonthShortYear).replace(".", "") }.getOrDefault(end)
-    return "$from - $to"
-}

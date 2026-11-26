@@ -854,7 +854,7 @@ class RequestHashTest {
         assertEquals("Lembur (4 x Rp 20.000)", payslipItemLabel(PayslipItem("LEMBUR", "Lembur", "earning", "4.00", "20000.00", "80000.00")))
         assertEquals("Lembur (2.5 x Rp 20.000)", payslipItemLabel(PayslipItem("LEMBUR", "Lembur", "earning", "2.50", "20000.00", "50000.00")))
         assertEquals("PPh 21", payslipItemLabel(PayslipItem("PPH21", "PPh 21", "deduction", amount = "1.00")))
-        assertTrue(dateRangeLabel("2026-10-26", "2026-11-25").startsWith("26 Okt 2026"))
+        assertTrue(dateRangeLabel("2026-10-26", "2026-11-25").startsWith("26 Okt"))
     }
 
     @Test

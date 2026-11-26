@@ -37,6 +37,7 @@ import (
 	"github.com/rzarxx/HRIS/backend/internal/location"
 	"github.com/rzarxx/HRIS/backend/internal/mail"
 	"github.com/rzarxx/HRIS/backend/internal/org"
+	"github.com/rzarxx/HRIS/backend/internal/payroll"
 	"github.com/rzarxx/HRIS/backend/internal/platform/database"
 	"github.com/rzarxx/HRIS/backend/internal/platform/fieldcrypt"
 	"github.com/rzarxx/HRIS/backend/internal/platform/filescan"
@@ -288,6 +289,7 @@ func fresh(t *testing.T, opt options) *httptest.Server {
 		Device:       device.NewHandler(device.NewService(appPool)),
 		Attendance:   attendance.NewHandler(attendance.NewService(appPool, attendanceOpt)),
 		Shift:        shift.NewHandler(shift.NewService(appPool)),
+		Payroll:      payroll.NewHandler(payroll.NewService(appPool)),
 		Approval:     approval.NewHandler(approvalSvc),
 		Leave:        leave.NewHandler(leaveSvc),
 		Signer:       signer,

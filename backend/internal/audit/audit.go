@@ -42,6 +42,7 @@ const (
 	AnnouncementUpdated            = "announcement.updated"
 	AnnouncementDeleted            = "announcement.deleted"
 	SettingsChanged                = "settings.changed"
+	PayrollRulesChanged            = "payroll.rules_changed"
 	UserRoleChanged                = "user.role_changed"
 	UserMFAPolicyChanged           = "user.mfa_policy_changed"
 	DeviceRegistered               = "device.registered"

@@ -191,9 +191,9 @@ func TestGateBlocksGuardedRoutes(t *testing.T) {
 	}
 	for _, c := range cases {
 		h, signer, table := testRouterState(t, c.state)
-		token := tokenFor(t, signer, permission.RoleSDM)
 		for _, route := range table {
-			rec := call(h, route.Method, route.Path, token, "csrf-ok")
+			// Token baru per route: jumlah route melebihi batas permintaan per akun per menit.
+			rec := call(h, route.Method, route.Path, tokenFor(t, signer, permission.RoleSDM), "csrf-ok")
 			switch route.Access {
 			case Guarded:
 				if rec.Code != http.StatusForbidden || errorCode(t, rec) != c.code {

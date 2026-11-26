@@ -72,7 +72,7 @@ func IsSeeded(ctx context.Context, q *store.Queries) (bool, error) {
 
 // Reset mengosongkan semua tabel data. Hanya untuk pengembangan; butuh role hris_migrate.
 func Reset(ctx context.Context, pool *pgxpool.Pool) error {
-	_, err := pool.Exec(ctx, `TRUNCATE audit_logs, user_invites, user_mfa, devices, employee_locations, office_locations, holidays, announcements, attendances, sessions, users, employees, subdivisions, divisions, shifts RESTART IDENTITY CASCADE`)
+	_, err := pool.Exec(ctx, `TRUNCATE audit_logs, user_invites, user_mfa, devices, employee_locations, office_locations, holidays, announcements, attendances, sessions, users, employees, subdivisions, divisions, shifts, payroll_components RESTART IDENTITY CASCADE`)
 	return err
 }
 
@@ -249,8 +249,45 @@ func seedAll(ctx context.Context, q *store.Queries, passwordHash string, now tim
 			return err
 		}
 	}
+	if err := seedPayrollComponents(ctx, q, creator); err != nil {
+		return err
+	}
 	_, err = FillAttendance(ctx, q, now)
 	return err
+}
+
+// seedPayrollComponents membuat contoh komponen ubar dalam keadaan nonaktif (D66): SDM tinggal menyesuaikan
+// nominal lalu mengaktifkannya dari panel.
+func seedPayrollComponents(ctx context.Context, q *store.Queries, creator uuid.NullUUID) error {
+	money := func(v int64) decimal.NullDecimal { return decimal.NewNullDecimal(decimal.NewFromInt(v)) }
+	// Kode lewat argumen fungsi agar pemindai kode error di tes kontrak tidak salah membaca baris Code: "...".
+	sample := func(code, name string, kind store.PayrollComponentKind, method store.PayrollCalcMethod, order int32) store.InsertPayrollComponentParams {
+		return store.InsertPayrollComponentParams{Code: code, Name: name, Kind: kind, Method: method, SortOrder: order}
+	}
+	earning, deduction := store.PayrollComponentKindEarning, store.PayrollComponentKindDeduction
+	makan := sample("UANG_MAKAN", "Uang makan", earning, store.PayrollCalcMethodPerPresentDay, 20)
+	makan.Rate = money(15000)
+	lembur := sample("LEMBUR", "Lembur", earning, store.PayrollCalcMethodPerUnit, 30)
+	lembur.Rate, lembur.Note = money(20000), "Per jam; jumlah jam diisi SDM per periode."
+	telat := sample("POT_TELAT", "Potongan telat", deduction, store.PayrollCalcMethodPerLate, 40)
+	telat.Rate = money(5000)
+	alpha := sample("POT_ALPHA", "Potongan alpha", deduction, store.PayrollCalcMethodPerAbsentDay, 50)
+	alpha.Divisor = money(26)
+	bpjs := sample("BPJS_KES", "BPJS Kesehatan", deduction, store.PayrollCalcMethodPercentOfBase, 60)
+	bpjs.Percent = money(1)
+	samples := []store.InsertPayrollComponentParams{
+		sample("TUNJ_JABATAN", "Tunjangan jabatan", earning, store.PayrollCalcMethodPerEmployee, 10),
+		makan, lembur, telat, alpha, bpjs,
+		sample("POT_LAIN", "Potongan lain", deduction, store.PayrollCalcMethodManual, 70),
+	}
+	for _, c := range samples {
+		c.ShowOnSlip = true
+		c.UpdatedBy = creator
+		if _, err := q.InsertPayrollComponent(ctx, c); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func uniqueName(r *rand.Rand, used map[string]bool) string {

@@ -7,6 +7,16 @@ Perubahan penting yang terlihat oleh Pejuang, SDM, atau pengelola server. Keputu
 ## Belum dirilis
 
 ### Ditambahkan
+- **Komponen ubar diatur SDM di panel (D66).** Menu Payroll kini berisi **Komponen Ubar** dan **Pratinjau**.
+  - SDM menambah tunjangan dan potongan dengan salah satu cara hitung: nominal tetap, nominal per Pejuang, per hari
+    hadir, per kali atau per menit telat, per hari alpha, per hari cuti tidak dibayar, persen dari ubar pokok, persen
+    dari total pendapatan (mis. PPh 21), per satuan (mis. jam lembur), atau isian manual per periode.
+  - Komponen yang salah cukup diubah, yang tidak dipakai cukup dinonaktifkan; tidak perlu mengubah kode.
+  - **Setelan periode**: tanggal cutoff (bawaan 25) dan ubar bersih tidak pernah minus.
+  - Master → Pejuang: tombol **Komponen ubar** untuk mengisi nominal per Pejuang, mis. tunjangan jabatan.
+  - Data contoh (devsim) memuat contoh komponen dalam keadaan nonaktif.
+  - Endpoint `/v1/admin/payroll/components`, `/v1/admin/payroll/settings`, dan
+    `/v1/admin/employees/{id}/payroll-components`, khusus SDM, audit `payroll.rules_changed`.
 - **Ingat NIPY dan kata sandi (D64).** Menggantikan kunci aplikasi dari 0.14.0.
   - Layar masuk mengingat NIPY dan kata sandi (centang **Ingat NIPY dan kata sandi**, bawaan aktif), lalu keduanya
     langsung terisi saat masuk lagi, termasuk setelah keluar. Kata sandi disimpan terenkripsi di HP dan tidak bisa

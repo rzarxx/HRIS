@@ -795,6 +795,223 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/notifications": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Notifikasi saya
+         * @description Login saja, milik sendiri (D68). 50 terbaru; `meta.unread` jumlah yang belum dibaca. Membuka slip menandai notifikasi slip itu sudah dibaca.
+         */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data: components["schemas"]["Notification"][];
+                            meta: {
+                                unread: number;
+                            };
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/notifications/{id}/read": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Tandai notifikasi sudah dibaca
+         * @description Login saja, milik sendiri. Aman diulang.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: components["parameters"]["Id"];
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Ditandai */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                404: components["responses"]["Error"];
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/payslips": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Slip ubar saya
+         * @description Permission `payslip:read` (self, D68). Hanya periode final atau dibayar.
+         */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data: components["schemas"]["PayslipSummary"][];
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/payslips/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        /**
+         * Rincian slip ubar saya
+         * @description Permission `payslip:read` (self). Slip orang lain atau yang belum terbit dijawab 404. Item yang tidak tampil di slip tidak dikirim. Menandai notifikasi slip ini sudah dibaca.
+         */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: components["parameters"]["Id"];
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data: components["schemas"]["Payslip"];
+                        };
+                    };
+                };
+                404: components["responses"]["Error"];
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/payslips/{id}/pdf": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        /**
+         * Unduh PDF slip ubar saya
+         * @description Permission `payslip:read` (self). PDF dibuat dari salinan slip yang tidak berubah setelah final; `Cache-Control: private, no-store`.
+         */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: components["parameters"]["Id"];
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description PDF slip */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/pdf": string;
+                    };
+                };
+                404: components["responses"]["Error"];
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/me": {
         parameters: {
             query?: never;
@@ -5498,7 +5715,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/v1/admin/reports/payroll-preview": {
+    "/v1/admin/payroll/components": {
         parameters: {
             query?: never;
             header?: never;
@@ -5506,16 +5723,12 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * Pratinjau ubar berdasarkan presensi
-         * @description Permission `attendance:report` dan `payroll:manage`. Rumus sementara, ada di `meta.rules`.
+         * Daftar komponen ubar
+         * @description Permission `payroll:manage` (khusus SDM, D66). Termasuk komponen nonaktif.
          */
         get: {
             parameters: {
-                query: {
-                    year: components["parameters"]["Year"];
-                    month: components["parameters"]["Month"];
-                    division_id?: string;
-                };
+                query?: never;
                 header?: never;
                 path?: never;
                 cookie?: never;
@@ -5529,17 +5742,699 @@ export interface paths {
                     };
                     content: {
                         "application/json": {
-                            data: components["schemas"]["PayrollPreviewRow"][];
-                            meta: {
-                                rules: components["schemas"]["PayrollRules"];
-                            };
+                            data: components["schemas"]["PayrollComponent"][];
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        /**
+         * Tambah komponen ubar
+         * @description Permission `payroll:manage`. Diaudit `payroll.rules_changed`. Kode unik dan tidak bisa diubah.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["PayrollComponentInput"];
+                };
+            };
+            responses: {
+                /** @description Dibuat */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data: components["schemas"]["PayrollComponent"];
                         };
                     };
                 };
                 400: components["responses"]["ValidationFailed"];
             };
         };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/payroll/components/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        get?: never;
         put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Ubah atau nonaktifkan komponen ubar
+         * @description Permission `payroll:manage`. Field yang tidak dikirim tetap. Komponen tidak dihapus; kirim `active: false`. Diaudit `payroll.rules_changed`.
+         */
+        patch: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: components["parameters"]["Id"];
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["PayrollComponentPatch"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data: components["schemas"]["PayrollComponent"];
+                        };
+                    };
+                };
+                400: components["responses"]["ValidationFailed"];
+                404: components["responses"]["Error"];
+            };
+        };
+        trace?: never;
+    };
+    "/v1/admin/payroll/periods": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Daftar periode ubar
+         * @description Permission `payroll:manage` (D67).
+         */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data: components["schemas"]["PayrollPeriod"][];
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        /**
+         * Buat periode ubar
+         * @description Permission `payroll:manage`. Rentang dari tanggal cutoff; bila ada periode sebelumnya, mulai sehari setelah periode itu berakhir. Diaudit `payroll.period_created`.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        year: number;
+                        month: number;
+                    };
+                };
+            };
+            responses: {
+                /** @description Dibuat */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data: components["schemas"]["PayrollPeriod"];
+                        };
+                    };
+                };
+                400: components["responses"]["ValidationFailed"];
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/payroll/periods/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        /**
+         * Detail periode ubar
+         * @description Permission `payroll:manage`. Memuat slip semua Pejuang, total, komponen yang dipakai, dan (saat draft) presensi yang belum beres.
+         */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: components["parameters"]["Id"];
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                200: components["responses"]["PayrollPeriodDetail"];
+                404: components["responses"]["Error"];
+            };
+        };
+        put?: never;
+        post?: never;
+        /**
+         * Hapus periode draft
+         * @description Permission `payroll:manage`. Hanya periode draft; selain itu 409 `PERIOD_LOCKED`.
+         */
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: components["parameters"]["Id"];
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Dihapus */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                404: components["responses"]["Error"];
+                409: components["responses"]["Error"];
+            };
+        };
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/payroll/periods/{id}/generate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Hitung ubar periode
+         * @description Permission `payroll:manage`. Hanya saat draft; aman diulang dan isian SDM tidak hilang. Menyimpan salinan komponen dan setelan. Diaudit `payroll.generated`.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: components["parameters"]["Id"];
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                200: components["responses"]["PayrollPeriodDetail"];
+                404: components["responses"]["Error"];
+                409: components["responses"]["Error"];
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/payroll/periods/{id}/submit": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Ajukan periode untuk disetujui
+         * @description Permission `payroll:manage`. Ditolak 422 `PAYROLL_NOT_READY` bila belum dihitung atau masih ada presensi review/lupa pulang (`details.review`, `details.missed_clock_out`). Setelah diajukan, presensi dalam rentang terkunci. Diaudit `payroll.submitted`.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: components["parameters"]["Id"];
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                200: components["responses"]["PayrollPeriodDetail"];
+                404: components["responses"]["Error"];
+                409: components["responses"]["Error"];
+                422: components["responses"]["Error"];
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/payroll/periods/{id}/reject": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Kembalikan periode ke draft
+         * @description Permission `payroll:finalize`. Alasan wajib. Diaudit `payroll.rejected`.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: components["parameters"]["Id"];
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        note: string;
+                    };
+                };
+            };
+            responses: {
+                200: components["responses"]["PayrollPeriodDetail"];
+                400: components["responses"]["ValidationFailed"];
+                404: components["responses"]["Error"];
+                409: components["responses"]["Error"];
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/payroll/periods/{id}/finalize": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Setujui dan finalkan periode
+         * @description Permission `payroll:finalize`. Harus SDM lain dari yang menghitung atau mengajukan (403 `MAKER_CHECKER_VIOLATION`). Slip terbit. Diaudit `payroll.finalized`.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: components["parameters"]["Id"];
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                200: components["responses"]["PayrollPeriodDetail"];
+                403: components["responses"]["Error"];
+                404: components["responses"]["Error"];
+                409: components["responses"]["Error"];
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/payroll/periods/{id}/mark-paid": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Tandai ubar sudah dibayar
+         * @description Permission `payroll:finalize`. Hanya periode final. Diaudit `payroll.paid`.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: components["parameters"]["Id"];
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                200: components["responses"]["PayrollPeriodDetail"];
+                404: components["responses"]["Error"];
+                409: components["responses"]["Error"];
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/payroll/periods/{id}/employees/{employee_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+                employee_id: string;
+            };
+            cookie?: never;
+        };
+        /**
+         * Rincian ubar satu Pejuang
+         * @description Permission `payroll:manage`. Item slip dan isian per periode (komponen `per_unit` dan `manual`).
+         */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: components["parameters"]["Id"];
+                    employee_id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                200: components["responses"]["EmployeePayroll"];
+                404: components["responses"]["Error"];
+            };
+        };
+        /**
+         * Simpan isian per periode
+         * @description Permission `payroll:manage`. Hanya saat draft. Menggantikan seluruh isian Pejuang ini lalu menghitung ulang slipnya. Diaudit `payroll.adjusted`.
+         */
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: components["parameters"]["Id"];
+                    employee_id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        inputs: {
+                            /** Format: uuid */
+                            component_id: string;
+                            /** @description Untuk per_unit */
+                            quantity?: string | null;
+                            /** @description Rupiah untuk manual */
+                            amount?: string | null;
+                            note?: string;
+                        }[];
+                    };
+                };
+            };
+            responses: {
+                200: components["responses"]["EmployeePayroll"];
+                400: components["responses"]["ValidationFailed"];
+                404: components["responses"]["Error"];
+                409: components["responses"]["Error"];
+            };
+        };
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/payroll/periods/{id}/employees/{employee_id}/pdf": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+                employee_id: string;
+            };
+            cookie?: never;
+        };
+        /**
+         * Unduh PDF slip satu Pejuang
+         * @description Permission `payroll:manage`. Periode yang belum final diberi tanda DRAF.
+         */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: components["parameters"]["Id"];
+                    employee_id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description PDF slip */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/pdf": string;
+                    };
+                };
+                404: components["responses"]["Error"];
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/payroll/settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Setelan payroll
+         * @description Permission `payroll:manage`. Bawaan cutoff tanggal 25 dan bersih minimum 0.
+         */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data: components["schemas"]["PayrollSettings"];
+                        };
+                    };
+                };
+            };
+        };
+        /**
+         * Simpan setelan payroll
+         * @description Permission `payroll:manage`. Diaudit `payroll.rules_changed`.
+         */
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["PayrollSettingsInput"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data: components["schemas"]["PayrollSettings"];
+                        };
+                    };
+                };
+                400: components["responses"]["ValidationFailed"];
+            };
+        };
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/employees/{id}/payroll-components": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        /**
+         * Nilai komponen per Pejuang
+         * @description Permission `payroll:manage`. Semua komponen bercara hitung `per_employee`; `amount` null berarti tidak berlaku untuk Pejuang ini.
+         */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: components["parameters"]["Id"];
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data: components["schemas"]["EmployeePayrollComponent"][];
+                        };
+                    };
+                };
+                404: components["responses"]["Error"];
+            };
+        };
+        /**
+         * Ganti nilai komponen per Pejuang
+         * @description Permission `payroll:manage`. Menggantikan seluruh nilai; komponen yang tidak dikirim atau ber-`amount` null dilepas. Diaudit `payroll.rules_changed`.
+         */
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: components["parameters"]["Id"];
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        components: {
+                            /** Format: uuid */
+                            component_id: string;
+                            /** @description Rupiah; null melepas komponen */
+                            amount?: string | null;
+                        }[];
+                    };
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data: components["schemas"]["EmployeePayrollComponent"][];
+                        };
+                    };
+                };
+                400: components["responses"]["ValidationFailed"];
+                404: components["responses"]["Error"];
+            };
+        };
         post?: never;
         delete?: never;
         options?: never;
@@ -5562,7 +6457,7 @@ export interface components {
          * @description Registry MASTER.md §7.4
          * @enum {string}
          */
-        ErrorCode: "VALIDATION_FAILED" | "AUTH_INVALID_CREDENTIALS" | "AUTH_TOKEN_INVALID" | "AUTH_MFA_REQUIRED" | "AUTH_MFA_INVALID" | "FORBIDDEN_ROLE" | "CSRF_INVALID" | "PASSWORD_CHANGE_REQUIRED" | "MFA_SETUP_REQUIRED" | "DEVICE_NOT_REGISTERED" | "DEVICE_PENDING_APPROVAL" | "DEVICE_REVOKED" | "APPROVAL_NOT_YOUR_TURN" | "APPROVAL_SELF_FORBIDDEN" | "MAKER_CHECKER_VIOLATION" | "NOT_FOUND" | "METHOD_NOT_ALLOWED" | "ALREADY_CLOCKED_IN" | "ALREADY_CLOCKED_OUT" | "SHIFT_NOT_ASSIGNED" | "NOT_CLOCKED_IN" | "REQUEST_NOT_PENDING" | "PERIOD_LOCKED" | "DUPLICATE_REQUEST" | "CONFLICT_DUPLICATE" | "CONFLICT_HAS_DEPENDENTS" | "CONFLICT_SELF_ACTION" | "MFA_ALREADY_ENABLED" | "PAYLOAD_TOO_LARGE" | "UNSUPPORTED_MEDIA_TYPE" | "GEOFENCE_OUT" | "FACE_NOT_ENROLLED" | "FACE_MISMATCH" | "LIVENESS_FAILED" | "FACE_NOT_DETECTED" | "FACE_SERVICE_UNAVAILABLE" | "STORAGE_UNAVAILABLE" | "STORAGE_DESTINATION_LOCKED" | "STORAGE_TEST_FAILED" | "STORAGE_NOT_ACTIVE" | "STORAGE_SOURCE_MISSING" | "STORAGE_SYNC_BUSY" | "STORAGE_SYNC_FAILED" | "FILE_UNSAFE" | "FILE_SCAN_UNAVAILABLE" | "SMTP_TEST_FAILED" | "RESET_TOKEN_INVALID" | "EMAIL_CHANGE_INVALID" | "ACCOUNT_CHANGE_NOT_ALLOWED" | "CHALLENGE_EXPIRED" | "ATTENDANCE_BLOCKED" | "LEAVE_ACTIVE" | "READ_TOO_SOON" | "AUTH_ACCOUNT_LOCKED" | "AUTH_INITIAL_PASSWORD_EXPIRED" | "APP_UPDATE_REQUIRED" | "RATE_LIMITED" | "API_ACCESS_DENIED" | "INTERNAL_ERROR";
+        ErrorCode: "VALIDATION_FAILED" | "AUTH_INVALID_CREDENTIALS" | "AUTH_TOKEN_INVALID" | "AUTH_MFA_REQUIRED" | "AUTH_MFA_INVALID" | "FORBIDDEN_ROLE" | "CSRF_INVALID" | "PASSWORD_CHANGE_REQUIRED" | "MFA_SETUP_REQUIRED" | "DEVICE_NOT_REGISTERED" | "DEVICE_PENDING_APPROVAL" | "DEVICE_REVOKED" | "APPROVAL_NOT_YOUR_TURN" | "APPROVAL_SELF_FORBIDDEN" | "MAKER_CHECKER_VIOLATION" | "NOT_FOUND" | "METHOD_NOT_ALLOWED" | "ALREADY_CLOCKED_IN" | "ALREADY_CLOCKED_OUT" | "SHIFT_NOT_ASSIGNED" | "NOT_CLOCKED_IN" | "REQUEST_NOT_PENDING" | "PERIOD_LOCKED" | "PAYROLL_NOT_READY" | "DUPLICATE_REQUEST" | "CONFLICT_DUPLICATE" | "CONFLICT_HAS_DEPENDENTS" | "CONFLICT_SELF_ACTION" | "MFA_ALREADY_ENABLED" | "PAYLOAD_TOO_LARGE" | "UNSUPPORTED_MEDIA_TYPE" | "GEOFENCE_OUT" | "FACE_NOT_ENROLLED" | "FACE_MISMATCH" | "LIVENESS_FAILED" | "FACE_NOT_DETECTED" | "FACE_SERVICE_UNAVAILABLE" | "STORAGE_UNAVAILABLE" | "STORAGE_DESTINATION_LOCKED" | "STORAGE_TEST_FAILED" | "STORAGE_NOT_ACTIVE" | "STORAGE_SOURCE_MISSING" | "STORAGE_SYNC_BUSY" | "STORAGE_SYNC_FAILED" | "FILE_UNSAFE" | "FILE_SCAN_UNAVAILABLE" | "SMTP_TEST_FAILED" | "RESET_TOKEN_INVALID" | "EMAIL_CHANGE_INVALID" | "ACCOUNT_CHANGE_NOT_ALLOWED" | "CHALLENGE_EXPIRED" | "ATTENDANCE_BLOCKED" | "LEAVE_ACTIVE" | "READ_TOO_SOON" | "AUTH_ACCOUNT_LOCKED" | "AUTH_INITIAL_PASSWORD_EXPIRED" | "APP_UPDATE_REQUIRED" | "RATE_LIMITED" | "API_ACCESS_DENIED" | "INTERNAL_ERROR";
         /**
          * @description Matriks MASTER.md §3.2
          * @enum {string}
@@ -6222,20 +7117,6 @@ export interface components {
             paid: boolean;
             days: number;
         };
-        PayrollPreviewRow: {
-            /** Format: uuid */
-            employee_id: string;
-            nip: string;
-            full_name: string;
-            division: string;
-            subdivision: string;
-            base_salary: components["schemas"]["Money"];
-            absent: number;
-            late: number;
-            absent_deduction: components["schemas"]["Money"];
-            late_deduction: components["schemas"]["Money"];
-            net: components["schemas"]["Money"];
-        };
         AttendanceChallengeInput: {
             /** @enum {string} */
             purpose: "clock_in" | "clock_out" | "face_enroll";
@@ -6812,12 +7693,261 @@ export interface components {
             date: string;
             name: string;
         };
-        PayrollRules: {
-            /** @example preview-v0 */
-            version: string;
-            work_days_divisor: number;
-            late_penalty: components["schemas"]["Money"];
+        Notification: {
+            /** Format: uuid */
+            id: string;
+            /** @enum {string} */
+            type: "payslip_ready";
+            /**
+             * Format: uuid
+             * @description Untuk payslip_ready: ID slip
+             */
+            ref_id: string | null;
+            title: string;
+            body: string;
+            /** Format: date-time */
+            read_at: string | null;
+            /** Format: date-time */
+            created_at: string;
+        };
+        PayslipSummary: {
+            /** Format: uuid */
+            id: string;
+            year: number;
+            month: number;
+            /** Format: date */
+            start_date: string;
+            /** Format: date */
+            end_date: string;
+            status: components["schemas"]["PayrollStatus"];
+            net: string;
+            /** Format: date-time */
+            published_at: string | null;
+            unread: boolean;
+        };
+        Payslip: {
+            /** Format: uuid */
+            id: string;
+            /** @example SU/2026/11/8F0C2A1E */
+            document_number: string;
+            year: number;
+            month: number;
+            /** Format: date */
+            start_date: string;
+            /** Format: date */
+            end_date: string;
+            status: components["schemas"]["PayrollStatus"];
+            /** Format: date-time */
+            published_at: string | null;
+            nip: string;
+            full_name: string;
+            position: string;
+            division: string;
+            subdivision: string;
+            attendance: components["schemas"]["PayrollAttendance"];
+            items: components["schemas"]["PayrollItem"][];
+            gross: string;
+            deductions: string;
+            net: string;
+            net_clamped: boolean;
+        };
+        /** @enum {string} */
+        PayrollStatus: "draft" | "pending_approval" | "final" | "paid";
+        PayrollPeriod: {
+            /** Format: uuid */
+            id: string;
+            year: number;
+            month: number;
+            /** Format: date */
+            start_date: string;
+            /**
+             * Format: date
+             * @description Inklusif
+             */
+            end_date: string;
+            status: components["schemas"]["PayrollStatus"];
+            employee_count: number;
+            total_net: string;
+            /** Format: date-time */
+            generated_at: string | null;
+            /** Format: date-time */
+            submitted_at: string | null;
+            /** Format: date-time */
+            finalized_at: string | null;
+            /** Format: date-time */
+            paid_at: string | null;
+            reject_note: string | null;
+            /** @description false bila pemanggil yang menghitung atau mengajukan periode ini */
+            can_finalize: boolean;
+        };
+        PayrollAttendance: {
+            work_days: string;
+            present_days: number;
+            late_count: number;
+            late_minutes: number;
+            absent_days: number;
+            leave_days: number;
+            unpaid_leave_days: number;
+            review: number;
+            missed_clock_out: number;
+        };
+        PayrollRow: {
+            /** Format: uuid */
+            employee_id: string;
+            nip: string;
+            full_name: string;
+            division: string;
+            subdivision: string;
+            base_salary: string;
+            gross: string;
+            deductions: string;
+            net: string;
+            /** @description Potongan melebihi pendapatan sehingga bersih dibulatkan ke 0 */
+            net_clamped: boolean;
+            attendance: components["schemas"]["PayrollAttendance"];
+            has_inputs: boolean;
+        };
+        PayrollSnapshotComponent: {
+            /** Format: uuid */
+            id: string;
+            code: string;
+            name: string;
+            kind: components["schemas"]["PayrollComponentKind"];
+            method: components["schemas"]["PayrollCalcMethod"];
+            rate: string | null;
+            percent: string | null;
+            divisor: string | null;
+            show_on_slip: boolean;
+            sort_order: number;
+        };
+        PayrollItem: {
+            code: string;
+            name: string;
+            kind: components["schemas"]["PayrollComponentKind"];
+            quantity: string | null;
+            rate: string | null;
+            amount: string;
+            show_on_slip: boolean;
+            manual: boolean;
+        };
+        PayrollInputView: {
+            /** Format: uuid */
+            component_id: string;
+            code: string;
+            name: string;
+            kind: components["schemas"]["PayrollComponentKind"];
+            method: components["schemas"]["PayrollCalcMethod"];
+            rate: string | null;
+            quantity: string | null;
+            amount: string | null;
             note: string;
+        };
+        PayrollPeriodDetail: {
+            period: components["schemas"]["PayrollPeriod"];
+            rows: components["schemas"]["PayrollRow"][];
+            totals: {
+                base_salary: string;
+                gross: string;
+                deductions: string;
+                net: string;
+            };
+            /** @description Hanya saat draft */
+            readiness: {
+                review: number;
+                missed_clock_out: number;
+            } | null;
+            components: components["schemas"]["PayrollSnapshotComponent"][];
+            item_totals: {
+                code: string;
+                name: string;
+                kind: components["schemas"]["PayrollComponentKind"];
+                total: string;
+                by_employee: {
+                    [key: string]: string;
+                };
+            }[];
+        };
+        EmployeePayroll: {
+            period: components["schemas"]["PayrollPeriod"];
+            row: components["schemas"]["PayrollRow"];
+            items: components["schemas"]["PayrollItem"][];
+            inputs: components["schemas"]["PayrollInputView"][];
+        };
+        /**
+         * @description `earning` menambah, `deduction` mengurangi ubar.
+         * @enum {string}
+         */
+        PayrollComponentKind: "earning" | "deduction";
+        /**
+         * @description Cara hitung (D66, tanpa rumus bebas):
+         *     `fixed` nominal sama untuk semua; `per_employee` nominal per Pejuang;
+         *     `per_present_day` rate x hari hadir; `per_late` rate x kali telat; `per_late_minute` rate x menit telat;
+         *     `per_absent_day` dan `per_unpaid_leave_day` rate x hari, atau ubar pokok / divisor (bawaan 26) x hari bila rate kosong;
+         *     `percent_of_base` persen x ubar pokok; `percent_of_gross` persen x total pendapatan;
+         *     `per_unit` rate x kuantitas isian SDM per periode; `manual` nominal isian SDM per periode.
+         * @enum {string}
+         */
+        PayrollCalcMethod: "fixed" | "per_employee" | "per_present_day" | "per_late" | "per_late_minute" | "per_absent_day" | "per_unpaid_leave_day" | "percent_of_base" | "percent_of_gross" | "per_unit" | "manual";
+        PayrollComponentPatch: {
+            name?: string;
+            kind?: components["schemas"]["PayrollComponentKind"];
+            method?: components["schemas"]["PayrollCalcMethod"];
+            /** @description Rupiah; wajib untuk fixed, per_present_day, per_late, per_late_minute, per_unit */
+            rate?: string | null;
+            /** @description 0 sampai 100; wajib untuk percent_of_base dan percent_of_gross */
+            percent?: string | null;
+            /** @description Pembagi hari 1 sampai 31 untuk per_absent_day dan per_unpaid_leave_day tanpa rate */
+            divisor?: string | null;
+            active?: boolean;
+            show_on_slip?: boolean;
+            sort_order?: number;
+            note?: string;
+        };
+        PayrollComponentInput: components["schemas"]["PayrollComponentPatch"] & {
+            /** @example TUNJ_MAKAN */
+            code: string;
+        };
+        PayrollComponent: {
+            /** Format: uuid */
+            id: string;
+            code: string;
+            name: string;
+            kind: components["schemas"]["PayrollComponentKind"];
+            method: components["schemas"]["PayrollCalcMethod"];
+            /** @example 15000.00 */
+            rate: string | null;
+            /** @example 2.500 */
+            percent: string | null;
+            /** @example 26.00 */
+            divisor: string | null;
+            active: boolean;
+            show_on_slip: boolean;
+            sort_order: number;
+            note: string;
+            /** Format: date-time */
+            updated_at: string | null;
+        };
+        PayrollSettings: {
+            /** @description Periode berakhir di tanggal ini; 0 berarti akhir bulan */
+            period_cutoff_day: number;
+            /** @description Ubar bersih tidak pernah negatif */
+            min_net_zero: boolean;
+            /** Format: date-time */
+            updated_at: string | null;
+        };
+        PayrollSettingsInput: {
+            period_cutoff_day: number;
+            min_net_zero?: boolean;
+        };
+        EmployeePayrollComponent: {
+            /** Format: uuid */
+            component_id: string;
+            code: string;
+            name: string;
+            kind: components["schemas"]["PayrollComponentKind"];
+            active: boolean;
+            /** @example 300000.00 */
+            amount: string | null;
         };
     };
     responses: {
@@ -6828,6 +7958,28 @@ export interface components {
             };
             content: {
                 "application/json": components["schemas"]["ErrorResponse"];
+            };
+        };
+        /** @description Detail periode */
+        PayrollPeriodDetail: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": {
+                    data: components["schemas"]["PayrollPeriodDetail"];
+                };
+            };
+        };
+        /** @description Rincian ubar satu Pejuang */
+        EmployeePayroll: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": {
+                    data: components["schemas"]["EmployeePayroll"];
+                };
             };
         };
         /** @description Input tidak valid, rincian per field ada di `details.fields` */

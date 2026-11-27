@@ -7,13 +7,44 @@ Perubahan penting yang terlihat oleh Pejuang, SDM, atau pengelola server. Keputu
 ## Belum dirilis
 
 ### Ditambahkan
-- **Ingat NIPY dan kata sandi, dan masuk cepat dengan sidik jari (D64).** Menggantikan kunci aplikasi dari 0.14.0.
-  - Layar masuk mengingat NIPY dan kata sandi (centang **Ingat NIPY dan kata sandi**, bawaan aktif). Kata sandi
-    disimpan terenkripsi di HP dan tidak bisa ditampilkan.
-  - **Masuk cepat:** sentuh sidik jari, wajah, atau PIN HP untuk masuk, termasuk setelah keluar. Dialognya muncul
-    otomatis saat aplikasi dibuka, ditawarkan sekali setelah masuk, dan bisa diatur di Profil.
+- **Tab Slip di aplikasi (D68).** Tab Slip kini berisi slip ubar per periode, terbaru di atas.
+  - Rincian slip: ubar bersih, ringkasan presensi, pendapatan, dan potongan. Tetap bisa dibaca saat offline.
+  - **Lihat PDF** di dalam aplikasi, **Unduh** ke folder Unduhan (Android 8 dan 9 memilih lokasi simpan), dan
+    **Bagikan** ke aplikasi lain. Layar slip tidak bisa di-screenshot.
+  - Slip baru memunculkan banner "Slip ubar … sudah terbit" di Beranda dan lencana di tab Slip sampai dibuka.
+- **Slip ubar terbit untuk Pejuang (D68).** Saat periode difinalkan:
+  - Slip tersedia lewat `/v1/payslips` dan bisa diunduh sebagai PDF (kop yayasan, ringkasan presensi, pendapatan,
+    potongan, ubar bersih dan terbilang, nomor dokumen).
+  - Pejuang mendapat notifikasi di aplikasi (`/v1/notifications`) dan email pemberitahuan tanpa angka ubar bila SMTP
+    aktif.
+  - SDM bisa mengunduh PDF tiap Pejuang dari rincian periode; sebelum final bertanda DRAF.
+  - Komponen yang tidak tampil di slip tetap dihitung tetapi tidak dikirim ke Pejuang.
+- **Periode ubar dengan persetujuan dua SDM (D67).** Menu Payroll → **Periode Ubar** menggantikan Pratinjau.
+  - SDM membuat periode per bulan (rentang dari tanggal cutoff), menekan **Hitung ubar**, mengisi lembur atau isian
+    manual per Pejuang, lalu **Ajukan**.
+  - Pengajuan ditolak bila masih ada presensi menunggu review atau lupa absen pulang.
+  - SDM lain menyetujui (**Finalkan**) atau **Tolak** dengan alasan; yang menghitung atau mengajukan tidak bisa
+    menyetujui sendiri. Setelah transfer, tandai **Sudah dibayar**.
+  - Sejak diajukan, presensi dan persetujuan cuti di dalam periode itu terkunci.
+  - Rekap presensi dan ekspor Excel mengikuti tanggal cutoff dari setelan periode.
+  - Pratinjau ubar dengan rumus sementara dan endpoint `/v1/admin/reports/payroll-preview` dihapus.
+- **Komponen ubar diatur SDM di panel (D66).** Menu Payroll kini berisi **Komponen Ubar** dan **Pratinjau**.
+  - SDM menambah tunjangan dan potongan dengan salah satu cara hitung: nominal tetap, nominal per Pejuang, per hari
+    hadir, per kali atau per menit telat, per hari alpha, per hari cuti tidak dibayar, persen dari ubar pokok, persen
+    dari total pendapatan (mis. PPh 21), per satuan (mis. jam lembur), atau isian manual per periode.
+  - Komponen yang salah cukup diubah, yang tidak dipakai cukup dinonaktifkan; tidak perlu mengubah kode.
+  - **Setelan periode**: tanggal cutoff (bawaan 25) dan ubar bersih tidak pernah minus.
+  - Master → Pejuang: tombol **Komponen ubar** untuk mengisi nominal per Pejuang, mis. tunjangan jabatan.
+  - Data contoh (devsim) memuat contoh komponen dalam keadaan nonaktif.
+  - Endpoint `/v1/admin/payroll/components`, `/v1/admin/payroll/settings`, dan
+    `/v1/admin/employees/{id}/payroll-components`, khusus SDM, audit `payroll.rules_changed`.
+- **Ingat NIPY dan kata sandi (D64).** Menggantikan kunci aplikasi dari 0.14.0.
+  - Layar masuk mengingat NIPY dan kata sandi (centang **Ingat NIPY dan kata sandi**, bawaan aktif), lalu keduanya
+    langsung terisi saat masuk lagi, termasuk setelah keluar. Kata sandi disimpan terenkripsi di HP dan tidak bisa
+    ditampilkan.
   - **Gunakan akun lain** menghapus data masuk yang diingat. Bila kata sandi diganti dari web, aplikasi meminta kata
     sandi terbaru; ganti kata sandi dari aplikasi ikut memperbarui simpanan.
+  - Masuk cepat dengan sidik jari, wajah, atau PIN HP tidak jadi dipakai (D65).
 - **Pemberitahuan versi baru aplikasi (D63).** Super admin mengisi versi terbaru, versi minimum, tautan, dan catatan
   rilis di Pengaturan → **Versi aplikasi Android**.
   - Aplikasi yang lebih lama menampilkan banner **Versi baru tersedia** dengan tombol **Perbarui**. Bila terpasang dari

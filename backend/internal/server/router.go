@@ -19,6 +19,7 @@ import (
 	"github.com/rzarxx/HRIS/backend/internal/location"
 	"github.com/rzarxx/HRIS/backend/internal/mail"
 	"github.com/rzarxx/HRIS/backend/internal/org"
+	"github.com/rzarxx/HRIS/backend/internal/payroll"
 	"github.com/rzarxx/HRIS/backend/internal/permission"
 	"github.com/rzarxx/HRIS/backend/internal/platform/httpx"
 	"github.com/rzarxx/HRIS/backend/internal/report"
@@ -44,6 +45,7 @@ type Deps struct {
 	Shift        *shift.Handler
 	Approval     *approval.Handler
 	Leave        *leave.Handler
+	Payroll      *payroll.Handler
 	Signer       *auth.TokenSigner
 	SessionCheck auth.SessionChecker
 	Limiter      auth.Limiter
@@ -98,6 +100,13 @@ func routes(d Deps) []Route {
 		{http.MethodPost, "/v1/auth/mfa/enable", AnyUser, nil, d.Auth.MFAEnable},
 		// Tetap terbuka saat sandi/MFA belum dipenuhi agar web tahu apa yang harus dilakukan.
 		{http.MethodGet, "/v1/me", AnyUser, nil, d.Auth.GetMe},
+		// Notifikasi di aplikasi milik sendiri (D68).
+		{http.MethodGet, "/v1/notifications", AnyUser, nil, d.Payroll.Notifications},
+		{http.MethodPost, "/v1/notifications/{id}/read", AnyUser, nil, d.Payroll.ReadNotification},
+		// Slip ubar sendiri, hanya periode final atau dibayar (D68).
+		guarded(http.MethodGet, "/v1/payslips", d.Payroll.MyPayslips, permission.PayslipRead),
+		guarded(http.MethodGet, "/v1/payslips/{id}", d.Payroll.MyPayslip, permission.PayslipRead),
+		guarded(http.MethodGet, "/v1/payslips/{id}/pdf", d.Payroll.MyPayslipPDF, permission.PayslipRead),
 		guarded(http.MethodPatch, "/v1/me", d.Employee.UpdateMe, permission.ProfileUpdate),
 		guarded(http.MethodDelete, "/v1/me/email-change", d.Auth.CancelEmailChange, permission.ProfileUpdate),
 		guarded(http.MethodGet, "/v1/me/children", d.Employee.MyChildren, permission.ProfileRead),
@@ -227,8 +236,28 @@ func routes(d Deps) []Route {
 
 		guarded(http.MethodGet, "/v1/admin/reports/attendance", d.Report.Attendance, permission.AttendanceReport),
 		guarded(http.MethodGet, "/v1/admin/reports/attendance/export", d.Report.AttendanceExport, permission.AttendanceReport),
-		// Memuat ubar: base_salary hanya untuk sdm (§7.6), jadi perlu payroll:manage juga.
-		guarded(http.MethodGet, "/v1/admin/reports/payroll-preview", d.Report.PayrollPreview, permission.AttendanceReport, permission.PayrollManage),
+
+		// Komponen ubar dan setelan payroll (D66): khusus SDM, diaudit payroll.rules_changed.
+		guarded(http.MethodGet, "/v1/admin/payroll/components", d.Payroll.ListComponents, permission.PayrollManage),
+		guarded(http.MethodPost, "/v1/admin/payroll/components", d.Payroll.CreateComponent, permission.PayrollManage),
+		guarded(http.MethodPatch, "/v1/admin/payroll/components/{id}", d.Payroll.UpdateComponent, permission.PayrollManage),
+		guarded(http.MethodGet, "/v1/admin/payroll/periods", d.Payroll.ListPeriods, permission.PayrollManage),
+		guarded(http.MethodPost, "/v1/admin/payroll/periods", d.Payroll.CreatePeriod, permission.PayrollManage),
+		guarded(http.MethodGet, "/v1/admin/payroll/periods/{id}", d.Payroll.Period, permission.PayrollManage),
+		guarded(http.MethodDelete, "/v1/admin/payroll/periods/{id}", d.Payroll.DeletePeriod, permission.PayrollManage),
+		// Periode ubar maker-checker (D67): menghitung dan mengajukan payroll:manage, menyetujui payroll:finalize oleh SDM lain.
+		guarded(http.MethodPost, "/v1/admin/payroll/periods/{id}/generate", d.Payroll.Generate, permission.PayrollManage),
+		guarded(http.MethodPost, "/v1/admin/payroll/periods/{id}/submit", d.Payroll.Submit, permission.PayrollManage),
+		guarded(http.MethodPost, "/v1/admin/payroll/periods/{id}/reject", d.Payroll.Reject, permission.PayrollFinalize),
+		guarded(http.MethodPost, "/v1/admin/payroll/periods/{id}/finalize", d.Payroll.Finalize, permission.PayrollFinalize),
+		guarded(http.MethodPost, "/v1/admin/payroll/periods/{id}/mark-paid", d.Payroll.MarkPaid, permission.PayrollFinalize),
+		guarded(http.MethodGet, "/v1/admin/payroll/periods/{id}/employees/{employee_id}", d.Payroll.EmployeePayroll, permission.PayrollManage),
+		guarded(http.MethodPut, "/v1/admin/payroll/periods/{id}/employees/{employee_id}", d.Payroll.SetInputs, permission.PayrollManage),
+		guarded(http.MethodGet, "/v1/admin/payroll/periods/{id}/employees/{employee_id}/pdf", d.Payroll.AdminPayslipPDF, permission.PayrollManage),
+		guarded(http.MethodGet, "/v1/admin/payroll/settings", d.Payroll.Settings, permission.PayrollManage),
+		guarded(http.MethodPut, "/v1/admin/payroll/settings", d.Payroll.SetSettings, permission.PayrollManage),
+		guarded(http.MethodGet, "/v1/admin/employees/{id}/payroll-components", d.Payroll.EmployeeComponents, permission.PayrollManage),
+		guarded(http.MethodPut, "/v1/admin/employees/{id}/payroll-components", d.Payroll.SetEmployeeComponents, permission.PayrollManage),
 	}
 }
 

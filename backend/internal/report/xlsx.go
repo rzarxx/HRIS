@@ -61,13 +61,13 @@ type ExportData struct {
 	Arrangements []store.AttendanceExportArrangementsRow
 }
 
-// AttendanceXLSX mengambil data cutoff 26..25 dari basis data sesuai scope dan menyusun file .xlsx.
+// AttendanceXLSX mengambil data periode (cutoff setelan payroll) dari basis data sesuai scope dan menyusun file .xlsx.
 func (s *Service) AttendanceXLSX(ctx context.Context, p auth.Principal, period Period) ([]byte, error) {
 	f, err := s.filterFor(ctx, p, period)
 	if err != nil {
 		return nil, err
 	}
-	from, to := CutoffPeriod(period.Year, period.Month)
+	from, to := f.from, f.to
 	fromPg := pgconv.Date(from)
 	toPg := pgconv.Date(to)
 

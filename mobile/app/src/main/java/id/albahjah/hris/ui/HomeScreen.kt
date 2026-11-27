@@ -45,6 +45,7 @@ import id.albahjah.hris.data.AttendanceRecord
 import id.albahjah.hris.data.Me
 import id.albahjah.hris.data.MyAnnouncement
 import id.albahjah.hris.data.PURPOSE_FACE_ENROLL
+import id.albahjah.hris.data.PayslipSummary
 import id.albahjah.hris.data.durationText
 import java.time.ZonedDateTime
 
@@ -76,6 +77,10 @@ fun HomeContent(
     offlineSince: Long? = null,
     update: AppVersion? = null,
     onUpdate: () -> Unit = {},
+    /** Slip terbaru yang belum dibuka (D68); null bila tidak ada. */
+    newPayslip: PayslipSummary? = null,
+    unreadPayslips: Int = 0,
+    onOpenPayslip: (PayslipSummary) -> Unit = {},
 ) {
     StatusBarIcons(dark = true)
     val ready = me.deviceStatus == "approved" && !me.mustChangePassword
@@ -135,6 +140,16 @@ fun HomeContent(
 
         TodayCard(me, today, now, onCapture)
 
+        if (newPayslip != null) {
+            // Pengganti notifikasi push: tampil sampai slipnya dibuka (D68).
+            StatusBanner(
+                Tone.Success,
+                FigmaIcons.NavReceipt,
+                "Slip ubar ${periodName(newPayslip.year, newPayslip.month)} sudah terbit",
+                "Lihat rinciannya dan unduh PDF di tab Slip.",
+            ) { BannerAction("Lihat slip", enabled = true) { onOpenPayslip(newPayslip) } }
+        }
+
         // Banner tampil sampai berakhir; yang belum dibaca lebih dulu (urutan dari server).
         announcements.filter { it.type == "banner" }.take(2).forEach { AnnouncementBanner(it, onClick = { onAnnouncement(it) }) }
 
@@ -146,7 +161,7 @@ fun HomeContent(
             }
             Row(Modifier.fillMaxWidth().height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 QuickTile(FigmaIcons.MessageText, "Pengumuman", if (unread > 0) "Ada yang belum dibaca" else "Informasi dari SDM", unread, Modifier.weight(1f).fillMaxHeight(), onAnnouncements)
-                QuickTile(FigmaIcons.NavReceipt, "Slip ubar", "Rincian per periode", 0, Modifier.weight(1f).fillMaxHeight(), onPayslip)
+                QuickTile(FigmaIcons.NavReceipt, "Slip ubar", if (unreadPayslips > 0) "Slip baru terbit" else "Rincian per periode", unreadPayslips, Modifier.weight(1f).fillMaxHeight(), onPayslip)
             }
         }
 

@@ -1,5 +1,11 @@
 package id.albahjah.hris
 
+import id.albahjah.hris.data.Payslip
+import id.albahjah.hris.data.PayslipAttendance
+import id.albahjah.hris.data.PayslipItem
+import id.albahjah.hris.data.PayslipSummary
+import id.albahjah.hris.ui.PayslipDetailContent
+import id.albahjah.hris.ui.PayslipListContent
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Paint
@@ -225,17 +231,6 @@ class ScreenshotTest {
             form = LoginForm(identifier = "2024.07.0153", password = "rahasia1234", remember = true, passwordSaved = true, savedAccount = true),
             showServer = false,
             version = "0.14.0",
-            crash = null,
-            onCopyCrash = {}, onDismissCrash = {}, onServer = {}, onIdentifier = {}, onPassword = {}, onMfa = {}, onSubmit = {}, footer = footer,
-        )
-    }
-
-    @Test
-    fun loginQuick() = shot {
-        LoginContent(
-            form = LoginForm(identifier = "2024.07.0153", remember = true, quickLogin = true, savedAccount = true),
-            showServer = false,
-            version = "0.14.1",
             crash = null,
             onCopyCrash = {}, onDismissCrash = {}, onServer = {}, onIdentifier = {}, onPassword = {}, onMfa = {}, onSubmit = {}, footer = footer,
         )
@@ -635,5 +630,46 @@ class ScreenshotTest {
     @Test
     fun changePasswordDone() = shot {
         ChangePasswordContent(form = PasswordForm(done = true), onCurrent = {}, onNext = {}, onRepeat = {}, onSubmit = {}, onBack = {}, onFinished = {})
+    }
+
+    private val slips = listOf(
+        PayslipSummary("p2", 2026, 11, "2026-10-26", "2026-11-25", "final", "5109577.00", unread = true),
+        PayslipSummary("p1", 2026, 10, "2026-09-26", "2026-10-25", "paid", "4980000.00"),
+    )
+
+    @Test
+    fun payslipList() = shot { PayslipListContent(slips, error = null, onOpen = {}, onRetry = {}) }
+
+    @Test
+    fun payslipListEmpty() = shot { PayslipListContent(emptyList(), error = null, onOpen = {}, onRetry = {}) }
+
+    @Test
+    fun payslipDetail() = shot {
+        PayslipDetailContent(
+            slip = Payslip(
+                id = "p2", documentNumber = "SU/2026/11/8F0C2A1E", year = 2026, month = 11,
+                startDate = "2026-10-26", endDate = "2026-11-25", status = "final", nip = "PJ20190004",
+                fullName = "Agus Permana", position = "Petugas Gudang", division = "Operasional", subdivision = "Gudang",
+                attendance = PayslipAttendance(workDays = "23", presentDays = 22, lateCount = 2, lateMinutes = 35, absentDays = 1),
+                items = listOf(
+                    PayslipItem("UBAR_POKOK", "Ubar pokok", "earning", amount = "4600000.00"),
+                    PayslipItem("LEMBUR", "Lembur", "earning", quantity = "4.00", rate = "20000.00", amount = "80000.00"),
+                    PayslipItem("TUNJ_JABATAN", "Tunjangan jabatan", "earning", amount = "750000.00"),
+                    PayslipItem("POT_ALPHA", "Potongan alpha", "deduction", amount = "176923.00"),
+                    PayslipItem("PPH21", "PPh 21", "deduction", amount = "143500.00"),
+                ),
+                gross = "5430000.00", deductions = "320423.00", net = "5109577.00",
+            ),
+            onBack = {}, onViewPdf = {}, onDownload = {}, onShare = {},
+        )
+    }
+
+    @Test
+    fun homePayslipReady() = shot {
+        HomeContent(
+            me = me, today = today, now = now, refreshing = false, crash = null,
+            onCopyCrash = {}, onDismissCrash = {}, onCapture = {}, onHistory = {}, onRefresh = {}, onLogout = {},
+            newPayslip = slips[0], unreadPayslips = 1,
+        )
     }
 }

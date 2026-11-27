@@ -55,7 +55,15 @@ export const NAV: NavItem[] = [
     ],
   },
   { label: "Perangkat", href: "/perangkat", icon: Smartphone, permission: "device:review" },
-  { label: "Payroll", href: "/payroll", icon: Wallet, permission: "payroll:manage" },
+  {
+    label: "Payroll",
+    icon: Wallet,
+    permission: "payroll:manage",
+    children: [
+      { label: "Periode Ubar", href: "/payroll", permission: "payroll:manage" },
+      { label: "Komponen Ubar", href: "/payroll/komponen", permission: "payroll:manage" },
+    ],
+  },
   {
     label: "Pengajuan",
     icon: FileText,

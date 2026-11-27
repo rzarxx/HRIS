@@ -405,3 +405,65 @@ data class ErrorBody(
     val details: JsonObject? = null,
     @SerialName("request_id") val requestId: String? = null,
 )
+
+// schema: PayslipSummary
+@Serializable
+data class PayslipSummary(
+    @SerialName("id") val id: String,
+    @SerialName("year") val year: Int,
+    @SerialName("month") val month: Int,
+    @SerialName("start_date") val startDate: String,
+    @SerialName("end_date") val endDate: String,
+    @SerialName("status") val status: String,
+    @SerialName("net") val net: String,
+    @SerialName("published_at") val publishedAt: String? = null,
+    @SerialName("unread") val unread: Boolean = false,
+)
+
+// schema: PayrollAttendance
+@Serializable
+data class PayslipAttendance(
+    @SerialName("work_days") val workDays: String = "0",
+    @SerialName("present_days") val presentDays: Int = 0,
+    @SerialName("late_count") val lateCount: Int = 0,
+    @SerialName("late_minutes") val lateMinutes: Int = 0,
+    @SerialName("absent_days") val absentDays: Int = 0,
+    @SerialName("leave_days") val leaveDays: Int = 0,
+    @SerialName("unpaid_leave_days") val unpaidLeaveDays: Int = 0,
+)
+
+// schema: PayrollItem
+@Serializable
+data class PayslipItem(
+    @SerialName("code") val code: String,
+    @SerialName("name") val name: String,
+    @SerialName("kind") val kind: String,
+    @SerialName("quantity") val quantity: String? = null,
+    @SerialName("rate") val rate: String? = null,
+    @SerialName("amount") val amount: String,
+)
+
+// schema: Payslip
+@Serializable
+data class Payslip(
+    @SerialName("id") val id: String,
+    @SerialName("document_number") val documentNumber: String,
+    @SerialName("year") val year: Int,
+    @SerialName("month") val month: Int,
+    @SerialName("start_date") val startDate: String,
+    @SerialName("end_date") val endDate: String,
+    @SerialName("status") val status: String,
+    @SerialName("published_at") val publishedAt: String? = null,
+    @SerialName("nip") val nip: String,
+    @SerialName("full_name") val fullName: String,
+    @SerialName("position") val position: String = "",
+    @SerialName("division") val division: String = "",
+    @SerialName("subdivision") val subdivision: String = "",
+    @SerialName("attendance") val attendance: PayslipAttendance = PayslipAttendance(),
+    @SerialName("items") val items: List<PayslipItem> = emptyList(),
+    @SerialName("gross") val gross: String,
+    @SerialName("deductions") val deductions: String,
+    @SerialName("net") val net: String,
+    @SerialName("net_clamped") val netClamped: Boolean = false,
+)
+

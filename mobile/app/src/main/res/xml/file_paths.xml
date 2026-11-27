@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Berkas yang boleh dibagikan ke aplikasi lain lewat FileProvider: hanya salinan sementara slip ubar (D68). -->
+<paths>
+    <cache-path name="shared" path="shared/" />
+</paths>

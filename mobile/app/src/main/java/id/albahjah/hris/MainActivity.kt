@@ -38,10 +38,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.layout.Box
 import androidx.activity.compose.BackHandler
-import androidx.fragment.app.FragmentActivity
-import id.albahjah.hris.security.Biometric
-import androidx.navigation.NavType
-import androidx.navigation.navArgument
+import androidx.activity.ComponentActivity
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import kotlinx.coroutines.launch
@@ -59,8 +56,7 @@ import id.albahjah.hris.ui.Hc
 import id.albahjah.hris.ui.MainScreen
 import id.albahjah.hris.ui.StatusBarIcons
 
-// FragmentActivity karena dialog sidik jari (BiometricPrompt) membutuhkannya.
-class MainActivity : FragmentActivity() {
+class MainActivity : ComponentActivity() {
     private val app get() = application as HrisApp
     private val appUpdateManager by lazy { AppUpdateManagerFactory.create(this) }
     private val updateLauncher = registerForActivityResult(ActivityResultContracts.StartIntentSenderForResult()) {}
@@ -106,19 +102,9 @@ class MainActivity : FragmentActivity() {
         lifecycleScope.launch { app.repository.checkAppVersion() }
     }
 
-    /** Masuk cepat (D64): sidik jari, wajah, atau PIN HP membuka NIPY dan kata sandi yang diingat. */
-    private fun quickLoginPrompt(onResult: (Boolean) -> Unit) =
-        Biometric.prompt(this, "Masuk ke HRIS Al Bahjah", "Gunakan sidik jari, wajah, atau PIN HP", onResult)
-
-    private fun enableQuickLogin() =
-        Biometric.prompt(this, "Aktifkan masuk cepat", "Konfirmasi dengan sidik jari, wajah, atau PIN HP") { ok ->
-            if (ok) app.repository.savedLogin?.updateQuickLogin(true)
-        }
-
     override fun onCreate(savedInstanceState: Bundle?) {
         enableEdgeToEdge()
         super.onCreate(savedInstanceState)
-        val biometric = Biometric.available(this)
         setContent {
             HrisTheme(fontScale = app.prefs.fontScale) {
                 var crash by remember { mutableStateOf(app.lastCrash) }
@@ -133,21 +119,11 @@ class MainActivity : FragmentActivity() {
                         Splash()
                         LaunchedEffect(Unit) {
                             // Offline tetap ke beranda dengan data cache; hanya sesi yang ditolak server ke layar masuk (D62).
-                            // Dari sini (aplikasi baru dibuka atau sesi berakhir) dialog masuk cepat langsung muncul (D64).
-                            nav.replaceWith(if (app.repository.resume() == ResumeState.LoggedOut) "login?auto=true" else "home")
+                            nav.replaceWith(if (app.repository.resume() == ResumeState.LoggedOut) "login" else "home")
                         }
                     }
-                    composable(
-                        "login?auto={auto}",
-                        arguments = listOf(navArgument("auto") { type = NavType.BoolType; defaultValue = false }),
-                    ) { entry ->
-                        LoginScreen(
-                            repository = app.repository,
-                            crash = crash,
-                            onDismissCrash = dismissCrash,
-                            onBiometric = if (biometric) ::quickLoginPrompt else null,
-                            autoQuickLogin = entry.arguments?.getBoolean("auto") == true,
-                        ) { nav.replaceWith("home") }
+                    composable("login") {
+                        LoginScreen(app.repository, crash, dismissCrash) { nav.replaceWith("home") }
                     }
                     composable("home") { entry ->
                         MainScreen(
@@ -156,7 +132,6 @@ class MainActivity : FragmentActivity() {
                             onDismissCrash = dismissCrash,
                             onCapture = { purpose -> if (entry.isActive()) nav.navigate("capture/$purpose") },
                             onLoggedOut = { nav.replaceWith("login") },
-                            onEnableQuickLogin = if (biometric) ::enableQuickLogin else null,
                             onStartUpdate = ::startUpdate,
                         )
                     }

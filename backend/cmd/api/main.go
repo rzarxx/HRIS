@@ -25,6 +25,7 @@ import (
 	"github.com/rzarxx/HRIS/backend/internal/location"
 	"github.com/rzarxx/HRIS/backend/internal/mail"
 	"github.com/rzarxx/HRIS/backend/internal/org"
+	"github.com/rzarxx/HRIS/backend/internal/payroll"
 	"github.com/rzarxx/HRIS/backend/internal/platform/config"
 	"github.com/rzarxx/HRIS/backend/internal/platform/database"
 	"github.com/rzarxx/HRIS/backend/internal/platform/fieldcrypt"
@@ -201,6 +202,8 @@ func run() error {
 	}
 
 	settingsHandler := settings.NewHandler(settings.NewService(pool))
+	payrollSvc := payroll.NewService(pool)
+	payrollSvc.SetMailer(mailSvc)
 	handler := server.New(server.Deps{
 		Auth:         auth.NewHandler(authSvc, secure, cfg.CookieDomain, limiter),
 		Org:          org.NewHandler(org.NewService(pool)),
@@ -210,11 +213,12 @@ func run() error {
 		Storage:      storageadmin.NewHandler(storageSvc),
 		Mail:         mail.NewHandler(mailSvc),
 		Dashboard:    dashboard.NewHandler(q),
-		Report:       report.NewHandler(report.NewService(q, authSvc.ResolveScope)),
+		Report:       report.NewHandler(report.NewService(q, authSvc.ResolveScope).WithPeriodRange(payrollSvc.RangeFor)),
 		Location:     location.NewHandler(location.NewService(pool)),
 		Device:       device.NewHandler(device.NewService(pool)),
 		Attendance:   attendance.NewHandler(attendance.NewService(pool, attendanceOpt)),
 		Shift:        shift.NewHandler(shift.NewService(pool)),
+		Payroll:      payroll.NewHandler(payrollSvc),
 		Approval:     approval.NewHandler(approvalSvc),
 		Leave:        leave.NewHandler(leaveSvc),
 		Signer:       signer,

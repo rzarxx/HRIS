@@ -148,11 +148,17 @@ private sealed interface Loaded {
     class Pdf(val doc: PdfDocument) : Loaded
 }
 
+/** Dokumen PDF layar penuh (mis. slip ubar) dengan penampil yang sama dengan lampiran pengumuman. */
+@Composable
+fun PdfContent(key: String, name: String, load: suspend () -> ByteArray, modifier: Modifier = Modifier) {
+    AttachmentContent(key, "application/pdf", name, load, inline = false, modifier = modifier)
+}
+
 /** Pratinjau dimuat otomatis lewat API bersesi, tanpa membuka aplikasi lain. */
 @Composable
 fun InlineAttachment(announcementId: String, attachment: AnnouncementAttachment, load: suspend () -> ByteArray, onExpand: () -> Unit) {
     Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        AttachmentContent(announcementId, attachment, load, inline = true)
+        AttachmentContent("attachment:${attachment.id}", attachment.contentType, attachment.fileName, load, inline = true)
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             Text(attachment.fileName, style = figmaText(12, color = Hc.InkSoft), modifier = Modifier.weight(1f), maxLines = 2)
             TextButton(onClick = onExpand) { Text("Perbesar") }
@@ -164,7 +170,7 @@ fun InlineAttachment(announcementId: String, attachment: AnnouncementAttachment,
 fun AttachmentViewerScreen(repository: Repository, announcementId: String, attachment: AnnouncementAttachment, onBack: () -> Unit) {
     Column(Modifier.fillMaxSize().background(Fg.PageProfile)) {
         FigmaHeader(attachment.fileName, onBack)
-        AttachmentContent(announcementId, attachment, load = { repository.attachment(announcementId, attachment.id) }, inline = false, modifier = Modifier.weight(1f).navigationBarsPadding())
+        AttachmentContent("attachment:${attachment.id}", attachment.contentType, attachment.fileName, load = { repository.attachment(announcementId, attachment.id) }, inline = false, modifier = Modifier.weight(1f).navigationBarsPadding())
     }
 }
 
@@ -176,18 +182,18 @@ fun AttachmentImage(bitmap: ImageBitmap, name: String, inline: Boolean) {
 }
 
 @Composable
-private fun AttachmentContent(announcementId: String, attachment: AnnouncementAttachment, load: suspend () -> ByteArray, inline: Boolean, modifier: Modifier = Modifier) {
+private fun AttachmentContent(key: String, contentType: String, name: String, load: suspend () -> ByteArray, inline: Boolean, modifier: Modifier = Modifier) {
     val context = LocalContext.current
-    var loaded by remember(announcementId, attachment.id) { mutableStateOf<Loaded?>(null) }
-    var error by remember(announcementId, attachment.id) { mutableStateOf<String?>(null) }
-    var retry by remember(announcementId, attachment.id) { mutableStateOf(0) }
-    LaunchedEffect(announcementId, attachment.id, retry) {
+    var loaded by remember(key) { mutableStateOf<Loaded?>(null) }
+    var error by remember(key) { mutableStateOf<String?>(null) }
+    var retry by remember(key) { mutableStateOf(0) }
+    LaunchedEffect(key, retry) {
         var resource: Loaded? = null
         try {
             error = null
             val bytes = load()
             withContext(Dispatchers.IO) {
-                if (attachment.contentType == "application/pdf") {
+                if (contentType == "application/pdf") {
                     resource = Loaded.Pdf(PdfDocument.open(context, bytes))
                 } else {
                     resource = Loaded.Image(decodeAttachmentImage(bytes) ?: error("Gambar tidak bisa dibaca"))
@@ -215,7 +221,7 @@ private fun AttachmentContent(announcementId: String, attachment: AnnouncementAt
                 CircularProgressIndicator(color = Hc.Brand, modifier = Modifier.size(28.dp))
             }
             shown is Loaded.Image -> {
-                AttachmentImage(shown.bitmap, attachment.fileName, inline)
+                AttachmentImage(shown.bitmap, name, inline)
             }
             shown is Loaded.Pdf -> LazyColumn(
                 if (inline) Modifier.fillMaxWidth().height(300.dp) else Modifier.fillMaxSize(),

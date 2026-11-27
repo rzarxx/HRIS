@@ -1,4 +1,4 @@
-// Package report menyusun rekap presensi dan pratinjau ubar (QUERY.sql #8 dan #9).
+// Package report menyusun rekap presensi (QUERY.sql #8). Ubar dihitung di internal/payroll (D67).
 package report
 
 import (
@@ -9,7 +9,6 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
-	"github.com/shopspring/decimal"
 
 	"github.com/rzarxx/HRIS/backend/internal/auth"
 	"github.com/rzarxx/HRIS/backend/internal/permission"
@@ -18,41 +17,26 @@ import (
 	"github.com/rzarxx/HRIS/backend/internal/store"
 )
 
-// Rumus sementara, menunggu keputusan SDM (MASTER.md §14.2 no. 2).
-const (
-	rulesVersion    = "preview-v0"
-	workDaysDivisor = 26
-)
-
-var latePenalty = decimal.NewFromInt(5000)
-
-// Rules ditampilkan ke pengguna agar jelas rumus yang dipakai.
-type Rules struct {
-	Version         string `json:"version"`
-	WorkDaysDivisor int    `json:"work_days_divisor"`
-	LatePenalty     string `json:"late_penalty"`
-	Note            string `json:"note"`
-}
-
-func currentRules() Rules {
-	return Rules{
-		Version:         rulesVersion,
-		WorkDaysDivisor: workDaysDivisor,
-		LatePenalty:     latePenalty.StringFixed(2),
-		Note:            "Rumus sementara: potongan alpha = ubar pokok / 26 per hari, potongan telat = Rp5.000 per kejadian. Menunggu keputusan SDM.",
-	}
-}
-
 type ScopeResolver func(ctx context.Context, p auth.Principal, key string) (auth.ScopeFilter, error)
 
+// RangeFunc menghitung rentang periode berlabel bulan dari setelan cutoff payroll (D31); end inklusif.
+type RangeFunc func(ctx context.Context, year int, month time.Month) (start, end time.Time, err error)
+
 type Service struct {
-	q     *store.Queries
-	scope ScopeResolver
-	now   func() time.Time
+	q        *store.Queries
+	scope    ScopeResolver
+	now      func() time.Time
+	rangeFor RangeFunc
 }
 
 func NewService(q *store.Queries, scope ScopeResolver) *Service {
 	return &Service{q: q, scope: scope, now: time.Now}
+}
+
+// WithPeriodRange memakai setelan cutoff payroll untuk rekap dan ekspor. Tanpa ini dipakai cutoff bawaan 26..25.
+func (s *Service) WithPeriodRange(fn RangeFunc) *Service {
+	s.rangeFor = fn
+	return s
 }
 
 // LeaveTypeDays adalah jumlah hari cuti/izin satu jenis dalam periode.
@@ -90,20 +74,6 @@ type AttendanceRow struct {
 	MissedClockOut int64           `json:"missed_clock_out"`
 }
 
-type PayrollRow struct {
-	EmployeeID      string `json:"employee_id"`
-	Nip             string `json:"nip"`
-	FullName        string `json:"full_name"`
-	Division        string `json:"division"`
-	Subdivision     string `json:"subdivision"`
-	BaseSalary      string `json:"base_salary"`
-	Absent          int64  `json:"absent"`
-	Late            int64  `json:"late"`
-	AbsentDeduction string `json:"absent_deduction"`
-	LateDeduction   string `json:"late_deduction"`
-	Net             string `json:"net"`
-}
-
 // Period adalah bulan laporan.
 type Period struct {
 	Year       int
@@ -131,8 +101,16 @@ func (s *Service) filterFor(ctx context.Context, p auth.Principal, period Period
 	if f.divs == nil {
 		f.divs = []uuid.UUID{}
 	}
-	f.from = time.Date(period.Year, period.Month, 1, 0, 0, 0, 0, time.UTC)
-	f.to = f.from.AddDate(0, 1, 0)
+	// Rekap mengikuti periode ubar (D67): tanggal cutoff dari setelan payroll, bukan bulan kalender.
+	if s.rangeFor == nil {
+		f.from, f.to = CutoffPeriod(period.Year, period.Month)
+		return f, nil
+	}
+	start, end, err := s.rangeFor(ctx, period.Year, period.Month)
+	if err != nil {
+		return filter{}, err
+	}
+	f.from, f.to = start, end.AddDate(0, 0, 1)
 	return f, nil
 }
 
@@ -215,41 +193,6 @@ func attendanceRow(r store.AttendanceReportRow, types []store.AttendanceReportLe
 	return out
 }
 
-func (s *Service) PayrollPreview(ctx context.Context, p auth.Principal, period Period) ([]PayrollRow, error) {
-	f, err := s.filterFor(ctx, p, period)
-	if err != nil {
-		return nil, err
-	}
-	rows, err := s.rows(ctx, period, f)
-	if err != nil {
-		return nil, err
-	}
-	out := make([]PayrollRow, 0, len(rows))
-	for _, r := range rows {
-		absentDeduction, lateDeduction, net := Calculate(r.BaseSalary, r.Absent, r.Late)
-		out = append(out, PayrollRow{
-			EmployeeID: r.EmployeeID.String(), Nip: r.Nip, FullName: r.FullName,
-			Division: r.Division, Subdivision: r.Subdivision,
-			BaseSalary: r.BaseSalary.StringFixed(2), Absent: r.Absent, Late: r.Late,
-			AbsentDeduction: absentDeduction.StringFixed(2),
-			LateDeduction:   lateDeduction.StringFixed(2),
-			Net:             net.StringFixed(2),
-		})
-	}
-	return out, nil
-}
-
-// Calculate memakai decimal, tidak pernah float (MASTER.md §11.5). Ubar bersih minimum 0.
-func Calculate(base decimal.Decimal, absent, late int64) (absentDeduction, lateDeduction, net decimal.Decimal) {
-	absentDeduction = base.Mul(decimal.NewFromInt(absent)).Div(decimal.NewFromInt(workDaysDivisor)).Round(0)
-	lateDeduction = latePenalty.Mul(decimal.NewFromInt(late))
-	net = base.Sub(absentDeduction).Sub(lateDeduction)
-	if net.IsNegative() {
-		net = decimal.Zero
-	}
-	return absentDeduction, lateDeduction, net
-}
-
 // Handler melayani /v1/admin/reports/*.
 type Handler struct{ svc *Service }
 
@@ -290,17 +233,4 @@ func (h *Handler) Attendance(w http.ResponseWriter, r *http.Request) error {
 		return err
 	}
 	return httpx.Data(w, http.StatusOK, rows)
-}
-
-func (h *Handler) PayrollPreview(w http.ResponseWriter, r *http.Request) error {
-	period, err := readPeriod(r)
-	if err != nil {
-		return err
-	}
-	p, _ := auth.PrincipalFrom(r.Context())
-	rows, err := h.svc.PayrollPreview(r.Context(), p, period)
-	if err != nil {
-		return err
-	}
-	return httpx.DataMeta(w, rows, map[string]any{"rules": currentRules()})
 }

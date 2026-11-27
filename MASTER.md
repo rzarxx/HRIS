@@ -505,7 +505,7 @@ Data biometrik tergolong data pribadi bersifat spesifik dalam UU PDP (UU 27/2022
 - Monitoring: error rate, latensi clock-in, lonjakan login gagal, lonjakan `review`.
 
 ### 5.11 Registry Event Audit
-`auth.login_success`, `auth.login_failed`, `auth.logout`, `auth.mfa_enabled`, `auth.mfa_failed`, `auth.password_changed`, `auth.session_revoked`, `auth.refresh_reuse_detected`, `org.updated`, `user.created`, `user.locked`, `user.unlocked`, `user.role_changed`, `user.mfa_policy_changed`, `user.password_reset`, `user.email_changed`, `user.email_change_requested`, `auth.password_reset_requested`, `auth.password_reset_completed`, `email.delivery_failed`, `employee.created`, `employee.updated`, `employee.deactivated`, `employee.imported`, `employee.salary_changed`, `device.registered`, `device.approved`, `device.revoked`, `device.integrity_tier_changed`, `employee.work_arrangement_changed`, `face.enrolled`, `face.reset`, `attendance.clock_in`, `attendance.clock_out`, `attendance.rejected`, `attendance.review_resolved`, `attendance.adjusted`, `approval.approved`, `approval.rejected`, `leave.requested`, `leave.cancelled`, `leave_type.changed`, `payroll.rules_changed`, `payroll.generated`, `payroll.submitted`, `payroll.finalized`, `payroll.paid`, `warning.issued`, `announcement.created`, `announcement.updated`, `announcement.deleted`, `settings.changed`, `data.exported`.
+`auth.login_success`, `auth.login_failed`, `auth.logout`, `auth.mfa_enabled`, `auth.mfa_failed`, `auth.password_changed`, `auth.session_revoked`, `auth.refresh_reuse_detected`, `org.updated`, `user.created`, `user.locked`, `user.unlocked`, `user.role_changed`, `user.mfa_policy_changed`, `user.password_reset`, `user.email_changed`, `user.email_change_requested`, `auth.password_reset_requested`, `auth.password_reset_completed`, `email.delivery_failed`, `employee.created`, `employee.updated`, `employee.deactivated`, `employee.imported`, `employee.salary_changed`, `device.registered`, `device.approved`, `device.revoked`, `device.integrity_tier_changed`, `employee.work_arrangement_changed`, `face.enrolled`, `face.reset`, `attendance.clock_in`, `attendance.clock_out`, `attendance.rejected`, `attendance.review_resolved`, `attendance.adjusted`, `approval.approved`, `approval.rejected`, `leave.requested`, `leave.cancelled`, `leave_type.changed`, `payroll.rules_changed`, `payroll.period_created`, `payroll.generated`, `payroll.adjusted`, `payroll.submitted`, `payroll.rejected`, `payroll.finalized`, `payroll.paid`, `warning.issued`, `announcement.created`, `announcement.updated`, `announcement.deleted`, `settings.changed`, `data.exported`.
 
 Tambahan event: `face.capture_viewed` untuk akses selfie peninjauan, `face.remote_permission_granted` dan `face.remote_permission_revoked` untuk pengelolaan izin jarak jauh. Pemakaian izin dicatat pada `face.enrolled`.
 
@@ -549,12 +549,15 @@ DDL dasar ada di `QUERY.sql`; perubahan di **Lampiran A** (yang berlaku). Beriku
 | `transfer_requests` | `from_subdivision_id`, `to_subdivision_id`, `effective_date`, `status` | |
 | `approval_flow_steps` | `request_type`, `step_order`, `approver_role` | Konfigurasi alur |
 | `approvals` | `request_type`, `request_id`, `step_order`, `approver_role`, `assigned_employee_id`, `status`, `note`, `acted_at` | Snapshot langkah |
-| `payroll_periods` | `year`, `month`, `start_date`, `end_date`, `rule_version_id`, `status`, `created_by`, `submitted_by`, `finalized_by` | Rentang cutoff, D31 |
-| `payrolls`, `payroll_items` | `base_salary`, `gross`, `deductions`, `net`; item: `kind`, `label`, `amount` | Unik `(period_id, employee_id)` |
+| `payroll_components` | `code` (unik, tetap), `name`, `kind`, `method`, `rate`, `percent`, `divisor`, `active`, `show_on_slip`, `sort_order`, `note`, `updated_by` | Komponen ubar yang diatur SDM, D66 |
+| `employee_payroll_components` | `employee_id`, `component_id`, `amount`, `updated_by` | Nilai komponen `per_employee` per Pejuang, D66 |
+| `payroll_periods` | `year`, `month`, `start_date`, `end_date` (inklusif), `status`, `rules_snapshot`, `created_by`, `generated_by`, `submitted_by`, `finalized_by`, `paid_by`, `reject_note` | Rentang cutoff (D31), unik `(year, month)`, D67 |
+| `payrolls`, `payroll_items` | Salinan `nip`, `full_name`, `division`, `subdivision`, `position`, `base_salary`, `gross`, `deductions`, `net`, `net_clamped`, `attendance`, `employee_values`, `published_at`; item: `component_code`, `name`, `kind`, `quantity`, `rate`, `amount`, `show_on_slip`, `manual` | Unik `(period_id, employee_id)`, D67 |
+| `payroll_inputs` | `period_id`, `employee_id`, `component_id`, `quantity`, `amount`, `note` | Isian SDM per periode untuk `per_unit` dan `manual`, D67 |
 | `warnings` | `level`, `reason`, `issued_by`, `issued_at`, `acknowledged_at` | |
 | `announcements`, `announcement_reads` | `title`, `body`, `type`, `division_id`, `starts_at`, `ends_at`, `is_active`, `min_read_seconds`; `opened_at`, `read_at` | Timer baca, D27 |
 | `announcement_attachments` | `announcement_id`, `file_name`, `content_type`, `size_bytes`, `storage_key`, `created_by` | Lampiran PDF/JPEG/PNG, maks 5 per pengumuman; berkas terenkripsi pada kunci `announcements/` di penyimpanan privat (D54) |
-| `notifications` | `employee_id`, `type`, `title`, `body`, `is_read`, `opened_at` | Timer baca, D27 |
+| `notifications` | `employee_id`, `type`, `ref_id`, `title`, `body`, `read_at`, `created_at` | Unik `(employee_id, type, ref_id)`; baru tipe `payslip_ready` (D68) |
 | `uploads` | `id`, `owner_employee_id`, `purpose`, `storage_key`, `mime`, `size_bytes`, `sha256` | |
 | `audit_logs` | `id`, `user_id`, `action`, `entity`, `entity_id`, `detail`, `ip`, `created_at` | Append-only |
 
@@ -649,7 +652,7 @@ Daftar memakai `?page=&per_page=&q=&sort=` (contoh `sort=-created_at`) dan filte
 | 409 | `ALREADY_CLOCKED_OUT` | Sudah absen pulang |
 | 409 | `NOT_CLOCKED_IN` | Belum absen masuk |
 | 409 | `REQUEST_NOT_PENDING` | Status sudah bukan `pending` |
-| 409 | `PERIOD_LOCKED` | Periode payroll terkunci |
+| 409 | `PERIOD_LOCKED` | Periode payroll terkunci, atau presensi/cuti di dalam periode yang sudah diajukan atau final (D67) |
 | 409 | `DUPLICATE_REQUEST` | Pengajuan bentrok (mis. tanggal cuti tumpang tindih) |
 | 409 | `LEAVE_ACTIVE` | Presensi ditolak karena hari itu tercatat cuti/izin yang disetujui |
 | 409 | `CONFLICT_DUPLICATE` | Nilai unik sudah dipakai, mis. kode, NIPY, email (`details.fields`) |
@@ -659,6 +662,7 @@ Daftar memakai `?page=&per_page=&q=&sort=` (contoh `sort=-created_at`) dan filte
 | 413 | `PAYLOAD_TOO_LARGE` | Terlalu besar |
 | 415 | `UNSUPPORTED_MEDIA_TYPE` | Tipe file tidak diizinkan |
 | 422 | `GEOFENCE_OUT` | Di luar area kantor |
+| 422 | `PAYROLL_NOT_READY` | Periode belum dihitung, atau masih ada presensi review/lupa absen pulang (`details.review`, `details.missed_clock_out`) (D67) |
 | 422 | `SHIFT_NOT_ASSIGNED` | Shift Pejuang belum ditentukan SDM |
 | 422 | `READ_TOO_SOON` | Tombol sudah baca ditekan sebelum timer baca habis (D27) |
 | 422 | `FACE_NOT_ENROLLED` | Wajah belum terdaftar |
@@ -735,11 +739,11 @@ Setiap `code` baru wajib ditambahkan di tabel ini.
 | POST | `/v1/leaves/{id}/cancel` | `leave:create` |
 | POST / GET | `/v1/cash-advances`, `/v1/cash-advances/{id}`, `POST .../cancel` | `cash_advance:*` |
 | POST / GET | `/v1/transfers`, `/v1/transfers/{id}`, `POST .../cancel` | `transfer:*` |
-| GET | `/v1/payslips`, `/v1/payslips/{id}`, `/v1/payslips/{id}/pdf` | `payslip:read` |
+| GET | `/v1/payslips`, `/v1/payslips/{id}`, `/v1/payslips/{id}/pdf` | `payslip:read`. Milik sendiri, hanya periode final atau dibayar (D68) |
 | GET | `/v1/warnings`, `POST /v1/warnings/{id}/acknowledge` | `warning:read` |
 | GET | `/v1/announcements/active`, `POST /v1/announcements/{id}/open`, `POST /v1/announcements/{id}/read` | `announcement:read` |
 | GET | `/v1/announcements/{id}/attachments/{attachment_id}` | `announcement:read`; hanya pengumuman yang sedang tayang bagi pemanggil (D54) |
-| GET | `/v1/notifications`, `POST /v1/notifications/{id}/open`, `POST /v1/notifications/{id}/read` | self |
+| GET | `/v1/notifications`, `POST /v1/notifications/{id}/read` | self. `meta.unread` jumlah belum dibaca (D68); `/open` dengan timer baca menyusul |
 | POST | `/v1/uploads` | self (multipart, `purpose`) |
 
 **Approver (Subdiv, Kadiv, SDM)**
@@ -786,10 +790,16 @@ Setiap `code` baru wajib ditambahkan di tabel ini.
 | GET | `/v1/admin/attendance`, `/v1/admin/attendance/attempts` | `attendance:review` / `attendance:report`. `attempts` sudah ada: per tanggal kalender WIB, saring `outcome` |
 | POST | `/v1/admin/work-arrangements/bulk` | `employee:write`. Izin untuk semua Pejuang aktif di satu divisi atau subdiv; yang dilewati dikembalikan dengan alasan `self`, `protected`, atau `overlap` |
 | POST | `/v1/admin/attendance/{id}/resolve` | `attendance:review` |
-| GET | `/v1/admin/reports/attendance`, `/v1/admin/reports/payroll-preview` | `attendance:report` |
-| GET, POST | `/v1/admin/payroll/periods` | `payroll:manage` |
+| GET | `/v1/admin/reports/attendance` | `attendance:report`. Rentang mengikuti setelan cutoff payroll (D67) |
+| GET, POST, PATCH | `/v1/admin/payroll/components`, `/{id}` | `payroll:manage`. Komponen ubar (D66); PATCH `active=false` menonaktifkan |
+| GET, PUT | `/v1/admin/payroll/settings` | `payroll:manage`. Cutoff periode dan bersih minimum 0 (D66) |
+| GET, PUT | `/v1/admin/employees/{id}/payroll-components` | `payroll:manage`. Nilai komponen `per_employee` (D66) |
+| GET, POST | `/v1/admin/payroll/periods` | `payroll:manage` (D67) |
+| GET, DELETE | `/v1/admin/payroll/periods/{id}` | `payroll:manage`. Hapus hanya draft |
 | POST | `/v1/admin/payroll/periods/{id}/generate`, `/submit` | `payroll:manage` |
-| POST | `/v1/admin/payroll/periods/{id}/finalize`, `/reject`, `/mark-paid` | `payroll:finalize` |
+| POST | `/v1/admin/payroll/periods/{id}/finalize`, `/reject`, `/mark-paid` | `payroll:finalize`; finalize oleh SDM lain dari pembuat |
+| GET, PUT | `/v1/admin/payroll/periods/{id}/employees/{employee_id}` | `payroll:manage`. Rincian slip dan isian per periode |
+| GET | `/v1/admin/payroll/periods/{id}/employees/{employee_id}/pdf` | `payroll:manage`. PDF slip; bertanda DRAF sebelum final (D68) |
 | GET, POST | `/v1/admin/warnings` | `warning:manage` |
 | CRUD | `/v1/admin/announcements` | `announcement:manage`. Daftar dan detail memuat `audience_count`, `opened_count`, `read_count` |
 | GET | `/v1/admin/announcements/{id}/reads` | `announcement:manage`. Status baca tiap Pejuang sasaran |
@@ -1223,8 +1233,8 @@ flowchart TD
     E --> F{"Keputusan"}
     F -- reject --> C
     F -- finalize --> G["Status final, periode terkunci"]
-    G --> H["Buat slip PDF asinkron, simpan hash dokumen"]
-    H --> I["Notifikasi payslip_ready ke Pejuang"]
+    G --> H["Slip terbit; PDF disusun saat diunduh dari salinan slip (D68)"]
+    H --> I["Notifikasi payslip_ready di aplikasi dan email pemberitahuan tanpa angka"]
     I --> J["mark-paid setelah transfer dilakukan: status paid"]
     E -.-> M["Pembuat mencoba finalize: 403 MAKER_CHECKER_VIOLATION"]
 ```
@@ -1440,7 +1450,7 @@ mobile/app/src/main/java/.../
 7. Kamera presensi: wajah harus **pas di oval** (seluruh wajah di dalam oval, cukup dekat, di tengah, kepala tegak) selama beberapa frame sebelum liveness dimulai dan sebelum foto diambil; wajah yang keluar oval atau hilang membuat liveness diulang. Foto hasil jepretan diperiksa ulang dengan ML Kit dan diambil ulang otomatis bila wajahnya tidak pas. Server menolak wajah utama yang lebarnya < 15% foto atau pusatnya di luar 70% bagian tengah foto (`FACE_NOT_DETECTED`, dilonggarkan D55). Bila cahaya kurang, layar otomatis menjadi terang penuh dengan latar putih di sekitar oval sebagai lampu wajah (D55). Rincian di `mobile/README.md`.
 8. Tahan offline (D62): internet putus atau server sibuk tidak membuat keluar. Sesi hanya berakhir bila server menolak refresh token. Data yang pernah dimuat (profil dan foto, riwayat presensi, pengumuman dan lampiran yang pernah dibuka, pengajuan, persetujuan, data keluarga) disimpan terenkripsi AES-GCM dengan kunci Keystore di folder privat aplikasi, tampil lebih dulu saat dibuka, lalu diperbarui dari server; banner "Mode offline" menunjukkan waktu data terakhir. Cache dihapus saat keluar. Presensi tetap wajib online (aturan 3).
 9. Pembaruan aplikasi (D63): versi dicek saat dibuka dan saat kembali ke depan (paling sering sekali per jam) serta dari Profil → Versi aplikasi. Versi baru memunculkan banner **Versi baru tersedia**; di bawah versi minimum, atau saat menerima 426, layar penuh **Perbarui aplikasi** menutupi semuanya. Tombol Perbarui memakai update bawaan Play (immediate) bila aplikasi terpasang dari Play Store, selain itu membuka tautan pembaruan.
-10. Ingat NIPY dan kata sandi serta masuk cepat (D64, menggantikan kunci aplikasi D62): centang **Ingat NIPY dan kata sandi** (bawaan aktif) menyimpan NIPY biasa dan kata sandi terenkripsi AES-GCM dengan kunci Keystore; kata sandi tersimpan tidak bisa ditampilkan di layar. **Masuk cepat** memakai sidik jari, wajah, atau PIN/pola HP (Android 10 ke atas) untuk masuk dengan data tersimpan, termasuk setelah keluar; dialognya muncul otomatis saat aplikasi dibuka tanpa sesi, ditawarkan sekali setelah masuk, dan diatur di Profil. Data tersimpan tidak dihapus saat keluar; dihapus lewat **Gunakan akun lain**, centang yang dilepas saat masuk, atau bila server menolak kata sandinya. Ganti kata sandi dari aplikasi ikut memperbarui simpanan.
+10. Ingat NIPY dan kata sandi (D64, menggantikan kunci aplikasi D62; masuk cepat biometrik dihapus D65): centang **Ingat NIPY dan kata sandi** (bawaan aktif) menyimpan NIPY biasa dan kata sandi terenkripsi AES-GCM dengan kunci Keystore, lalu keduanya langsung terisi di layar masuk; kata sandi tersimpan tidak bisa ditampilkan. Data tersimpan tidak dihapus saat keluar; dihapus lewat **Gunakan akun lain**, centang yang dilepas saat masuk, atau bila server menolak kata sandinya. Ganti kata sandi dari aplikasi ikut memperbarui simpanan.
 11. Liveness dibuktikan server (D51): saat kepala menoleh, frame itu disimpan sebagai foto gerakan dan dikirim bersama selfie lurus; wajah yang keluar oval membuang foto gerakan dan liveness diulang. Sebelum meminta challenge, aplikasi memeriksa root, emulator, dan aplikasi pemalsu lokasi lalu menampilkan pesan yang jelas; hasilnya juga dikirim sebagai `signals`.
 
 **Prinsip "mudah dipakai":**
@@ -1500,8 +1510,8 @@ Request ID → recover → logger → batas body/timeout → CORS & header keama
 ### 11.5 Perhitungan Upah
 **Aturan upah diatur SDM lewat panel, bukan ditulis di kode (D29).**
 - Nilainya berupa parameter: potongan telat (per kejadian atau per menit), potongan alpha (pembagi hari kerja atau nominal), lembur (tarif per jam atau kelipatan upah), dan perlakuan lembur untuk jam fleksibel.
-- Setiap perubahan membuat versi baru di `payroll_rule_versions` (`effective_from`, `params`, `created_by`), memakai `payroll:manage`, dan tercatat di audit (`payroll.rules_changed`).
-- Saat generate, `payroll_periods` menyimpan versi aturan yang dipakai, sehingga periode lama tidak berubah saat aturan diperbarui.
+- Parameter berupa komponen ubar di `payroll_components` dengan cara hitung tetap (D66). Setiap perubahan memakai `payroll:manage` dan tercatat di audit (`payroll.rules_changed`).
+- Saat generate, periode menyimpan salinan komponen dan setelan yang dipakai (D67), sehingga periode lama tidak berubah saat komponen diperbarui.
 - Potongan atau tambahan di luar parameter dicatat SDM sebagai item manual per Pejuang.
 - Rumus bebas yang diketik pengguna tidak didukung, karena lebih rawan salah hitung dan menjalankan masukan pengguna sebagai logika. Jenis perhitungan yang benar-benar baru tetap perlu perubahan kode.
 
@@ -1717,7 +1727,11 @@ Estimasi untuk tim kecil; sesuaikan setelah kapasitas tim jelas.
 | D62 | Aplikasi tahan offline dan masuk lebih cepat. Gagal memperpanjang sesi karena jaringan atau server 5xx tidak membuat keluar; hanya 401 pada refresh yang menghapus sesi. Data yang pernah dimuat disimpan terenkripsi di HP (AES-GCM, kunci Keystore, lampiran dan foto maks 50 MB) dan dihapus saat keluar. Layar masuk bisa mengingat NIPY/email; kata sandi tidak disimpan. Kunci aplikasi opsional dengan sidik jari, wajah, atau PIN HP (BIOMETRIC_WEAK atau DEVICE_CREDENTIAL, Android 10+) saat dibuka dan setelah 5 menit di latar. Lama telat ditampilkan "1 jam 15 menit" bila 60 menit atau lebih, di web dan aplikasi | Permintaan pemilik proyek: Pejuang sering keluar sendiri saat sinyal hilang dan harus mengetik ulang sandi. Konsekuensi: data yang tampil saat offline bisa tertinggal (banner menunjukkan waktunya); kunci aplikasi menahan layar, bukan pengganti otentikasi server, karena sesi tetap memakai refresh token tersimpan (D40) |
 | D63 | Versi aplikasi Android diumumkan dari panel super admin (`app_settings` kunci `app_version`: versi terbaru, versi minimum, tautan, catatan rilis). Kode versi sama dengan versionCode rilis (major·1.000.000 + minor·1.000 + patch, mis. 0.14.0 = 14000) dan server menolak kode yang tidak cocok dengan nama versi. Aplikasi mengirim `X-App-Version`; di bawah minimum server menjawab 426 `APP_UPDATE_REQUIRED` untuk semua endpoint kecuali versi, branding, login, refresh, dan logout aplikasi. Versi minimum dibaca dari cache 1 menit dan gagal-terbuka bila database tidak terbaca. Aplikasi menampilkan banner versi baru dan layar wajib perbarui, memakai update bawaan Play bila tersedia | Permintaan pemilik proyek: Pejuang perlu tahu ada versi baru tanpa push notification (FCM masih backlog), dan perbaikan keamanan harus bisa diwajibkan. Konsekuensi: menaikkan versi minimum sebelum rilis tersedia di Play Store mengunci Pejuang dari presensi, jadi panel memberi peringatan; APK di luar Play Store diperbarui lewat tautan |
 | D64 | Login cepat menggantikan kunci aplikasi D62. Layar masuk mengingat NIPY dan kata sandi (centang bawaan aktif); kata sandi disimpan terenkripsi dengan kunci Android Keystore dan tidak bisa ditampilkan. Masuk cepat dengan sidik jari, wajah, atau PIN HP (BIOMETRIC_WEAK atau DEVICE_CREDENTIAL, Android 10+) membuka data tersimpan lalu masuk seperti biasa, termasuk setelah keluar dan saat sesi berakhir; akun ber-A2F tetap diminta kode. Data tersimpan bertahan setelah keluar dan dihapus lewat Gunakan akun lain, centang yang dilepas, atau kata sandi yang ditolak server | Permintaan pemilik proyek: Pejuang ingin masuk lagi tanpa mengetik kata sandi, termasuk setelah keluar. Konsekuensi: kata sandi tersimpan di HP (terenkripsi, tidak terlihat), sehingga siapa pun yang membuka HP tanpa masuk cepat aktif bisa masuk dengan menekan Masuk; HP presensi terdaftar per Pejuang, dan masuk cepat yang aktif menahan kata sandi di balik sidik jari atau PIN. Dialog sidik jari belum memakai CryptoObject karena PIN sebagai cadangan baru didukung bersama kunci kriptografis mulai Android 11 |
-| D15 | `/v1/admin/reports/payroll-preview` mewajibkan `attendance:report` dan `payroll:manage` | Respons memuat gaji, sedangkan §7.6 membatasi `base_salary` untuk `sdm` dan pemilik data |
+| D65 | Masuk cepat dengan sidik jari, wajah, atau PIN HP dari D64 dihapus sebelum dirilis. Layar masuk tetap mengingat NIPY dan kata sandi (D64) dan langsung mengisinya; aplikasi tidak lagi memakai `androidx.biometric` dan kembali ke `ComponentActivity`. Pengaturan `quick_login` yang sempat tersimpan dibersihkan saat aplikasi dibuka | Keputusan pemilik proyek. Konsekuensi: siapa pun yang membuka HP dengan kata sandi tersimpan bisa langsung menekan Masuk; HP presensi terdaftar per Pejuang, dan Pejuang yang meminjamkan HP dapat melepas centang Ingat atau memakai Gunakan akun lain |
+| D66 | Komponen ubar diatur SDM di panel (Payroll → Komponen Ubar), menggantikan rancangan `payroll_rule_versions` di D29. Tiap komponen punya kode tetap, jenis (pendapatan/potongan), satu dari 11 cara hitung (`fixed`, `per_employee`, `per_present_day`, `per_late`, `per_late_minute`, `per_absent_day`, `per_unpaid_leave_day`, `percent_of_base`, `percent_of_gross`, `per_unit`, `manual`), nominal/persen/pembagi, status aktif, tampil di slip, dan urutan. Komponen tidak dihapus, hanya dinonaktifkan. Nilai `per_employee` disimpan per Pejuang di `employee_payroll_components`. Setelan `app_settings` kunci `payroll`: `period_cutoff_day` (bawaan 25, 0 = akhir bulan) dan `min_net_zero` (bawaan aktif). Mesin hitung murni di `internal/payroll`: semua nominal dibulatkan ke rupiah, `percent_of_gross` dihitung setelah semua pendapatan. Semua endpoint khusus `payroll:manage`, diaudit `payroll.rules_changed` | Permintaan pemilik proyek: komponen yang salah atau tidak dibutuhkan harus bisa diubah tanpa merombak kode. Konsekuensi: jenis perhitungan di luar 11 cara hitung tetap perlu perubahan kode (§11.5); periode yang sudah di-generate menyimpan salinan komponen (D67) sehingga perubahan komponen tidak mengubah periode lama |
+| D68 | Slip ubar terbit saat periode final. Pejuang membuka slipnya lewat `/v1/payslips` (hanya periode final/dibayar, hanya milik sendiri; lainnya 404) dan mengunduh PDF A4 berisi kop, identitas, ringkasan presensi, pendapatan, potongan, ubar bersih beserta terbilang, nomor dokumen `SU/tahun/bulan/<ID>`, dan tanggal terbit. Komponen yang tidak tampil di slip tetap dihitung tetapi tidak dikirim. PDF dibuat saat diunduh dari salinan slip yang tidak berubah setelah final, bukan disimpan sebagai berkas; hasilnya identik setiap kali diunduh. SDM dapat mengunduh PDF per Pejuang, bertanda DRAF sebelum final. Finalisasi membuat notifikasi `payslip_ready` di aplikasi (tabel `notifications`, `GET /v1/notifications`, `POST /v1/notifications/{id}/read`; membuka slip menandai notifikasinya dibaca) dan mengirim email pemberitahuan tanpa angka ubar ke akun aktif di latar setelah transaksi bila SMTP aktif; kegagalan dicatat `email.delivery_failed`. Tanpa FCM. Aplikasi: tab Slip berisi daftar dan rincian slip (tersimpan terenkripsi untuk dibaca offline), PDF dibuka di dalam aplikasi, diunduh ke folder Unduhan (Android 10 ke atas lewat MediaStore tanpa izin; Android 8 dan 9 lewat pemilih lokasi), atau dibagikan lewat FileProvider; layar slip memakai FLAG_SECURE. Slip yang belum dibuka memunculkan banner di Beranda dan lencana di tab Slip, dicek setiap aplikasi kembali ke depan | Keputusan pemilik proyek: slip di tab Slip, PDF unduhan, email hanya pemberitahuan, notifikasi di aplikasi. PDF tidak disimpan agar tidak ada status gagal-buat dan tidak bergantung pada penyimpanan berkas; konsekuensinya setiap unduhan menyusun ulang PDF (sekitar 170 KB, sebagian besar logo). Timer baca notifikasi (D27, `/open`) belum dipakai untuk notifikasi slip |
+| D67 | Periode ubar memakai maker-checker. SDM membuat periode (rentang dari `period_cutoff_day`, bersambung tanpa celah dengan periode sebelumnya), menghitung (`generate`, bisa diulang selama draft), mengisi isian per periode (`per_unit` dan `manual`), lalu mengajukan. Pengajuan ditolak 422 `PAYROLL_NOT_READY` bila belum dihitung atau masih ada presensi review atau lupa absen pulang. Pemeriksa (`payroll:finalize`) wajib SDM lain dari yang menghitung atau mengajukan (`MAKER_CHECKER_VIOLATION`); ia bisa menolak dengan alasan (kembali ke draft) atau memfinalkan, lalu menandai dibayar. Sejak diajukan, presensi dalam rentang periode terkunci: Review Presensi dan persetujuan cuti dijawab 409 `PERIOD_LOCKED`, dan job alpha melewati tanggal itu. Periode menyimpan salinan komponen dan setelan (`rules_snapshot`); slip menyimpan salinan identitas, ringkasan presensi, nilai per Pejuang, dan item. Rekap presensi dan ekspor XLSX mengikuti rentang periode dari setelan cutoff. Pratinjau ubar dengan rumus sementara (`/v1/admin/reports/payroll-preview`, D15) dihapus | Alur F17 dan §11.5. Konsekuensi: koreksi presensi setelah diajukan harus lewat penolakan periode dulu; periode final tidak bisa dibuka lagi, sehingga salah hitung setelah final diselesaikan lewat isian manual di periode berikutnya |
+| D15 | (Diganti D67, endpoint dihapus.) `/v1/admin/reports/payroll-preview` mewajibkan `attendance:report` dan `payroll:manage` | Respons memuat gaji, sedangkan §7.6 membatasi `base_salary` untuk `sdm` dan pemilik data |
 
 ### 14.2 Pertanyaan yang Harus Dijawab (blokir pekerjaan terkait)
 1. ~~Apakah "ubar" = upah/gaji?~~ Dijawab: ya.

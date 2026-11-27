@@ -276,6 +276,184 @@ func (ns NullLeaveQuotaKind) Value() (driver.Value, error) {
 	return string(ns.LeaveQuotaKind), nil
 }
 
+type NotificationType string
+
+const (
+	NotificationTypePayslipReady NotificationType = "payslip_ready"
+)
+
+func (e *NotificationType) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = NotificationType(s)
+	case string:
+		*e = NotificationType(s)
+	default:
+		return fmt.Errorf("unsupported scan type for NotificationType: %T", src)
+	}
+	return nil
+}
+
+type NullNotificationType struct {
+	NotificationType NotificationType
+	Valid            bool // Valid is true if NotificationType is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullNotificationType) Scan(value interface{}) error {
+	if value == nil {
+		ns.NotificationType, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.NotificationType.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullNotificationType) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.NotificationType), nil
+}
+
+type PayrollCalcMethod string
+
+const (
+	PayrollCalcMethodFixed             PayrollCalcMethod = "fixed"
+	PayrollCalcMethodPerEmployee       PayrollCalcMethod = "per_employee"
+	PayrollCalcMethodPerPresentDay     PayrollCalcMethod = "per_present_day"
+	PayrollCalcMethodPerLate           PayrollCalcMethod = "per_late"
+	PayrollCalcMethodPerLateMinute     PayrollCalcMethod = "per_late_minute"
+	PayrollCalcMethodPerAbsentDay      PayrollCalcMethod = "per_absent_day"
+	PayrollCalcMethodPerUnpaidLeaveDay PayrollCalcMethod = "per_unpaid_leave_day"
+	PayrollCalcMethodPercentOfBase     PayrollCalcMethod = "percent_of_base"
+	PayrollCalcMethodPercentOfGross    PayrollCalcMethod = "percent_of_gross"
+	PayrollCalcMethodPerUnit           PayrollCalcMethod = "per_unit"
+	PayrollCalcMethodManual            PayrollCalcMethod = "manual"
+)
+
+func (e *PayrollCalcMethod) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = PayrollCalcMethod(s)
+	case string:
+		*e = PayrollCalcMethod(s)
+	default:
+		return fmt.Errorf("unsupported scan type for PayrollCalcMethod: %T", src)
+	}
+	return nil
+}
+
+type NullPayrollCalcMethod struct {
+	PayrollCalcMethod PayrollCalcMethod
+	Valid             bool // Valid is true if PayrollCalcMethod is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullPayrollCalcMethod) Scan(value interface{}) error {
+	if value == nil {
+		ns.PayrollCalcMethod, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.PayrollCalcMethod.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullPayrollCalcMethod) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.PayrollCalcMethod), nil
+}
+
+type PayrollComponentKind string
+
+const (
+	PayrollComponentKindEarning   PayrollComponentKind = "earning"
+	PayrollComponentKindDeduction PayrollComponentKind = "deduction"
+)
+
+func (e *PayrollComponentKind) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = PayrollComponentKind(s)
+	case string:
+		*e = PayrollComponentKind(s)
+	default:
+		return fmt.Errorf("unsupported scan type for PayrollComponentKind: %T", src)
+	}
+	return nil
+}
+
+type NullPayrollComponentKind struct {
+	PayrollComponentKind PayrollComponentKind
+	Valid                bool // Valid is true if PayrollComponentKind is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullPayrollComponentKind) Scan(value interface{}) error {
+	if value == nil {
+		ns.PayrollComponentKind, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.PayrollComponentKind.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullPayrollComponentKind) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.PayrollComponentKind), nil
+}
+
+type PayrollStatus string
+
+const (
+	PayrollStatusDraft           PayrollStatus = "draft"
+	PayrollStatusPendingApproval PayrollStatus = "pending_approval"
+	PayrollStatusFinal           PayrollStatus = "final"
+	PayrollStatusPaid            PayrollStatus = "paid"
+)
+
+func (e *PayrollStatus) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = PayrollStatus(s)
+	case string:
+		*e = PayrollStatus(s)
+	default:
+		return fmt.Errorf("unsupported scan type for PayrollStatus: %T", src)
+	}
+	return nil
+}
+
+type NullPayrollStatus struct {
+	PayrollStatus PayrollStatus
+	Valid         bool // Valid is true if PayrollStatus is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullPayrollStatus) Scan(value interface{}) error {
+	if value == nil {
+		ns.PayrollStatus, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.PayrollStatus.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullPayrollStatus) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.PayrollStatus), nil
+}
+
 type RequestKind string
 
 const (
@@ -636,6 +814,14 @@ type EmployeeLocation struct {
 	LocationID uuid.UUID
 }
 
+type EmployeePayrollComponent struct {
+	EmployeeID  uuid.UUID
+	ComponentID uuid.UUID
+	Amount      decimal.Decimal
+	UpdatedBy   uuid.NullUUID
+	UpdatedAt   pgtype.Timestamptz
+}
+
 type EmployeeShift struct {
 	EmployeeID uuid.UUID
 	ShiftID    uuid.UUID
@@ -724,6 +910,17 @@ type LeaveType struct {
 	CreatedAt       pgtype.Timestamptz
 }
 
+type Notification struct {
+	ID         uuid.UUID
+	EmployeeID uuid.UUID
+	Type       NotificationType
+	RefID      uuid.NullUUID
+	Title      string
+	Body       string
+	ReadAt     pgtype.Timestamptz
+	CreatedAt  pgtype.Timestamptz
+}
+
 type OfficeLocation struct {
 	ID        uuid.UUID
 	Name      string
@@ -743,6 +940,94 @@ type PasswordResetToken struct {
 	ExpiresAt pgtype.Timestamptz
 	UsedAt    pgtype.Timestamptz
 	CreatedAt pgtype.Timestamptz
+}
+
+type Payroll struct {
+	ID             uuid.UUID
+	PeriodID       uuid.UUID
+	EmployeeID     uuid.UUID
+	Nip            string
+	FullName       string
+	Division       string
+	Subdivision    string
+	Position       string
+	BaseSalary     decimal.Decimal
+	Gross          decimal.Decimal
+	Deductions     decimal.Decimal
+	Net            decimal.Decimal
+	NetClamped     bool
+	Attendance     []byte
+	EmployeeValues []byte
+	PublishedAt    pgtype.Timestamptz
+	CreatedAt      pgtype.Timestamptz
+	UpdatedAt      pgtype.Timestamptz
+}
+
+type PayrollComponent struct {
+	ID         uuid.UUID
+	Code       string
+	Name       string
+	Kind       PayrollComponentKind
+	Method     PayrollCalcMethod
+	Rate       decimal.NullDecimal
+	Percent    decimal.NullDecimal
+	Divisor    decimal.NullDecimal
+	Active     bool
+	ShowOnSlip bool
+	SortOrder  int32
+	Note       string
+	UpdatedBy  uuid.NullUUID
+	CreatedAt  pgtype.Timestamptz
+	UpdatedAt  pgtype.Timestamptz
+}
+
+type PayrollInput struct {
+	PeriodID    uuid.UUID
+	EmployeeID  uuid.UUID
+	ComponentID uuid.UUID
+	Quantity    decimal.NullDecimal
+	Amount      decimal.NullDecimal
+	Note        string
+	UpdatedBy   uuid.NullUUID
+	UpdatedAt   pgtype.Timestamptz
+}
+
+type PayrollItem struct {
+	ID            uuid.UUID
+	PayrollID     uuid.UUID
+	Position      int16
+	ComponentCode string
+	Name          string
+	Kind          PayrollComponentKind
+	Quantity      decimal.NullDecimal
+	Rate          decimal.NullDecimal
+	Amount        decimal.Decimal
+	ShowOnSlip    bool
+	Manual        bool
+}
+
+type PayrollPeriod struct {
+	ID            uuid.UUID
+	Year          int16
+	Month         int16
+	StartDate     pgtype.Date
+	EndDate       pgtype.Date
+	Status        PayrollStatus
+	RulesSnapshot []byte
+	CreatedBy     uuid.UUID
+	GeneratedBy   uuid.NullUUID
+	GeneratedAt   pgtype.Timestamptz
+	SubmittedBy   uuid.NullUUID
+	SubmittedAt   pgtype.Timestamptz
+	FinalizedBy   uuid.NullUUID
+	FinalizedAt   pgtype.Timestamptz
+	PaidBy        uuid.NullUUID
+	PaidAt        pgtype.Timestamptz
+	RejectNote    pgtype.Text
+	RejectedBy    uuid.NullUUID
+	RejectedAt    pgtype.Timestamptz
+	CreatedAt     pgtype.Timestamptz
+	UpdatedAt     pgtype.Timestamptz
 }
 
 type Session struct {

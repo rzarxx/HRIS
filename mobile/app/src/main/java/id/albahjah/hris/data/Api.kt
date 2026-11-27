@@ -139,6 +139,15 @@ interface HrisApi {
 
     @GET("v1/announcements/{id}/attachments/{attachment_id}")
     suspend fun announcementAttachment(@Path("id") id: String, @Path("attachment_id") attachmentId: String): ResponseBody
+
+    @GET("v1/payslips")
+    suspend fun payslips(): DataResponse<List<PayslipSummary>>
+
+    @GET("v1/payslips/{id}")
+    suspend fun payslip(@Path("id") id: String): DataResponse<Payslip>
+
+    @GET("v1/payslips/{id}/pdf")
+    suspend fun payslipPdf(@Path("id") id: String): ResponseBody
 }
 
 /** Dipakai terpisah dari [HrisApi] agar perpanjangan sesi tidak memicu dirinya sendiri. */

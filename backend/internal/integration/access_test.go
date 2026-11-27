@@ -98,7 +98,7 @@ func TestScopeKadiv(t *testing.T) {
 			t.Errorf("rekap memuat divisi %s", r.Division)
 		}
 	}
-	c.do(http.MethodGet, "/v1/admin/reports/payroll-preview?year=2026&month=10", nil).wantError(t, http.StatusForbidden, "FORBIDDEN_ROLE")
+	c.do(http.MethodGet, "/v1/admin/payroll/periods", nil).wantError(t, http.StatusForbidden, "FORBIDDEN_ROLE")
 
 	// Filter divisi lain tidak membuka data di luar scope.
 	var otherDivision string

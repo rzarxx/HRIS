@@ -45,6 +45,8 @@ import id.albahjah.hris.data.AttendanceRecord
 import id.albahjah.hris.data.FontSize
 import id.albahjah.hris.data.Me
 import id.albahjah.hris.data.MyAnnouncement
+import id.albahjah.hris.data.Payslip
+import id.albahjah.hris.data.PayslipSummary
 import id.albahjah.hris.data.Repository
 import id.albahjah.hris.data.toApiError
 import kotlinx.coroutines.CancellationException
@@ -65,8 +67,6 @@ fun MainScreen(
     onDismissCrash: () -> Unit,
     onCapture: (String) -> Unit,
     onLoggedOut: () -> Unit,
-    /** Null bila HP tidak punya sidik jari, wajah, atau PIN; selain itu meminta konfirmasi lalu mengaktifkan kunci. */
-    onEnableQuickLogin: (() -> Unit)? = null,
     /** Memulai pembaruan: Play in-app update bila terpasang dari Play Store, selain itu membuka tautan (D63). */
     onStartUpdate: (String) -> Unit = {},
 ) {
@@ -75,11 +75,6 @@ fun MainScreen(
     var tab by rememberSaveable { mutableStateOf(MainTab.Home) }
     var sub by rememberSaveable { mutableStateOf<SubPage?>(null) }
     var askLogout by rememberSaveable { mutableStateOf(false) }
-    val saved = repository.savedLogin
-    // Tawaran masuk cepat muncul sekali setelah masuk dengan centang Ingat (D64).
-    var offerLock by rememberSaveable {
-        mutableStateOf(onEnableQuickLogin != null && saved != null && saved.hasPassword && !saved.quickLogin && !saved.quickLoginOffered)
-    }
     var me by remember { mutableStateOf<Me?>(null) }
     var records by remember { mutableStateOf<List<AttendanceRecord>?>(null) }
     var historyError by remember { mutableStateOf<String?>(null) }
@@ -96,6 +91,10 @@ fun MainScreen(
     var announcementList by rememberSaveable { mutableStateOf(false) }
     // Lampiran yang sedang dibuka: (id pengumuman, lampiran).
     var viewing by remember { mutableStateOf<Pair<String, AnnouncementAttachment>?>(null) }
+    val payslips = remember(repository) { PayslipController(repository, scope) }
+    var openPayslipId by rememberSaveable { mutableStateOf<String?>(null) }
+    // PDF slip yang sedang dibuka layar penuh.
+    var viewingSlip by remember { mutableStateOf<Payslip?>(null) }
     // Pop-up yang ditunda ("Nanti saja") tidak muncul lagi sampai aplikasi dibuka lagi dari latar belakang.
     var postponed by remember { mutableStateOf(setOf<String>()) }
     val snackbar = remember { SnackbarHostState() }
@@ -174,9 +173,12 @@ fun MainScreen(
     // Pengumuman dimuat saat aplikasi dibuka atau kembali dari latar belakang, lalu tiap 2 menit selama di
     // depan layar, karena notifikasi push belum ada. Tunda "Nanti saja" berakhir di sini. Efek ini berada di
     // atas halaman sub (Data pribadi, Ganti kata sandi) agar tetap berjalan walau halaman itu sedang dibuka.
+    val canPayslip = "payslip:read" in current.permissions
     LifecycleResumeEffect(announcements) {
         postponed = emptySet()
         val job = scope.launch { announcements.poll() }
+        // Slip baru terbit dicek setiap aplikasi kembali ke depan (belum ada notifikasi push, D68).
+        if (canPayslip) payslips.refresh()
         onPauseOrDispose { job.cancel() }
     }
 
@@ -231,22 +233,41 @@ fun MainScreen(
         announcements.refresh()
         repository.refreshBranding()
     }
-    LaunchedEffect(tab) { if (tab == MainTab.Requests) requests.refresh(canApprove) }
+    LaunchedEffect(tab) {
+        if (tab == MainTab.Requests) requests.refresh(canApprove)
+        if (tab == MainTab.Payslip && canPayslip) payslips.refresh()
+    }
 
     if (tab != MainTab.Home) BackHandler { tab = MainTab.Home }
     val now = ZonedDateTime.now(Wib)
     val openLeave = openLeaveId?.let { id -> requests.data.leaves?.firstOrNull { it.id == id } }
     val openAnnouncement = openAnnouncementId?.let { id -> announcements.items?.firstOrNull { it.id == id } }
-    val onSubPage = openLeave != null || openAnnouncement != null || announcementList || viewing != null
+    val openPayslip = openPayslipId?.let { id -> payslips.items?.firstOrNull { it.id == id } }
+    val onSubPage = openLeave != null || openAnnouncement != null || announcementList || viewing != null ||
+        openPayslip != null || viewingSlip != null
     // Pop-up pengumuman muncul satu per satu saat aplikasi dibuka, di atas halaman tab. Yang belum dibaca
     // meminta "Sudah baca"; yang sudah dibaca dan punya tanggal berakhir muncul lagi sekali sehari dengan
     // tombol Tutup saja sampai berakhir (D54).
     val today = now.toLocalDate().toString()
-    val popup = if (onSubPage || leaveForm || deciding != null || askLogout || offerLock) null
+    val popup = if (onSubPage || leaveForm || deciding != null || askLogout) null
     else nextPopup(announcements.items, postponed, today, repository.prefs::popupClosedOn)
     Box(Modifier.fillMaxSize()) {
         val shownFile = viewing
-        if (shownFile != null) {
+        val shownSlip = viewingSlip
+        if (shownSlip != null) {
+            BackHandler { viewingSlip = null }
+            PayslipPdfScreen(repository, shownSlip, onBack = { viewingSlip = null })
+        } else if (openPayslip != null) {
+            BackHandler { openPayslipId = null }
+            PayslipDetailScreen(
+                repository = repository,
+                summary = openPayslip,
+                onBack = { openPayslipId = null },
+                onOpened = { payslips.markRead(openPayslip.id) },
+                onViewPdf = { viewingSlip = it },
+                onMessage = notify,
+            )
+        } else if (shownFile != null) {
             BackHandler { viewing = null }
             AttachmentViewerScreen(repository, shownFile.first, shownFile.second, onBack = { viewing = null })
         } else if (openLeave != null) {
@@ -306,14 +327,14 @@ fun MainScreen(
             onAnnouncement = { openAnnouncementId = it.id },
             onAnnouncements = { announcementList = true },
             onChildren = { sub = SubPage.Children },
-            quickLogin = if (onEnableQuickLogin != null && saved != null) saved.quickLogin && saved.hasPassword else null,
-            onQuickLogin = { on ->
-                when {
-                    !on -> saved?.updateQuickLogin(false)
-                    saved?.hasPassword != true -> notify("Keluar, lalu masuk dengan centang Ingat NIPY dan kata sandi untuk memakai masuk cepat.")
-                    else -> onEnableQuickLogin?.invoke()
-                }
-            },
+            payslips = PayslipUi(
+                enabled = canPayslip,
+                items = payslips.items,
+                error = payslips.error,
+                loading = payslips.loading,
+                onOpen = { openPayslipId = it.id },
+                onRefresh = { payslips.refresh() },
+            ),
         ) }
         if (popup != null) {
             val repeat = popup.readAt != null
@@ -356,25 +377,6 @@ fun MainScreen(
                 if (!onSubPage) Modifier.padding(bottom = glassBarSpace()) else Modifier.navigationBarsPadding().padding(bottom = 16.dp),
             ),
         )
-        if (offerLock && !onSubPage && !askLogout) {
-            val close: () -> Unit = {
-                offerLock = false
-                saved?.markQuickLoginOffered()
-            }
-            BackHandler(onBack = close)
-            FigmaPopup(
-                icon = HrisIcons.Shield,
-                title = "Masuk cepat dengan sidik jari?",
-                body = "Lain kali cukup sentuh sidik jari, wajah, atau PIN HP untuk masuk, termasuk setelah keluar. Kata sandi tersimpan terenkripsi di HP ini.",
-                primary = "Aktifkan",
-                onPrimary = {
-                    close()
-                    onEnableQuickLogin?.invoke()
-                },
-                secondary = "Nanti saja",
-                onSecondary = close,
-            )
-        }
         if (askLogout) {
             BackHandler { askLogout = false }
             FigmaPopup(
@@ -418,11 +420,10 @@ fun MainTabs(
     onFontSize: () -> Unit = {},
     onChildren: () -> Unit = {},
     offlineSince: Long? = null,
-    quickLogin: Boolean? = null,
-    onQuickLogin: (Boolean) -> Unit = {},
     update: AppVersion? = null,
     onUpdate: () -> Unit = {},
     onCheckUpdate: (() -> Unit)? = null,
+    payslips: PayslipUi = PayslipUi(),
 ) {
     // Isi tab menjadi sumber blur; bottom bar kaca mengambang di atasnya.
     val haze = remember { HazeState() }
@@ -452,6 +453,9 @@ fun MainTabs(
                         onAnnouncement = onAnnouncement,
                         onAnnouncements = onAnnouncements,
                         onPayslip = { onTab(MainTab.Payslip) },
+                        newPayslip = payslips.items?.firstOrNull { it.unread }?.takeIf { payslips.enabled },
+                        unreadPayslips = if (payslips.enabled) payslips.unread else 0,
+                        onOpenPayslip = payslips.onOpen,
                         footer = footer,
                         offlineSince = offlineSince,
                         update = update,
@@ -464,11 +468,17 @@ fun MainTabs(
                 MainTab.Requests -> RequestsContent(requests, now)
                 MainTab.Payslip -> {
                     SecureScreen()
-                    ComingSoonContent(
-                        title = "Slip ubar",
-                        subtitle = "Rincian ubar per periode",
-                        body = "Slip ubar akan tampil di sini setelah SDM menerbitkan payroll dari sistem.",
-                    )
+                    if (payslips.enabled) {
+                        RefreshBox(payslips.loading && payslips.items != null, payslips.onRefresh, Modifier.fillMaxSize()) {
+                            PayslipListContent(payslips.items, payslips.error, onOpen = payslips.onOpen, onRetry = payslips.onRefresh)
+                        }
+                    } else {
+                        ComingSoonContent(
+                            title = "Slip ubar",
+                            subtitle = "Rincian ubar per periode",
+                            body = "Slip ubar tidak tersedia untuk akun ini.",
+                        )
+                    }
                 }
                 MainTab.Profile -> {
                     SecureScreen()
@@ -484,8 +494,6 @@ fun MainTabs(
                         onFontSize = onFontSize,
                         footer = footer,
                         onChildren = onChildren,
-                        quickLogin = quickLogin,
-                        onQuickLogin = onQuickLogin,
                     )
                 }
             }
@@ -494,7 +502,7 @@ fun MainTabs(
         }
         // Isi yang digulir tidak menembus jam dan ikon status bar.
         StatusBarScrim()
-        GlassBottomBar(tab, onTab, haze, Modifier.align(Alignment.BottomCenter), badges = mapOf(MainTab.Requests to pending))
+        GlassBottomBar(tab, onTab, haze, Modifier.align(Alignment.BottomCenter), badges = mapOf(MainTab.Requests to pending, MainTab.Payslip to if (payslips.enabled) payslips.unread else 0))
     }
 }
 
@@ -553,4 +561,16 @@ fun ChangePasswordScreen(
         required = required,
         onLogout = onLogout,
     )
+}
+
+/** Data tab Slip untuk [MainTabs] (D68). */
+data class PayslipUi(
+    val enabled: Boolean = false,
+    val items: List<PayslipSummary>? = null,
+    val error: String? = null,
+    val loading: Boolean = false,
+    val onOpen: (PayslipSummary) -> Unit = {},
+    val onRefresh: () -> Unit = {},
+) {
+    val unread: Int get() = items.orEmpty().count { it.unread }
 }

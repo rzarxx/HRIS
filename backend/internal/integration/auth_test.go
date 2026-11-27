@@ -271,7 +271,7 @@ func TestInitialPasswordFlow(t *testing.T) {
 		t.Errorf("me = %+v", me)
 	}
 	c.do(http.MethodGet, "/v1/announcements/active", nil).wantError(t, http.StatusForbidden, "PASSWORD_CHANGE_REQUIRED")
-	if f := c.do(http.MethodPost, "/v1/auth/password/change", map[string]any{"current_password": created.InitialPassword, "new_password": "pendek"}).
+	if f := c.do(http.MethodPost, "/v1/auth/password/change", map[string]any{"current_password": created.InitialPassword, "new_password": "abc12"}).
 		want(t, http.StatusBadRequest).fields(); f["new_password"] == nil {
 		t.Errorf("sandi pendek: %v", f)
 	}

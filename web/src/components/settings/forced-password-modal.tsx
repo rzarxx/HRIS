@@ -34,7 +34,7 @@ export function ForcedPasswordModal({ name }: { name: string }) {
     e.preventDefault();
     const next: Record<string, string> = {};
     if (!form.current_password) next.current_password = "Kata sandi awal wajib diisi.";
-    if (form.new_password.length < 10) next.new_password = "Kata sandi minimal 10 karakter.";
+    if (form.new_password.length < 6) next.new_password = "Kata sandi minimal 6 karakter.";
     else if (form.new_password === form.current_password) next.new_password = "Kata sandi baru harus berbeda dari kata sandi awal.";
     if (form.new_password !== form.confirm) next.confirm = "Konfirmasi tidak sama.";
     setErrors(next);
@@ -83,7 +83,7 @@ export function ForcedPasswordModal({ name }: { name: string }) {
             invalid={!!errors.current_password}
           />
         </Field>
-        <Field label="Kata sandi baru" htmlFor="forced-new" error={errors.new_password} hint="Minimal 10 karakter, hindari kata sandi umum.">
+        <Field label="Kata sandi baru" htmlFor="forced-new" error={errors.new_password} hint="Minimal 6 karakter, hindari kata sandi umum.">
           <PasswordInput
             id="forced-new"
             autoComplete="new-password"

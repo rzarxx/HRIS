@@ -672,6 +672,10 @@ type Attendance struct {
 	ReviewBy      uuid.NullUUID
 	ReviewedAt    pgtype.Timestamptz
 	ReviewNote    pgtype.Text
+	AutoClockOut  bool
+	AdjustedBy    uuid.NullUUID
+	AdjustedAt    pgtype.Timestamptz
+	AdjustNote    pgtype.Text
 }
 
 type AttendanceAttempt struct {

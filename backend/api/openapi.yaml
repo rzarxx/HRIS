@@ -255,7 +255,7 @@ paths:
       security: []
       description: >-
         Publik. `token` diambil web dari fragmen URL tautan email (`/reset-kata-sandi/#token=…`). Kata sandi baru
-        minimal 10 karakter dan bukan kata sandi umum; isian yang belum sesuai tidak menghabiskan tautan. Berhasil
+        minimal 6 karakter dan bukan kata sandi umum; isian yang belum sesuai tidak menghabiskan tautan. Berhasil
         berarti akun dibuka kuncinya, kata sandi awal tidak berlaku lagi, dan semua sesi dicabut. MFA tetap diminta
         saat login berikutnya. Dicatat `auth.password_reset_completed`.
       requestBody:
@@ -1071,6 +1071,22 @@ paths:
         "403": { $ref: "#/components/responses/Error" }
         "404": { $ref: "#/components/responses/Error" }
         "409": { $ref: "#/components/responses/Error" }
+  /v1/admin/users/{user_id}/mfa:
+    parameters:
+      - { name: user_id, in: path, required: true, schema: { type: string, format: uuid } }
+    delete:
+      tags: [Akun]
+      summary: Reset A2F akun SDM atau super admin lain
+      description: >-
+        Permission `account:manage` (hanya super admin, D71). Menghapus authenticator dan kode pemulihan akun, lalu mencabut
+        semua sesinya; bila A2F wajib, akun mendaftar ulang saat login berikutnya. Akun sendiri ditolak `CONFLICT_SELF_ACTION`
+        (pakai `hris-superadmin reset-mfa` di server), akun selain SDM atau super admin dan akun tanpa A2F ditolak
+        `ACCOUNT_CHANGE_NOT_ALLOWED`. Dicatat `user.mfa_reset`.
+      responses:
+        "204": { description: A2F dihapus }
+        "403": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+        "409": { $ref: "#/components/responses/Error" }
 
   /v1/attendance/challenge:
     post:
@@ -1842,6 +1858,60 @@ paths:
                 required: [data]
                 properties:
                   data: { $ref: "#/components/schemas/AttendanceResolved" }
+        "400": { $ref: "#/components/responses/ValidationFailed" }
+        "404": { $ref: "#/components/responses/Error" }
+        "409": { $ref: "#/components/responses/Error" }
+
+  /v1/admin/attendance/auto-clock-outs:
+    get:
+      tags: [Presensi]
+      summary: Presensi pulang otomatis yang belum dicek
+      description: >-
+        Permission `attendance:review`. Presensi lupa absen pulang ditutup job harian dengan jam akhir shift (D69) dan muncul di sini
+        sampai SDM memutuskan sesuai, ganti jam pulang, atau tidak hadir. Terbaru lebih dulu.
+      parameters:
+        - $ref: "#/components/parameters/Page"
+        - $ref: "#/components/parameters/PerPage"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data, meta]
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: "#/components/schemas/AutoClockOutItem" }
+                  meta: { $ref: "#/components/schemas/PageMeta" }
+        "400": { $ref: "#/components/responses/ValidationFailed" }
+  /v1/admin/attendance/{id}/adjust:
+    parameters:
+      - $ref: "#/components/parameters/Id"
+    post:
+      tags: [Presensi]
+      summary: Koreksi presensi pulang otomatis
+      description: >-
+        Permission `attendance:review`, diaudit `attendance.adjusted`. `confirm` menerima jam pulang otomatis, `set_time` mengganti jam
+        pulang (HH:MM WIB, setelah jam masuk dan tidak melewati waktu sekarang), `absent` menyatakan tidak hadir dengan catatan wajib.
+        Presensi sendiri ditolak `CONFLICT_SELF_ACTION`, yang sudah dicek ditolak `REQUEST_NOT_PENDING`, dan tanggal di periode ubar
+        final atau dibayar ditolak `PERIOD_LOCKED`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/AttendanceAdjustInput" }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data: { $ref: "#/components/schemas/AttendanceAdjusted" }
         "400": { $ref: "#/components/responses/ValidationFailed" }
         "404": { $ref: "#/components/responses/Error" }
         "409": { $ref: "#/components/responses/Error" }
@@ -3647,7 +3717,7 @@ components:
       required: [current_password, new_password]
       properties:
         current_password: { type: string }
-        new_password: { type: string, minLength: 10, maxLength: 256 }
+        new_password: { type: string, minLength: 6, maxLength: 256 }
     PasswordForgotRequest:
       type: object
       required: [identifier]
@@ -4048,7 +4118,7 @@ components:
         requires_review: { type: boolean }
     AttendanceRecord:
       type: object
-      required: [id, work_date, status, clock_in_at, clock_out_at, late_minutes, worked_minutes, work_mode, location_name]
+      required: [id, work_date, status, clock_in_at, clock_out_at, late_minutes, worked_minutes, work_mode, location_name, auto_clock_out]
       properties:
         id: { type: string, format: uuid }
         work_date: { type: string, format: date }
@@ -4059,6 +4129,7 @@ components:
         worked_minutes: { type: integer, nullable: true, description: "Kosong bila belum atau lupa presensi pulang" }
         work_mode: { type: string, enum: [onsite, wfa, field] }
         location_name: { type: string, nullable: true }
+        auto_clock_out: { type: boolean, description: "Presensi pulang ditutup sistem karena lupa absen pulang (D69)" }
     DeviceStatus:
       type: string
       enum: [pending, approved, revoked]
@@ -4203,6 +4274,40 @@ components:
         risk_flags:
           type: array
           items: { type: string }
+    AutoClockOutItem:
+      type: object
+      required: [id, employee_id, employee_name, nip, subdivision_name, division_name, work_date, status, clock_in_at, clock_out_at, late_minutes, work_mode, shift_name]
+      properties:
+        id: { type: string, format: uuid }
+        employee_id: { type: string, format: uuid }
+        employee_name: { type: string }
+        nip: { type: string }
+        subdivision_name: { type: string }
+        division_name: { type: string }
+        work_date: { type: string, format: date }
+        status: { type: string, enum: [present, late, absent, leave, review] }
+        clock_in_at: { type: string, format: date-time, nullable: true }
+        clock_out_at: { type: string, format: date-time, nullable: true }
+        late_minutes: { type: integer }
+        work_mode: { type: string, enum: [onsite, wfa, field] }
+        shift_name: { type: string, description: "Kosong bila tanpa shift" }
+    AttendanceAdjustInput:
+      type: object
+      required: [action]
+      properties:
+        action: { type: string, enum: [confirm, set_time, absent] }
+        clock_out_time: { type: string, pattern: "^[0-2][0-9]:[0-5][0-9]$", description: "Jam pulang WIB, wajib untuk set_time" }
+        note: { type: string, maxLength: 500, description: Wajib minimal 3 karakter bila absent }
+    AttendanceAdjusted:
+      type: object
+      required: [id, work_date, status, clock_out_at, worked_minutes, adjusted_at]
+      properties:
+        id: { type: string, format: uuid }
+        work_date: { type: string, format: date }
+        status: { type: string, enum: [present, late, absent, leave, review] }
+        clock_out_at: { type: string, format: date-time, nullable: true }
+        worked_minutes: { type: integer, nullable: true }
+        adjusted_at: { type: string, format: date-time }
     AttendanceResolveInput:
       type: object
       required: [decision]

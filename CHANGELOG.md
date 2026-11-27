@@ -7,6 +7,16 @@ Perubahan penting yang terlihat oleh Pejuang, SDM, atau pengelola server. Keputu
 ## Belum dirilis
 
 ### Ditambahkan
+- **Pulang otomatis untuk yang lupa absen pulang (D69).** Job harian kini menutup presensi tanpa jam pulang dengan jam
+  akhir shift (atau jam masuk bila tanpa shift). Status tidak berubah dan periode ubar yang sudah diajukan dilewati.
+  - Review Presensi punya bagian **Pulang otomatis**: SDM memilih **Sesuai**, **Ubah jam pulang**, atau **Tidak hadir**.
+    Setiap keputusan dicatat `attendance.adjusted`; presensi sendiri dicek SDM lain.
+  - Riwayat presensi di aplikasi memberi label "Pulang otomatis".
+  - Endpoint `GET /v1/admin/attendance/auto-clock-outs` dan `POST /v1/admin/attendance/{id}/adjust`.
+- **Reset A2F oleh super admin (D71).** Tombol **Reset A2F** di Master → Pejuang untuk akun SDM atau super admin lain
+  yang kehilangan authenticator. Sesinya dicabut dan ia memindai kode QR baru saat masuk berikutnya. Untuk akun sendiri:
+  `hris-superadmin reset-mfa --email ...` di server. Endpoint `DELETE /v1/admin/users/{user_id}/mfa`, audit
+  `user.mfa_reset`.
 - **Tab Slip di aplikasi (D68).** Tab Slip kini berisi slip ubar per periode, terbaru di atas.
   - Rincian slip: ubar bersih, ringkasan presensi, pendapatan, dan potongan. Tetap bisa dibaca saat offline.
   - **Lihat PDF** di dalam aplikasi, **Unduh** ke folder Unduhan (Android 8 dan 9 memilih lokasi simpan), dan
@@ -144,6 +154,9 @@ Perubahan penting yang terlihat oleh Pejuang, SDM, atau pengelola server. Keputu
   Endpoint `GET /v1/admin/employees/import-template` dan `POST /v1/admin/employees/import`, audit `employee.imported`.
 
 ### Diubah
+- **Kata sandi minimal 6 karakter (D70)**, sebelumnya 10. Kata sandi umum tetap ditolak.
+- Peringatan kesiapan periode ubar kini menyebut presensi yang belum absen pulang akan ditutup otomatis paling lambat
+  esok pagi; tautan Review Presensi hanya untuk presensi yang menunggu review.
 - **Lama telat lebih mudah dibaca (D62).** Telat 60 menit atau lebih ditampilkan "1 jam 15 menit" di monitor
   presensi, Review Presensi, rekap (kolom **Lama telat**), serta Beranda, riwayat, dan hasil presensi di aplikasi.
   Hitungan potongan payroll tidak berubah.
@@ -192,6 +205,8 @@ Perubahan penting yang terlihat oleh Pejuang, SDM, atau pengelola server. Keputu
   hanya tersimpan saat reset kata sandi, sehingga kata sandi awal Pejuang baru tidak kedaluwarsa.
 
 ### Perhatian saat memperbarui
+- Migrasi 000026 menambah kolom pulang otomatis di `attendances`. Jalankan `deploy.sh` seperti biasa; job
+  `mark-absent` yang sudah terjadwal langsung ikut menutup presensi lupa absen pulang.
 - Lupa kata sandi lewat email butuh `PUBLIC_WEB_URL` di `.env` server (alamat web admin, wajib `https`, contoh
   `https://hris.albahjah.or.id`) dan SMTP yang diatur super admin di panel. Tanpa keduanya, permintaan lupa kata sandi
   tetap dijawab tetapi tidak ada email yang dikirim.

@@ -1,5 +1,5 @@
 // Command mark-absent menjalankan job mark_absent (MASTER.md §11.3): mencatat alpha untuk hari kerja
-// tanpa presensi, cuti, atau libur. Jalankan harian setelah cutoff 04.00 WIB oleh scheduler host.
+// tanpa presensi, cuti, atau libur, lalu menutup presensi lupa absen pulang (pulang otomatis, D69). Jalankan harian setelah cutoff 04.00 WIB oleh scheduler host.
 package main
 
 import (
@@ -48,5 +48,11 @@ func run(days int) error {
 		return err
 	}
 	fmt.Printf("alpha dicatat: %d (%s s.d. %s)\n", n, from.Format("2006-01-02"), to.Format("2006-01-02"))
+	// Presensi lupa absen pulang ditutup dengan jam akhir shift; SDM mengeceknya di Review Presensi (D69).
+	closed, err := attendance.AutoClockOut(ctx, pool, now)
+	if err != nil {
+		return err
+	}
+	fmt.Printf("pulang otomatis: %d\n", closed)
 	return nil
 }

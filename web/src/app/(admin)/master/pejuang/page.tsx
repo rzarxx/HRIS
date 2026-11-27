@@ -1,6 +1,6 @@
 "use client";
 
-import { CalendarClock, CalendarRange, FileSpreadsheet, KeyRound, Lock, LockOpen, MapPin, Pencil, Plus, ScanFace, Search, ShieldCheck, ShieldOff, UserCog, UserX, Video, Wallet } from "lucide-react";
+import { CalendarClock, CalendarRange, FileSpreadsheet, KeyRound, Lock, LockOpen, MapPin, Pencil, Plus, ScanFace, Search, ShieldX, ShieldCheck, ShieldOff, UserCog, UserX, Video, Wallet } from "lucide-react";
 import { useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useState } from "react";
 import { BulkArrangementModal } from "@/components/employees/bulk-arrangement-modal";
@@ -119,6 +119,12 @@ function EmployeesView() {
     ({ userId, required }: { userId: string; required: boolean }) => api.put(`/admin/users/${userId}/mfa-policy`, { required }),
     { success: "Pengaturan A2F diperbarui.", onDone: () => setMfaChange(null) },
   );
+  // Reset A2F bila authenticator hilang; akun sendiri lewat perintah server (D71).
+  const [mfaReset, setMfaReset] = useState<EmployeeListItem | null>(null);
+  const resetMfa = useSave((userId: string) => api.del(`/admin/users/${userId}/mfa`), {
+    success: "A2F direset dan sesinya dicabut. Akun mendaftarkan authenticator baru saat masuk berikutnya.",
+    onDone: () => setMfaReset(null),
+  });
 
   const divOptions = (divisions.data ?? []).filter((d) => !branchId || d.branch_id === branchId);
   const subOptions = (subdivisions.data ?? []).filter((s) => (!divisionId || s.division_id === divisionId) && (!branchId || s.branch_id === branchId));
@@ -334,6 +340,11 @@ function EmployeesView() {
                           {e.account.mfa_required ? <ShieldOff className="size-4" /> : <ShieldCheck className="size-4" />}
                         </IconButton>
                       )}
+                      {canManageAccounts && e.account && (e.account.role === "sdm" || e.account.role === "superadmin") && e.account.mfa_enabled && !isSelf(e) && (
+                        <IconButton label={`Reset A2F ${e.full_name}`} onClick={() => setMfaReset(e)}>
+                          <ShieldX className="size-4" />
+                        </IconButton>
+                      )}
                       {canWrite && !isProtected(e) && !isSelf(e) && e.status === "active" && (
                         <IconButton label={`Nonaktifkan ${e.full_name}`} onClick={() => setDeleting(e)} className="hover:text-red-600">
                           <UserX className="size-4" />
@@ -412,6 +423,23 @@ function EmployeesView() {
           loading={setMfaPolicy.isPending}
           onConfirm={() => setMfaPolicy.mutate({ userId: mfaChange.employee.account!.user_id, required: mfaChange.required })}
           onClose={() => setMfaChange(null)}
+        />
+      )}
+
+      {mfaReset && (
+        <ConfirmDialog
+          open
+          title="Reset A2F?"
+          message={
+            <>
+              Authenticator dan kode pemulihan <span className="font-medium">{mfaReset.full_name}</span> dihapus dan semua sesinya dicabut. Saat masuk
+              berikutnya ia memindai kode QR baru di aplikasi authenticator.
+            </>
+          }
+          confirmLabel="Reset A2F"
+          loading={resetMfa.isPending}
+          onConfirm={() => resetMfa.mutate(mfaReset.account!.user_id)}
+          onClose={() => setMfaReset(null)}
         />
       )}
 

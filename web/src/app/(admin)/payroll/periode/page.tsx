@@ -164,13 +164,20 @@ function PeriodDetail() {
         <div className="mb-4 flex items-start gap-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
           <TriangleAlert className="mt-0.5 size-4 shrink-0" aria-hidden />
           <span>
-            Belum bisa diajukan: {readiness.review > 0 && `${readiness.review} presensi menunggu review`}
-            {readiness.review > 0 && readiness.missed_clock_out > 0 && " dan "}
-            {readiness.missed_clock_out > 0 && `${readiness.missed_clock_out} presensi lupa absen pulang`}. Selesaikan di{" "}
-            <Link href="/presensi/review" className="font-medium underline">
-              Review Presensi
-            </Link>
-            , lalu hitung ulang.
+            Belum bisa diajukan.
+            {readiness.review > 0 && (
+              <>
+                {" "}
+                {readiness.review} presensi menunggu review; selesaikan di{" "}
+                <Link href="/presensi/review" className="font-medium underline">
+                  Review Presensi
+                </Link>
+                .
+              </>
+            )}
+            {readiness.missed_clock_out > 0 &&
+              ` ${readiness.missed_clock_out} presensi belum absen pulang akan ditutup otomatis oleh sistem paling lambat esok pagi.`}{" "}
+            Setelah itu, hitung ulang.
           </span>
         </div>
       )}

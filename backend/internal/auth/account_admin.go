@@ -6,6 +6,7 @@ import (
 	"net/netip"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
 
 	"github.com/rzarxx/HRIS/backend/internal/audit"
 	"github.com/rzarxx/HRIS/backend/internal/platform/database"
@@ -135,6 +136,55 @@ func (h *Handler) AdminSetMFAPolicy(w http.ResponseWriter, r *http.Request) erro
 		return httpx.Validation(map[string]string{"required": "Isi true atau false."})
 	}
 	if err := h.svc.SetMFAPolicy(r.Context(), p, id, *req.Required, audit.ClientIP(r)); err != nil {
+		return err
+	}
+	return httpx.NoContent(w)
+}
+
+// resetMFA menghapus A2F akun dan mencabut semua sesinya (D71). Bila A2F wajib, akun mendaftarkan
+// authenticator baru saat login berikutnya.
+func resetMFA(ctx context.Context, q *store.Queries, user store.User, entry audit.Entry, source string) error {
+	n, err := q.DeleteUserMFA(ctx, user.ID)
+	if err != nil {
+		return err
+	}
+	if n == 0 {
+		return errAccountChange("Akun ini belum memakai A2F.")
+	}
+	if err := q.RevokeAllSessions(ctx, store.RevokeAllSessionsParams{UserID: user.ID, Reason: pgtype.Text{String: "mfa_reset", Valid: true}}); err != nil {
+		return err
+	}
+	entry.Action, entry.Entity, entry.EntityID = audit.UserMFAReset, "user", user.ID
+	entry.Detail = map[string]any{"source": source}
+	return audit.Write(ctx, q, entry)
+}
+
+// ResetMFA menghapus A2F akun SDM atau super admin lain, misalnya karena HP authenticator hilang (D71).
+// A2F akun sendiri direset lewat perintah server hris-superadmin reset-mfa.
+func (s *Service) ResetMFA(ctx context.Context, actor Principal, id uuid.UUID, ip *netip.Addr) error {
+	return database.InTx(ctx, s.pool, func(q *store.Queries) error {
+		if id == actor.UserID {
+			return errSelfAction("A2F akun sendiri direset super admin lain atau lewat perintah di server.")
+		}
+		user, err := s.accountTarget(ctx, q, actor, id)
+		if err != nil {
+			return err
+		}
+		if user.Role != store.UserRoleSdm && user.Role != store.UserRoleSuperadmin {
+			return errAccountChange("Reset A2F hanya untuk akun SDM dan super admin.")
+		}
+		return resetMFA(ctx, q, user, audit.Entry{UserID: audit.Actor(actor.UserID), IP: ip}, "panel")
+	})
+}
+
+// AdminResetMFA melayani DELETE /v1/admin/users/{user_id}/mfa.
+func (h *Handler) AdminResetMFA(w http.ResponseWriter, r *http.Request) error {
+	p, _ := PrincipalFrom(r.Context())
+	id, err := pathUUID(r, "user_id")
+	if err != nil {
+		return err
+	}
+	if err := h.svc.ResetMFA(r.Context(), p, id, audit.ClientIP(r)); err != nil {
 		return err
 	}
 	return httpx.NoContent(w)

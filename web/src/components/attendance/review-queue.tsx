@@ -3,6 +3,7 @@
 import dynamic from "next/dynamic";
 import { useEffect, useMemo, useState } from "react";
 import type { MapPoint } from "@/components/attendance/attendance-points-map";
+import { AutoClockOuts } from "@/components/attendance/auto-clock-outs";
 import { Button } from "@/components/ui/button";
 import { Field, Select, Textarea } from "@/components/ui/form";
 import { Badge, Card, EmptyState, ErrorState, Loading, PageHeader } from "@/components/ui/layout";
@@ -194,6 +195,7 @@ export function ReviewQueue() {
   return (
     <>
       <PageHeader title="Review Presensi" description="Presensi berisiko menunggu keputusan. Belum dihitung hadir sampai ditinjau." />
+      <AutoClockOuts />
       <Card bodyClassName="">
         <div className="border-b border-slate-100 p-4">
           <Select

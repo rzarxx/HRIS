@@ -61,7 +61,7 @@ func TestForgotAndResetPassword(t *testing.T) {
 		wantError(t, http.StatusBadRequest, "RESET_TOKEN_INVALID")
 
 	// Kata sandi lemah tidak menghabiskan tautan.
-	weak := anon.do(http.MethodPost, "/v1/auth/password/reset", map[string]any{"token": second, "password": "pendek"}).want(t, http.StatusBadRequest)
+	weak := anon.do(http.MethodPost, "/v1/auth/password/reset", map[string]any{"token": second, "password": "abc12"}).want(t, http.StatusBadRequest)
 	if weak.fields()["password"] == nil {
 		t.Fatalf("galat kata sandi lemah: %s", weak.body)
 	}

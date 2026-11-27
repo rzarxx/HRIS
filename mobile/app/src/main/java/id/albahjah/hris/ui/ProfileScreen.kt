@@ -194,9 +194,9 @@ data class PasswordForm(
     val done: Boolean = false,
 )
 
-/** Pesan isian sebelum dikirim ke server (aturan server: minimal 10 karakter). */
+/** Pesan isian sebelum dikirim ke server (aturan server: minimal 6 karakter). */
 fun passwordProblem(form: PasswordForm): String? = when {
-    form.next.isNotEmpty() && form.next.length < 10 -> "Minimal 10 karakter."
+    form.next.isNotEmpty() && form.next.length < 6 -> "Minimal 6 karakter."
     form.repeat.isNotEmpty() && form.repeat != form.next -> "Kata sandi tidak sama."
     else -> null
 }
@@ -214,7 +214,7 @@ fun ChangePasswordContent(
     required: Boolean = false,
     onLogout: () -> Unit = {},
 ) {
-    val canSubmit = form.current.isNotEmpty() && form.next.length >= 10 && form.repeat == form.next && form.next != form.current && !form.busy
+    val canSubmit = form.current.isNotEmpty() && form.next.length >= 6 && form.repeat == form.next && form.next != form.current && !form.busy
     Box(Modifier.fillMaxSize().background(Fg.PageProfile)) {
         Column(Modifier.fillMaxSize().imePadding()) {
             FigmaHeader(if (required) "Buat Kata Sandi Baru" else "Ganti Kata Sandi", if (required) null else onBack)
@@ -222,9 +222,9 @@ fun ChangePasswordContent(
                 FigmaCard(
                     title = "Kata sandi baru",
                     subtitle = if (required) {
-                        "Anda masuk dengan kata sandi awal dari SDM. Demi keamanan akun, buat kata sandi sendiri sekarang. Minimal 10 karakter."
+                        "Anda masuk dengan kata sandi awal dari SDM. Demi keamanan akun, buat kata sandi sendiri sekarang. Minimal 6 karakter."
                     } else {
-                        "Minimal 10 karakter. Setelah diganti, sesi di perangkat lain akan keluar."
+                        "Minimal 6 karakter. Setelah diganti, sesi di perangkat lain akan keluar."
                     },
                     top = 24.dp,
                     bottom = 24.dp,
@@ -238,7 +238,7 @@ fun ChangePasswordContent(
                     FigmaInput(
                         "Kata sandi baru", form.next, onNext, lock, password = true,
                         error = when {
-                            form.next.isNotEmpty() && form.next.length < 10 -> "Minimal 10 karakter."
+                            form.next.isNotEmpty() && form.next.length < 6 -> "Minimal 6 karakter."
                             form.next.isNotEmpty() && form.next == form.current -> "Perlu berbeda dari kata sandi saat ini."
                             else -> null
                         },

@@ -238,6 +238,7 @@ data class AttendanceRecord(
     @SerialName("worked_minutes") val workedMinutes: Int? = null,
     @SerialName("work_mode") val workMode: String,
     @SerialName("location_name") val locationName: String? = null,
+    @SerialName("auto_clock_out") val autoClockOut: Boolean = false,
 )
 
 // schema: LeaveBalance

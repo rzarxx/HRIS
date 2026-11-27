@@ -202,6 +202,7 @@ fun AttendanceHistoryCard(record: AttendanceRecord, now: ZonedDateTime, modifier
                     date?.let { "${it.dayOfMonth} ${shortMonth(it)}" },
                     durationLabel(worked).takeIf { worked > 0 },
                     "telat ${durationText(record.lateMinutes)}".takeIf { record.lateMinutes > 0 },
+                    "Pulang otomatis".takeIf { record.autoClockOut },
                     record.locationName ?: workModeLabel(record.workMode).takeIf { record.clockInAt != null },
                 ).joinToString(" · "),
                 style = figmaText(12, color = Hc.InkSoft),

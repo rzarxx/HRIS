@@ -197,6 +197,19 @@ func (q *Queries) CreateUserWithInitialPassword(ctx context.Context, arg CreateU
 	return id, err
 }
 
+const deleteUserMFA = `-- name: DeleteUserMFA :execrows
+DELETE FROM user_mfa WHERE user_id = $1
+`
+
+// Reset A2F (D71): akun mendaftar ulang authenticator saat login berikutnya bila A2F wajib.
+func (q *Queries) DeleteUserMFA(ctx context.Context, userID uuid.UUID) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteUserMFA, userID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const emailInUse = `-- name: EmailInUse :one
 SELECT EXISTS (
   SELECT 1 FROM employees e WHERE lower(e.email) = lower($1::text) AND e.id <> $2::uuid

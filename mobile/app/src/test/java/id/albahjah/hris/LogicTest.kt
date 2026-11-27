@@ -375,7 +375,7 @@ class UiLogicTest {
     fun passwordFormChecks() {
         val ok = id.albahjah.hris.ui.PasswordForm(current = "lama", next = "baru-panjang-1", repeat = "baru-panjang-1")
         assertEquals(null, id.albahjah.hris.ui.passwordProblem(ok))
-        assertEquals("Minimal 10 karakter.", id.albahjah.hris.ui.passwordProblem(ok.copy(next = "pendek", repeat = "")))
+        assertEquals("Minimal 6 karakter.", id.albahjah.hris.ui.passwordProblem(ok.copy(next = "abc12", repeat = "")))
         assertEquals("Kata sandi tidak sama.", id.albahjah.hris.ui.passwordProblem(ok.copy(repeat = "beda-sekali-1")))
         val body = apiJson.encodeToString(
             id.albahjah.hris.data.PasswordChangeRequest.serializer(),

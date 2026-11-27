@@ -22,7 +22,7 @@ import (
 
 const (
 	inviteTTL        = 24 * time.Hour
-	minPasswordRunes = 10
+	minPasswordRunes = 6
 	maxPasswordBytes = 256
 	recoveryCount    = 8
 	// Akun yang dikunci SDM dibuka manual; nilai ini sekadar "sangat lama".

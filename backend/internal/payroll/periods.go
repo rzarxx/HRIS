@@ -430,7 +430,7 @@ func (s *Service) Submit(ctx context.Context, entry audit.Entry, id uuid.UUID) e
 		}
 		if r.Review > 0 || r.MissedClockOut > 0 {
 			e := httpx.NewError(http.StatusUnprocessableEntity, "PAYROLL_NOT_READY",
-				"Masih ada presensi yang menunggu review atau lupa absen pulang di periode ini. Selesaikan dulu, lalu hitung ulang.")
+				"Masih ada presensi yang menunggu review atau belum absen pulang di periode ini. Presensi yang belum absen pulang ditutup otomatis paling lambat esok pagi; setelah itu hitung ulang.")
 			e.Details = map[string]any{"review": r.Review, "missed_clock_out": r.MissedClockOut}
 			return e
 		}

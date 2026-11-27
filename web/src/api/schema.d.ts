@@ -532,7 +532,7 @@ export interface paths {
         put?: never;
         /**
          * Pasang kata sandi baru dari tautan email
-         * @description Publik. `token` diambil web dari fragmen URL tautan email (`/reset-kata-sandi/#token=…`). Kata sandi baru minimal 10 karakter dan bukan kata sandi umum; isian yang belum sesuai tidak menghabiskan tautan. Berhasil berarti akun dibuka kuncinya, kata sandi awal tidak berlaku lagi, dan semua sesi dicabut. MFA tetap diminta saat login berikutnya. Dicatat `auth.password_reset_completed`.
+         * @description Publik. `token` diambil web dari fragmen URL tautan email (`/reset-kata-sandi/#token=…`). Kata sandi baru minimal 6 karakter dan bukan kata sandi umum; isian yang belum sesuai tidak menghabiskan tautan. Berhasil berarti akun dibuka kuncinya, kata sandi awal tidak berlaku lagi, dan semua sesi dicabut. MFA tetap diminta saat login berikutnya. Dicatat `auth.password_reset_completed`.
          */
         post: {
             parameters: {
@@ -2328,6 +2328,50 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/admin/users/{user_id}/mfa": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                user_id: string;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Reset A2F akun SDM atau super admin lain
+         * @description Permission `account:manage` (hanya super admin, D71). Menghapus authenticator dan kode pemulihan akun, lalu mencabut semua sesinya; bila A2F wajib, akun mendaftar ulang saat login berikutnya. Akun sendiri ditolak `CONFLICT_SELF_ACTION` (pakai `hris-superadmin reset-mfa` di server), akun selain SDM atau super admin dan akun tanpa A2F ditolak `ACCOUNT_CHANGE_NOT_ALLOWED`. Dicatat `user.mfa_reset`.
+         */
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    user_id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description A2F dihapus */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                403: components["responses"]["Error"];
+                404: components["responses"]["Error"];
+                409: components["responses"]["Error"];
+            };
+        };
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/attendance/challenge": {
         parameters: {
             query?: never;
@@ -3889,6 +3933,104 @@ export interface paths {
                     content: {
                         "application/json": {
                             data: components["schemas"]["AttendanceResolved"];
+                        };
+                    };
+                };
+                400: components["responses"]["ValidationFailed"];
+                404: components["responses"]["Error"];
+                409: components["responses"]["Error"];
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/attendance/auto-clock-outs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Presensi pulang otomatis yang belum dicek
+         * @description Permission `attendance:review`. Presensi lupa absen pulang ditutup job harian dengan jam akhir shift (D69) dan muncul di sini sampai SDM memutuskan sesuai, ganti jam pulang, atau tidak hadir. Terbaru lebih dulu.
+         */
+        get: {
+            parameters: {
+                query?: {
+                    page?: components["parameters"]["Page"];
+                    per_page?: components["parameters"]["PerPage"];
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data: components["schemas"]["AutoClockOutItem"][];
+                            meta: components["schemas"]["PageMeta"];
+                        };
+                    };
+                };
+                400: components["responses"]["ValidationFailed"];
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/attendance/{id}/adjust": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Koreksi presensi pulang otomatis
+         * @description Permission `attendance:review`, diaudit `attendance.adjusted`. `confirm` menerima jam pulang otomatis, `set_time` mengganti jam pulang (HH:MM WIB, setelah jam masuk dan tidak melewati waktu sekarang), `absent` menyatakan tidak hadir dengan catatan wajib. Presensi sendiri ditolak `CONFLICT_SELF_ACTION`, yang sudah dicek ditolak `REQUEST_NOT_PENDING`, dan tanggal di periode ubar final atau dibayar ditolak `PERIOD_LOCKED`.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: components["parameters"]["Id"];
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["AttendanceAdjustInput"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data: components["schemas"]["AttendanceAdjusted"];
                         };
                     };
                 };
@@ -7265,6 +7407,8 @@ export interface components {
             /** @enum {string} */
             work_mode: "onsite" | "wfa" | "field";
             location_name: string | null;
+            /** @description Presensi pulang ditutup sistem karena lupa absen pulang (D69) */
+            auto_clock_out: boolean;
         };
         /** @enum {string} */
         DeviceStatus: "pending" | "approved" | "revoked";
@@ -7411,6 +7555,50 @@ export interface components {
             in_accuracy_m: number | null;
             risk_score: number;
             risk_flags: string[];
+        };
+        AutoClockOutItem: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            employee_id: string;
+            employee_name: string;
+            nip: string;
+            subdivision_name: string;
+            division_name: string;
+            /** Format: date */
+            work_date: string;
+            /** @enum {string} */
+            status: "present" | "late" | "absent" | "leave" | "review";
+            /** Format: date-time */
+            clock_in_at: string | null;
+            /** Format: date-time */
+            clock_out_at: string | null;
+            late_minutes: number;
+            /** @enum {string} */
+            work_mode: "onsite" | "wfa" | "field";
+            /** @description Kosong bila tanpa shift */
+            shift_name: string;
+        };
+        AttendanceAdjustInput: {
+            /** @enum {string} */
+            action: "confirm" | "set_time" | "absent";
+            /** @description Jam pulang WIB, wajib untuk set_time */
+            clock_out_time?: string;
+            /** @description Wajib minimal 3 karakter bila absent */
+            note?: string;
+        };
+        AttendanceAdjusted: {
+            /** Format: uuid */
+            id: string;
+            /** Format: date */
+            work_date: string;
+            /** @enum {string} */
+            status: "present" | "late" | "absent" | "leave" | "review";
+            /** Format: date-time */
+            clock_out_at: string | null;
+            worked_minutes: number | null;
+            /** Format: date-time */
+            adjusted_at: string;
         };
         AttendanceResolveInput: {
             /** @enum {string} */

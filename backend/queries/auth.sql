@@ -224,3 +224,7 @@ UPDATE employees SET email = sqlc.narg(email), updated_at = now() WHERE id = @id
 -- A2F wajib per akun SDM (D60), diatur super admin.
 -- name: SetUserMFARequired :exec
 UPDATE users SET mfa_required = @mfa_required WHERE id = @id;
+
+-- name: DeleteUserMFA :execrows
+-- Reset A2F (D71): akun mendaftar ulang authenticator saat login berikutnya bila A2F wajib.
+DELETE FROM user_mfa WHERE user_id = $1;

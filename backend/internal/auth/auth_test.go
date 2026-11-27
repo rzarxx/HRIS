@@ -287,7 +287,8 @@ func TestValidatePassword(t *testing.T) {
 		password, email string
 		ok              bool
 	}{
-		{"pendek", "", false},
+		{"abc12", "", false},
+		{"kopi71", "", true}, // 6 karakter cukup (D70)
 		{"pejuang123", "", false},
 		{"PEJUANG123", "", false},
 		{"sdm@pejuang.id", "sdm@pejuang.id", false},

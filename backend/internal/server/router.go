@@ -121,6 +121,8 @@ func routes(d Deps) []Route {
 		// Peran SDM dan A2F wajib per akun, hanya super admin (D60).
 		guarded(http.MethodPut, "/v1/admin/users/{user_id}/role", d.Auth.AdminSetRole, permission.AccountManage),
 		guarded(http.MethodPut, "/v1/admin/users/{user_id}/mfa-policy", d.Auth.AdminSetMFAPolicy, permission.AccountManage),
+		// Reset A2F akun SDM atau super admin lain, misalnya HP authenticator hilang (D71).
+		guarded(http.MethodDelete, "/v1/admin/users/{user_id}/mfa", d.Auth.AdminResetMFA, permission.AccountManage),
 
 		guarded(http.MethodGet, "/v1/admin/branches", d.Org.ListBranches, permission.OrgWrite),
 		guarded(http.MethodPost, "/v1/admin/branches", d.Org.CreateBranch, permission.OrgWrite),
@@ -169,6 +171,9 @@ func routes(d Deps) []Route {
 		guarded(http.MethodGet, "/v1/admin/attendance/{id}/selfie/{purpose}", d.Attendance.ReviewSelfie, permission.AttendanceReview),
 		guarded(http.MethodGet, "/v1/admin/attendance/attempts", d.Attendance.Attempts, permission.AttendanceReview),
 		guarded(http.MethodPost, "/v1/admin/attendance/{id}/resolve", d.Attendance.Resolve, permission.AttendanceReview),
+		// Pulang otomatis yang dicek SDM: sesuai, ganti jam pulang, atau tidak hadir (D69).
+		guarded(http.MethodGet, "/v1/admin/attendance/auto-clock-outs", d.Attendance.AutoClockOuts, permission.AttendanceReview),
+		guarded(http.MethodPost, "/v1/admin/attendance/{id}/adjust", d.Attendance.Adjust, permission.AttendanceReview),
 
 		guarded(http.MethodPost, "/v1/devices/register", d.Device.Register, permission.DeviceRegister),
 		guarded(http.MethodGet, "/v1/devices/me", d.Device.Mine, permission.DeviceRegister),

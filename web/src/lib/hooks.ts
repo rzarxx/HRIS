@@ -17,6 +17,7 @@ import type {
   AttendanceMonitorItem,
   AttendanceReportRow,
   AttendanceReviewItem,
+  AutoClockOutItem,
   CurrentUser,
   DashboardSummary,
   DivisionWithStats,
@@ -110,6 +111,14 @@ export const useAttendanceReview = (f: { work_mode: string; page: number; per_pa
   useQuery({
     queryKey: ["attendance-review", f],
     queryFn: () => api.get<Paginated<AttendanceReviewItem>>("/admin/attendance/review", { ...f }),
+    placeholderData: keepPreviousData,
+  });
+
+// Presensi lupa pulang yang ditutup otomatis dan belum dicek SDM (D69).
+export const useAutoClockOuts = (f: { page: number; per_page: number }) =>
+  useQuery({
+    queryKey: ["attendance-auto-clock-outs", f],
+    queryFn: () => api.get<Paginated<AutoClockOutItem>>("/admin/attendance/auto-clock-outs", { ...f }),
     placeholderData: keepPreviousData,
   });
 

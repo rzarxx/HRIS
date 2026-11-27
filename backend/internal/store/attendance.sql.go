@@ -14,11 +14,107 @@ import (
 	"github.com/shopspring/decimal"
 )
 
+const adjustAttendance = `-- name: AdjustAttendance :one
+UPDATE attendances
+SET clock_out_at = $1, worked_minutes = $2, status = $3,
+    adjusted_by = $4, adjusted_at = $5, adjust_note = $6
+WHERE id = $7
+RETURNING id, employee_id, work_date, shift_id, clock_in_at, clock_out_at, in_accuracy_m, face_score, risk_score, risk_flags, status, late_minutes, created_at, work_mode, location_id, worked_minutes, in_latitude, in_longitude, out_latitude, out_longitude, flexible_hours, review_by, reviewed_at, review_note, auto_clock_out, adjusted_by, adjusted_at, adjust_note
+`
+
+type AdjustAttendanceParams struct {
+	ClockOutAt    pgtype.Timestamptz
+	WorkedMinutes pgtype.Int4
+	Status        AttStatus
+	AdjustedBy    uuid.NullUUID
+	AdjustedAt    pgtype.Timestamptz
+	AdjustNote    pgtype.Text
+	ID            uuid.UUID
+}
+
+func (q *Queries) AdjustAttendance(ctx context.Context, arg AdjustAttendanceParams) (Attendance, error) {
+	row := q.db.QueryRow(ctx, adjustAttendance,
+		arg.ClockOutAt,
+		arg.WorkedMinutes,
+		arg.Status,
+		arg.AdjustedBy,
+		arg.AdjustedAt,
+		arg.AdjustNote,
+		arg.ID,
+	)
+	var i Attendance
+	err := row.Scan(
+		&i.ID,
+		&i.EmployeeID,
+		&i.WorkDate,
+		&i.ShiftID,
+		&i.ClockInAt,
+		&i.ClockOutAt,
+		&i.InAccuracyM,
+		&i.FaceScore,
+		&i.RiskScore,
+		&i.RiskFlags,
+		&i.Status,
+		&i.LateMinutes,
+		&i.CreatedAt,
+		&i.WorkMode,
+		&i.LocationID,
+		&i.WorkedMinutes,
+		&i.InLatitude,
+		&i.InLongitude,
+		&i.OutLatitude,
+		&i.OutLongitude,
+		&i.FlexibleHours,
+		&i.ReviewBy,
+		&i.ReviewedAt,
+		&i.ReviewNote,
+		&i.AutoClockOut,
+		&i.AdjustedBy,
+		&i.AdjustedAt,
+		&i.AdjustNote,
+	)
+	return i, err
+}
+
+const autoClockOut = `-- name: AutoClockOut :execrows
+
+UPDATE attendances a
+SET clock_out_at = GREATEST(a.clock_in_at, t.out_at),
+    worked_minutes = GREATEST(0, floor(extract(epoch FROM (GREATEST(a.clock_in_at, t.out_at) - a.clock_in_at)) / 60))::int,
+    auto_clock_out = true
+FROM (
+  SELECT a2.id,
+         CASE WHEN sh.id IS NULL THEN a2.clock_in_at
+              ELSE ((a2.work_date + sh.end_time)
+                    + CASE WHEN sh.end_time <= sh.start_time THEN interval '1 day' ELSE interval '0' END)
+                   AT TIME ZONE 'Asia/Jakarta' END AS out_at
+  FROM attendances a2
+  LEFT JOIN shifts sh ON sh.id = a2.shift_id
+  WHERE a2.clock_in_at IS NOT NULL AND a2.clock_out_at IS NULL AND a2.status <> 'absent'
+    AND (a2.work_date + 1) + CASE WHEN sh.end_time <= sh.start_time
+          THEN (sh.end_time - time '00:00') + interval '4 hours' ELSE interval '4 hours' END <= $1::timestamp
+    AND NOT EXISTS (SELECT 1 FROM payroll_periods pp WHERE pp.status <> 'draft' AND a2.work_date BETWEEN pp.start_date AND pp.end_date)
+) t
+WHERE a.id = t.id AND a.clock_out_at IS NULL
+`
+
+// Pulang otomatis (D69) ------------------------------------------------------------------------------
+// Presensi masuk tanpa pulang yang batasnya (sama dengan CloseDeadline dan rekap missed_clock_out) sudah lewat
+// pada @now_wib ditutup dengan jam akhir shift WIB, atau jam masuk bila tanpa shift atau masuk setelah akhir
+// shift. Status hadir/telat tidak diubah. Periode ubar yang sudah diajukan atau final tidak disentuh.
+func (q *Queries) AutoClockOut(ctx context.Context, nowWib pgtype.Timestamp) (int64, error) {
+	result, err := q.db.Exec(ctx, autoClockOut, nowWib)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const clockIn = `-- name: ClockIn :one
 INSERT INTO attendances (employee_id, work_date, shift_id, clock_in_at, in_accuracy_m, risk_score, risk_flags, status, late_minutes, work_mode, flexible_hours, location_id, in_latitude, in_longitude, face_score)
 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
 ON CONFLICT (employee_id, work_date) DO NOTHING
-RETURNING id, employee_id, work_date, shift_id, clock_in_at, clock_out_at, in_accuracy_m, face_score, risk_score, risk_flags, status, late_minutes, created_at, work_mode, location_id, worked_minutes, in_latitude, in_longitude, out_latitude, out_longitude, flexible_hours, review_by, reviewed_at, review_note
+RETURNING id, employee_id, work_date, shift_id, clock_in_at, clock_out_at, in_accuracy_m, face_score, risk_score, risk_flags, status, late_minutes, created_at, work_mode, location_id, worked_minutes, in_latitude, in_longitude, out_latitude, out_longitude, flexible_hours, review_by, reviewed_at, review_note, auto_clock_out, adjusted_by, adjusted_at, adjust_note
 `
 
 type ClockInParams struct {
@@ -83,6 +179,10 @@ func (q *Queries) ClockIn(ctx context.Context, arg ClockInParams) (Attendance, e
 		&i.ReviewBy,
 		&i.ReviewedAt,
 		&i.ReviewNote,
+		&i.AutoClockOut,
+		&i.AdjustedBy,
+		&i.AdjustedAt,
+		&i.AdjustNote,
 	)
 	return i, err
 }
@@ -92,7 +192,7 @@ UPDATE attendances
 SET clock_out_at = $1, worked_minutes = $2, out_latitude = $3, out_longitude = $4, work_mode = $5,
     status = $6, risk_score = $7, risk_flags = $8
 WHERE id = $9 AND clock_out_at IS NULL
-RETURNING id, employee_id, work_date, shift_id, clock_in_at, clock_out_at, in_accuracy_m, face_score, risk_score, risk_flags, status, late_minutes, created_at, work_mode, location_id, worked_minutes, in_latitude, in_longitude, out_latitude, out_longitude, flexible_hours, review_by, reviewed_at, review_note
+RETURNING id, employee_id, work_date, shift_id, clock_in_at, clock_out_at, in_accuracy_m, face_score, risk_score, risk_flags, status, late_minutes, created_at, work_mode, location_id, worked_minutes, in_latitude, in_longitude, out_latitude, out_longitude, flexible_hours, review_by, reviewed_at, review_note, auto_clock_out, adjusted_by, adjusted_at, adjust_note
 `
 
 type ClockOutParams struct {
@@ -145,6 +245,10 @@ func (q *Queries) ClockOut(ctx context.Context, arg ClockOutParams) (Attendance,
 		&i.ReviewBy,
 		&i.ReviewedAt,
 		&i.ReviewNote,
+		&i.AutoClockOut,
+		&i.AdjustedBy,
+		&i.AdjustedAt,
+		&i.AdjustNote,
 	)
 	return i, err
 }
@@ -228,6 +332,17 @@ WHERE a.status = 'review' AND ($1::text IS NULL OR a.work_mode = $1)
 
 func (q *Queries) CountAttendanceReview(ctx context.Context, workMode pgtype.Text) (int64, error) {
 	row := q.db.QueryRow(ctx, countAttendanceReview, workMode)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
+const countAutoClockOuts = `-- name: CountAutoClockOuts :one
+SELECT count(*) FROM attendances WHERE auto_clock_out AND adjusted_at IS NULL
+`
+
+func (q *Queries) CountAutoClockOuts(ctx context.Context) (int64, error) {
+	row := q.db.QueryRow(ctx, countAutoClockOuts)
 	var count int64
 	err := row.Scan(&count)
 	return count, err
@@ -373,7 +488,7 @@ func (q *Queries) GetActiveFaceTemplate(ctx context.Context, employeeID uuid.UUI
 }
 
 const getAttendanceForUpdate = `-- name: GetAttendanceForUpdate :one
-SELECT id, employee_id, work_date, shift_id, clock_in_at, clock_out_at, in_accuracy_m, face_score, risk_score, risk_flags, status, late_minutes, created_at, work_mode, location_id, worked_minutes, in_latitude, in_longitude, out_latitude, out_longitude, flexible_hours, review_by, reviewed_at, review_note FROM attendances WHERE id = $1 FOR UPDATE
+SELECT id, employee_id, work_date, shift_id, clock_in_at, clock_out_at, in_accuracy_m, face_score, risk_score, risk_flags, status, late_minutes, created_at, work_mode, location_id, worked_minutes, in_latitude, in_longitude, out_latitude, out_longitude, flexible_hours, review_by, reviewed_at, review_note, auto_clock_out, adjusted_by, adjusted_at, adjust_note FROM attendances WHERE id = $1 FOR UPDATE
 `
 
 func (q *Queries) GetAttendanceForUpdate(ctx context.Context, id uuid.UUID) (Attendance, error) {
@@ -404,6 +519,10 @@ func (q *Queries) GetAttendanceForUpdate(ctx context.Context, id uuid.UUID) (Att
 		&i.ReviewBy,
 		&i.ReviewedAt,
 		&i.ReviewNote,
+		&i.AutoClockOut,
+		&i.AdjustedBy,
+		&i.AdjustedAt,
+		&i.AdjustNote,
 	)
 	return i, err
 }
@@ -459,7 +578,7 @@ func (q *Queries) GetLastAttendancePoint(ctx context.Context, employeeID uuid.UU
 }
 
 const getLastClosedAttendance = `-- name: GetLastClosedAttendance :one
-SELECT id, employee_id, work_date, shift_id, clock_in_at, clock_out_at, in_accuracy_m, face_score, risk_score, risk_flags, status, late_minutes, created_at, work_mode, location_id, worked_minutes, in_latitude, in_longitude, out_latitude, out_longitude, flexible_hours, review_by, reviewed_at, review_note FROM attendances
+SELECT id, employee_id, work_date, shift_id, clock_in_at, clock_out_at, in_accuracy_m, face_score, risk_score, risk_flags, status, late_minutes, created_at, work_mode, location_id, worked_minutes, in_latitude, in_longitude, out_latitude, out_longitude, flexible_hours, review_by, reviewed_at, review_note, auto_clock_out, adjusted_by, adjusted_at, adjust_note FROM attendances
 WHERE employee_id = $1 AND clock_out_at IS NOT NULL
 ORDER BY work_date DESC LIMIT 1
 `
@@ -492,12 +611,16 @@ func (q *Queries) GetLastClosedAttendance(ctx context.Context, employeeID uuid.U
 		&i.ReviewBy,
 		&i.ReviewedAt,
 		&i.ReviewNote,
+		&i.AutoClockOut,
+		&i.AdjustedBy,
+		&i.AdjustedAt,
+		&i.AdjustNote,
 	)
 	return i, err
 }
 
 const getOpenAttendance = `-- name: GetOpenAttendance :one
-SELECT id, employee_id, work_date, shift_id, clock_in_at, clock_out_at, in_accuracy_m, face_score, risk_score, risk_flags, status, late_minutes, created_at, work_mode, location_id, worked_minutes, in_latitude, in_longitude, out_latitude, out_longitude, flexible_hours, review_by, reviewed_at, review_note FROM attendances
+SELECT id, employee_id, work_date, shift_id, clock_in_at, clock_out_at, in_accuracy_m, face_score, risk_score, risk_flags, status, late_minutes, created_at, work_mode, location_id, worked_minutes, in_latitude, in_longitude, out_latitude, out_longitude, flexible_hours, review_by, reviewed_at, review_note, auto_clock_out, adjusted_by, adjusted_at, adjust_note FROM attendances
 WHERE employee_id = $1 AND clock_in_at IS NOT NULL AND clock_out_at IS NULL AND status <> 'absent'
 ORDER BY work_date DESC LIMIT 1
 `
@@ -530,6 +653,10 @@ func (q *Queries) GetOpenAttendance(ctx context.Context, employeeID uuid.UUID) (
 		&i.ReviewBy,
 		&i.ReviewedAt,
 		&i.ReviewNote,
+		&i.AutoClockOut,
+		&i.AdjustedBy,
+		&i.AdjustedAt,
+		&i.AdjustNote,
 	)
 	return i, err
 }
@@ -1077,6 +1204,76 @@ func (q *Queries) ListAttendanceReview(ctx context.Context, arg ListAttendanceRe
 	return items, nil
 }
 
+const listAutoClockOuts = `-- name: ListAutoClockOuts :many
+SELECT a.id, a.employee_id, a.work_date, a.status, a.clock_in_at, a.clock_out_at, a.late_minutes, a.work_mode,
+       e.full_name AS employee_name, e.nip, s.name AS subdivision_name, d.name AS division_name,
+       COALESCE(sh.name, '')::text AS shift_name
+FROM attendances a
+JOIN employees e ON e.id = a.employee_id
+JOIN subdivisions s ON s.id = e.subdivision_id
+JOIN divisions d ON d.id = s.division_id
+LEFT JOIN shifts sh ON sh.id = a.shift_id
+WHERE a.auto_clock_out AND a.adjusted_at IS NULL
+ORDER BY a.work_date DESC, e.full_name, a.id
+LIMIT $2 OFFSET $1
+`
+
+type ListAutoClockOutsParams struct {
+	PageOffset int32
+	PageLimit  int32
+}
+
+type ListAutoClockOutsRow struct {
+	ID              uuid.UUID
+	EmployeeID      uuid.UUID
+	WorkDate        pgtype.Date
+	Status          AttStatus
+	ClockInAt       pgtype.Timestamptz
+	ClockOutAt      pgtype.Timestamptz
+	LateMinutes     int32
+	WorkMode        string
+	EmployeeName    string
+	Nip             string
+	SubdivisionName string
+	DivisionName    string
+	ShiftName       string
+}
+
+// Presensi pulang otomatis yang belum dicek SDM, terbaru dulu.
+func (q *Queries) ListAutoClockOuts(ctx context.Context, arg ListAutoClockOutsParams) ([]ListAutoClockOutsRow, error) {
+	rows, err := q.db.Query(ctx, listAutoClockOuts, arg.PageOffset, arg.PageLimit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListAutoClockOutsRow{}
+	for rows.Next() {
+		var i ListAutoClockOutsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.EmployeeID,
+			&i.WorkDate,
+			&i.Status,
+			&i.ClockInAt,
+			&i.ClockOutAt,
+			&i.LateMinutes,
+			&i.WorkMode,
+			&i.EmployeeName,
+			&i.Nip,
+			&i.SubdivisionName,
+			&i.DivisionName,
+			&i.ShiftName,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listEmployeeShifts = `-- name: ListEmployeeShifts :many
 SELECT sh.id, sh.name, sh.start_time, sh.end_time, sh.late_tolerance_minutes, sh.work_days, sh.kind FROM employee_shift_set es
 JOIN shifts sh ON sh.id = es.shift_id
@@ -1115,7 +1312,7 @@ func (q *Queries) ListEmployeeShifts(ctx context.Context, employeeID uuid.UUID) 
 }
 
 const listMyAttendance = `-- name: ListMyAttendance :many
-SELECT a.id, a.work_date, a.status, a.clock_in_at, a.clock_out_at, a.late_minutes, a.worked_minutes, a.work_mode, l.name AS location_name
+SELECT a.id, a.work_date, a.status, a.clock_in_at, a.clock_out_at, a.late_minutes, a.worked_minutes, a.work_mode, a.auto_clock_out, l.name AS location_name
 FROM attendances a
 LEFT JOIN office_locations l ON l.id = a.location_id
 WHERE a.employee_id = $1 AND a.work_date >= $2 AND a.work_date <= $3
@@ -1137,6 +1334,7 @@ type ListMyAttendanceRow struct {
 	LateMinutes   int32
 	WorkedMinutes pgtype.Int4
 	WorkMode      string
+	AutoClockOut  bool
 	LocationName  pgtype.Text
 }
 
@@ -1158,6 +1356,7 @@ func (q *Queries) ListMyAttendance(ctx context.Context, arg ListMyAttendancePara
 			&i.LateMinutes,
 			&i.WorkedMinutes,
 			&i.WorkMode,
+			&i.AutoClockOut,
 			&i.LocationName,
 		); err != nil {
 			return nil, err
@@ -1303,7 +1502,7 @@ const resolveAttendanceReview = `-- name: ResolveAttendanceReview :one
 UPDATE attendances
 SET status = $1, late_minutes = $2, review_by = $3, reviewed_at = $4, review_note = $5
 WHERE id = $6
-RETURNING id, employee_id, work_date, shift_id, clock_in_at, clock_out_at, in_accuracy_m, face_score, risk_score, risk_flags, status, late_minutes, created_at, work_mode, location_id, worked_minutes, in_latitude, in_longitude, out_latitude, out_longitude, flexible_hours, review_by, reviewed_at, review_note
+RETURNING id, employee_id, work_date, shift_id, clock_in_at, clock_out_at, in_accuracy_m, face_score, risk_score, risk_flags, status, late_minutes, created_at, work_mode, location_id, worked_minutes, in_latitude, in_longitude, out_latitude, out_longitude, flexible_hours, review_by, reviewed_at, review_note, auto_clock_out, adjusted_by, adjusted_at, adjust_note
 `
 
 type ResolveAttendanceReviewParams struct {
@@ -1350,6 +1549,10 @@ func (q *Queries) ResolveAttendanceReview(ctx context.Context, arg ResolveAttend
 		&i.ReviewBy,
 		&i.ReviewedAt,
 		&i.ReviewNote,
+		&i.AutoClockOut,
+		&i.AdjustedBy,
+		&i.AdjustedAt,
+		&i.AdjustNote,
 	)
 	return i, err
 }

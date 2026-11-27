@@ -43,8 +43,8 @@ func showInitialPassword(tty io.Writer, credential auth.InitialCredential) {
 }
 
 func run() error {
-	if len(os.Args) < 2 || (os.Args[1] != "grant" && os.Args[1] != "revoke" && os.Args[1] != "reset") {
-		return errors.New("pemakaian: hris-superadmin grant|revoke|reset --email <email, NIPY, atau nomor WA>")
+	if len(os.Args) < 2 || (os.Args[1] != "grant" && os.Args[1] != "revoke" && os.Args[1] != "reset" && os.Args[1] != "reset-mfa") {
+		return errors.New("pemakaian: hris-superadmin grant|revoke|reset|reset-mfa --email <email, NIPY, atau nomor WA>")
 	}
 	flags := flag.NewFlagSet(os.Args[1], flag.ExitOnError)
 	email := flags.String("email", "", "email, NIPY, atau nomor WA akun Pejuang")
@@ -64,7 +64,7 @@ func run() error {
 	// grant dan reset bisa menerbitkan kata sandi awal; pastikan terminal tersedia sebelum
 	// mengubah apa pun, supaya kata sandi tidak hilang.
 	var tty io.WriteCloser
-	if os.Args[1] != "revoke" {
+	if os.Args[1] != "revoke" && os.Args[1] != "reset-mfa" {
 		var err error
 		if tty, err = openTerminal(); err != nil {
 			return err
@@ -84,6 +84,11 @@ func run() error {
 			return err
 		}
 		fmt.Println("Role super admin dicabut. Akun ini kembali menjadi Pejuang.")
+	case "reset-mfa":
+		if err := auth.ResetSuperadminMFA(ctx, pool, *email); err != nil {
+			return err
+		}
+		fmt.Println("A2F dihapus dan sesi dicabut. Daftarkan authenticator baru saat login berikutnya.")
 	case "reset":
 		credential, err := auth.ResetSuperadmin(ctx, pool, *email, time.Now())
 		if err != nil {

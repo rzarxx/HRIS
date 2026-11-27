@@ -139,3 +139,18 @@ func RevokeSuperadmin(ctx context.Context, pool *pgxpool.Pool, identifier string
 		return changeRole(ctx, q, user, store.UserRolePejuang, audit.Entry{}, "cli")
 	})
 }
+
+// ResetSuperadminMFA menghapus A2F super admin lewat perintah server, untuk super admin yang kehilangan
+// authenticator dan tidak ada super admin lain (D71).
+func ResetSuperadminMFA(ctx context.Context, pool *pgxpool.Pool, identifier string) error {
+	return database.InTx(ctx, pool, func(q *store.Queries) error {
+		user, err := userByIdentifier(ctx, q, identifier)
+		if err != nil {
+			return err
+		}
+		if user.Role != store.UserRoleSuperadmin {
+			return fmt.Errorf("akun ini ber-role %s, bukan super admin", user.Role)
+		}
+		return resetMFA(ctx, q, user, audit.Entry{}, "cli")
+	})
+}

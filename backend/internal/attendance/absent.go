@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/rzarxx/HRIS/backend/internal/platform/pgconv"
@@ -48,6 +49,21 @@ func MarkAbsent(ctx context.Context, pool *pgxpool.Pool, now time.Time, days int
 	})
 	if err != nil {
 		return 0, fmt.Errorf("catat alpha: %w", err)
+	}
+	return n, nil
+}
+
+// AutoClockOut menutup presensi masuk tanpa pulang yang batasnya sudah lewat dengan jam akhir shift (D69).
+// Dijalankan job harian bersama mark_absent; aman diulang. Mengembalikan jumlah presensi yang ditutup.
+func AutoClockOut(ctx context.Context, pool *pgxpool.Pool, now time.Time) (int64, error) {
+	if pool == nil {
+		return 0, errors.New("database wajib diisi")
+	}
+	w := now.In(pgconv.WIB)
+	wall := pgtype.Timestamp{Time: time.Date(w.Year(), w.Month(), w.Day(), w.Hour(), w.Minute(), w.Second(), 0, time.UTC), Valid: true}
+	n, err := store.New(pool).AutoClockOut(ctx, wall)
+	if err != nil {
+		return 0, fmt.Errorf("pulang otomatis: %w", err)
 	}
 	return n, nil
 }

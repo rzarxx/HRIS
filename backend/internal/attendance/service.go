@@ -855,6 +855,7 @@ type Record struct {
 	WorkedMinutes *int32  `json:"worked_minutes"`
 	WorkMode      string  `json:"work_mode"`
 	LocationName  *string `json:"location_name"`
+	AutoClockOut  bool    `json:"auto_clock_out"` // ditutup sistem karena lupa absen pulang (D69)
 }
 
 // Mine mengembalikan riwayat presensi sendiri. Bawaannya 31 hari terakhir.
@@ -894,6 +895,7 @@ func (s *Service) Mine(ctx context.Context, p auth.Principal, fromRaw, toRaw str
 			ID: r.ID.String(), WorkDate: r.WorkDate.Time.Format("2006-01-02"), Status: string(r.Status),
 			ClockInAt: pgconv.TimeString(r.ClockInAt), ClockOutAt: pgconv.TimeString(r.ClockOutAt),
 			LateMinutes: r.LateMinutes, WorkMode: r.WorkMode, LocationName: pgconv.TextPtr(r.LocationName),
+			AutoClockOut: r.AutoClockOut,
 		}
 		if r.WorkedMinutes.Valid {
 			record.WorkedMinutes = &r.WorkedMinutes.Int32

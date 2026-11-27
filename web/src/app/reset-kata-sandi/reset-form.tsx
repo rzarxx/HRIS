@@ -31,7 +31,7 @@ export function ResetForm() {
     e.preventDefault();
     setFormError("");
     const next: Record<string, string> = {};
-    if (form.password.length < 10) next.password = "Kata sandi minimal 10 karakter.";
+    if (form.password.length < 6) next.password = "Kata sandi minimal 6 karakter.";
     if (form.password !== form.confirm) next.confirm = "Konfirmasi tidak sama.";
     setErrors(next);
     if (Object.keys(next).length > 0) return;
@@ -88,7 +88,7 @@ export function ResetForm() {
           {formError}
         </div>
       )}
-      <Field label="Kata sandi baru" htmlFor="password" error={errors.password} hint="Minimal 10 karakter, hindari kata sandi umum.">
+      <Field label="Kata sandi baru" htmlFor="password" error={errors.password} hint="Minimal 6 karakter, hindari kata sandi umum.">
         <PasswordInput
           id="password"
           autoComplete="new-password"

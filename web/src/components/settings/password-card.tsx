@@ -22,7 +22,7 @@ export function PasswordCard() {
     e.preventDefault();
     const next: Record<string, string> = {};
     if (!form.current_password) next.current_password = "Kata sandi saat ini wajib diisi.";
-    if (form.new_password.length < 10) next.new_password = "Kata sandi minimal 10 karakter.";
+    if (form.new_password.length < 6) next.new_password = "Kata sandi minimal 6 karakter.";
     if (form.new_password !== form.confirm) next.confirm = "Konfirmasi tidak sama.";
     setErrors(next);
     if (Object.keys(next).length === 0) {
@@ -42,7 +42,7 @@ export function PasswordCard() {
             invalid={!!errors.current_password}
           />
         </Field>
-        <Field label="Kata sandi baru" htmlFor="new_password" error={errors.new_password} hint="Minimal 10 karakter, hindari kata sandi umum.">
+        <Field label="Kata sandi baru" htmlFor="new_password" error={errors.new_password} hint="Minimal 6 karakter, hindari kata sandi umum.">
           <PasswordInput
             id="new_password"
             autoComplete="new-password"

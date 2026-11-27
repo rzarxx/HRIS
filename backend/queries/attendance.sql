@@ -52,7 +52,7 @@ WHERE id = @id AND clock_out_at IS NULL
 RETURNING *;
 
 -- name: ListMyAttendance :many
-SELECT a.id, a.work_date, a.status, a.clock_in_at, a.clock_out_at, a.late_minutes, a.worked_minutes, a.work_mode, l.name AS location_name
+SELECT a.id, a.work_date, a.status, a.clock_in_at, a.clock_out_at, a.late_minutes, a.worked_minutes, a.work_mode, a.auto_clock_out, l.name AS location_name
 FROM attendances a
 LEFT JOIN office_locations l ON l.id = a.location_id
 WHERE a.employee_id = @employee_id AND a.work_date >= @from_date AND a.work_date <= @to_date
@@ -237,3 +237,52 @@ WHERE NOT EXISTS (SELECT 1 FROM holidays h WHERE h.date = d.day)
   -- Periode ubar yang sudah diajukan atau final tidak diubah (D67).
   AND NOT EXISTS (SELECT 1 FROM payroll_periods pp WHERE pp.status <> 'draft' AND d.day BETWEEN pp.start_date AND pp.end_date)
 ON CONFLICT (employee_id, work_date) DO NOTHING;
+
+-- Pulang otomatis (D69) ------------------------------------------------------------------------------
+
+-- name: AutoClockOut :execrows
+-- Presensi masuk tanpa pulang yang batasnya (sama dengan CloseDeadline dan rekap missed_clock_out) sudah lewat
+-- pada @now_wib ditutup dengan jam akhir shift WIB, atau jam masuk bila tanpa shift atau masuk setelah akhir
+-- shift. Status hadir/telat tidak diubah. Periode ubar yang sudah diajukan atau final tidak disentuh.
+UPDATE attendances a
+SET clock_out_at = GREATEST(a.clock_in_at, t.out_at),
+    worked_minutes = GREATEST(0, floor(extract(epoch FROM (GREATEST(a.clock_in_at, t.out_at) - a.clock_in_at)) / 60))::int,
+    auto_clock_out = true
+FROM (
+  SELECT a2.id,
+         CASE WHEN sh.id IS NULL THEN a2.clock_in_at
+              ELSE ((a2.work_date + sh.end_time)
+                    + CASE WHEN sh.end_time <= sh.start_time THEN interval '1 day' ELSE interval '0' END)
+                   AT TIME ZONE 'Asia/Jakarta' END AS out_at
+  FROM attendances a2
+  LEFT JOIN shifts sh ON sh.id = a2.shift_id
+  WHERE a2.clock_in_at IS NOT NULL AND a2.clock_out_at IS NULL AND a2.status <> 'absent'
+    AND (a2.work_date + 1) + CASE WHEN sh.end_time <= sh.start_time
+          THEN (sh.end_time - time '00:00') + interval '4 hours' ELSE interval '4 hours' END <= @now_wib::timestamp
+    AND NOT EXISTS (SELECT 1 FROM payroll_periods pp WHERE pp.status <> 'draft' AND a2.work_date BETWEEN pp.start_date AND pp.end_date)
+) t
+WHERE a.id = t.id AND a.clock_out_at IS NULL;
+
+-- name: ListAutoClockOuts :many
+-- Presensi pulang otomatis yang belum dicek SDM, terbaru dulu.
+SELECT a.id, a.employee_id, a.work_date, a.status, a.clock_in_at, a.clock_out_at, a.late_minutes, a.work_mode,
+       e.full_name AS employee_name, e.nip, s.name AS subdivision_name, d.name AS division_name,
+       COALESCE(sh.name, '')::text AS shift_name
+FROM attendances a
+JOIN employees e ON e.id = a.employee_id
+JOIN subdivisions s ON s.id = e.subdivision_id
+JOIN divisions d ON d.id = s.division_id
+LEFT JOIN shifts sh ON sh.id = a.shift_id
+WHERE a.auto_clock_out AND a.adjusted_at IS NULL
+ORDER BY a.work_date DESC, e.full_name, a.id
+LIMIT @page_limit OFFSET @page_offset;
+
+-- name: CountAutoClockOuts :one
+SELECT count(*) FROM attendances WHERE auto_clock_out AND adjusted_at IS NULL;
+
+-- name: AdjustAttendance :one
+UPDATE attendances
+SET clock_out_at = @clock_out_at, worked_minutes = @worked_minutes, status = @status,
+    adjusted_by = @adjusted_by, adjusted_at = @adjusted_at, adjust_note = @adjust_note
+WHERE id = @id
+RETURNING *;
